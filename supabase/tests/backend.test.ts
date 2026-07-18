@@ -21,3 +21,20 @@ describe("organizations RLS", () => {
     await svc.from("organizations").delete().in("id", [active.data!.id, inactive.data!.id]);
   });
 });
+
+describe("events catalog RLS", () => {
+  it("hides draft events from anon, shows open ones", async () => {
+    const svc = service();
+    const org = await svc.from("organizations").insert({ name: "Cat Org", slug: "cat-org" }).select().single();
+    const draft = await svc.from("events").insert({ org_id: org.data!.id, name: "Draft Race", status: "draft" }).select().single();
+    const open = await svc.from("events").insert({ org_id: org.data!.id, name: "Open Race", status: "open" }).select().single();
+
+    const { data } = await anon().from("events").select("name");
+    const names = (data ?? []).map((e) => e.name);
+    expect(names).toContain("Open Race");
+    expect(names).not.toContain("Draft Race");
+
+    await svc.from("events").delete().in("id", [draft.data!.id, open.data!.id]);
+    await svc.from("organizations").delete().eq("id", org.data!.id);
+  });
+});
