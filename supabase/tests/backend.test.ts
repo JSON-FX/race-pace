@@ -71,3 +71,13 @@ describe("registrations RLS", () => {
     await svc.from("organizations").delete().eq("id", org.data!.id);
   });
 });
+
+describe("seed", () => {
+  it("exposes the seeded org, event, and 4 categories to anon", async () => {
+    const a = anon();
+    const org = await a.from("organizations").select("slug").eq("slug", "run-with-point").single();
+    expect(org.data?.slug).toBe("run-with-point");
+    const cats = await a.from("categories").select("code").eq("event_id", "00000000-0000-0000-0000-0000000000e1");
+    expect((cats.data ?? []).map((c) => c.code).sort()).toEqual(["100k", "10k", "21k", "50k"]);
+  });
+});
