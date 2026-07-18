@@ -23,5 +23,5 @@ ultra-trail event platform (Mindanao, Philippines).
 - [x] **Repository structure** — [ADR-0002 · Repository & monorepo structure](./adr/0002-repository-structure.md)
 - [x] **01 · Mobile (iOS) MVP** — [detailed spec](./01-mobile-ios-mvp.md) for the first build
 - [x] **Plan 1 · Local backend foundation** — [built & merged](./plans/01-local-backend-foundation.md), 13 tests green
-- [x] **Plan 2 · App foundation** — [written](./plans/02-app-foundation.md), ready to build
+- [x] **Plan 2 · App foundation** — [built & merged](./plans/02-app-foundation.md), 7 app + 13 backend tests green (iOS-simulator walk-through pending)
 - [ ] **Plan 3 · Browse & register** · **Plan 4 · Pay / ticket / offline** — to write
