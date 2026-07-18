@@ -1,4 +1,10 @@
-import type { TicketPayload } from "@trail-ultra/shared";
+// Mirrors TicketPayload in packages/shared (kept local so the Deno runtime needn't
+// import from outside supabase/functions/).
+export interface TicketPayload {
+  rid: string; // registration id
+  eid: string; // event id
+  iat: number; // issued-at (unix seconds)
+}
 
 function b64url(bytes: Uint8Array): string {
   return btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");

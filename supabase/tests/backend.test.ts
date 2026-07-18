@@ -81,3 +81,52 @@ describe("seed", () => {
     expect((cats.data ?? []).map((c) => c.code).sort()).toEqual(["100k", "10k", "21k", "50k"]);
   });
 });
+
+const FN = `${url}/functions/v1`;
+
+describe("registrations-checkout", () => {
+  it("validates fields, creates a pending registration, returns a checkout url", async () => {
+    const user = await makeUser(`reg_${Date.now()}@test.dev`);
+    const res = await fetch(`${FN}/registrations-checkout`, {
+      method: "POST",
+      headers: { "content-type": "application/json", Authorization: `Bearer ${user.token}` },
+      body: JSON.stringify({
+        event_id: "00000000-0000-0000-0000-0000000000e1",
+        category_id: "00000000-0000-0000-0000-0000000000c3",
+        addon_ids: ["00000000-0000-0000-0000-0000000000d1"],
+        custom_data: { blood_type: "O", shirt_size: "M" },
+        waiver_accepted: true,
+        idempotency_key: `idem-${Date.now()}`,
+      }),
+    });
+    const body = await res.json();
+    expect(res.status).toBe(200);
+    expect(body.registration_id).toBeTruthy();
+    expect(body.checkout_url).toContain(`/dev/pay/${body.registration_id}`);
+
+    const svc = service();
+    const reg = await svc.from("registrations").select("status,total_amount").eq("id", body.registration_id).single();
+    expect(reg.data?.status).toBe("pending");
+    expect(reg.data?.total_amount).toBe(150000 + 60000); // 21K + singlet
+
+    await svc.from("registrations").delete().eq("id", body.registration_id);
+    await svc.auth.admin.deleteUser(user.id);
+  });
+
+  it("rejects invalid custom_data", async () => {
+    const user = await makeUser(`bad_${Date.now()}@test.dev`);
+    const res = await fetch(`${FN}/registrations-checkout`, {
+      method: "POST",
+      headers: { "content-type": "application/json", Authorization: `Bearer ${user.token}` },
+      body: JSON.stringify({
+        event_id: "00000000-0000-0000-0000-0000000000e1",
+        category_id: "00000000-0000-0000-0000-0000000000c3",
+        custom_data: { blood_type: "Z" }, // invalid + missing required shirt_size
+        waiver_accepted: true,
+        idempotency_key: `idem-bad-${Date.now()}`,
+      }),
+    });
+    expect(res.status).toBe(400);
+    await service().auth.admin.deleteUser(user.id);
+  });
+});
