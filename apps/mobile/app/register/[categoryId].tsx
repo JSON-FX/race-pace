@@ -20,6 +20,7 @@ export default function Register() {
   const [waiver, setWaiver] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [idempotencyKey] = useState(() => `${categoryId}:${Date.now()}`);
 
   const total = useMemo(() => {
     const base = cat.data?.base_price ?? 0;
@@ -46,7 +47,7 @@ export default function Register() {
         addon_ids: Object.keys(selectedAddons).filter((id) => selectedAddons[id]),
         custom_data: values,
         waiver_accepted: true,
-        idempotency_key: `${categoryId}:${Date.now()}`,
+        idempotency_key: idempotencyKey,
       });
       router.replace({ pathname: "/registration-created", params: { rid: res.registration_id } });
     } catch (e) {
