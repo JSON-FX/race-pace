@@ -29,6 +29,9 @@ importers:
       '@supabase/supabase-js':
         specifier: ^2.110.7
         version: 2.110.7
+      '@tanstack/react-query':
+        specifier: ^5.101.2
+        version: 5.101.2(react@19.2.3)
       '@trail-ultra/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -1379,6 +1382,14 @@ packages:
   '@supabase/supabase-js@2.110.7':
     resolution: {integrity: sha512-AnfO3A230Shy6RMO7cya3Wl1OcXnABJrzH8vP+fY7/RFjhzcchB7DjKkkTIAntlwekD+GkSFzEvt2tC+D4Fp8w==}
     engines: {node: '>=22.0.0'}
+
+  '@tanstack/query-core@5.101.2':
+    resolution: {integrity: sha512-hH5MLoJhF7KaIGd7q3xTXGXvslI+GYlM1Z/35aSHHWaCJWB7XvTSHYuV3eM7tw+aE0mT/xMro4M4Q9rCGHT0lw==}
+
+  '@tanstack/react-query@5.101.2':
+    resolution: {integrity: sha512-seDkr6kzGzX1okaaTtZPtgA688CDPlXUz1C6xSg0ESqn04Vuc8tlrYms1s3de+znBqhPVxFRfpAfUf+6XvfPWg==}
+    peerDependencies:
+      react: ^18 || ^19
 
   '@testing-library/dom@10.4.1':
     resolution: {integrity: sha512-o4PXJQidqJl82ckFaXUeoAW+XysPLauYI43Abki5hABd853iMhitooc6znOnczgbTYmEP6U6/y1ZyKAIsvMKGg==}
@@ -5592,9 +5603,7 @@ snapshots:
       metro-runtime: 0.84.4
     transitivePeerDependencies:
       - '@babel/core'
-      - bufferutil
       - supports-color
-      - utf-8-validate
 
   '@react-native/normalize-colors@0.86.0': {}
 
@@ -5727,6 +5736,13 @@ snapshots:
       '@supabase/postgrest-js': 2.110.7
       '@supabase/realtime-js': 2.110.7
       '@supabase/storage-js': 2.110.7
+
+  '@tanstack/query-core@5.101.2': {}
+
+  '@tanstack/react-query@5.101.2(react@19.2.3)':
+    dependencies:
+      '@tanstack/query-core': 5.101.2
+      react: 19.2.3
 
   '@testing-library/dom@10.4.1':
     dependencies:
