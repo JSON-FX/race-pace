@@ -1,17 +1,25 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { View, Text, FlatList, Pressable, ActivityIndicator, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 import { useOrg } from "../../lib/org";
 import { useMyRegistrations } from "../../lib/registration";
-import { cacheMyRaces } from "../../lib/ticketCache";
+import { cacheMyRaces, getCachedMyRaces, type CachedTicket } from "../../lib/ticketCache";
 import { theme } from "../../lib/theme";
+
+type Row = { id: string; eventName: string; categoryLabel: string; status: string };
 
 export default function MyRaces() {
   const { selectedOrgId } = useOrg();
   const { data, isLoading, isError, refetch } = useMyRegistrations(selectedOrgId);
   const router = useRouter();
+  const [cached, setCached] = useState<CachedTicket[] | null>(null);
 
-  // Write-through cache so the list survives going offline.
+  // Load the offline cache so the list survives a cold, no-signal launch.
+  useEffect(() => {
+    if (selectedOrgId) getCachedMyRaces(selectedOrgId).then(setCached).catch(() => setCached([]));
+  }, [selectedOrgId]);
+
+  // Write-through cache whenever fresh network data arrives.
   useEffect(() => {
     if (selectedOrgId && data) {
       cacheMyRaces(selectedOrgId, data.map((r) => ({
@@ -21,8 +29,15 @@ export default function MyRaces() {
     }
   }, [data, selectedOrgId]);
 
-  if (isLoading) return <View style={styles.center}><ActivityIndicator /></View>;
-  if (isError) {
+  // Prefer fresh network data; fall back to the cached list when offline.
+  const rows: Row[] = data
+    ? data.map((r) => ({ id: r.id, eventName: r.eventName, categoryLabel: r.categoryLabel, status: r.status }))
+    : (cached ?? []).map((c) => ({ id: c.rid, eventName: c.eventName, categoryLabel: c.categoryLabel, status: c.status }));
+
+  // Spinner only while we have neither network data nor a resolved cache.
+  if (!data && (cached === null || isLoading)) return <View style={styles.center}><ActivityIndicator /></View>;
+  // Error only when the network failed AND there is nothing cached to show.
+  if (isError && !data && rows.length === 0) {
     return (
       <View style={styles.center}>
         <Pressable onPress={() => refetch()} accessibilityRole="button"><Text style={styles.err}>Couldn't load. Tap to retry.</Text></Pressable>
@@ -33,7 +48,7 @@ export default function MyRaces() {
   return (
     <FlatList
       style={styles.list}
-      data={data ?? []}
+      data={rows}
       keyExtractor={(r) => r.id}
       contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
       ListHeaderComponent={<Text style={styles.h}>My Races</Text>}
@@ -41,11 +56,7 @@ export default function MyRaces() {
       renderItem={({ item }) => {
         const paid = item.status === "paid";
         return (
-          <Pressable
-            style={styles.card}
-            onPress={() => router.push(paid ? `/ticket/${item.id}` : `/pay/${item.id}`)}
-            accessibilityRole="button"
-          >
+          <Pressable style={styles.card} onPress={() => router.push(paid ? `/ticket/${item.id}` : `/pay/${item.id}`)} accessibilityRole="button">
             <View style={{ flex: 1 }}>
               <Text style={styles.name}>{item.eventName}</Text>
               <Text style={styles.meta}>{item.categoryLabel}</Text>

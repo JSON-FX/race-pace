@@ -19,7 +19,8 @@ export async function cacheTicket(t: CachedTicket): Promise<void> {
 
 export async function getCachedTicket(rid: string): Promise<CachedTicket | null> {
   const raw = await AsyncStorage.getItem(tKey(rid));
-  return raw ? (JSON.parse(raw) as CachedTicket) : null;
+  if (!raw) return null;
+  try { return JSON.parse(raw) as CachedTicket; } catch { return null; }
 }
 
 export async function cacheMyRaces(orgId: string, list: CachedTicket[]): Promise<void> {
@@ -29,7 +30,8 @@ export async function cacheMyRaces(orgId: string, list: CachedTicket[]): Promise
 
 export async function getCachedMyRaces(orgId: string): Promise<CachedTicket[]> {
   const raw = await AsyncStorage.getItem(mKey(orgId));
-  return raw ? (JSON.parse(raw) as CachedTicket[]) : [];
+  if (!raw) return [];
+  try { return JSON.parse(raw) as CachedTicket[]; } catch { return []; }
 }
 
 export async function clearTicketCache(): Promise<void> {
