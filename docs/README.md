@@ -9,6 +9,7 @@ ultra-trail event platform (Mindanao, Philippines).
 | [01-mobile-ios-mvp.md](./01-mobile-ios-mvp.md) | **iOS MVP spec** — the runner app: screens, navigation, data/offline, payment flow, custom fields, acceptance criteria. |
 | [plans/01-local-backend-foundation.md](./plans/01-local-backend-foundation.md) | **Plan 1 of 4** — local backend foundation: Supabase schema + RLS + seed + Edge Functions + fake payments, as TDD steps. |
 | [plans/02-app-foundation.md](./plans/02-app-foundation.md) | **Plan 2 of 4** — Expo app foundation: scaffold, auth, org selection, tab shell, profile, as TDD steps. |
+| [plans/03-browse-register.md](./plans/03-browse-register.md) | **Plan 3 of 4** — browse events, event detail, dynamic custom-field registration → pending registration, as TDD steps. |
 | [trail-ultra-flows.html](./trail-ultra-flows.html) | **Visual companion** — MVP scope + the runner journey, multi-tenancy isolation, payments/settlement, and roles. Open in a browser. |
 | [adr/0001-cross-platform-tech-stack.md](./adr/0001-cross-platform-tech-stack.md) | **ADR-0001** — the cross-platform tech-stack decision (Expo/RN + Supabase + PayMongo + getdesign), with options & trade-offs. |
 | [adr/0002-repository-structure.md](./adr/0002-repository-structure.md) | **ADR-0002** — one monorepo; `apps/` · `packages/` · `supabase/` · `docs/` layout, with rationale. |
@@ -24,4 +25,5 @@ ultra-trail event platform (Mindanao, Philippines).
 - [x] **01 · Mobile (iOS) MVP** — [detailed spec](./01-mobile-ios-mvp.md) for the first build
 - [x] **Plan 1 · Local backend foundation** — [built & merged](./plans/01-local-backend-foundation.md), 13 tests green
 - [x] **Plan 2 · App foundation** — [built & merged](./plans/02-app-foundation.md), 7 app + 13 backend tests green; **verified end-to-end on iOS Simulator** ✓
-- [ ] **Plan 3 · Browse & register** · **Plan 4 · Pay / ticket / offline** — to write
+- [x] **Plan 3 · Browse & register** — [written](./plans/03-browse-register.md), ready to build
+- [ ] **Plan 4 · Pay / ticket / offline** — to write
