@@ -16,10 +16,11 @@ export function PsgcAddressPicker({ value, onChange, label = "LOCATION" }: {
 
   const regions = usePsgcRegions();
   const provinces = usePsgcProvinces(region?.code);
-  const noProvinces = !!region && (provinces.data?.length ?? 0) === 0;
+  const noProvinces = !!region && provinces.isSuccess && (provinces.data?.length ?? 0) === 0;
   const cities = usePsgcCities({ provinceCode: province?.code, regionCode: noProvinces ? region?.code : undefined, search });
 
   function reset() { setRegion(null); setProvince(null); setSearch(""); }
+  function backToProvince() { setProvince(null); setSearch(""); }
   function pickCity(c: Node) {
     onChange({ city_psgc_code: c.code, city_name: c.name, province_name: province?.name ?? null, region_name: region?.name ?? null });
     setOpen(false); reset();
@@ -48,14 +49,20 @@ export function PsgcAddressPicker({ value, onChange, label = "LOCATION" }: {
           ) : !atCity ? (
             <>
               <Pressable onPress={reset} accessibilityRole="button"><Text style={styles.crumb}>‹ {region.name}</Text></Pressable>
-              <Text style={styles.step}>Province</Text>
-              {(provinces.data ?? []).map((p) => (
-                <Pressable key={p.code} style={styles.opt} onPress={() => setProvince(p)} accessibilityRole="button"><Text style={styles.optT}>{p.name}</Text></Pressable>
-              ))}
+              {!provinces.isSuccess ? (
+                <Text style={styles.loading} accessibilityLabel="Loading">Loading…</Text>
+              ) : (
+                <>
+                  <Text style={styles.step}>Province</Text>
+                  {(provinces.data ?? []).map((p) => (
+                    <Pressable key={p.code} style={styles.opt} onPress={() => setProvince(p)} accessibilityRole="button"><Text style={styles.optT}>{p.name}</Text></Pressable>
+                  ))}
+                </>
+              )}
             </>
           ) : (
             <>
-              <Pressable onPress={() => (province ? setProvince(null) : reset())} accessibilityRole="button"><Text style={styles.crumb}>‹ {province?.name ?? region.name}</Text></Pressable>
+              <Pressable onPress={() => (province ? backToProvince() : reset())} accessibilityRole="button"><Text style={styles.crumb}>‹ {province?.name ?? region.name}</Text></Pressable>
               <Text style={styles.step}>City / Municipality</Text>
               <TextInput style={styles.search} value={search} onChangeText={setSearch} placeholder="Search city…" placeholderTextColor={theme.inkFaint} accessibilityLabel="Search city" />
               {(cities.data ?? []).map((c) => (
@@ -75,6 +82,7 @@ const styles = StyleSheet.create({
   val: { fontSize: 15, color: theme.ink }, placeholder: { fontSize: 15, color: theme.inkFaint },
   panel: { borderWidth: 1, borderColor: theme.hairline, borderRadius: theme.radius.md, marginTop: 8, padding: 8, maxHeight: 320 },
   step: { fontSize: 11, fontWeight: "600", letterSpacing: 0.4, color: theme.inkMuted, paddingHorizontal: 6, paddingVertical: 6 },
+  loading: { fontSize: 14, color: theme.inkMuted, paddingHorizontal: 6, paddingVertical: 10 },
   crumb: { color: theme.primary, fontSize: 14, fontWeight: "500", paddingHorizontal: 6, paddingVertical: 4 },
   search: { borderWidth: 1, borderColor: theme.hairline, borderRadius: theme.radius.sm, paddingVertical: 9, paddingHorizontal: 12, fontSize: 14, color: theme.ink, marginBottom: 6, marginHorizontal: 4 },
   opt: { paddingVertical: 11, paddingHorizontal: 10, borderTopWidth: 1, borderTopColor: theme.divider },
