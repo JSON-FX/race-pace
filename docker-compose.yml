@@ -21,9 +21,11 @@ services:
       - ./:/repo
       - repo_node_modules:/repo/node_modules
       - web_node_modules:/repo/apps/web/node_modules
+      - pnpm_store:/repo/.pnpm-store
 networks:
   dev-net:
     external: true
 volumes:
   repo_node_modules:
   web_node_modules:
+  pnpm_store:
