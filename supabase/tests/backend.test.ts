@@ -121,13 +121,44 @@ describe("registrations-checkout", () => {
       body: JSON.stringify({
         event_id: "00000000-0000-0000-0000-0000000000e1",
         category_id: "00000000-0000-0000-0000-0000000000c3",
-        custom_data: { blood_type: "Z" }, // invalid + missing required shirt_size
+        custom_data: { running_club: 12345 }, // event field `running_club` (f2) is a text field — number fails z.string()
         waiver_accepted: true,
         idempotency_key: `idem-bad-${Date.now()}`,
       }),
     });
     expect(res.status).toBe(400);
     await service().auth.admin.deleteUser(user.id);
+  });
+
+  // Model B (spec §8): profile-key fields (blood_type, shirt_size, ...) are prefilled from the
+  // runner's profile and validated client-side against canonical shared lists + passport rules,
+  // not the org's per-event `options` enum. A canonical value that would fail the seeded org
+  // enum (f1 blood_type options ['A','B','AB','O']; f3 shirt_size options ['S','M','L','XL'])
+  // must still succeed server-side and persist as sent.
+  it("accepts canonical passport values that fail the org's enum, and persists them", async () => {
+    const user = await makeUser(`passport_${Date.now()}@test.dev`);
+    const res = await fetch(`${FN}/registrations-checkout`, {
+      method: "POST",
+      headers: { "content-type": "application/json", Authorization: `Bearer ${user.token}` },
+      body: JSON.stringify({
+        event_id: "00000000-0000-0000-0000-0000000000e1",
+        category_id: "00000000-0000-0000-0000-0000000000c3",
+        custom_data: { blood_type: "O+", shirt_size: "XS", running_club: "Trailblazers" },
+        waiver_accepted: true,
+        idempotency_key: `idem-passport-${Date.now()}`,
+      }),
+    });
+    const body = await res.json();
+    expect(res.status).toBe(200);
+    expect(body.registration_id).toBeTruthy();
+
+    const svc = service();
+    const reg = await svc.from("registrations").select("custom_data").eq("id", body.registration_id).single();
+    expect(reg.data?.custom_data?.blood_type).toBe("O+");
+    expect(reg.data?.custom_data?.shirt_size).toBe("XS");
+
+    await svc.from("registrations").delete().eq("id", body.registration_id);
+    await svc.auth.admin.deleteUser(user.id);
   });
 });
 

@@ -14,6 +14,12 @@ export const formFieldSchema = z.object({
 });
 export type FormField = z.infer<typeof formFieldSchema>;
 
+/** Profile-owned attributes: prefilled from the runner's profile + validated client-side
+ * against canonical shared lists + passport rules, not the org's per-event `options` enum
+ * (Model B bridge). Mirrors packages/shared/src/index.ts. */
+export const PROFILE_KEYS = ["bib_name","date_of_birth","gender","shirt_size","blood_type","emergency_contact"] as const;
+export const isProfileKey = (k: string): boolean => (PROFILE_KEYS as readonly string[]).includes(k);
+
 export function customDataSchema(fields: FormField[]) {
   const shape: Record<string, z.ZodTypeAny> = {};
   for (const f of fields) {

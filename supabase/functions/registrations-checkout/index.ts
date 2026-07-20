@@ -1,6 +1,6 @@
 import { serviceClient } from "../_shared/supabase.ts";
 import { getPaymentProvider } from "../_shared/payments.ts";
-import { customDataSchema, formFieldSchema, registrationInputSchema } from "../_shared/validation.ts";
+import { customDataSchema, formFieldSchema, isProfileKey, registrationInputSchema } from "../_shared/validation.ts";
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -26,9 +26,17 @@ Deno.serve(async (req) => {
     if (category.slots_taken >= category.slots_total) return json({ error: "sold_out" }, 409);
 
     const { data: fieldRows } = await db.from("form_fields").select("*").eq("event_id", input.event_id).eq("is_active", true);
-    const fields = (fieldRows ?? []).map((f) => formFieldSchema.parse({
-      key: f.key, label: f.label, type: f.type, required: f.required, options: f.options ?? undefined,
-    }));
+    // Model B: profile-key fields (bib_name, date_of_birth, gender, shirt_size, blood_type,
+    // emergency_contact) are prefilled from the runner's profile and validated client-side
+    // against canonical shared lists + passport rules — NOT the org's per-event `options`
+    // enum. Only event (non-profile) fields are validated here, matching the client's
+    // `eventQuestions` in app/register/[categoryId].tsx. The raw input.custom_data (incl.
+    // passport values) is still stored whole below — the snapshot must persist intact.
+    const fields = (fieldRows ?? [])
+      .filter((f) => !isProfileKey(f.key))
+      .map((f) => formFieldSchema.parse({
+        key: f.key, label: f.label, type: f.type, required: f.required, options: f.options ?? undefined,
+      }));
     const cd = customDataSchema(fields).safeParse(input.custom_data);
     if (!cd.success) return json({ error: "invalid_custom_data", details: cd.error.flatten() }, 400);
 
