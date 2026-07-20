@@ -5,6 +5,7 @@ import { AppShell } from "./components/AppShell";
 import { Login } from "./routes/Login";
 import { NoAccess } from "./routes/NoAccess";
 import { Placeholder } from "./routes/Placeholder";
+import { Events } from "./routes/Events";
 
 function RequireAdmin() {
   const { session, loading } = useAuth();
@@ -25,7 +26,7 @@ export function App() {
         <Route element={<RequireAdmin />}>
           <Route element={<AppShell />}>
             <Route index element={<Navigate to="/events" replace />} />
-            <Route path="events" element={<Placeholder title="Events" />} />
+            <Route path="events" element={<Events />} />
             <Route path="dashboard" element={<Placeholder title="Dashboard" />} />
             <Route path="registrations" element={<Placeholder title="Registrations" />} />
             <Route path="payments" element={<Placeholder title="Payments" />} />
