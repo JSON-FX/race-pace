@@ -5,10 +5,11 @@ export type Profile = {
   full_name: string | null;
   bib_name: string | null;
   city: string | null;
+  emergency_contact?: string | null;
 };
 
 export async function getProfile(userId: string): Promise<Profile | null> {
-  const { data } = await supabase.from("profiles").select("id,full_name,bib_name,city").eq("id", userId).maybeSingle();
+  const { data } = await supabase.from("profiles").select("id,full_name,bib_name,city,emergency_contact").eq("id", userId).maybeSingle();
   return data as Profile | null;
 }
 

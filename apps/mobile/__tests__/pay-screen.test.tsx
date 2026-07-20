@@ -1,13 +1,10 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react-native";
 
-// Note: the brief's draft used bare `replace`/`openAuth`/`regData` consts closed over by
-// jest.mock() factories. babel-plugin-jest-hoist statically rejects any out-of-scope
-// identifier in a mock factory unless it's prefixed with `mock` (case-insensitive) — so
-// these are renamed to the `mock`-prefixed idiom already used in register-submit.test.tsx.
 const mockReplace = jest.fn();
 const mockOpenAuth = jest.fn().mockResolvedValue({ type: "dismiss" });
 jest.mock("expo-web-browser", () => ({ openAuthSessionAsync: (...a: unknown[]) => mockOpenAuth(...a) }));
 jest.mock("expo-linking", () => ({ createURL: (p: string) => `racepace://${p}` }));
+jest.mock("react-native-safe-area-context", () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 jest.mock("../lib/ticketCache", () => ({ cacheTicket: jest.fn() }));
 
 let mockRegData: any = {
@@ -25,14 +22,13 @@ import Pay from "../app/pay/[registrationId]";
 describe("Pay screen", () => {
   it("opens the sandbox checkout with the return url appended, without trusting the result", async () => {
     render(<Pay />);
-    fireEvent.press(screen.getByText("Pay now"));
+    fireEvent.press(screen.getByText(/^Pay /)); // "Pay ₱2,100.00"
     await waitFor(() => expect(mockOpenAuth).toHaveBeenCalled());
     const [full, redirect] = mockOpenAuth.mock.calls[0];
     expect(full).toContain("http://x/functions/v1/fake-checkout?rid=r1");
     expect(full).toContain("return=");
     expect(redirect).toBe("racepace://pay-callback");
-    // still shows the pending state (not "confirmed") because status is still pending
-    expect(screen.getByText("Waiting for payment confirmation…")).toBeOnTheScreen();
+    expect(screen.getByText("Waiting for confirmation…")).toBeOnTheScreen();
   });
 
   it("shows Confirmed + View ticket when the registration is paid", () => {
