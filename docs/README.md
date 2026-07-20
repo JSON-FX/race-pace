@@ -14,16 +14,24 @@ ultra-trail event platform (Mindanao, Philippines).
 | [adr/0001-cross-platform-tech-stack.md](./adr/0001-cross-platform-tech-stack.md) | **ADR-0001** — the cross-platform tech-stack decision (Expo/RN + Supabase + PayMongo + getdesign), with options & trade-offs. |
 | [adr/0002-repository-structure.md](./adr/0002-repository-structure.md) | **ADR-0002** — one monorepo; `apps/` · `packages/` · `supabase/` · `docs/` layout, with rationale. |
 
-**Status:** Draft v0.4 · 2026-07-19
+**Status:** Draft v0.5 · 2026-07-20
 
-## Roadmap of planning docs
+## Roadmap
 
-- [x] Product overview / PRD — `00-product-overview.md`
-- [x] Visual flows — `race-pace-flows.html`
-- [x] **Architecture / tech-stack decision** — [ADR-0001 · Cross-platform tech stack](./adr/0001-cross-platform-tech-stack.md)
-- [x] **Repository structure** — [ADR-0002 · Repository & monorepo structure](./adr/0002-repository-structure.md)
-- [x] **01 · Mobile (iOS) MVP** — [detailed spec](./01-mobile-ios-mvp.md) for the first build
-- [x] **Plan 1 · Local backend foundation** — [built & merged](./plans/01-local-backend-foundation.md), 13 tests green
-- [x] **Plan 2 · App foundation** — [built & merged](./plans/02-app-foundation.md), 7 app + 13 backend tests green; **verified end-to-end on iOS Simulator** ✓
-- [x] **Plan 3 · Browse & register** — [built & merged](./plans/03-browse-register.md), 14 app tests green (simulator acceptance pending)
-- [ ] **Plan 4 · Pay / ticket / offline** — to write
+**Planning artifacts** — all done: PRD (`00-product-overview.md`), visual flows (`race-pace-flows.html`), [ADR-0001 · tech stack](./adr/0001-cross-platform-tech-stack.md), [ADR-0002 · repo structure](./adr/0002-repository-structure.md), [01 · iOS MVP spec](./01-mobile-ios-mvp.md).
+
+**Runner iOS app (M1)** — built & merged:
+- [x] **Plan 1 · Local backend foundation** — [plan](./plans/01-local-backend-foundation.md), backend tests green
+- [x] **Plan 2 · App foundation** — [plan](./plans/02-app-foundation.md), **verified end-to-end on iOS Simulator** ✓
+- [x] **Plan 3 · Browse & register** — [plan](./plans/03-browse-register.md)
+- [x] **Plan 4 · Pay · confirm · ticket · offline** — [plan](./plans/04-pay-ticket-offline.md)
+- [x] **Plan 5 · Marketplace (data + event page)** · **Plan 6 · Orgs + nav cleanup** — [05](./plans/05-marketplace-data-event.md) · [06](./plans/06-orgs-cleanup.md)
+- [x] **Plan 7 · Runner profile (passport)** · **Plan 8 · PSGC standardized addresses** — [07](./plans/07-runner-profile-core.md) · [08](./plans/08-psgc-addresses.md)
+
+**Admin web console (M3)** — `apps/web`, served at `https://admin.racepace.lan` (Docker + Traefik):
+- [x] **Plan 9 · Admin foundation** — [spec](./specs/2026-07-20-admin-foundation-design.md) · [plan](./plans/09-admin-foundation.md) — `user_roles` + role-scoped RLS + role-adaptive shell + read-only Events list (backend `admin-roles` 7/7, web 8/8 green)
+- [ ] **Plan 10 · Events management** — create/edit events, categories/add-ons, custom-field editor, reschedule/cancel
+- [ ] **Plan 11 · Registrations & payments** — table/detail, admin refunds
+- [ ] **Plan 12 · Race-day check-in** — web QR scanner + manual lookup
+- [ ] **Plan 13 · Settings + Dashboard** — org settings, KPIs/charts
+- [ ] **Plan 14 · super_admin** — org provisioning, commission, payout statements
