@@ -87,7 +87,7 @@ describe("role helper functions", () => {
 });
 
 describe("admin draft-event read", () => {
-  it("an org admin reads their org's draft event; anon cannot; admin can't write", async () => {
+  it("an org admin reads their org's draft event; anon cannot", async () => {
     const svc = service();
     const draft = await svc.from("events")
       .insert({ org_id: RWP, name: `Draft ${Date.now()}`, status: "draft" }).select().single();
@@ -108,9 +108,8 @@ describe("admin draft-event read", () => {
     const anonSeen = await anon().from("events").select("id").eq("id", draft.data!.id);
     expect(anonSeen.data).toEqual([]);
 
-    // read-only: admin cannot update the event (no write policy)
-    const upd = await authed(admin.token).from("events").update({ name: "hacked" }).eq("id", draft.data!.id).select();
-    expect(upd.data ?? []).toEqual([]);
+    // Write access for org admins is covered by admin-events.test.ts (Plan 10 added
+    // events_update_org_admin etc.); this test stays focused on read visibility.
 
     await svc.from("user_roles").delete().eq("user_id", admin.id);
     await svc.from("categories").delete().eq("id", cat.data!.id);
