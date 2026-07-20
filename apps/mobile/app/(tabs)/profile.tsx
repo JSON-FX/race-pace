@@ -7,7 +7,8 @@ import { getProfile, upsertProfile } from "../../lib/profile";
 import { initials } from "../../components/OrgAvatar";
 import { theme } from "../../lib/theme";
 import { PillSelect } from "../../components/PillSelect";
-import { BLOOD_TYPES, SHIRT_SIZES, GENDERS } from "@race-pace/shared";
+import { PsgcAddressPicker } from "../../components/PsgcAddressPicker";
+import { BLOOD_TYPES, SHIRT_SIZES, GENDERS, formatAddress, type PsgcAddress } from "@race-pace/shared";
 
 const MENU = ["Payment methods", "Notifications", "Help & support"];
 
@@ -18,7 +19,7 @@ export default function Profile() {
   const uid = session?.user.id;
   const [fullName, setFullName] = useState("");
   const [bibName, setBibName] = useState("");
-  const [city, setCity] = useState("");
+  const [address, setAddress] = useState<PsgcAddress | null>(null);
   const [dob, setDob] = useState("");
   const [gender, setGender] = useState("");
   const [shirtSize, setShirtSize] = useState("");
@@ -30,7 +31,8 @@ export default function Profile() {
     if (!uid) return;
     getProfile(uid).then((p) => {
       if (p) {
-        setFullName(p.full_name ?? ""); setBibName(p.bib_name ?? ""); setCity(p.city ?? "");
+        setFullName(p.full_name ?? ""); setBibName(p.bib_name ?? "");
+        setAddress(p.city_psgc_code ? { city_psgc_code: p.city_psgc_code, city_name: p.city_name ?? null, province_name: p.province_name ?? null, region_name: null } : null);
         setDob(p.date_of_birth ?? ""); setGender(p.gender ?? ""); setShirtSize(p.shirt_size ?? "");
         setBloodType(p.blood_type ?? ""); setEmergency(p.emergency_contact ?? "");
       }
@@ -41,7 +43,8 @@ export default function Profile() {
     if (!uid) return;
     setBusy(true);
     const { error } = await upsertProfile({
-      id: uid, full_name: fullName, bib_name: bibName, city,
+      id: uid, full_name: fullName, bib_name: bibName,
+      city_psgc_code: address?.city_psgc_code ?? null, city_name: address?.city_name ?? null, province_name: address?.province_name ?? null,
       date_of_birth: dob || null, gender: gender || null, shirt_size: shirtSize || null,
       blood_type: bloodType || null, emergency_contact: emergency || null,
     });
@@ -57,7 +60,7 @@ export default function Profile() {
       <View style={styles.head}>
         <View style={styles.avatar}><Text style={styles.avatarT}>{initials(name)}</Text></View>
         <Text style={styles.name}>{name}</Text>
-        {city ? <Text style={styles.sub}>{city}</Text> : null}
+        {address?.city_name ? <Text style={styles.sub}>{formatAddress(address)}</Text> : null}
       </View>
 
       <View style={styles.pad}>
@@ -65,7 +68,7 @@ export default function Profile() {
         <View style={{ gap: 12 }}>
           <View><Text style={styles.label}>FULL NAME</Text><TextInput style={styles.input} value={fullName} onChangeText={setFullName} placeholder="Full name" placeholderTextColor={theme.inkFaint} accessibilityLabel="Full name" /></View>
           <View><Text style={styles.label}>BIB NAME</Text><TextInput style={styles.input} value={bibName} onChangeText={setBibName} placeholder="Bib name" placeholderTextColor={theme.inkFaint} autoCapitalize="characters" accessibilityLabel="Bib name" /></View>
-          <View><Text style={styles.label}>CITY</Text><TextInput style={styles.input} value={city} onChangeText={setCity} placeholder="City" placeholderTextColor={theme.inkFaint} accessibilityLabel="City" /></View>
+          <PsgcAddressPicker label="CITY" value={address} onChange={setAddress} />
         </View>
 
         <Text style={[styles.section, { marginTop: 26 }]}>Race details</Text>

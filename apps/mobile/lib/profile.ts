@@ -10,9 +10,12 @@ export type Profile = {
   gender?: string | null;
   shirt_size?: string | null;
   blood_type?: string | null;
+  city_psgc_code?: string | null;
+  city_name?: string | null;
+  province_name?: string | null;
 };
 
-const PROFILE_COLS = "id,full_name,bib_name,city,emergency_contact,date_of_birth,gender,shirt_size,blood_type";
+const PROFILE_COLS = "id,full_name,bib_name,city,emergency_contact,date_of_birth,gender,shirt_size,blood_type,city_psgc_code,city_name,province_name";
 
 export async function getProfile(userId: string): Promise<Profile | null> {
   const { data } = await supabase.from("profiles").select(PROFILE_COLS).eq("id", userId).maybeSingle();
