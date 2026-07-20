@@ -15,17 +15,17 @@ describe("ticketCache", () => {
   });
 
   it("caches a my-races list and fans out paid tickets", async () => {
-    await cacheMyRaces("o1", [t]);
-    expect(await getCachedMyRaces("o1")).toEqual([t]);
+    await cacheMyRaces([t]);
+    expect(await getCachedMyRaces()).toEqual([t]);
     expect(await getCachedTicket("r1")).toEqual(t);
   });
 
   it("clearTicketCache removes ticket: and myraces: keys", async () => {
     await cacheTicket(t);
-    await cacheMyRaces("o1", [t]);
+    await cacheMyRaces([t]);
     await clearTicketCache();
     expect(await getCachedTicket("r1")).toBeNull();
-    expect(await getCachedMyRaces("o1")).toEqual([]);
+    expect(await getCachedMyRaces()).toEqual([]);
   });
 
   it("leaves non-ticket keys (e.g. session, selected org) untouched", async () => {

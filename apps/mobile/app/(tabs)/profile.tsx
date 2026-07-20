@@ -1,15 +1,18 @@
 import { useEffect, useState } from "react";
-import { View, Text, TextInput, Pressable, StyleSheet, Alert } from "react-native";
+import { View, Text, TextInput, Pressable, ScrollView, StyleSheet, Alert } from "react-native";
 import { useRouter } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../lib/auth";
-import { useOrg } from "../../lib/org";
 import { getProfile, upsertProfile } from "../../lib/profile";
+import { initials } from "../../components/OrgAvatar";
 import { theme } from "../../lib/theme";
+
+const MENU = ["Payment methods", "Notifications", "Help & support"];
 
 export default function Profile() {
   const { session, signOut } = useAuth();
-  const { clearOrg } = useOrg();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const uid = session?.user.id;
   const [fullName, setFullName] = useState("");
   const [bibName, setBibName] = useState("");
@@ -30,29 +33,54 @@ export default function Profile() {
     setBusy(false);
     Alert.alert(error ? "Save failed" : "Saved", error ?? "Your profile was updated.");
   }
+  async function doSignOut() { await signOut(); router.replace("/(auth)/sign-in"); }
 
-  async function switchOrg() { await clearOrg(); router.replace("/choose-org"); }
-  async function doSignOut() { await clearOrg(); await signOut(); router.replace("/(auth)/sign-in"); }
+  const name = fullName || session?.user.email || "Runner";
 
   return (
-    <View style={styles.c}>
-      <Text style={styles.h}>Profile</Text>
-      <TextInput style={styles.i} placeholder="Full name" placeholderTextColor={theme.inkMuted} value={fullName} onChangeText={setFullName} accessibilityLabel="Full name" />
-      <TextInput style={styles.i} placeholder="Bib name" placeholderTextColor={theme.inkMuted} value={bibName} onChangeText={setBibName} accessibilityLabel="Bib name" />
-      <TextInput style={styles.i} placeholder="City" placeholderTextColor={theme.inkMuted} value={city} onChangeText={setCity} accessibilityLabel="City" />
-      <Pressable style={styles.btn} onPress={save} disabled={busy} accessibilityRole="button"><Text style={styles.btnT}>{busy ? "Saving…" : "Save"}</Text></Pressable>
-      <Pressable onPress={switchOrg} accessibilityRole="button"><Text style={styles.link}>Switch organization</Text></Pressable>
-      <Pressable onPress={doSignOut} accessibilityRole="button"><Text style={styles.signout}>Sign out</Text></Pressable>
-    </View>
+    <ScrollView style={styles.c} contentContainerStyle={{ paddingTop: insets.top + 10, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+      <View style={styles.head}>
+        <View style={styles.avatar}><Text style={styles.avatarT}>{initials(name)}</Text></View>
+        <Text style={styles.name}>{name}</Text>
+        {city ? <Text style={styles.sub}>{city}</Text> : null}
+      </View>
+
+      <View style={styles.pad}>
+        <Text style={styles.section}>Profile</Text>
+        <View style={{ gap: 12 }}>
+          <View><Text style={styles.label}>FULL NAME</Text><TextInput style={styles.input} value={fullName} onChangeText={setFullName} placeholder="Full name" placeholderTextColor={theme.inkFaint} accessibilityLabel="Full name" /></View>
+          <View><Text style={styles.label}>BIB NAME</Text><TextInput style={styles.input} value={bibName} onChangeText={setBibName} placeholder="Bib name" placeholderTextColor={theme.inkFaint} autoCapitalize="characters" accessibilityLabel="Bib name" /></View>
+          <View><Text style={styles.label}>CITY</Text><TextInput style={styles.input} value={city} onChangeText={setCity} placeholder="City" placeholderTextColor={theme.inkFaint} accessibilityLabel="City" /></View>
+        </View>
+        <Pressable style={[styles.save, busy && { opacity: 0.6 }]} disabled={busy} onPress={save} accessibilityRole="button"><Text style={styles.saveT}>{busy ? "Saving…" : "Save changes"}</Text></Pressable>
+
+        <View style={styles.menu}>
+          {MENU.map((m) => (
+            <View key={m} style={styles.menuRow}><Text style={styles.menuT}>{m}</Text><Text style={styles.chevron}>›</Text></View>
+          ))}
+        </View>
+        <Pressable onPress={doSignOut} accessibilityRole="button"><Text style={styles.signout}>Sign out</Text></Pressable>
+      </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  c: { flex: 1, padding: 20, paddingTop: 60, gap: 12, backgroundColor: theme.canvas },
-  h: { fontSize: 28, fontWeight: "600", letterSpacing: -0.4, color: theme.ink, marginBottom: 8 },
-  i: { borderWidth: 1, borderColor: theme.hairline, borderRadius: theme.radius.md, padding: 14, fontSize: 17, color: theme.ink },
-  btn: { backgroundColor: theme.primary, borderRadius: theme.radius.pill, paddingVertical: 15, alignItems: "center" },
-  btnT: { color: theme.onPrimary, fontWeight: "600", fontSize: 17 },
-  link: { color: theme.primary, textAlign: "center", marginTop: 8, fontSize: 17 },
-  signout: { color: theme.danger, textAlign: "center", marginTop: 4, fontSize: 17 },
+  c: { flex: 1, backgroundColor: theme.canvas },
+  head: { alignItems: "center", paddingHorizontal: 22 },
+  avatar: { width: 82, height: 82, borderRadius: 41, backgroundColor: theme.forest, alignItems: "center", justifyContent: "center" },
+  avatarT: { color: "#fff", fontSize: 28, fontWeight: "700" },
+  name: { fontSize: 22, fontWeight: "700", letterSpacing: -0.3, color: theme.ink, marginTop: 12 },
+  sub: { fontSize: 13, color: theme.inkMuted, marginTop: 2 },
+  pad: { paddingHorizontal: 22, marginTop: 24 },
+  section: { fontSize: 15, fontWeight: "600", color: theme.ink, marginBottom: 12 },
+  label: { fontSize: 11, fontWeight: "600", letterSpacing: 0.4, color: theme.inkMuted, marginBottom: 6 },
+  input: { backgroundColor: theme.canvas, borderWidth: 1, borderColor: theme.hairline, borderRadius: theme.radius.md, paddingVertical: 13, paddingHorizontal: 14, fontSize: 15, color: theme.ink },
+  save: { backgroundColor: theme.primary, borderRadius: theme.radius.pill, padding: 15, alignItems: "center", marginTop: 20 },
+  saveT: { color: "#fff", fontSize: 16, fontWeight: "600" },
+  menu: { marginTop: 20 },
+  menuRow: { flexDirection: "row", alignItems: "center", paddingVertical: 15, borderTopWidth: 1, borderTopColor: theme.divider },
+  menuT: { flex: 1, fontSize: 14, color: theme.ink },
+  chevron: { color: theme.inkFaint, fontSize: 18 },
+  signout: { color: theme.danger, fontSize: 15, fontWeight: "600", textAlign: "center", marginTop: 14 },
 });

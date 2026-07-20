@@ -11,7 +11,7 @@ export type CachedTicket = {
 };
 
 const tKey = (rid: string) => `ticket:${rid}`;
-const mKey = (orgId: string) => `myraces:${orgId}`;
+const mKey = () => "myraces:all";
 
 export async function cacheTicket(t: CachedTicket): Promise<void> {
   await AsyncStorage.setItem(tKey(t.rid), JSON.stringify(t));
@@ -23,13 +23,13 @@ export async function getCachedTicket(rid: string): Promise<CachedTicket | null>
   try { return JSON.parse(raw) as CachedTicket; } catch { return null; }
 }
 
-export async function cacheMyRaces(orgId: string, list: CachedTicket[]): Promise<void> {
-  await AsyncStorage.setItem(mKey(orgId), JSON.stringify(list));
+export async function cacheMyRaces(list: CachedTicket[]): Promise<void> {
+  await AsyncStorage.setItem(mKey(), JSON.stringify(list));
   await Promise.all(list.filter((t) => t.status === "paid").map((t) => cacheTicket(t)));
 }
 
-export async function getCachedMyRaces(orgId: string): Promise<CachedTicket[]> {
-  const raw = await AsyncStorage.getItem(mKey(orgId));
+export async function getCachedMyRaces(): Promise<CachedTicket[]> {
+  const raw = await AsyncStorage.getItem(mKey());
   if (!raw) return [];
   try { return JSON.parse(raw) as CachedTicket[]; } catch { return []; }
 }
