@@ -2,15 +2,15 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Stand up the Admin web console as a Dockerized app at **`http://admin.racepace.lan`** with the deferred **`user_roles`** roles foundation, a **role-adaptive authenticated shell**, and a read-only **org-scoped Events list** — proving infra → auth → role-scoped RLS → data → UI end-to-end.
+**Goal:** Stand up the Admin web console as a Dockerized app at **`https://admin.racepace.lan`** (behind the machine's existing Traefik/dnsmasq `.lan` setup) with the deferred **`user_roles`** roles foundation, a **role-adaptive authenticated shell**, and a read-only **org-scoped Events list** — proving infra → auth → role-scoped RLS → data → UI end-to-end.
 
-**Architecture:** A new Vite + React + TS app in `apps/web`, served by a single Docker service that maps host `:80` → Vite `:5173` (no reverse proxy). Auth + data go through `supabase-js` in the browser against the local Supabase stack; role gating rests on a new `user_roles` table with `security definer` helper functions and **additive** admin-read RLS policies that let an org admin see their org's draft events. The seeded admin (`admin@runwithpoint.test`) survives `db reset`.
+**Architecture:** A new Vite + React + TS app in `apps/web`, run by a Docker service that joins the machine's existing external **`dev-net`** and is exposed by the shared **Traefik** proxy via labels (`Host(admin.racepace.lan)`, http→https redirect, `tls=true`, `loadbalancer.server.port=5173`) — no host-port bind, dnsmasq resolves the name. Auth + data go through `supabase-js` in the browser against the local Supabase stack; role gating rests on a new `user_roles` table with `security definer` helper functions and **additive** admin-read RLS policies that let an org admin see their org's draft events. The seeded admin (`admin@runwithpoint.test`) survives `db reset`.
 
 **Tech Stack:** Vite, React 19, React Router v6, `@tanstack/react-query` v5, `@supabase/supabase-js` v2, TypeScript 6, Vitest + `@testing-library/react` (jsdom), Docker Compose, Supabase (Postgres migrations + seed), root Vitest (backend, against the live local stack).
 
 ## Global Constraints
 
-- **Access is this Mac only.** `admin.racepace.lan` resolves via a single `/etc/hosts` line (`127.0.0.1 admin.racepace.lan`), served over plain **HTTP**. Docker publishes host **`80:5173`** straight to the Vite dev server — **no reverse proxy** this plan.
+- **Access is this Mac only, via the existing dnsmasq + Traefik infra.** dnsmasq already resolves `*.lan` → `127.0.0.1` (**no `/etc/hosts` entry**). The `web` container joins the external **`dev-net`** and carries **Traefik labels** routing `Host(admin.racepace.lan)` — http→https redirect, `tls=true`, `loadbalancer.server.port=5173` — binding **no host port**. Served over **HTTPS** at **`https://admin.racepace.lan`** using Traefik's default mkcert `*.lan` cert (mirror `runwithpoint.lan`'s label pattern). The shared Traefik infra on `dev-net` (`/Users/jsonse/Documents/development/infra`) must be running.
 - **The org table is `organizations`** (not `orgs`). Run With Point id = **`00000000-0000-0000-0000-0000000000a1`**.
 - **Roles:** `app_role` enum = `user`, `marshal`, `editor`, `admin`, `super_admin`. `user_roles.org_id` null = platform-wide (super_admin). Users read **only their own** role rows; **no client writes** (roles are provisioned).
 - **Admin-read RLS is additive** — new policies widen visibility (RLS policies OR together); never weaken `events_read_published` / `categories_read_published`.
@@ -24,7 +24,7 @@
 ## File Structure
 
 ```
-docker-compose.yml                         NEW — the `web` service (host :80 → vite :5173)
+docker-compose.yml                         NEW — web service on dev-net + Traefik labels (admin.racepace.lan)
 supabase/
 ├── migrations/
 │   └── 20260720150000_user_roles.sql      NEW — app_role enum, user_roles, RLS, helpers, admin-read policies
@@ -38,7 +38,7 @@ apps/web/
 ├── tsconfig.json                          NEW — extends ../../tsconfig.base.json, jsx react-jsx
 ├── vitest.setup.ts                        NEW — @testing-library/jest-dom
 ├── .env / .env.example                    NEW — VITE_SUPABASE_URL / _ANON_KEY
-├── README.md                              MODIFY — run instructions incl. the /etc/hosts step
+├── README.md                              MODIFY — run instructions (Traefik/dev-net; no /etc/hosts)
 └── src/
     ├── main.tsx                           NEW — root render: providers + <App/>
     ├── App.tsx                            NEW — <BrowserRouter> + <Routes> + guard
@@ -335,7 +335,7 @@ git commit -m "feat(admin): seed provisioned admin (survives db reset)"
 - Modify: `apps/web/README.md`
 
 **Interfaces:**
-- Produces: a running app at `http://admin.racepace.lan`; `<Placeholder title/>` component; the `web` workspace package with `dev`/`build`/`test`/`typecheck` scripts.
+- Produces: a running app at `https://admin.racepace.lan` (via Traefik on `dev-net`); `<Placeholder title/>` component; the `web` workspace package with `dev`/`build`/`test`/`typecheck` scripts.
 
 - [ ] **Step 1: `apps/web/package.json`**
 
@@ -402,7 +402,7 @@ export default defineConfig({
     host: true,                                    // listen on 0.0.0.0 (Docker)
     port: 5173,
     allowedHosts: ["admin.racepace.lan", "localhost"],
-    hmr: { clientPort: 80 },                       // browser hits :80, not :5173
+    hmr: { protocol: "wss", host: "admin.racepace.lan", clientPort: 443 }, // HMR over Traefik TLS
     watch: { usePolling: true },                   // macOS bind-mount fs events don't propagate
   },
   test: {
@@ -505,29 +505,47 @@ services:
     image: node:20-bookworm-slim
     working_dir: /repo
     command: sh -c "corepack enable && corepack prepare pnpm@9.7.0 --activate && pnpm install --frozen-lockfile=false && pnpm --filter web dev --host 0.0.0.0"
-    ports:
-      - "80:5173"
+    networks: [dev-net]
+    labels:
+      - "traefik.enable=true"
+      # http :80 -> https redirect
+      - "traefik.http.routers.racepace-admin-http.entrypoints=web"
+      - "traefik.http.routers.racepace-admin-http.rule=Host(`admin.racepace.lan`)"
+      - "traefik.http.routers.racepace-admin-http.middlewares=racepace-admin-redirect"
+      - "traefik.http.middlewares.racepace-admin-redirect.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.racepace-admin-redirect.redirectscheme.permanent=true"
+      # https :443 (Traefik's default mkcert *.lan cert)
+      - "traefik.http.routers.racepace-admin.entrypoints=websecure"
+      - "traefik.http.routers.racepace-admin.rule=Host(`admin.racepace.lan`)"
+      - "traefik.http.routers.racepace-admin.tls=true"
+      - "traefik.http.services.racepace-admin.loadbalancer.server.port=5173"
     volumes:
       - ./:/repo
       - repo_node_modules:/repo/node_modules
       - web_node_modules:/repo/apps/web/node_modules
+networks:
+  dev-net:
+    external: true
 volumes:
   repo_node_modules:
   web_node_modules:
 ```
+
+The `web` container binds no host port — Traefik (already on `dev-net`, port 80/443) discovers it by label and proxies `admin.racepace.lan` to the container's `:5173`. `exposedByDefault` is false in this Traefik, so `traefik.enable=true` is required. This mirrors the existing `runwithpoint.lan` service.
 
 - [ ] **Step 12: `apps/web/README.md`** — replace with run instructions:
 
 ```markdown
 # Race Pace — Admin web console
 
-Vite + React + TypeScript. Runs in Docker at http://admin.racepace.lan (this Mac only).
+Vite + React + TypeScript. Runs in Docker behind the shared Traefik proxy at
+**https://admin.racepace.lan** (this Mac). dnsmasq resolves `*.lan`; Traefik
+serves it with the mkcert `*.lan` cert — same convention as the other `.lan` sites.
 
 ## First-time setup
-1. Add the host entry (once): `echo "127.0.0.1 admin.racepace.lan" | sudo tee -a /etc/hosts`
-2. Ensure the Supabase stack is up: `pnpm exec supabase start`
-3. From the repo root: `docker compose up` (first run installs deps in-container — slow once)
-4. Open http://admin.racepace.lan
+1. Bring up the shared infra (Traefik on `dev-net`): in `/Users/jsonse/Documents/development/infra` → `docker compose up -d`. And the Supabase stack: `pnpm exec supabase start`.
+2. From this repo root: `docker compose up` (first run installs the workspace in-container — slow once).
+3. Open **https://admin.racepace.lan** — no `/etc/hosts` needed (dnsmasq handles `.lan`), cert is locally trusted (mkcert).
 
 ## Local dev without Docker
 `pnpm --filter web dev` → http://localhost:5173
@@ -558,13 +576,14 @@ Expected: PASS (1 test). Then `pnpm typecheck` → exit 0.
 
 - [ ] **Step 15: Bring it up in Docker + verify the `.lan` URL**
 
-Add the host entry (Step 12.1) if not done, ensure `supabase start` is up, then from repo root:
+Ensure the shared Traefik infra is up (`/Users/jsonse/Documents/development/infra` → `docker compose up -d`) and `supabase start` is running, then from this repo root:
 ```bash
 docker compose up -d
-sleep 20   # first run installs deps in-container
-curl -s http://admin.racepace.lan | grep -q 'id="root"' && echo "SERVING"
+# first run installs the whole workspace in-container — watch until Vite is ready:
+docker compose logs -f web   # wait for "VITE vX ready" / "Local: http://localhost:5173/", then Ctrl-C
+curl -s https://admin.racepace.lan | grep -q 'id="root"' && echo "SERVING"
 ```
-Expected: `SERVING` (Vite's index HTML with `#root`). Open http://admin.racepace.lan in a browser → "Race Pace Admin / Coming soon". If host port 80 is busy, `docker compose up` errors on the port bind — stop the conflicting service or note it.
+Expected: `SERVING` (Vite's index HTML with `#root`, via Traefik TLS). Open **https://admin.racepace.lan** in a browser → "Race Pace Admin / Coming soon"; the mkcert `*.lan` cert is locally trusted (no warning). If `curl` doesn't trust the cert in your shell, `curl -sk https://admin.racepace.lan` confirms serving (the browser still trusts it). If the route doesn't resolve in Traefik, check `docker compose logs web`, that the container joined `dev-net`, and that `traefik.enable=true` is set.
 
 - [ ] **Step 16: Commit**
 
@@ -801,7 +820,7 @@ Expected: PASS (smoke + auth). Then `pnpm typecheck` → 0.
 
 - [ ] **Step 10: Manual check (optional but recommended)**
 
-With `docker compose up` running, open http://admin.racepace.lan → redirected to the sign-in form; signing in with `admin@runwithpoint.test` / `password123` lands on the "Race Pace Admin" placeholder.
+With `docker compose up` running, open https://admin.racepace.lan → redirected to the sign-in form; signing in with `admin@runwithpoint.test` / `password123` lands on the "Race Pace Admin" placeholder.
 
 - [ ] **Step 11: Commit**
 
@@ -1201,8 +1220,8 @@ git commit -m "feat(admin): read-only org-scoped Events list"
 - [ ] **Backend suite** (root, `supabase start` up): `pnpm test` → all green, incl. `admin-roles` (user_roles RLS, admin draft-read, seed sanity) and the pre-existing suites unaffected.
 - [ ] **Web suite + types:** `cd apps/web && pnpm test` → all green; `pnpm typecheck` → 0. Root `pnpm -r typecheck` → clean (web adds a `typecheck` script; mobile unaffected).
 - [ ] **End-to-end on `admin.racepace.lan`** (Docker up, stack up):
-  1. `docker compose up -d` → `curl -s http://admin.racepace.lan | grep -q 'id="root"'`.
-  2. Open http://admin.racepace.lan → redirected to Sign in.
+  1. `docker compose up -d` (shared Traefik infra also up) → `curl -s https://admin.racepace.lan | grep -q 'id="root"'`.
+  2. Open https://admin.racepace.lan → redirected to Sign in.
   3. Sign in with **`admin@runwithpoint.test` / `password123`** → lands on **Events** (Run With Point's events, including any `draft`), with the role-adaptive sidebar (6 items; no platform section for this org admin).
   4. A runner account (e.g. `runner@test.dev`) → **No access** screen.
 - [ ] **Docs:** add Plan 09's status to `docs/README.md` and refresh the roadmap there (it still says "Plan 4 · to write" — update it to reflect Plans 4–8 merged and the admin console plans 09–14). Commit.
@@ -1211,7 +1230,7 @@ git commit -m "feat(admin): read-only org-scoped Events list"
 ## Notes / decisions baked in
 
 - **Table is `organizations`** (the spec's `orgs` was corrected here). RWP = `…a1`; the seeded admin user id is `…b1`.
-- **No reverse proxy** — Docker maps host `:80` → Vite `:5173`. Caddy/TLS is added in Plan 12 when the check-in camera needs a secure context (`getUserMedia` requires HTTPS at a non-localhost host).
+- **Joins the existing Traefik/dnsmasq infra** (not a standalone port bind): dnsmasq resolves `*.lan`→127.0.0.1, Traefik terminates TLS with the mkcert `*.lan` cert and routes `Host(admin.racepace.lan)` to the container's `:5173`. This was corrected from the spec's original "no proxy / HTTP / /etc/hosts" after discovering the machine's Traefik setup at execution time. **HTTPS is available now** — which Plan 12's check-in camera (`getUserMedia` needs a secure context) will require.
 - **`node_modules` named volumes** are load-bearing: they keep the container's Linux `esbuild`/native binaries from being shadowed by the macOS host `node_modules` via the repo bind-mount. First `docker compose up` is slow (in-container install of the whole workspace); later runs reuse the volumes.
 - **Host-side `pnpm install`** is still needed so Vitest/tsc run on the Mac; the container installs separately for serving.
 - **CORS:** the app (origin `admin.racepace.lan`) calls Supabase at `127.0.0.1:54521`. Supabase local's Kong sends permissive CORS; if a preflight is ever blocked, that's the place to look — no code change expected.
