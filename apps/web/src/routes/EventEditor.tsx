@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { useMyRoles } from "../lib/roles";
 import { useEventForEditor } from "../lib/events";
 import { saveEvent, type CategoryDraft, type AddonDraft, type EventDraft } from "../lib/eventWrites";
@@ -15,6 +16,8 @@ const blank: EventDraft = { org_id: "", name: "", place: null, region: null, eve
 export function EventEditor() {
   const { id } = useParams();
   const nav = useNavigate();
+  const location = useLocation();
+  const qc = useQueryClient();
   const roles = useMyRoles();
   const loaded = useEventForEditor(id);
 
@@ -23,9 +26,10 @@ export function EventEditor() {
   const [addons, setAddons] = useState<AddonDraft[]>([]);
   const [origCats, setOrigCats] = useState<{ id?: string }[]>([]);
   const [origAddons, setOrigAddons] = useState<{ id?: string }[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  // On a create-mode partial-save (see onSave), we navigate here with the child
+  // errors passed through location.state since there's no local state to preserve them.
+  const [error, setError] = useState<string | null>(() => (location.state as { childErrors?: string[] } | null)?.childErrors?.join(" ") ?? null);
   const [busy, setBusy] = useState(false);
-  const [savedId, setSavedId] = useState<string | undefined>(undefined);
   const seededFor = useRef<string | undefined>(undefined);
 
   useEffect(() => {
@@ -59,13 +63,23 @@ export function EventEditor() {
     if (invalid) { setError(invalid); return; }
     setBusy(true); setError(null);
     try {
-      const eid = id ?? savedId;
-      const res = await saveEvent({ event: { ...event, id: eid, org_id: orgId }, categories: { current: cats, original: origCats }, addons: { current: addons, original: origAddons } });
+      const res = await saveEvent({ event: { ...event, id, org_id: orgId }, categories: { current: cats, original: origCats }, addons: { current: addons, original: origAddons } });
       if (res.childErrors.length) {
-        // The event row itself was written successfully — remember its id so a retry
-        // updates the same row instead of inserting a duplicate.
-        setSavedId(res.eventId);
-        setError(res.childErrors.join(" "));
+        // The event row (and any children that succeeded) persisted, but the editor's
+        // cats/addons state is now stale vs. the DB — e.g. a newly inserted category
+        // still has no client-side `id`. Reseed from the server so a retry reconciles
+        // against fresh state instead of re-inserting an already-saved child as a duplicate.
+        if (!id) {
+          // Create mode: no URL id yet. Navigate to the edit route so the URL carries
+          // the new event's id — useEventForEditor then fetches fresh state on mount,
+          // and the seed effect repopulates cats/addons with their real (saved) ids.
+          nav(`/events/${res.eventId}/edit`, { replace: true, state: { childErrors: res.childErrors } });
+        } else {
+          // Edit mode: force the seed effect to re-run once fresh data arrives.
+          seededFor.current = undefined;
+          await qc.invalidateQueries({ queryKey: ["event-editor", id] });
+          setError(res.childErrors.join(" "));
+        }
         setBusy(false);
         return;
       }
