@@ -30,5 +30,5 @@ const styles = StyleSheet.create({
   opt: { borderWidth: 1, borderColor: theme.hairline, borderRadius: theme.radius.pill, paddingVertical: 8, paddingHorizontal: 14 },
   optActive: { backgroundColor: theme.primary, borderColor: theme.primary },
   optText: { color: theme.ink, fontSize: 14 },
-  optTextActive: { color: "#fff", fontWeight: "600" },
+  optTextActive: { color: theme.onPrimary, fontWeight: "600" },
 });
