@@ -35,18 +35,28 @@ export default function Register() {
   const [busy, setBusy] = useState(false);
   const [idempotencyKey] = useState(() => `${categoryId}:${Date.now()}`);
   const [loadedProfile, setLoadedProfile] = useState<Profile | null>(null);
+  const [prefillDone, setPrefillDone] = useState(false);
   const [saveBack, setSaveBack] = useState(false);
   const [saveBackTouched, setSaveBackTouched] = useState(false);
 
-  // Prefill the core fields from the runner's global profile.
+  // Prefill the core fields from the runner's global profile. `prefillDone` only flips once
+  // this settles (whether it found a profile or not), so submit() can gate the save-back
+  // upsert on it — otherwise a fast submit could upsert still-blank fields as null and
+  // clobber the runner's real saved passport values.
   useEffect(() => {
-    if (session?.user.id) getProfile(session.user.id).then((p) => {
-      if (p) {
-        setBibName(p.bib_name ?? ""); setDob(p.date_of_birth ?? ""); setGender(p.gender ?? "");
-        setShirtSize(p.shirt_size ?? ""); setBloodType(p.blood_type ?? ""); setEmergency(p.emergency_contact ?? "");
-        setLoadedProfile(p);
-      }
-    });
+    if (session?.user.id) {
+      getProfile(session.user.id)
+        .then((p) => {
+          if (p) {
+            setBibName(p.bib_name ?? ""); setDob(p.date_of_birth ?? ""); setGender(p.gender ?? "");
+            setShirtSize(p.shirt_size ?? ""); setBloodType(p.blood_type ?? ""); setEmergency(p.emergency_contact ?? "");
+            setLoadedProfile(p);
+          }
+        })
+        .finally(() => setPrefillDone(true));
+    } else {
+      setPrefillDone(true);
+    }
   }, [session?.user.id]);
 
   const total = useMemo(() => {
@@ -88,7 +98,7 @@ export default function Register() {
     if (!waiver) { setError("You must accept the waiver."); return; }
     setError(null); setBusy(true);
     try {
-      if (saveBack && session?.user.id) {
+      if (saveBack && session?.user.id && prefillDone) {
         try {
           await upsertProfile({ id: session.user.id, bib_name: bibName, date_of_birth: dob || null, gender: gender || null, shirt_size: shirtSize || null, blood_type: bloodType || null, emergency_contact: emergency || null });
         } catch (e) { console.warn("profile save-back failed", e); }
