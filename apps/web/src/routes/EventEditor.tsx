@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useMyRoles } from "../lib/roles";
 import { useEventForEditor } from "../lib/events";
@@ -25,9 +25,12 @@ export function EventEditor() {
   const [origAddons, setOrigAddons] = useState<{ id?: string }[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [savedId, setSavedId] = useState<string | undefined>(undefined);
+  const seededFor = useRef<string | undefined>(undefined);
 
   useEffect(() => {
-    if (id && loaded.data) {
+    if (id && loaded.data && seededFor.current !== id) {
+      seededFor.current = id;
       const d = loaded.data;
       setEvent({ ...d.event });
       setCats(d.categories.map((c) => ({ id: c.id, code: c.code, label: c.label, distance_km: c.distance_km, base_price: c.base_price, slots_total: c.slots_total })));
@@ -42,7 +45,11 @@ export function EventEditor() {
   const num = (v: string) => (v === "" ? null : Number(v));
 
   const invalid = useMemo(() => {
-    if (!eventInputSchema.safeParse({ ...event }).success) return "Fix the event fields (name is required, valid date/time).";
+    // Status isn't validated here: "cancelled" (set only via the Cancel modal) is
+    // intentionally outside EVENT_STATUSES, and the dropdown already restricts input
+    // to valid values — validating it here would permanently block Save on a
+    // cancelled event with a misleading "fix the event fields" message.
+    if (!eventInputSchema.omit({ status: true }).safeParse({ ...event }).success) return "Fix the event fields (name is required, valid date/time).";
     for (const c of cats) if (!categoryInputSchema.safeParse(c).success) return "Fix the category rows (code, label, non-negative price/slots).";
     for (const a of addons) if (!addonInputSchema.safeParse(a).success) return "Fix the add-on rows (name, non-negative price).";
     return null;
@@ -52,8 +59,16 @@ export function EventEditor() {
     if (invalid) { setError(invalid); return; }
     setBusy(true); setError(null);
     try {
-      const res = await saveEvent({ event: { ...event, id, org_id: orgId }, categories: { current: cats, original: origCats }, addons: { current: addons, original: origAddons } });
-      if (res.childErrors.length) { setError(res.childErrors.join(" ")); setBusy(false); return; }
+      const eid = id ?? savedId;
+      const res = await saveEvent({ event: { ...event, id: eid, org_id: orgId }, categories: { current: cats, original: origCats }, addons: { current: addons, original: origAddons } });
+      if (res.childErrors.length) {
+        // The event row itself was written successfully — remember its id so a retry
+        // updates the same row instead of inserting a duplicate.
+        setSavedId(res.eventId);
+        setError(res.childErrors.join(" "));
+        setBusy(false);
+        return;
+      }
       nav("/events");
     } catch (e) { setError((e as Error).message); setBusy(false); }
   }
