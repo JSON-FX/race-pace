@@ -117,6 +117,9 @@ importers:
       react-router-dom:
         specifier: ^6.28.0
         version: 6.30.4(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      zod:
+        specifier: ^3.23.8
+        version: 3.25.76
     devDependencies:
       '@testing-library/jest-dom':
         specifier: ^6.6.3
