@@ -9,8 +9,11 @@ const intNonNeg = z.number().int().min(0);
 
 export const eventInputSchema = z.object({
   name: z.string().trim().min(1, "Name is required"),
-  place: z.string().nullable(),
-  region: z.string().nullable(),
+  city_psgc_code: z.string().nullable(),
+  region_name: z.string().nullable(),
+  province_name: z.string().nullable(),
+  city_name: z.string().nullable(),
+  venue: z.string().nullable(),
   event_date: dateStr,
   flag_off: timeStr,
   status: z.enum(EVENT_STATUSES),

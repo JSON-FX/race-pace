@@ -8,11 +8,12 @@ import { eventInputSchema, categoryInputSchema, addonInputSchema, EVENT_STATUSES
 import { CategoryEditor } from "../components/CategoryEditor";
 import { AddonEditor } from "../components/AddonEditor";
 import { EventImagesEditor } from "../components/EventImagesEditor";
+import { PsgcAddressField } from "../components/PsgcAddressField";
 
 const label = { display: "block", fontSize: 11, fontWeight: 600, letterSpacing: ".4px", color: "var(--ink-muted)", marginBottom: 6 } as const;
 const input = { background: "var(--canvas)", border: "1px solid var(--hairline)", borderRadius: 11, padding: "12px 13px", color: "var(--ink)", fontSize: 14, width: "100%" } as const;
 const card = { background: "var(--canvas)", border: "1px solid var(--hairline)", borderRadius: "var(--radius-card)", padding: 22 } as const;
-const blank: EventDraft = { org_id: "", name: "", place: null, region: null, event_date: null, flag_off: null, status: "draft", elevation_gain_m: null, cutoff_hours: null, description: null, hero_image_url: null, gallery: [] };
+const blank: EventDraft = { org_id: "", name: "", city_psgc_code: null, region_name: null, province_name: null, city_name: null, venue: null, event_date: null, flag_off: null, status: "draft", elevation_gain_m: null, cutoff_hours: null, description: null, hero_image_url: null, gallery: [] };
 
 export function EventEditor() {
   const { id } = useParams();
@@ -97,13 +98,14 @@ export function EventEditor() {
           <div style={{ fontSize: 15, fontWeight: 600 }}>Event details</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 16 }}>
             <div><span style={label}>EVENT NAME</span><input aria-label="Event name" style={input} value={event.name} onChange={(e) => set({ name: e.target.value })} /></div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              <div><span style={label}>PLACE</span><input aria-label="Place" style={input} value={event.place ?? ""} onChange={(e) => set({ place: e.target.value || null })} /></div>
-              <div><span style={label}>REGION</span><input aria-label="Region" style={input} value={event.region ?? ""} onChange={(e) => set({ region: e.target.value || null })} /></div>
-            </div>
+            <PsgcAddressField
+              value={{ city_psgc_code: event.city_psgc_code, city_name: event.city_name, province_name: event.province_name, region_name: event.region_name }}
+              onChange={(a) => set(a)}
+            />
+            <div><span style={label}>VENUE</span><input aria-label="Venue" style={input} value={event.venue ?? ""} onChange={(e) => set({ venue: e.target.value || null })} /></div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-              <div><span style={label}>DATE</span><input aria-label="Date" placeholder="YYYY-MM-DD" style={input} value={event.event_date ?? ""} onChange={(e) => set({ event_date: e.target.value || null })} /></div>
-              <div><span style={label}>FLAG-OFF</span><input aria-label="Flag-off" placeholder="HH:MM" style={input} value={event.flag_off ?? ""} onChange={(e) => set({ flag_off: e.target.value || null })} /></div>
+              <div><span style={label}>DATE</span><input aria-label="Date" type="date" style={input} value={event.event_date ?? ""} onChange={(e) => set({ event_date: e.target.value || null })} /></div>
+              <div><span style={label}>FLAG-OFF</span><input aria-label="Flag-off" type="time" style={input} value={event.flag_off ?? ""} onChange={(e) => set({ flag_off: e.target.value || null })} /></div>
               <div><span style={label}>STATUS</span>
                 <select aria-label="Status" style={input} value={event.status} onChange={(e) => set({ status: e.target.value })}>
                   {EVENT_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
