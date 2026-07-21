@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react-native";
+import { render, screen, fireEvent } from "@testing-library/react-native";
 jest.mock("../components/ElevationHero", () => ({
   ElevationHero: () => { const { View } = require("react-native"); return <View testID="elevation-hero" />; },
 }));
@@ -19,4 +19,13 @@ it("falls back to the elevation hero when there are no images", () => {
   render(<EventGallery images={[null, undefined]} height={250} />);
   expect(screen.getByTestId("elevation-hero")).toBeOnTheScreen();
   expect(screen.queryByTestId("gallery-image")).toBeNull();
+});
+
+it("replaces a slide that fails to load with the fallback, keeping the others", () => {
+  render(<EventGallery images={["https://cdn/a.png", "https://cdn/b.png"]} height={250} />);
+  const slides = screen.getAllByTestId("gallery-image");
+  expect(slides).toHaveLength(2);
+  fireEvent(slides[0], "error");
+  expect(screen.getAllByTestId("gallery-image")).toHaveLength(1);
+  expect(screen.getByTestId("elevation-hero")).toBeOnTheScreen();
 });

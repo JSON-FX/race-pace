@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { View, Text, Pressable, Image, StyleSheet } from "react-native";
 import { formatAddress } from "@race-pace/shared";
 import type { EventRow } from "../lib/events";
@@ -11,11 +12,12 @@ export function EventCard({ event, showOrg = true, onPress }: { event: EventRow;
   const cancelled = eventStatusKind(event) === "cancelled";
   const dateLabel = event.event_date ? (cancelled ? `was ${shortDate(event.event_date)}` : shortDate(event.event_date)) : "";
   const meta = [formatAddress(event) || event.place, dateLabel].filter(Boolean).join(" · ");
+  const [imgFailed, setImgFailed] = useState(false);
   return (
     <Pressable style={styles.card} onPress={onPress} accessibilityRole="button">
       <View>
-        {event.hero_image_url ? (
-          <Image testID="event-card-image" source={{ uri: event.hero_image_url }} style={{ height: 132, width: "100%" }} resizeMode="cover" />
+        {event.hero_image_url && !imgFailed ? (
+          <Image testID="event-card-image" source={{ uri: event.hero_image_url }} style={{ height: 132, width: "100%" }} resizeMode="cover" onError={() => setImgFailed(true)} />
         ) : (
           <ElevationHero height={132} />
         )}

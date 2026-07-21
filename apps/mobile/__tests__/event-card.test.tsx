@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react-native";
+import { render, screen, fireEvent } from "@testing-library/react-native";
 // ElevationHero renders react-native-svg; stub it so the fallback is assertable by testID.
 jest.mock("../components/ElevationHero", () => ({
   ElevationHero: () => { const { View } = require("react-native"); return <View testID="elevation-hero" />; },
@@ -22,6 +22,13 @@ it("renders the featured image when hero_image_url is set", () => {
 
 it("falls back to the elevation hero when there is no image", () => {
   render(<EventCard event={base} onPress={() => {}} />);
+  expect(screen.getByTestId("elevation-hero")).toBeOnTheScreen();
+  expect(screen.queryByTestId("event-card-image")).toBeNull();
+});
+
+it("falls back to the elevation hero if the featured image fails to load", () => {
+  render(<EventCard event={{ ...base, hero_image_url: "https://cdn/broken.png" }} onPress={() => {}} />);
+  fireEvent(screen.getByTestId("event-card-image"), "error");
   expect(screen.getByTestId("elevation-hero")).toBeOnTheScreen();
   expect(screen.queryByTestId("event-card-image")).toBeNull();
 });

@@ -9,6 +9,7 @@ export function EventGallery({ images, height }: { images: (string | null | unde
   const urls = Array.from(new Set(images.filter((u): u is string => !!u)));
   const { width } = useWindowDimensions();
   const [idx, setIdx] = useState(0);
+  const [errored, setErrored] = useState<Record<string, boolean>>({});
 
   if (urls.length === 0) return <ElevationHero height={height} />;
 
@@ -20,7 +21,11 @@ export function EventGallery({ images, height }: { images: (string | null | unde
     <View style={{ height }}>
       <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} onMomentumScrollEnd={onScroll} scrollEventThrottle={16}>
         {urls.map((uri) => (
-          <Image key={uri} testID="gallery-image" source={{ uri }} style={{ width, height }} resizeMode="cover" />
+          errored[uri] ? (
+            <View key={uri} style={{ width, height }}><ElevationHero height={height} /></View>
+          ) : (
+            <Image key={uri} testID="gallery-image" source={{ uri }} style={{ width, height }} resizeMode="cover" onError={() => setErrored((e) => ({ ...e, [uri]: true }))} />
+          )
         ))}
       </ScrollView>
       {urls.length > 1 ? (
