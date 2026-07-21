@@ -4,7 +4,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { formatPeso } from "@race-pace/shared";
 import { useEvent, useCategories } from "../../lib/events";
-import { ElevationHero } from "../../components/ElevationHero";
+import { EventGallery } from "../../components/EventGallery";
 import { OrgAvatar } from "../../components/OrgAvatar";
 import { StatusBanner, eventStatusKind } from "../../components/StatusBadge";
 import { longDate } from "../../lib/format";
@@ -40,7 +40,7 @@ export default function EventDetail() {
     <View style={styles.c}>
       <ScrollView contentContainerStyle={{ paddingBottom: 130 }} showsVerticalScrollIndicator={false}>
         <View>
-          <ElevationHero height={250} />
+          <EventGallery images={[event.hero_image_url, ...(event.gallery ?? [])]} height={250} />
           <Pressable onPress={() => router.back()} style={[styles.roundBtn, { top: insets.top + 4 }]} accessibilityRole="button"><Text style={styles.roundIcon}>‹</Text></Pressable>
         </View>
 
