@@ -4,7 +4,7 @@ import { z } from "zod";
 export const EVENT_STATUSES = ["draft", "open", "almost_full", "closed", "completed"] as const;
 
 const dateStr = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD").nullable();
-const timeStr = z.string().regex(/^\d{2}:\d{2}$/, "Use HH:MM").nullable();
+const timeStr = z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/, "Use HH:MM").nullable();
 const intNonNeg = z.number().int().min(0);
 
 export const eventInputSchema = z.object({

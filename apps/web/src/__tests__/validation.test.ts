@@ -25,3 +25,8 @@ it("accepts structured PSGC + venue fields and rejects a non-string city code", 
   expect(eventInputSchema.safeParse({ ...validEvent, city_psgc_code: "112603", region_name: "Davao Region", province_name: "Davao del Sur", city_name: "City of Digos", venue: "Camp Sabros" }).success).toBe(true);
   expect(eventInputSchema.safeParse({ ...validEvent, city_psgc_code: 112603 }).success).toBe(false);
 });
+it("accepts flag_off with or without seconds (Postgres time round-trip) and rejects malformed", () => {
+  expect(eventInputSchema.safeParse({ ...validEvent, flag_off: "04:00" }).success).toBe(true);
+  expect(eventInputSchema.safeParse({ ...validEvent, flag_off: "04:00:00" }).success).toBe(true);
+  expect(eventInputSchema.safeParse({ ...validEvent, flag_off: "4:00" }).success).toBe(false);
+});
