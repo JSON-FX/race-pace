@@ -32,7 +32,8 @@ ultra-trail event platform (Mindanao, Philippines).
 - [x] **Plan 9 · Admin foundation** — [spec](./specs/2026-07-20-admin-foundation-design.md) · [plan](./plans/09-admin-foundation.md) — `user_roles` + role-scoped RLS + role-adaptive shell + read-only Events list (backend `admin-roles` 7/7, web 8/8 green)
 - [ ] **Plan 10 · Events management** — create/edit events, categories/add-ons, custom-field editor, reschedule/cancel
 - [x] **Plan 11 · Event images** — [plan](./plans/11-event-images.md) — featured + gallery upload (Supabase Storage, client-side compression) and mobile rendering (event cards + detail carousel) (storage 2/2, web 27/27, mobile 45/45 green)
-- [ ] **Plan 12 · Registrations & payments** — table/detail, admin refunds
-- [ ] **Plan 13 · Race-day check-in** — web QR scanner + manual lookup
-- [ ] **Plan 14 · Settings + Dashboard** — org settings, KPIs/charts
-- [ ] **Plan 15 · super_admin** — org provisioning, commission, payout statements
+- [x] **Plan 12 · Editor structured inputs** — [plan](./plans/12-editor-structured-inputs.md) — PSGC Region→Province→City pickers + Venue, native date/time inputs (web)
+- [ ] **Plan 13 · Registrations & payments** — table/detail, admin refunds
+- [ ] **Plan 14 · Race-day check-in** — web QR scanner + manual lookup
+- [ ] **Plan 15 · Settings + Dashboard** — org settings, KPIs/charts
+- [ ] **Plan 16 · super_admin** — org provisioning, commission, payout statements
