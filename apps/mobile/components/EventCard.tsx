@@ -1,4 +1,4 @@
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import { View, Text, Pressable, Image, StyleSheet } from "react-native";
 import { formatAddress } from "@race-pace/shared";
 import type { EventRow } from "../lib/events";
 import { ElevationHero } from "./ElevationHero";
@@ -14,7 +14,11 @@ export function EventCard({ event, showOrg = true, onPress }: { event: EventRow;
   return (
     <Pressable style={styles.card} onPress={onPress} accessibilityRole="button">
       <View>
-        <ElevationHero height={132} />
+        {event.hero_image_url ? (
+          <Image testID="event-card-image" source={{ uri: event.hero_image_url }} style={{ height: 132, width: "100%" }} resizeMode="cover" />
+        ) : (
+          <ElevationHero height={132} />
+        )}
         <View style={styles.badge}><StatusBadge event={event} /></View>
       </View>
       <View style={styles.body}>
