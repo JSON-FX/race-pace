@@ -1,5 +1,8 @@
+import { Text } from "react-native";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Text } from "@/components/ui/text";
+// Initials are a fixed-white, dynamically-sized overlay on a saturated org
+// color — use plain RN Text, not @/components/ui/text (its base text-foreground
+// + text-base classes would fight the inline white color and font size).
 
 export function initials(name?: string | null): string {
   if (!name) return "?";
