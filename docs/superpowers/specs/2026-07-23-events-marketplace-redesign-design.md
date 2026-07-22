@@ -67,7 +67,7 @@ Selecting a bucket matches events that have **any** category whose `distance_km`
 | 50K+ | 45–75 |
 | Ultra | 75+ |
 
-Implementation: query `categories` for `event_id` where `distance_km` is within the selected bucket range(s), then constrain the events query to that set of `event_id`s (Supabase `.in("id", eventIds)`), or an inner-join filter (`events.select("...,categories!inner(distance_km)").gte(...).lte(...)`) if it proves simpler once building it out — left to the implementation plan to pick, functionally equivalent.
+**Implementation (simplified during planning):** `lib/events.ts` already embeds `categories(slots_taken)` per event to compute `joined_count` — extending that same embed with `distance_km` gives every event a `distances: number[]` field for free, with no extra query. Distance-bucket matching (and every other filter) then runs entirely client-side over the already-fetched event list, the same way today's text search already works — there's no realistic dataset size here that needs query-side filtering, and this keeps `useMarketplaceEvents()` itself unchanged.
 
 ### 4.4 Organizer filter
 
@@ -77,30 +77,31 @@ Multi-select. Backed by a dedicated picker screen/sheet:
 - Search box (reuses `Input`) filters the list live by name.
 - Results grouped under sticky first-letter section headers (no A–Z index rail).
 - Selected orgs shown as removable tags above the list.
-- Applying constrains the events query via `.in("org_id", selectedOrgIds)`.
+- Applying constrains the displayed list to events whose `org_id` is in the selected set (client-side, see §4.6).
 
 ### 4.5 Region filter
 
 Single picker (not full cascading-required-to-city like the profile's `PsgcAddressPicker` — filter semantics allow stopping at Region or Province, unlike the profile address which requires a city). Reuses the same `usePsgcRegions`/`usePsgcProvinces`/`usePsgcCities` hooks and `Select` primitive, but as a new lightweight component rather than reusing `PsgcAddressPicker` directly, since that component's contract (`onChange` only fires once a City is picked) doesn't fit "filter by region alone."
 
-Applies as `.eq("region_name", ...)` / `.eq("province_name", ...)` / `.eq("city_name", ...)` depending on how deep the user drilled (events table already carries denormalized `region_name`/`province_name`/`city_name`).
+Matches client-side against whichever level the user drilled to (`city_name`, else `province_name`, else `region_name` — events table already carries these denormalized).
 
-### 4.6 Combining filters
+### 4.6 Combining filters (client-side, pure functions)
 
-All active filters (region, date segment, distance, organizer) combine with AND. Search (existing name/place text search) continues to apply client-side on top of the filtered result set, unchanged from today.
+All filtering — region, date segment, distance buckets, organizer, upcoming/past scope — runs client-side in a new pure module, `lib/marketplaceFilters.ts` (no Supabase, no React; plain functions over `EventRow[]`), applied as one AND-combination via a single `filterMarketplaceEvents(events, filters, todayIso)` function. Search (existing name/place text search in `events.tsx`) continues to apply on top of that filtered result set, unchanged from today. This module is also where date-segment ranges, distance-bucket ranges, upcoming/past classification, and the "soonest N events" featured-picking logic live — all pure and unit-testable without mocking Supabase or React Query.
 
 ## 5. Component architecture
 
 | Component | File | Notes |
 |---|---|---|
-| `Marketplace` screen | `app/(tabs)/events.tsx` | Orchestrates filter state, assembles the query, renders the sections below. Existing search bar stays; "Filters" button added next to it. |
-| `FeaturedCarousel` | `components/FeaturedCarousel.tsx` (new) | Paged hero with dot pagination, soonest 1–3 upcoming events. |
-| `EventCard` | `components/EventCard.tsx` (redesign in place) | Immersive-overlay layout; keeps existing `imgFailed` → `ElevationHero` fallback behavior. |
+| `Marketplace` screen | `app/(tabs)/events.tsx` | Orchestrates filter state, applies `filterMarketplaceEvents`, renders the sections below. Existing search bar and pull-to-refresh (`useGlobalRefresh`) stay; "Filters" button added next to search. |
+| `lib/marketplaceFilters.ts` | new, pure | Date-segment ranges, distance-bucket ranges, upcoming/past classification, `filterMarketplaceEvents`, `pickFeaturedEvents`, `groupEventsForDisplay`, `countActiveFilters`. No Supabase/React dependency — the bulk of this feature's real logic, and the easiest to test thoroughly. |
+| `FeaturedCarousel` | `components/FeaturedCarousel.tsx` (new) | Paged hero with dot pagination, fed the soonest 1–3 upcoming events via `pickFeaturedEvents`. |
+| `EventCard` | `components/EventCard.tsx` (redesign in place) | Immersive-overlay layout; keeps existing `imgFailed` → `ElevationHero` fallback behavior, `joined_count`/date-range display. |
 | `MarketplaceFilterBar` | `components/MarketplaceFilterBar.tsx` (new) | `ToggleGroup`-based date segment + "More filters" row with count badge. |
-| `MarketplaceFilterSheet` | `components/MarketplaceFilterSheet.tsx` (new) | Bottom-anchored `Dialog` restyle; hosts Region/Distance/Organizer rows + Cancel/Apply footer with live count. |
+| `MarketplaceFilterSheet` | `components/MarketplaceFilterSheet.tsx` (new) | Bottom-anchored `Dialog` restyle; hosts Region/Distance/Organizer rows + Cancel/Apply footer with live count (computed via `filterMarketplaceEvents` against the draft selection). |
 | `RegionFilterPicker` | `components/RegionFilterPicker.tsx` (new) | Region → Province → City, each level independently selectable as the filter value. |
 | `OrganizerFilterPicker` | `components/OrganizerFilterPicker.tsx` (new) | Search + sectioned multi-select list, reuses `useOrgs()` and `OrgAvatar`. |
-| `lib/events.ts` | updated | `useMarketplaceEvents` takes a filter object (region/date-segment/distance buckets/org ids/show-past) and builds the Supabase query per §4. |
+| `lib/events.ts` | updated | `EVENT_COLS`'s `categories` embed gains `distance_km`; `mapEvent` gains a computed `distances: number[]`. `useMarketplaceEvents()` itself is otherwise unchanged. |
 
 ### Reusable component library usage (maximized per the request)
 
@@ -125,7 +126,8 @@ All active filters (region, date segment, distance, organizer) combine with AND.
 Extend existing coverage rather than starting fresh:
 - `__tests__/event-card.test.tsx` — update for the new overlay layout (status badge, org avatar, distance pills all still present, image-fail fallback still works).
 - `__tests__/marketplace-search.test.tsx` — extend for filter state (date segment, at least one combined filter case) alongside existing text search.
-- `__tests__/events-hooks.test.tsx` — extend `useMarketplaceEvents`/query-building tests for the filter parameters (region/date-segment/distance-bucket/org-ids/show-past), including the AND-combination case.
+- `__tests__/events-hooks.test.tsx` — extend for the new `distances` field (categories embed now includes `distance_km`).
+- New: `__tests__/marketplace-filters.test.ts` — pure unit tests for `lib/marketplaceFilters.ts` (date segments, distance buckets, upcoming/past, combined AND-filtering, featured picking, section grouping). No mocking needed.
 - New: `FeaturedCarousel` render + pagination test.
 - New: `MarketplaceFilterBar`/`MarketplaceFilterSheet` interaction test (opening the sheet, selecting filters, "Show N events" count, applying).
 - New: `OrganizerFilterPicker` search-filters-list + multi-select test.
