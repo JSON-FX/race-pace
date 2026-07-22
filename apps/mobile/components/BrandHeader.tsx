@@ -1,6 +1,5 @@
 import { Image, Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { StatusBar } from "expo-status-bar";
 import { Bell } from "lucide-react-native";
 import { Icon } from "@/components/ui/icon";
 import { Text } from "@/components/ui/text";
@@ -15,10 +14,9 @@ export function BrandHeader() {
   const insets = useSafeAreaInsets();
   return (
     <View
-      className="flex-row items-center justify-between border-b border-border bg-background px-[22px]"
+      className="flex-row items-center justify-between border-b border-divider bg-background px-[22px]"
       style={{ paddingTop: insets.top, height: BAR_HEIGHT + insets.top }}
     >
-      <StatusBar style="dark" />
       <View className="flex-row items-center gap-2.5">
         <Image source={MARK} style={{ width: 30, height: 30 }} resizeMode="contain" />
         <Text className="text-[17px] font-bold tracking-[-0.3px] text-foreground">Race Pace</Text>
