@@ -6,6 +6,7 @@
     "@babel/runtime": "^7.29.7",
     "@race-pace/shared": "workspace:*",
     "@react-native-async-storage/async-storage": "^2.2.0",
+    "@rn-primitives/portal": "^1.5.2",
     "@rn-primitives/slot": "^1.5.2",
     "@supabase/supabase-js": "^2.110.7",
     "@tanstack/react-query": "^5.101.2",
@@ -53,7 +54,8 @@
       "<rootDir>/jest.setup.ts"
     ],
     "moduleNameMapper": {
-      "^@/(.*)$": "<rootDir>/$1"
+      "^@/(.*)$": "<rootDir>/$1",
+      "\\.css$": "<rootDir>/__mocks__/styleMock.js"
     },
     "transformIgnorePatterns": [
       "node_modules/(?!(?:.pnpm/)?((jest-)?react-native|@react-native(-community)?|@react-native-async-storage|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@sentry/react-native|native-base|react-native-svg|react-native-url-polyfill|@supabase/.*|@race-pace/.*|nativewind|react-native-css-interop|@rn-primitives[/+].*))"
