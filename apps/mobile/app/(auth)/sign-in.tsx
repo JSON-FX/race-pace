@@ -1,20 +1,21 @@
 import { useState } from "react";
-import { View, Text, TextInput, Pressable, StyleSheet, KeyboardAvoidingView, Platform, Image } from "react-native";
+import { View, TextInput, KeyboardAvoidingView, Platform, Image } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { StatusBar } from "expo-status-bar";
 import { Link, useRouter } from "expo-router";
 import { useAuth } from "../../lib/auth";
-import { theme } from "../../lib/theme";
+import { Button } from "@/components/ui/button";
+import { Text } from "@/components/ui/text";
 
 const BG_VIDEO = require("../../assets/racepace-login-bg.mp4");
 const LOGO = require("../../assets/login-logo.png");
 
-// Dim the footage so the wordmark + form read clearly. Higher = darker bg,
-// logo pops more. Tune between 0 (raw video) and 1 (solid).
-const SCRIM_OPACITY = 0.55;
-const SCRIM = "#0A1A13"; // forest-black wash
-const FIELD_PLACEHOLDER = "rgba(255,255,255,0.7)";
+// Shared field styling: translucent-white bg + white text + light placeholder,
+// mirroring the previous inline style (rgba(255,255,255,0.12) bg /
+// rgba(255,255,255,0.28) border / #fff text / rgba(255,255,255,0.7) placeholder).
+const FIELD_CLASS =
+  "rounded-[11px] border border-white/25 bg-white/10 p-[15px] text-[17px] text-white placeholder:text-white/70";
 
 export default function SignIn() {
   const { signIn } = useAuth();
@@ -40,43 +41,64 @@ export default function SignIn() {
   }
 
   return (
-    <View style={styles.root}>
+    // This screen always sits on the dark login video, in BOTH app themes —
+    // so nothing below uses theme-flipping tokens (bg-background/
+    // text-foreground would swap to light-mode colors and vanish against the
+    // video). Every color here is a fixed, theme-independent value.
+    <View className="flex-1 bg-forest">
       <StatusBar style="light" />
-      <VideoView style={StyleSheet.absoluteFill} player={player} contentFit="cover" nativeControls={false} />
-      <View style={[styles.scrim, { opacity: SCRIM_OPACITY }]} pointerEvents="none" />
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-        <View style={[styles.content, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 28 }]}>
-          <View style={styles.heroWrap}>
-            <Image source={LOGO} style={styles.logo} resizeMode="contain" accessibilityLabel="Race Pace" />
+      <VideoView
+        style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
+        player={player}
+        contentFit="cover"
+        nativeControls={false}
+      />
+      {/* Forest-black wash (fixed, not a theme color) so the wordmark + form read clearly over raw footage. */}
+      <View className="absolute inset-0 bg-[#0A1A13] opacity-55" pointerEvents="none" />
+      <KeyboardAvoidingView className="flex-1" behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <View
+          className="flex-1 justify-end px-7"
+          style={{ paddingTop: insets.top + 24, paddingBottom: insets.bottom + 28 }}
+        >
+          <View className="flex-1 items-center justify-center">
+            <Image
+              source={LOGO}
+              style={{ width: "64%", aspectRatio: 3.31, maxHeight: 84 }}
+              resizeMode="contain"
+              accessibilityLabel="Race Pace"
+            />
           </View>
-          <View style={styles.form}>
-            <TextInput style={styles.i} placeholder="Email" placeholderTextColor={FIELD_PLACEHOLDER} autoCapitalize="none" keyboardType="email-address" value={email} onChangeText={setEmail} accessibilityLabel="Email" />
-            <TextInput style={styles.i} placeholder="Password" placeholderTextColor={FIELD_PLACEHOLDER} secureTextEntry value={password} onChangeText={setPassword} accessibilityLabel="Password" />
-            {error ? <Text style={styles.err}>{error}</Text> : null}
-            <Pressable style={styles.btn} onPress={onSubmit} disabled={busy} accessibilityRole="button">
-              <Text style={styles.btnT}>{busy ? "Signing in…" : "Sign in"}</Text>
-            </Pressable>
-            <Text style={styles.social}>Apple · Google · Facebook — coming soon</Text>
-            <Link href="/(auth)/sign-up" style={styles.link}>Create an account</Link>
+          <View className="gap-3">
+            <TextInput
+              className={FIELD_CLASS}
+              placeholder="Email"
+              autoCapitalize="none"
+              keyboardType="email-address"
+              value={email}
+              onChangeText={setEmail}
+              accessibilityLabel="Email"
+            />
+            <TextInput
+              className={FIELD_CLASS}
+              placeholder="Password"
+              secureTextEntry
+              value={password}
+              onChangeText={setPassword}
+              accessibilityLabel="Password"
+            />
+            {error ? <Text className="text-[#FF6B61] text-sm">{error}</Text> : null}
+            <Button onPress={onSubmit} disabled={busy} className="mt-1 h-auto py-4 sm:h-auto">
+              <Text className="text-[17px] font-semibold text-white">{busy ? "Signing in…" : "Sign in"}</Text>
+            </Button>
+            <Text className="mt-2.5 text-center text-[13px] text-white/65">
+              Apple · Google · Facebook — coming soon
+            </Text>
+            <Link href="/(auth)/sign-up" className="mt-1.5 text-center text-base font-semibold text-white">
+              Create an account
+            </Link>
           </View>
         </View>
       </KeyboardAvoidingView>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.forest },
-  flex: { flex: 1 },
-  scrim: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: SCRIM },
-  content: { flex: 1, paddingHorizontal: 28, justifyContent: "flex-end" },
-  heroWrap: { flex: 1, justifyContent: "center", alignItems: "center" },
-  logo: { width: "64%", aspectRatio: 3.31, maxHeight: 84 },
-  form: { gap: 12 },
-  i: { borderWidth: 1, borderColor: "rgba(255,255,255,0.28)", borderRadius: theme.radius.md, padding: 15, fontSize: 17, color: "#fff", backgroundColor: "rgba(255,255,255,0.12)" },
-  btn: { backgroundColor: theme.primary, borderRadius: theme.radius.pill, paddingVertical: 16, alignItems: "center", marginTop: 4 },
-  btnT: { color: theme.onPrimary, fontWeight: "600", fontSize: 17 },
-  err: { color: "#FF6B61", fontSize: 14 },
-  social: { color: "rgba(255,255,255,0.65)", textAlign: "center", marginTop: 10, fontSize: 13 },
-  link: { color: "#fff", textAlign: "center", marginTop: 6, fontSize: 16, fontWeight: "600" },
-});
