@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Migrate the entire `apps/mobile` runner UI (14 routes, 12 components) from hand-rolled `StyleSheet` to **React Native Reusables (RNR)** primitives on **NativeWind**, preserving the Race Pace brand and adding **light + dark** theming, with all 49 tests green throughout.
+**Goal:** Migrate the entire `apps/mobile` runner UI (14 routes, 12 components) from hand-rolled `StyleSheet` to **React Native Reusables (RNR)** primitives on **NativeWind**, preserving the Race Pace brand and adding **light + dark** theming, with all 47 tests green throughout.
 
 **Architecture:** Foundation-first and test-guarded. First a Phase 0 spike de-risks NativeWind on Expo SDK 57 / RN 0.86. Then we lay the theming foundation (semantic CSS-variable tokens in `global.css`, mapped through `tailwind.config.js`), add RNR primitives under `components/ui/`, migrate leaf components, then screens — the register→pay→ticket money path **last**. `lib/theme.ts` stays as a bridge until nothing imports it, then is deleted.
 
@@ -15,7 +15,8 @@
 Every task's requirements implicitly include this section.
 
 - **Read the versioned Expo docs first.** `apps/mobile/AGENTS.md`: SDK 57 is new — consult `https://docs.expo.dev/versions/v57.0.0/` before writing native/config code.
-- **All commands run from `apps/mobile/`** unless stated. Test: `npm test` (full suite, 49 tests) or `npx jest __tests__/<file>` (one file). Typecheck: `npx tsc --noEmit`. iOS render check: the `mcp__Claude_Code_iOS_Simulator__control` tool (attach → build → launch → screenshot), or `npm run ios`.
+- **Package manager is pnpm@9.7.0 (workspace).** NEVER run `npm install`/`npm add` — it writes a `package-lock.json` and corrupts the pnpm workspace. Installs: from repo root `pnpm --filter mobile add <pkg>` (add `-D` for dev), or `npx expo install <pkg>` (Expo detects pnpm) for Expo-versioned native deps.
+- **Commands.** Baseline is **47 tests / 24 suites** (not 49). Full suite: `pnpm --filter mobile test`. One file: `pnpm --filter mobile exec jest __tests__/<file>`. Typecheck: `pnpm --filter mobile exec tsc --noEmit`. iOS render check: the `mcp__Claude_Code_iOS_Simulator__control` tool (attach → build → launch → screenshot), or `pnpm --filter mobile exec expo start --ios`. **Wherever a step below writes `npm …`/`npx jest`/`npm run ios`, use these pnpm equivalents instead.**
 - **Tests stay green after every task.** Behavior tests (hooks, checkout, cache) are styling-agnostic and must pass **untouched**. A restyle-only task must not change a component's rendered text, `testID`, `accessibilityRole`, or `accessibilityLabel` — those are how the tests find nodes. If a test asserts on `style`/color (not behavior), refactor the assertion to behavior/text in the same task and say so in the commit.
 - **Copy-in, not dependency.** RNR components are added via `npx @react-native-reusables/cli@latest add <name>` into `components/ui/`, then owned/edited by us. Import via the **`@/` alias** (already in `tsconfig.json` → `@/* : ./*`).
 - **Brand is trail-green `#159A55`**, pill CTAs, hairline surfaces, getdesign `apple` structure. Light + dark both defined; dark values from spec §6 (tune contrast to **WCAG AA** in QA).
@@ -83,9 +84,10 @@ Migration tasks reference this table instead of repeating it. Left = current `th
 - [ ] **Step 2: Install deps.** From `apps/mobile/`:
 
 ```bash
+# from repo root — pnpm workspace; Expo picks pnpm for `expo install`
 npx expo install nativewind react-native-reanimated react-native-safe-area-context
-npm install -D tailwindcss@^3.4.17
-npm install lucide-react-native clsx tailwind-merge
+pnpm --filter mobile add -D tailwindcss@^3.4.17
+pnpm --filter mobile add lucide-react-native clsx tailwind-merge
 ```
 
 - [ ] **Step 3: Create `global.css`** (minimal for the spike; full tokens land in Task 2):
@@ -178,7 +180,7 @@ import { Text } from "@/components/ui/text";
 - [ ] **Step 11: Verify tests still pass (the critical gate).**
 
 Run: `npm test`
-Expected: PASS — all 49 tests. If NativeWind's transform breaks rendering, fix babel/jest config now (this is the spike's purpose). If any test asserts on style/color, note it for that component's Phase 3/4 task; it should not fail on a className-only probe.
+Expected: PASS — all 47 tests. If NativeWind's transform breaks rendering, fix babel/jest config now (this is the spike's purpose). If any test asserts on style/color, note it for that component's Phase 3/4 task; it should not fail on a className-only probe.
 
 - [ ] **Step 12: Verify iOS render.** Attach the simulator, build, launch, screenshot. Confirm the "Spike OK" pill renders in trail-green. (`mcp__Claude_Code_iOS_Simulator__control`: attach → build → launch → screenshot, or `npm run ios`.)
 
