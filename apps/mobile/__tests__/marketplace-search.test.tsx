@@ -12,10 +12,11 @@ const mockEvent: any = {
   status: "open", hero_image_url: null, description: null,
   gallery: [], original_date: null, status_note: null,
   city_psgc_code: "112603", region_name: "Region XI (Davao Region)", province_name: "Davao del Sur", city_name: "City of Digos", venue: null,
-  org_name: "Race Pace", org_color: "#159A55",
+  joined_count: 0, distances: [21], org_name: "Race Pace", org_color: "#159A55",
 };
 jest.mock("../lib/events", () => ({
   useMarketplaceEvents: () => ({ data: [mockEvent], isLoading: false, isError: false, refetch: jest.fn() }),
+  useOrgs: () => ({ data: [], isLoading: false, isError: false, refetch: jest.fn() }),
 }));
 jest.mock("../lib/useGlobalRefresh", () => ({ useGlobalRefresh: () => ({ refreshing: false, onRefresh: jest.fn() }) }));
 
@@ -34,5 +35,21 @@ describe("Marketplace search", () => {
     const input = screen.getByPlaceholderText("Search by name or place");
     fireEvent.changeText(input, "Zzzznomatch");
     expect(screen.queryByText("Highland Trail Run")).not.toBeOnTheScreen();
+  });
+
+  it("shows the date segment pills and switches the active one", () => {
+    render(<Marketplace />);
+    expect(screen.getByRole("radio", { name: "All", checked: true })).toBeOnTheScreen();
+    fireEvent.press(screen.getByRole("radio", { name: "This month" }));
+    expect(screen.getByRole("radio", { name: "This month", checked: true })).toBeOnTheScreen();
+  });
+
+  it("hides the upcoming event and offers Clear filters when Past events is toggled on", () => {
+    render(<Marketplace />);
+    fireEvent.press(screen.getByText("Show"));
+    expect(screen.queryByText("Highland Trail Run")).not.toBeOnTheScreen();
+    expect(screen.getByText("No events match your filters.")).toBeOnTheScreen();
+    fireEvent.press(screen.getByText("Clear filters"));
+    expect(screen.getByText("Highland Trail Run")).toBeOnTheScreen();
   });
 });
