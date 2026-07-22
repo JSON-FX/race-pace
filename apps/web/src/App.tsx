@@ -7,6 +7,7 @@ import { NoAccess } from "./routes/NoAccess";
 import { Placeholder } from "./routes/Placeholder";
 import { Events } from "./routes/Events";
 import { EventEditor } from "./routes/EventEditor";
+import { Registrations } from "./routes/Registrations";
 
 function RequireAdmin() {
   const { session, loading } = useAuth();
@@ -31,7 +32,7 @@ export function App() {
             <Route path="events/new" element={<EventEditor />} />
             <Route path="events/:id/edit" element={<EventEditor />} />
             <Route path="dashboard" element={<Placeholder title="Dashboard" />} />
-            <Route path="registrations" element={<Placeholder title="Registrations" />} />
+            <Route path="registrations" element={<Registrations />} />
             <Route path="payments" element={<Placeholder title="Payments" />} />
             <Route path="check-in" element={<Placeholder title="Check-in" />} />
             <Route path="settings" element={<Placeholder title="Settings" />} />
