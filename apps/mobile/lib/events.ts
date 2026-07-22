@@ -3,11 +3,11 @@ import { supabase } from "./supabase";
 
 export type EventRow = {
   id: string; org_id: string; name: string; place: string | null; region: string | null;
-  event_date: string | null; elevation_gain_m: number | null; cutoff_hours: number | null;
+  event_date: string | null; end_date: string | null; elevation_gain_m: number | null; cutoff_hours: number | null;
   status: string; hero_image_url: string | null; description: string | null;
   gallery: string[]; original_date: string | null; status_note: string | null;
   city_psgc_code: string | null; region_name: string | null; province_name: string | null; city_name: string | null; venue: string | null;
-  org_name?: string; org_color?: string | null;
+  joined_count: number; org_name?: string; org_color?: string | null;
 };
 export type OrgRow = {
   id: string; name: string; slug: string;
@@ -26,12 +26,13 @@ export type FormFieldRow = {
 };
 
 const EVENT_COLS =
-  "id,org_id,name,place,region,event_date,elevation_gain_m,cutoff_hours,status,hero_image_url,description,gallery,original_date,status_note,city_psgc_code,region_name,province_name,city_name,venue";
+  "id,org_id,name,place,region,event_date,end_date,elevation_gain_m,cutoff_hours,status,hero_image_url,description,gallery,original_date,status_note,city_psgc_code,region_name,province_name,city_name,venue,categories(slots_taken)";
 const ORG_COLS = "id,name,slug,logo_url,banner_url,description,brand_color";
 const CAT_COLS = "id,event_id,org_id,code,label,distance_km,base_price,slots_total,slots_taken";
 
 function mapEvent(r: any): EventRow {
-  return { ...r, gallery: r.gallery ?? [], org_name: r.organizations?.name, org_color: r.organizations?.brand_color };
+  const joined_count = ((r.categories ?? []) as { slots_taken: number }[]).reduce((sum, c) => sum + c.slots_taken, 0);
+  return { ...r, gallery: r.gallery ?? [], joined_count, org_name: r.organizations?.name, org_color: r.organizations?.brand_color };
 }
 
 // Marketplace: every org's non-draft events (RLS enforces non-draft), with org name + color for the card.

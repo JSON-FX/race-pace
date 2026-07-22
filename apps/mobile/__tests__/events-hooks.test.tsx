@@ -21,4 +21,19 @@ describe("useMarketplaceEvents", () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data?.[0]).toMatchObject({ id: "e1", org_name: "Race Pace", org_color: "#159A55", gallery: [] });
   });
+
+  it("passes end_date through and sums slots_taken across categories into joined_count", async () => {
+    mockOrder.mockResolvedValueOnce({
+      data: [{
+        id: "e2", org_id: "o1", name: "Trail Fest", status: "open", gallery: null,
+        event_date: "2026-09-01", end_date: "2026-09-03",
+        categories: [{ slots_taken: 40 }, { slots_taken: 88 }],
+        organizations: { name: "Race Pace", brand_color: "#159A55" },
+      }],
+      error: null,
+    });
+    const { result } = renderHook(() => useMarketplaceEvents(), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data?.[0]).toMatchObject({ id: "e2", end_date: "2026-09-03", joined_count: 128 });
+  });
 });
