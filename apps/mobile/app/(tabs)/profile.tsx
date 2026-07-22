@@ -1,14 +1,15 @@
-import { useMemo, useEffect, useState } from "react";
-import { View, ScrollView, Pressable, Alert, Image, ActivityIndicator, TextInput, Modal, ActionSheetIOS, Platform } from "react-native";
+import { useMemo, useEffect, useRef, useState } from "react";
+import { View, ScrollView, Pressable, Alert, Image, ActivityIndicator, TextInput, Modal, ActionSheetIOS, Platform, RefreshControl } from "react-native";
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Camera, ChevronRight } from "lucide-react-native";
 import { useAuth } from "../../lib/auth";
-import { getProfile, upsertProfile } from "../../lib/profile";
+import { useProfile, upsertProfile } from "../../lib/profile";
 import { pickAndUploadProfileImage } from "../../lib/profileImage";
 import { useMyRegistrations } from "../../lib/registration";
+import { useGlobalRefresh } from "../../lib/useGlobalRefresh";
 import { initials } from "../../components/OrgAvatar";
 import { PsgcAddressPicker } from "../../components/PsgcAddressPicker";
 import { BLOOD_TYPES, SHIRT_SIZES, GENDERS, type PsgcAddress } from "@race-pace/shared";
@@ -24,13 +25,15 @@ const CARD = "rounded-[16px] border border-border bg-card px-4";
 const CARD_HEADING = "pt-3.5 pb-1 text-[13px] font-bold text-foreground";
 const ROW = "flex-row items-center justify-between py-3";
 const RLABEL = "text-[14px] text-muted-foreground";
-const RVALUE = "text-[15px] font-semibold text-foreground";
+const RVALUE = "text-[15px] text-foreground";
 
 export default function Profile() {
   const { session, signOut } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const uid = session?.user.id;
+  const profileQuery = useProfile(uid);
+  const { refreshing, onRefresh } = useGlobalRefresh();
   const myRaces = useMyRegistrations();
   const raceCount = myRaces.data?.length ?? 0;
 
@@ -52,19 +55,23 @@ export default function Profile() {
   const [viewer, setViewer] = useState<string | null>(null); // full-screen image viewer
   const [saved, setSaved] = useState<Record<string, string>>({});
 
+  // Seed local editable state from the fetched profile once per uid — not on
+  // every subsequent pull-to-refresh refetch, which would otherwise clobber
+  // in-progress unsaved edits.
+  const seededFor = useRef<string | undefined>(undefined);
   useEffect(() => {
-    if (!uid) return;
-    getProfile(uid).then((p) => {
-      if (!p) { setSaved(snapshot({})); return; }
-      const [en, ep] = splitEmergency(p.emergency_contact);
-      setFullName(p.full_name ?? ""); setBibName(p.bib_name ?? "");
-      setAddress(p.city_psgc_code ? { city_psgc_code: p.city_psgc_code, city_name: p.city_name ?? null, province_name: p.province_name ?? null, region_name: null } : null);
-      setDob(p.date_of_birth ?? ""); setGender(p.gender ?? ""); setShirtSize(p.shirt_size ?? "");
-      setBloodType(p.blood_type ?? ""); setEmgName(en); setEmgPhone(ep);
-      setAvatarUrl(p.avatar_url ?? null); setCoverUrl(p.cover_url ?? null);
-      setSaved(snapshot({ fullName: p.full_name, bibName: p.bib_name, dob: p.date_of_birth, gender: p.gender, shirtSize: p.shirt_size, bloodType: p.blood_type, emgName: en, emgPhone: ep, city: p.city_psgc_code }));
-    });
-  }, [uid]);
+    if (!uid || profileQuery.isLoading || seededFor.current === uid) return;
+    seededFor.current = uid;
+    const p = profileQuery.data;
+    if (!p) { setSaved(snapshot({})); return; }
+    const [en, ep] = splitEmergency(p.emergency_contact);
+    setFullName(p.full_name ?? ""); setBibName(p.bib_name ?? "");
+    setAddress(p.city_psgc_code ? { city_psgc_code: p.city_psgc_code, city_name: p.city_name ?? null, province_name: p.province_name ?? null, region_name: null } : null);
+    setDob(p.date_of_birth ?? ""); setGender(p.gender ?? ""); setShirtSize(p.shirt_size ?? "");
+    setBloodType(p.blood_type ?? ""); setEmgName(en); setEmgPhone(ep);
+    setAvatarUrl(p.avatar_url ?? null); setCoverUrl(p.cover_url ?? null);
+    setSaved(snapshot({ fullName: p.full_name, bibName: p.bib_name, dob: p.date_of_birth, gender: p.gender, shirtSize: p.shirt_size, bloodType: p.blood_type, emgName: en, emgPhone: ep, city: p.city_psgc_code }));
+  }, [uid, profileQuery.data, profileQuery.isLoading]);
 
   const current = snapshot({ fullName, bibName, dob, gender, shirtSize, bloodType, emgName, emgPhone, city: address?.city_psgc_code });
   const dirty = useMemo(() => JSON.stringify(current) !== JSON.stringify(saved), [current, saved]);
@@ -145,6 +152,7 @@ export default function Profile() {
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={32}
         onScroll={(e) => setOverCover(e.nativeEvent.contentOffset.y < 150)}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
         {/* ── Race passport header: full-bleed forest cover + avatar + stats ── */}
         <View className="relative overflow-hidden bg-forest">
@@ -314,7 +322,7 @@ function SelectRow({ label, value, options, placeholder, onChange, accessibility
         <SelectTrigger accessibilityLabel={accessibilityLabel} className="h-auto min-h-0 gap-1 border-0 bg-transparent px-0 py-0 shadow-none">
           <SelectValue placeholder={placeholder} className={RVALUE} />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent align="end">
           {options.map((o) => <SelectItem key={o} value={o} label={o} />)}
         </SelectContent>
       </Select>

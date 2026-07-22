@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { formatAddress } from "@race-pace/shared";
+import { formatAddress, formatDateRange } from "@race-pace/shared";
 import { useMyRoles } from "../lib/roles";
 import { useOrgEvents, type AdminEventRow } from "../lib/events";
 import { useEventRegistrationCounts } from "../lib/registrations";
@@ -84,7 +84,7 @@ export function Events() {
                 ) : null}
               </div>
               <div style={{ fontSize: 13 }}>
-                {fmtDate(e.event_date)}
+                {e.event_date ? formatDateRange(e.event_date, e.end_date, fmtDate) : "—"}
                 {e.original_date ? <span style={{ color: "var(--info)", fontSize: 12 }}> · was {fmtDate(e.original_date)}</span> : null}
               </div>
               <div><StatusChip status={e.status} /></div>

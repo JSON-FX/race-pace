@@ -15,6 +15,7 @@ export const eventInputSchema = z.object({
   city_name: z.string().nullable(),
   venue: z.string().nullable(),
   event_date: dateStr,
+  end_date: dateStr,
   flag_off: timeStr,
   status: z.enum(EVENT_STATUSES),
   elevation_gain_m: intNonNeg.nullable(),

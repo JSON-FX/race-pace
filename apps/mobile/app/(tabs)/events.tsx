@@ -1,14 +1,16 @@
 import { useMemo, useState } from "react";
-import { View, TextInput, FlatList, ActivityIndicator, Pressable } from "react-native";
+import { View, TextInput, FlatList, ActivityIndicator, Pressable, RefreshControl } from "react-native";
 import { useRouter } from "expo-router";
 import { Search } from "lucide-react-native";
 import { useMarketplaceEvents } from "../../lib/events";
+import { useGlobalRefresh } from "../../lib/useGlobalRefresh";
 import { EventCard } from "../../components/EventCard";
 import { Icon } from "@/components/ui/icon";
 import { Text } from "@/components/ui/text";
 
 export default function Marketplace() {
   const { data, isLoading, isError, refetch } = useMarketplaceEvents();
+  const { refreshing, onRefresh } = useGlobalRefresh();
   const router = useRouter();
   const [q, setQ] = useState("");
 
@@ -45,6 +47,7 @@ export default function Marketplace() {
       contentContainerClassName="px-[22px] pt-2 pb-8"
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       ListHeaderComponent={
         <View className="mb-4">
           <Text className="text-3xl font-bold tracking-[-0.5px] text-foreground">Events</Text>

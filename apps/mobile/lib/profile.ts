@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "./supabase";
 
 export type Profile = {
@@ -28,4 +29,12 @@ export async function getProfile(userId: string): Promise<Profile | null> {
 export async function upsertProfile(row: Partial<Profile> & { id: string }): Promise<{ error?: string }> {
   const { error } = await supabase.from("profiles").upsert(row);
   return error ? { error: error.message } : {};
+}
+
+export function useProfile(userId?: string) {
+  return useQuery({
+    queryKey: ["profile", userId],
+    queryFn: () => getProfile(userId!),
+    enabled: !!userId,
+  });
 }

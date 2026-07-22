@@ -5,9 +5,13 @@ jest.mock("../lib/auth", () => ({ useAuth: () => ({ session: { user: { id: "u1",
 jest.mock("react-native-safe-area-context", () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 jest.mock("expo-router", () => ({ useRouter: () => ({ replace: jest.fn() }) }));
 jest.mock("../lib/profile", () => ({
-  getProfile: jest.fn().mockResolvedValue({ id: "u1", full_name: "JR Dela Cruz", bib_name: "JR", date_of_birth: "1990-05-15", gender: "Male", blood_type: "O+", shirt_size: "M", emergency_contact: "Jane 0917", city_name: "Digos City", province_name: "Davao del Sur", city_psgc_code: "c1" }),
+  useProfile: () => ({
+    data: { id: "u1", full_name: "JR Dela Cruz", bib_name: "JR", date_of_birth: "1990-05-15", gender: "Male", blood_type: "O+", shirt_size: "M", emergency_contact: "Jane 0917", city_name: "Digos City", province_name: "Davao del Sur", city_psgc_code: "c1" },
+    isLoading: false,
+  }),
   upsertProfile: (...a: unknown[]) => mockUpsert(...a),
 }));
+jest.mock("../lib/useGlobalRefresh", () => ({ useGlobalRefresh: () => ({ refreshing: false, onRefresh: jest.fn() }) }));
 // The picker is exercised in its own test; here assert the profile wires its value/onChange.
 jest.mock("../components/PsgcAddressPicker", () => ({
   PsgcAddressPicker: ({ value, onChange }: any) => {

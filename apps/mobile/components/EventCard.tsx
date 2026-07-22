@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { View, Pressable, Image } from "react-native";
-import { formatAddress } from "@race-pace/shared";
+import { formatAddress, formatDateRange } from "@race-pace/shared";
 import type { EventRow } from "../lib/events";
 import { ElevationHero } from "./ElevationHero";
 import { OrgAvatar } from "./OrgAvatar";
@@ -11,8 +11,9 @@ import { Text } from "@/components/ui/text";
 
 export function EventCard({ event, showOrg = true, onPress }: { event: EventRow; showOrg?: boolean; onPress: () => void }) {
   const cancelled = eventStatusKind(event) === "cancelled";
-  const dateLabel = event.event_date ? (cancelled ? `was ${shortDate(event.event_date)}` : shortDate(event.event_date)) : "";
-  const meta = [formatAddress(event) || event.place, dateLabel].filter(Boolean).join(" · ");
+  const address = formatAddress(event) || event.place;
+  const dateRange = event.event_date ? formatDateRange(event.event_date, event.end_date, shortDate) : "";
+  const dateLabel = dateRange ? (cancelled ? `was ${dateRange}` : dateRange) : "";
   const [imgFailed, setImgFailed] = useState(false);
   return (
     <Pressable onPress={onPress} accessibilityRole="button">
@@ -27,7 +28,9 @@ export function EventCard({ event, showOrg = true, onPress }: { event: EventRow;
         </View>
         <View className="p-[14px] px-4">
           <Text className="text-[17px] font-semibold tracking-[-0.2px] text-foreground" numberOfLines={1}>{event.name}</Text>
-          {meta ? <Text className="text-[13px] text-muted-foreground mt-[3px]">{meta}</Text> : null}
+          {address ? <Text className="text-[13px] text-muted-foreground mt-[3px]">{address}</Text> : null}
+          {dateLabel ? <Text className="text-[13px] text-muted-foreground mt-0.5">{dateLabel}</Text> : null}
+          {event.joined_count > 0 ? <Text className="text-[12px] text-muted-foreground mt-0.5">+{event.joined_count} joined</Text> : null}
           {showOrg && event.org_name ? (
             <View className="flex-row items-center gap-[9px] mt-[13px] pt-3 border-t border-divider">
               <OrgAvatar name={event.org_name} color={event.org_color} size={24} />

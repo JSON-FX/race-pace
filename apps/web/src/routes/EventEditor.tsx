@@ -13,7 +13,7 @@ import { PsgcAddressField } from "../components/PsgcAddressField";
 const label = { display: "block", fontSize: 11, fontWeight: 600, letterSpacing: ".4px", color: "var(--ink-muted)", marginBottom: 6 } as const;
 const input = { background: "var(--canvas)", border: "1px solid var(--hairline)", borderRadius: 11, padding: "12px 13px", color: "var(--ink)", fontSize: 14, width: "100%" } as const;
 const card = { background: "var(--canvas)", border: "1px solid var(--hairline)", borderRadius: "var(--radius-card)", padding: 22 } as const;
-const blank: EventDraft = { org_id: "", name: "", city_psgc_code: null, region_name: null, province_name: null, city_name: null, venue: null, event_date: null, flag_off: null, status: "draft", elevation_gain_m: null, cutoff_hours: null, description: null, hero_image_url: null, gallery: [] };
+const blank: EventDraft = { org_id: "", name: "", city_psgc_code: null, region_name: null, province_name: null, city_name: null, venue: null, event_date: null, end_date: null, flag_off: null, status: "draft", elevation_gain_m: null, cutoff_hours: null, description: null, hero_image_url: null, gallery: [] };
 
 export function EventEditor() {
   const { id } = useParams();
@@ -56,6 +56,7 @@ export function EventEditor() {
     // to valid values — validating it here would permanently block Save on a
     // cancelled event with a misleading "fix the event fields" message.
     if (!eventInputSchema.omit({ status: true }).safeParse({ ...event }).success) return "Fix the event fields (name is required, valid date/time).";
+    if (event.end_date && event.event_date && event.end_date < event.event_date) return "End date can't be before the start date.";
     for (const c of cats) if (!categoryInputSchema.safeParse(c).success) return "Fix the category rows (code, label, non-negative price/slots).";
     for (const a of addons) if (!addonInputSchema.safeParse(a).success) return "Fix the add-on rows (name, non-negative price).";
     return null;
@@ -103,8 +104,9 @@ export function EventEditor() {
               onChange={(a) => set(a)}
             />
             <div><span style={label}>VENUE</span><input aria-label="Venue" style={input} value={event.venue ?? ""} onChange={(e) => set({ venue: e.target.value || null })} /></div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 12 }}>
               <div><span style={label}>DATE</span><input aria-label="Date" type="date" style={input} value={event.event_date ?? ""} onChange={(e) => set({ event_date: e.target.value || null })} /></div>
+              <div><span style={label}>END DATE</span><input aria-label="End date" type="date" style={input} value={event.end_date ?? ""} onChange={(e) => set({ end_date: e.target.value || null })} /></div>
               <div><span style={label}>FLAG-OFF</span><input aria-label="Flag-off" type="time" style={input} value={event.flag_off ?? ""} onChange={(e) => set({ flag_off: e.target.value || null })} /></div>
               <div><span style={label}>STATUS</span>
                 <select aria-label="Status" style={input} value={event.status} onChange={(e) => set({ status: e.target.value })}>

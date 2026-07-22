@@ -2,7 +2,7 @@ import { useState } from "react";
 import { View, ScrollView, Pressable, ActivityIndicator } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { formatPeso } from "@race-pace/shared";
+import { formatPeso, formatDateRange } from "@race-pace/shared";
 import { useEvent, useCategories } from "../../lib/events";
 import { EventGallery } from "../../components/EventGallery";
 import { OrgAvatar } from "../../components/OrgAvatar";
@@ -33,7 +33,7 @@ export default function EventDetail() {
   const meta = [
     (fullAddress || event.place) && `◎ ${fullAddress || [event.place, event.region].filter(Boolean).join(" · ")}`,
     event.venue && `🏁 ${event.venue}`,
-    event.event_date && `⚑ ${longDate(event.event_date)}`,
+    event.event_date && `⚑ ${formatDateRange(event.event_date, event.end_date, longDate)}`,
     event.elevation_gain_m && `▲ ${event.elevation_gain_m.toLocaleString()}m gain`,
     event.cutoff_hours && `⏱ ${event.cutoff_hours}h cutoff`,
   ].filter(Boolean) as string[];

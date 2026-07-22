@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
-import { View, TextInput, FlatList, Pressable, ActivityIndicator } from "react-native";
+import { View, TextInput, FlatList, Pressable, ActivityIndicator, RefreshControl } from "react-native";
 import { useRouter } from "expo-router";
 import { Search } from "lucide-react-native";
 import { useOrgs } from "../../lib/events";
+import { useGlobalRefresh } from "../../lib/useGlobalRefresh";
 import { OrgAvatar } from "../../components/OrgAvatar";
 import { Icon } from "@/components/ui/icon";
 import { Text } from "@/components/ui/text";
@@ -10,6 +11,7 @@ import { Button } from "@/components/ui/button";
 
 export default function Orgs() {
   const { data, isLoading, isError, refetch } = useOrgs();
+  const { refreshing, onRefresh } = useGlobalRefresh();
   const router = useRouter();
   const [q, setQ] = useState("");
 
@@ -45,6 +47,7 @@ export default function Orgs() {
       contentContainerClassName="pt-2 pb-8"
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       ListHeaderComponent={
         <View className="px-[22px] mb-2">
           <Text className="text-3xl font-bold tracking-[-0.5px] text-foreground">Organizations</Text>

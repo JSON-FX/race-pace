@@ -159,4 +159,16 @@ describe("PsgcAddressPicker", () => {
     expect(await within(screen.getByLabelText("Region")).findByText("Metro Manila")).toBeOnTheScreen();
     expect(screen.queryByLabelText("Province")).toBeNull();
   });
+
+  it("wraps a long city list in a bounded, scrollable container", async () => {
+    mockCities = Array.from({ length: 40 }, (_, i) => ({ code: `c${i}`, name: `City ${i}` }));
+    renderPicker();
+    await openAndPick("Region", "Davao Region");
+    await openAndPick("Province", "Davao del Sur");
+
+    fireEvent.press(screen.getByLabelText("City"));
+    expect(await screen.findByText("City 39")).toBeOnTheScreen();
+    const scroller = screen.getByTestId("select-native-scroll");
+    expect(scroller.props.style).toMatchObject({ maxHeight: expect.any(Number) });
+  });
 });
