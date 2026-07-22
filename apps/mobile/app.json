@@ -10,7 +10,13 @@
     "plugins": [
       "expo-router",
       "expo-web-browser",
-      "expo-video"
+      "expo-video",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Race Pace to access your photos so you can set a profile and cover photo."
+        }
+      ]
     ],
     "ios": {
       "supportsTablet": true,

@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { View, ScrollView, Pressable, Alert, Image } from "react-native";
+import { View, ScrollView, Pressable, Alert, Image, ActivityIndicator } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Camera, ChevronRight } from "lucide-react-native";
 import { useAuth } from "../../lib/auth";
-import { getProfile, upsertProfile, type Profile } from "../../lib/profile";
+import { getProfile, upsertProfile } from "../../lib/profile";
+import { pickAndUploadProfileImage } from "../../lib/profileImage";
 import { initials } from "../../components/OrgAvatar";
 import { PillSelect } from "../../components/PillSelect";
 import { PsgcAddressPicker } from "../../components/PsgcAddressPicker";
@@ -37,6 +38,7 @@ export default function Profile() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [coverUrl, setCoverUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [photoBusy, setPhotoBusy] = useState<null | "avatar" | "cover">(null);
   // Snapshot of the last-saved values, so the Save bar only appears once something changed.
   const [saved, setSaved] = useState<Record<string, string>>({});
 
@@ -48,6 +50,7 @@ export default function Profile() {
       setAddress(p.city_psgc_code ? { city_psgc_code: p.city_psgc_code, city_name: p.city_name ?? null, province_name: p.province_name ?? null, region_name: null } : null);
       setDob(p.date_of_birth ?? ""); setGender(p.gender ?? ""); setShirtSize(p.shirt_size ?? "");
       setBloodType(p.blood_type ?? ""); setEmergency(p.emergency_contact ?? "");
+      setAvatarUrl(p.avatar_url ?? null); setCoverUrl(p.cover_url ?? null);
       setSaved(snapshot({
         fullName: p.full_name, bibName: p.bib_name, dob: p.date_of_birth, gender: p.gender,
         shirtSize: p.shirt_size, bloodType: p.blood_type, emergency: p.emergency_contact,
@@ -74,9 +77,21 @@ export default function Profile() {
   }
   async function doSignOut() { await signOut(); router.replace("/(auth)/sign-in"); }
 
-  // Cover + avatar upload land in the next step (needs the image picker + storage).
-  function changePhoto(kind: "cover photo" | "profile photo") {
-    Alert.alert("Coming up next", `Uploading a ${kind} is wired in the next step.`);
+  // Pick a photo, upload it to the runner's own folder, and save the URL right away.
+  async function changePhoto(kind: "avatar" | "cover") {
+    if (!uid || photoBusy) return;
+    try {
+      setPhotoBusy(kind);
+      const url = await pickAndUploadProfileImage(uid, kind);
+      if (!url) return; // dismissed
+      if (kind === "avatar") setAvatarUrl(url); else setCoverUrl(url);
+      const { error } = await upsertProfile({ id: uid, ...(kind === "avatar" ? { avatar_url: url } : { cover_url: url }) });
+      if (error) Alert.alert("Couldn't save photo", error);
+    } catch (e) {
+      Alert.alert("Couldn't update photo", e instanceof Error ? e.message : "Please try again.");
+    } finally {
+      setPhotoBusy(null);
+    }
   }
 
   const name = fullName || session?.user.email || "Runner";
@@ -87,18 +102,18 @@ export default function Profile() {
       <ScrollView contentContainerStyle={{ paddingBottom: dirty ? insets.bottom + 92 : insets.bottom + 32 }} showsVerticalScrollIndicator={false}>
         {/* ── Race passport header: cover photo + avatar ── */}
         <View>
-          <Pressable onPress={() => changePhoto("cover photo")} accessibilityRole="button" accessibilityLabel="Change cover photo">
+          <Pressable onPress={() => changePhoto("cover")} accessibilityRole="button" accessibilityLabel="Change cover photo">
             <View className="bg-forest" style={{ height: 150 + insets.top }}>
               {coverUrl ? <Image source={{ uri: coverUrl }} style={{ width: "100%", height: "100%" }} resizeMode="cover" /> : null}
             </View>
             <View className="absolute right-3.5 flex-row items-center gap-1.5 rounded-full bg-black/35 px-3 py-1.5" style={{ top: insets.top + 8 }}>
-              <Icon as={Camera} size={13} className="text-white" />
-              <Text className="text-[12px] font-semibold text-white">Edit cover</Text>
+              {photoBusy === "cover" ? <ActivityIndicator size="small" color="#fff" /> : <Icon as={Camera} size={13} className="text-white" />}
+              <Text className="text-[12px] font-semibold text-white">{photoBusy === "cover" ? "Uploading…" : "Edit cover"}</Text>
             </View>
           </Pressable>
 
           <View className="items-center px-[22px]">
-            <Pressable onPress={() => changePhoto("profile photo")} accessibilityRole="button" accessibilityLabel="Change profile photo" className="-mt-[46px]">
+            <Pressable onPress={() => changePhoto("avatar")} accessibilityRole="button" accessibilityLabel="Change profile photo" className="-mt-[46px]">
               <Avatar alt={name} style={{ width: 92, height: 92, borderRadius: 46 }} className="border-4 border-background">
                 {avatarUrl ? <AvatarImage source={{ uri: avatarUrl }} /> : null}
                 <AvatarFallback style={{ backgroundColor: "#0F2A20", borderRadius: 46 }}>
@@ -106,7 +121,7 @@ export default function Profile() {
                 </AvatarFallback>
               </Avatar>
               <View className="absolute bottom-0 right-0 h-7 w-7 items-center justify-center rounded-full border-2 border-background bg-primary">
-                <Icon as={Camera} size={13} className="text-primary-foreground" />
+                {photoBusy === "avatar" ? <ActivityIndicator size="small" color="#fff" /> : <Icon as={Camera} size={13} className="text-primary-foreground" />}
               </View>
             </Pressable>
 
