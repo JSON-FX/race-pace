@@ -11,7 +11,10 @@ Deno.serve(async (req) => {
     const jwt = (req.headers.get("Authorization") ?? "").replace("Bearer ", "");
     if (!jwt) return json({ error: "unauthorized" }, 401);
 
-    const parsed = registrationInputSchema.safeParse(await req.json());
+    const raw = await req.json();
+    // The app passes its deep-link so PayMongo's hosted checkout can redirect back.
+    const returnUrl = typeof raw?.return_url === "string" && raw.return_url ? raw.return_url : "racepace://pay-callback";
+    const parsed = registrationInputSchema.safeParse(raw);
     if (!parsed.success) return json({ error: "invalid_input", details: parsed.error.flatten() }, 400);
     const input = parsed.data;
     if (!input.waiver_accepted) return json({ error: "waiver_required" }, 400);
@@ -69,13 +72,14 @@ Deno.serve(async (req) => {
       );
     }
 
+    const provider = getPaymentProvider();
     await db.from("payments").upsert(
-      { org_id: category.org_id, registration_id: reg.id, amount: total, status: "pending", provider: "fake" },
+      { org_id: category.org_id, registration_id: reg.id, amount: total, status: "pending", provider: provider.name },
       { onConflict: "registration_id" },
     );
 
-    const checkout = await getPaymentProvider().createCheckout({
-      registrationId: reg.id, amount: total, description: category.label,
+    const checkout = await provider.createCheckout({
+      registrationId: reg.id, amount: total, description: category.label, returnUrl,
     });
     await db.from("payments").update({
       provider_ref: checkout.providerRef,

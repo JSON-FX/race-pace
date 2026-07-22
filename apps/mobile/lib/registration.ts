@@ -1,12 +1,18 @@
 import { supabase } from "./supabase";
 import { FunctionsHttpError } from "@supabase/supabase-js";
+import * as Linking from "expo-linking";
 import type { RegistrationInput } from "@race-pace/shared";
 import { useQuery } from "@tanstack/react-query";
 
 export type CheckoutResult = { registration_id: string; checkout_url: string };
 
+// The deep link PayMongo's hosted checkout redirects back to after pay/cancel.
+export const PAY_RETURN_PATH = "pay-callback";
+
 export async function startCheckout(input: RegistrationInput): Promise<CheckoutResult> {
-  const { data, error } = await supabase.functions.invoke("registrations-checkout", { body: input });
+  // Pass the app's return deep link so the server can set PayMongo's success/cancel URLs.
+  const body = { ...input, return_url: Linking.createURL(PAY_RETURN_PATH) };
+  const { data, error } = await supabase.functions.invoke("registrations-checkout", { body });
   if (error) {
     let message = error.message || "Checkout failed";
     if (error instanceof FunctionsHttpError) {
@@ -20,6 +26,20 @@ export async function startCheckout(input: RegistrationInput): Promise<CheckoutR
     throw new Error(message);
   }
   return data as CheckoutResult;
+}
+
+/** Confirm a payment server-side by re-fetching the PayMongo session (the redirect is not
+ *  trusted). Best-effort: on any error, polling still drives the outcome. */
+export async function verifyPayment(registrationId: string): Promise<{ status: string }> {
+  try {
+    const { data, error } = await supabase.functions.invoke("payment-verify", {
+      body: { registration_id: registrationId },
+    });
+    if (error) return { status: "pending" };
+    return (data as { status: string }) ?? { status: "pending" };
+  } catch {
+    return { status: "pending" };
+  }
 }
 
 export type RegistrationRow = {

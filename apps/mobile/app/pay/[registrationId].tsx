@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
 import { formatPeso } from "@race-pace/shared";
-import { useRegistration } from "../../lib/registration";
+import { useRegistration, verifyPayment } from "../../lib/registration";
 import { cacheTicket } from "../../lib/ticketCache";
 import { Text } from "@/components/ui/text";
 import { Badge } from "@/components/ui/badge";
@@ -51,8 +51,10 @@ export default function Pay() {
     setErr(null);
     const redirect = Linking.createURL(RETURN_PATH);
     const full = url + (url.includes("?") ? "&" : "?") + "return=" + encodeURIComponent(redirect);
-    try { await WebBrowser.openAuthSessionAsync(full, redirect); } catch { /* poll drives the outcome */ }
     setTimedOut(false); setAwaiting(true);
+    try { await WebBrowser.openAuthSessionAsync(full, redirect); } catch { /* poll drives the outcome */ }
+    // Back from the hosted checkout — confirm server-side (verified with PayMongo, never the redirect).
+    verifyPayment(registrationId).then(() => reg.refetch());
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => setTimedOut(true), TIMEOUT_MS);
   }
@@ -96,7 +98,7 @@ export default function Pay() {
           </Badge>
         </View>
         <View style={{ paddingBottom: insets.bottom + 20 }}>
-          <Button className={PILL_BTN} onPress={() => reg.refetch()} accessibilityRole="button">
+          <Button className={PILL_BTN} onPress={async () => { await verifyPayment(registrationId); reg.refetch(); }} accessibilityRole="button">
             <Text className={PILL_TXT}>Check again</Text>
           </Button>
           <Pressable onPress={pay} accessibilityRole="button">
