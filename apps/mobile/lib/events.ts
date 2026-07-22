@@ -7,7 +7,7 @@ export type EventRow = {
   status: string; hero_image_url: string | null; description: string | null;
   gallery: string[]; original_date: string | null; status_note: string | null;
   city_psgc_code: string | null; region_name: string | null; province_name: string | null; city_name: string | null; venue: string | null;
-  joined_count: number; org_name?: string; org_color?: string | null;
+  joined_count: number; distances: number[]; org_name?: string; org_color?: string | null;
 };
 export type OrgRow = {
   id: string; name: string; slug: string;
