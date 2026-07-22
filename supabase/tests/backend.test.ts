@@ -310,6 +310,11 @@ describe("admin-refund", () => {
     expect(ok.status).toBe(200);
     expect((await svc.from("registrations").select("status").eq("id", rid).single()).data?.status).toBe("refunded");
     expect((await svc.from("payments").select("status").eq("registration_id", rid).single()).data?.status).toBe("refunded");
+    // refund metadata recorded in payments.raw, and the ticket left intact
+    const paidPay = await svc.from("payments").select("raw").eq("registration_id", rid).single();
+    expect((paidPay.data?.raw as Record<string, unknown>)?.refunded_by).toBe(admin.id);
+    const paidReg = await svc.from("registrations").select("ticket_token").eq("id", rid).single();
+    expect(paidReg.data?.ticket_token).toBeTruthy();
     expect((await svc.from("categories").select("slots_taken").eq("id", C4_RF).single()).data!.slots_taken).toBe(before.data!.slots_taken);
 
     // idempotent: a second refund is a no-op, no further decrement
