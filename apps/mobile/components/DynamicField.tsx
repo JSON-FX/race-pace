@@ -1,16 +1,21 @@
-import { View, Text, TextInput, Switch, Pressable, StyleSheet } from "react-native";
-import type { FormFieldRow } from "../lib/events";
-import { theme } from "../lib/theme";
+import { View } from "react-native";
+import { Text } from "@/components/ui/text";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { cn } from "@/lib/utils";
+import type { FormFieldRow } from "@/lib/events";
 
 export function DynamicField({ field, value, onChange }: {
   field: FormFieldRow; value: unknown; onChange: (v: unknown) => void;
 }) {
   return (
-    <View style={styles.wrap}>
-      <Text style={styles.label}>{field.label}{field.required ? " *" : ""}</Text>
+    <View className="mb-4">
+      <Text className="text-sm font-semibold text-foreground mb-[6px]">
+        {field.label}{field.required ? " *" : ""}
+      </Text>
       {(field.type === "text" || field.type === "date") && (
-        <TextInput
-          style={styles.input}
+        <Input
           value={(value as string) ?? ""}
           onChangeText={onChange}
           placeholder={field.type === "date" ? "YYYY-MM-DD" : ""}
@@ -19,8 +24,7 @@ export function DynamicField({ field, value, onChange }: {
         />
       )}
       {field.type === "number" && (
-        <TextInput
-          style={styles.input}
+        <Input
           keyboardType="numeric"
           value={value != null ? String(value) : ""}
           onChangeText={(t) => onChange(t === "" ? undefined : Number(t))}
@@ -28,36 +32,43 @@ export function DynamicField({ field, value, onChange }: {
         />
       )}
       {field.type === "checkbox" && (
-        <Switch value={!!value} onValueChange={onChange} accessibilityLabel={field.label} />
+        <Switch checked={!!value} onCheckedChange={onChange} accessibilityLabel={field.label} />
       )}
       {field.type === "select" && (
-        <View style={styles.options}>
-          {(field.options ?? []).map((opt) => (
-            <Pressable
-              key={opt}
-              onPress={() => onChange(opt)}
-              style={[styles.opt, value === opt && styles.optActive]}
-              accessibilityRole="button"
-            >
-              <Text style={[styles.optText, value === opt && styles.optTextActive]}>{opt}</Text>
-            </Pressable>
-          ))}
-        </View>
+        <ToggleGroup
+          type="single"
+          value={(value as string) ?? undefined}
+          onValueChange={(v) => {
+            // type="single" reports undefined on deselect (pressing the active
+            // pill again) — this field has no deselect concept, so ignore it
+            // (matches the original Pressable's re-press-is-a-no-op behavior).
+            if (v) onChange(v);
+          }}
+          className="flex-row flex-wrap gap-2"
+        >
+          {(field.options ?? []).map((opt) => {
+            const active = value === opt;
+            return (
+              <ToggleGroupItem
+                key={opt}
+                value={opt}
+                accessibilityLabel={opt}
+                className={cn(
+                  "h-auto rounded-full border px-3.5 py-2",
+                  active ? "border-primary bg-primary" : "border-border"
+                )}
+              >
+                <Text className={active ? "text-primary-foreground font-semibold" : undefined}>
+                  {opt}
+                </Text>
+              </ToggleGroupItem>
+            );
+          })}
+        </ToggleGroup>
       )}
       {field.type === "file" && (
-        <Text style={styles.note}>File uploads aren't supported yet.</Text>
+        <Text className="text-muted-foreground italic">File uploads aren't supported yet.</Text>
       )}
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  wrap: { marginBottom: 16 },
-  label: { fontSize: 14, fontWeight: "600", color: theme.ink, marginBottom: 6 },
-  input: { borderWidth: 1, borderColor: theme.line, borderRadius: 10, padding: 12, fontSize: 16 },
-  options: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  opt: { borderWidth: 1, borderColor: theme.line, borderRadius: 999, paddingVertical: 8, paddingHorizontal: 14 },
-  optActive: { backgroundColor: theme.pine, borderColor: theme.pine },
-  optText: { color: theme.ink }, optTextActive: { color: "#fff", fontWeight: "600" },
-  note: { color: theme.inkSoft, fontStyle: "italic" },
-});
