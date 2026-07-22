@@ -32,6 +32,9 @@ supabase/.temp/
 # Turborepo
 .turbo/
 
+# Git worktrees (isolated workspaces for agent sessions)
+.claude/worktrees/
+
 # Logs
 *.log
 npm-debug.*
