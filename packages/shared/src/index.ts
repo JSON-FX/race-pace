@@ -96,3 +96,16 @@ export function formatAddress(a: Pick<PsgcAddress, "city_name" | "province_name"
   if (!a.city_name) return "";
   return a.province_name ? `${a.city_name}, ${a.province_name}` : a.city_name;
 }
+
+/** Compose a date range from two ISO dates using the caller's own single-date
+ *  formatter, so "same month/year" logic never needs to live in shared code.
+ *  No end date, or end === start, collapses to a single formatted date. */
+export function formatDateRange(
+  startIso: string | null,
+  endIso: string | null,
+  formatOne: (iso: string) => string
+): string {
+  if (!startIso) return "";
+  if (!endIso || endIso === startIso) return formatOne(startIso);
+  return `${formatOne(startIso)} – ${formatOne(endIso)}`;
+}
