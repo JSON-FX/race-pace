@@ -1,15 +1,20 @@
 import { useEffect, useState } from "react";
-import { View, Text, TextInput, Pressable, ScrollView, StyleSheet, Alert } from "react-native";
+import { View, ScrollView, Alert } from "react-native";
 import { useRouter } from "expo-router";
 import { useAuth } from "../../lib/auth";
 import { getProfile, upsertProfile } from "../../lib/profile";
-import { initials } from "../../components/OrgAvatar";
-import { theme } from "../../lib/theme";
+import { OrgAvatar } from "../../components/OrgAvatar";
 import { PillSelect } from "../../components/PillSelect";
 import { PsgcAddressPicker } from "../../components/PsgcAddressPicker";
 import { BLOOD_TYPES, SHIRT_SIZES, GENDERS, formatAddress, type PsgcAddress } from "@race-pace/shared";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Text } from "@/components/ui/text";
 
 const MENU = ["Payment methods", "Notifications", "Help & support"];
+// Matches the field-label look already established by PillSelect / PsgcAddressPicker,
+// so the plain-Input fields (name, DOB, emergency contact) line up visually with them.
+const FIELD_LABEL = "text-[11px] font-semibold tracking-[0.4px] text-muted-foreground mb-2";
 
 export default function Profile() {
   const { session, signOut } = useAuth();
@@ -54,61 +59,61 @@ export default function Profile() {
   const name = fullName || session?.user.email || "Runner";
 
   return (
-    <ScrollView style={styles.c} contentContainerStyle={{ paddingTop: 10, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
-      <View style={styles.head}>
-        <View style={styles.avatar}><Text style={styles.avatarT}>{initials(name)}</Text></View>
-        <Text style={styles.name}>{name}</Text>
-        {address?.city_name ? <Text style={styles.sub}>{formatAddress(address)}</Text> : null}
+    <ScrollView className="flex-1 bg-background" contentContainerClassName="pt-2.5 pb-10" showsVerticalScrollIndicator={false}>
+      <View className="items-center px-[22px]">
+        <OrgAvatar name={name} color="#0F2A20" size={82} />
+        <Text className="mt-3 text-[22px] font-bold tracking-[-0.3px] text-foreground">{name}</Text>
+        {address?.city_name ? <Text className="mt-0.5 text-[13px] text-muted-foreground">{formatAddress(address)}</Text> : null}
       </View>
 
-      <View style={styles.pad}>
-        <Text style={styles.section}>Profile</Text>
-        <View style={{ gap: 12 }}>
-          <View><Text style={styles.label}>FULL NAME</Text><TextInput style={styles.input} value={fullName} onChangeText={setFullName} placeholder="Full name" placeholderTextColor={theme.inkFaint} accessibilityLabel="Full name" /></View>
-          <View><Text style={styles.label}>BIB NAME</Text><TextInput style={styles.input} value={bibName} onChangeText={setBibName} placeholder="Bib name" placeholderTextColor={theme.inkFaint} autoCapitalize="characters" accessibilityLabel="Bib name" /></View>
+      <View className="mt-6 px-[22px]">
+        <Text className="mb-3 text-[15px] font-semibold text-foreground">Profile</Text>
+        <View className="gap-3">
+          <View>
+            <Text className={FIELD_LABEL}>FULL NAME</Text>
+            <Input value={fullName} onChangeText={setFullName} placeholder="Full name" accessibilityLabel="Full name" />
+          </View>
+          <View>
+            <Text className={FIELD_LABEL}>BIB NAME</Text>
+            <Input value={bibName} onChangeText={setBibName} placeholder="Bib name" autoCapitalize="characters" accessibilityLabel="Bib name" />
+          </View>
           <PsgcAddressPicker label="CITY" value={address} onChange={setAddress} />
         </View>
 
-        <Text style={[styles.section, { marginTop: 26 }]}>Race details</Text>
-        <Text style={styles.hint}>Fill these once — we'll add them to every race you register for.</Text>
-        <View style={{ gap: 12 }}>
-          <View><Text style={styles.label}>DATE OF BIRTH</Text><TextInput style={styles.input} value={dob} onChangeText={setDob} placeholder="YYYY-MM-DD" placeholderTextColor={theme.inkFaint} autoCapitalize="none" accessibilityLabel="Date of birth" /></View>
+        <Text className="mb-3 mt-[26px] text-[15px] font-semibold text-foreground">Race details</Text>
+        <Text className="-mt-1.5 mb-3 text-[13px] leading-[18px] text-muted-foreground">
+          Fill these once — we'll add them to every race you register for.
+        </Text>
+        <View className="gap-3">
+          <View>
+            <Text className={FIELD_LABEL}>DATE OF BIRTH</Text>
+            <Input value={dob} onChangeText={setDob} placeholder="YYYY-MM-DD" autoCapitalize="none" accessibilityLabel="Date of birth" />
+          </View>
           <PillSelect label="GENDER" value={gender} options={GENDERS} onChange={setGender} />
           <PillSelect label="SHIRT SIZE" value={shirtSize} options={SHIRT_SIZES} onChange={setShirtSize} />
           <PillSelect label="BLOOD TYPE" value={bloodType} options={BLOOD_TYPES} onChange={setBloodType} />
-          <View><Text style={styles.label}>EMERGENCY CONTACT</Text><TextInput style={styles.input} value={emergency} onChangeText={setEmergency} placeholder="Name & mobile number" placeholderTextColor={theme.inkFaint} accessibilityLabel="Emergency contact" /></View>
+          <View>
+            <Text className={FIELD_LABEL}>EMERGENCY CONTACT</Text>
+            <Input value={emergency} onChangeText={setEmergency} placeholder="Name & mobile number" accessibilityLabel="Emergency contact" />
+          </View>
         </View>
 
-        <Pressable style={[styles.save, busy && { opacity: 0.6 }]} disabled={busy} onPress={save} accessibilityRole="button"><Text style={styles.saveT}>{busy ? "Saving…" : "Save changes"}</Text></Pressable>
+        <Button className="mt-5 h-auto py-[15px] sm:h-auto" disabled={busy} onPress={save}>
+          <Text className="text-base font-semibold text-primary-foreground">{busy ? "Saving…" : "Save changes"}</Text>
+        </Button>
 
-        <View style={styles.menu}>
+        <View className="mt-5">
           {MENU.map((m) => (
-            <View key={m} style={styles.menuRow}><Text style={styles.menuT}>{m}</Text><Text style={styles.chevron}>›</Text></View>
+            <View key={m} className="flex-row items-center border-t border-divider py-[15px]">
+              <Text className="flex-1 text-sm text-foreground">{m}</Text>
+              <Text className="text-lg text-muted-foreground/40">›</Text>
+            </View>
           ))}
         </View>
-        <Pressable onPress={doSignOut} accessibilityRole="button"><Text style={styles.signout}>Sign out</Text></Pressable>
+        <Button variant="ghost" className="mt-3.5" onPress={doSignOut}>
+          <Text className="text-[15px] font-semibold text-destructive">Sign out</Text>
+        </Button>
       </View>
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  c: { flex: 1, backgroundColor: theme.canvas },
-  head: { alignItems: "center", paddingHorizontal: 22 },
-  avatar: { width: 82, height: 82, borderRadius: 41, backgroundColor: theme.forest, alignItems: "center", justifyContent: "center" },
-  avatarT: { color: "#fff", fontSize: 28, fontWeight: "700" },
-  name: { fontSize: 22, fontWeight: "700", letterSpacing: -0.3, color: theme.ink, marginTop: 12 },
-  sub: { fontSize: 13, color: theme.inkMuted, marginTop: 2 },
-  pad: { paddingHorizontal: 22, marginTop: 24 },
-  section: { fontSize: 15, fontWeight: "600", color: theme.ink, marginBottom: 12 },
-  hint: { fontSize: 13, color: theme.inkMuted, marginTop: -6, marginBottom: 12, lineHeight: 18 },
-  label: { fontSize: 11, fontWeight: "600", letterSpacing: 0.4, color: theme.inkMuted, marginBottom: 6 },
-  input: { backgroundColor: theme.canvas, borderWidth: 1, borderColor: theme.hairline, borderRadius: theme.radius.md, paddingVertical: 13, paddingHorizontal: 14, fontSize: 15, color: theme.ink },
-  save: { backgroundColor: theme.primary, borderRadius: theme.radius.pill, padding: 15, alignItems: "center", marginTop: 20 },
-  saveT: { color: "#fff", fontSize: 16, fontWeight: "600" },
-  menu: { marginTop: 20 },
-  menuRow: { flexDirection: "row", alignItems: "center", paddingVertical: 15, borderTopWidth: 1, borderTopColor: theme.divider },
-  menuT: { flex: 1, fontSize: 14, color: theme.ink },
-  chevron: { color: theme.inkFaint, fontSize: 18 },
-  signout: { color: theme.danger, fontSize: 15, fontWeight: "600", textAlign: "center", marginTop: 14 },
-});
