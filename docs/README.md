@@ -33,7 +33,7 @@ ultra-trail event platform (Mindanao, Philippines).
 - [x] **Plan 10 · Events management** — [spec](./specs/2026-07-21-events-management-design.md) · [plan](./plans/10-events-management.md) — create/edit events (RLS-gated direct writes), categories/add-ons sub-editors, one-Save child reconcile, reschedule + cancel (hard-delete draft-only) (event-editor 3/3, web 16/16 green). *Custom-field editor deferred (form_fields still read-only).*
 - [x] **Plan 11 · Event images** — [plan](./plans/11-event-images.md) — featured + gallery upload (Supabase Storage, client-side compression) and mobile rendering (event cards + detail carousel) (storage 2/2, web 27/27, mobile 45/45 green)
 - [x] **Plan 12 · Editor structured inputs** — [plan](./plans/12-editor-structured-inputs.md) — PSGC Region→Province→City pickers + Venue, native date/time inputs (web)
-- [ ] **Plan 13 · Registrations & payments** — table/detail, admin refunds
+- [x] **Plan 13 · Registrations & payments** — [spec](./specs/2026-07-22-registrations-payments-design.md) · [plan](./plans/13-registrations-payments.md) — org-scoped admin read RLS (registrations/addons/payments/profiles) + `decrement_slot`; event-scoped roster + detail; read-only payments ledger; full slot-freeing refunds via the `admin-refund` Edge Function (backend+shared 41/41, web 49/49 green)
 - [ ] **Plan 14 · Race-day check-in** — web QR scanner + manual lookup
 - [ ] **Plan 15 · Settings + Dashboard** — org settings, KPIs/charts
 - [ ] **Plan 16 · super_admin** — org provisioning, commission, payout statements
