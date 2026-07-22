@@ -1,6 +1,10 @@
-// Rewrites the LAN IP baked into local .env files so a physical device on the same
-// network (which can't resolve 127.0.0.1 to this machine) can reach Supabase/Metro.
-// Run whenever you switch networks, before starting Metro / `supabase functions serve`.
+// LOCAL/OFFLINE DOCKER WORKFLOW ONLY — not needed for normal cloud dev.
+// The app now targets hosted Supabase (see apps/*/.env); that URL has no ":port", so it is
+// intentionally NOT a target below and can never be auto-rewritten to a LAN IP — mobile
+// always stays on cloud. This only refreshes the LAN IP for `supabase functions serve`
+// (supabase/functions/.env) when you run the OPTIONAL local Docker stack and reach it from a
+// physical device on the same network. To deliberately point mobile at local Supabase for
+// offline work, edit apps/mobile/.env by hand.
 // Run: `node scripts/sync-lan-ip.mjs`
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
@@ -23,8 +27,9 @@ function replaceHost(content, key, ip) {
   return content.replace(re, `$1${ip}$2`);
 }
 
+// apps/mobile/.env (EXPO_PUBLIC_SUPABASE_URL) is deliberately NOT here — mobile targets
+// hosted Supabase and must never be repointed at local Docker automatically.
 const files = [
-  { path: `${ROOT}apps/mobile/.env`, keys: ["EXPO_PUBLIC_SUPABASE_URL"] },
   { path: `${ROOT}supabase/functions/.env`, keys: ["PUBLIC_APP_URL", "PUBLIC_FUNCTIONS_URL"] },
 ];
 

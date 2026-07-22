@@ -70,8 +70,8 @@ insert into form_fields (id, org_id, event_id, key, label, type, required, optio
   ('00000000-0000-0000-0000-0000000000f3','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000e1','shirt_size','Shirt size','select',true, array['S','M','L','XL'],3);
 
 -- Provisioned admin for the web console (survives db reset). Password: password123
--- crypt()/gen_salt() come from pgcrypto (installed in Supabase local). If they error,
--- prefix with extensions. (i.e. extensions.crypt / extensions.gen_salt).
+-- crypt()/gen_salt() come from pgcrypto. Qualified with the extensions schema so this
+-- works both locally and on hosted Supabase (where extensions isn't on the search_path).
 do $$
 declare admin_id uuid := '00000000-0000-0000-0000-0000000000b1';
 begin
@@ -82,7 +82,7 @@ begin
     confirmation_token, recovery_token, email_change_token_new, email_change
   ) values (
     '00000000-0000-0000-0000-000000000000', admin_id, 'authenticated', 'authenticated',
-    'admin@racepace.test', crypt('password123', gen_salt('bf')),
+    'admin@racepace.test', extensions.crypt('password123', extensions.gen_salt('bf')),
     now(), now(), now(),
     '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb,
     '', '', '', ''
