@@ -14,7 +14,7 @@ describe("SignIn", () => {
     render(<SignIn />);
     fireEvent.changeText(screen.getByLabelText("Email"), "jr@test.dev");
     fireEvent.changeText(screen.getByLabelText("Password"), "wrong");
-    fireEvent.press(screen.getByRole("button"));
+    fireEvent.press(screen.getByRole("button", { name: "Sign in" }));
     await waitFor(() => expect(screen.getByText("Invalid login credentials")).toBeOnTheScreen());
   });
 });
