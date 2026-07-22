@@ -5,7 +5,7 @@ export type AddonDraft = { id?: string; tempId?: string; name: string; price: nu
 export type EventDraft = {
   id?: string; org_id: string; name: string;
   city_psgc_code: string | null; region_name: string | null; province_name: string | null; city_name: string | null; venue: string | null;
-  event_date: string | null; flag_off: string | null; status: string;
+  event_date: string | null; end_date: string | null; flag_off: string | null; status: string;
   elevation_gain_m: number | null; cutoff_hours: number | null; description: string | null;
   hero_image_url: string | null; gallery: string[];
 };
@@ -23,7 +23,7 @@ export function reconcileChildren<T extends WithId>(original: WithId[], current:
 const EVENT_COLS = (e: EventDraft) => ({
   org_id: e.org_id, name: e.name,
   city_psgc_code: e.city_psgc_code, region_name: e.region_name, province_name: e.province_name, city_name: e.city_name, venue: e.venue,
-  event_date: e.event_date, flag_off: e.flag_off, status: e.status,
+  event_date: e.event_date, end_date: e.end_date, flag_off: e.flag_off, status: e.status,
   elevation_gain_m: e.elevation_gain_m, cutoff_hours: e.cutoff_hours,
   description: e.description, hero_image_url: e.hero_image_url, gallery: e.gallery,
 });

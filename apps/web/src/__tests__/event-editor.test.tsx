@@ -48,7 +48,7 @@ it("allows saving a cancelled event instead of dead-ending on the status validat
       event: {
         id: "e1", org_id: "a1", name: "Apo Sky Ultra",
         city_psgc_code: null, region_name: null, province_name: null, city_name: null, venue: null,
-        event_date: null, flag_off: null, status: "cancelled",
+        event_date: null, end_date: null, flag_off: null, status: "cancelled",
         elevation_gain_m: null, cutoff_hours: null, description: null, hero_image_url: null, gallery: [],
       },
       categories: [],
@@ -87,7 +87,7 @@ it("carries hero_image_url + gallery through to save", async () => {
       event: {
         id: "e1", org_id: "a1", name: "Apo",
         city_psgc_code: null, region_name: null, province_name: null, city_name: null, venue: null,
-        event_date: null, flag_off: null, status: "open",
+        event_date: null, end_date: null, flag_off: null, status: "open",
         elevation_gain_m: null, cutoff_hours: null, description: null,
         hero_image_url: "https://cdn/hero.png", gallery: ["https://cdn/g1.png"],
       },
@@ -108,14 +108,14 @@ it("carries hero_image_url + gallery through to save", async () => {
   });
 });
 
-it("carries PSGC address + venue + date/time through to save", async () => {
+it("carries PSGC address + venue + date range through to save", async () => {
   mockUseParams.mockReturnValue({ id: "e1" });
   mockUseEventForEditor.mockReturnValue({
     data: {
       event: {
         id: "e1", org_id: "a1", name: "Apo",
         city_psgc_code: "112603", region_name: "Davao Region", province_name: "Davao del Sur", city_name: "City of Digos", venue: "Camp Sabros",
-        event_date: "2026-11-14", flag_off: "04:00", status: "open",
+        event_date: "2026-11-14", end_date: "2026-11-16", flag_off: "04:00", status: "open",
         elevation_gain_m: null, cutoff_hours: null, description: null, hero_image_url: null, gallery: [],
       },
       categories: [],
@@ -124,16 +124,39 @@ it("carries PSGC address + venue + date/time through to save", async () => {
     isLoading: false,
   });
   render(<MemoryRouter><EventEditor /></MemoryRouter>);
-  // structured inputs replaced the free-text place/region + text date/time
   expect(await screen.findByLabelText("Region")).toBeInTheDocument();
   expect(screen.getByLabelText("Venue")).toBeInTheDocument();
   expect((screen.getByLabelText("Date") as HTMLInputElement).type).toBe("date");
+  expect((screen.getByLabelText("End date") as HTMLInputElement).type).toBe("date");
+  expect((screen.getByLabelText("End date") as HTMLInputElement).value).toBe("2026-11-16");
   expect((screen.getByLabelText("Flag-off") as HTMLInputElement).type).toBe("time");
   expect(screen.queryByLabelText("Place")).not.toBeInTheDocument();
   fireEvent.click(screen.getByText("Save event"));
   await waitFor(() => expect(mockSave).toHaveBeenCalled());
   expect(mockSave.mock.calls[0]![0].event).toMatchObject({
     city_psgc_code: "112603", region_name: "Davao Region", province_name: "Davao del Sur", city_name: "City of Digos",
-    venue: "Camp Sabros", event_date: "2026-11-14", flag_off: "04:00",
+    venue: "Camp Sabros", event_date: "2026-11-14", end_date: "2026-11-16", flag_off: "04:00",
   });
+});
+
+it("blocks save when the end date is before the start date", async () => {
+  mockUseParams.mockReturnValue({ id: "e1" });
+  mockUseEventForEditor.mockReturnValue({
+    data: {
+      event: {
+        id: "e1", org_id: "a1", name: "Apo",
+        city_psgc_code: null, region_name: null, province_name: null, city_name: null, venue: null,
+        event_date: "2026-11-14", end_date: null, flag_off: null, status: "open",
+        elevation_gain_m: null, cutoff_hours: null, description: null, hero_image_url: null, gallery: [],
+      },
+      categories: [],
+      addons: [],
+    },
+    isLoading: false,
+  });
+  render(<MemoryRouter><EventEditor /></MemoryRouter>);
+  fireEvent.change(await screen.findByLabelText("End date"), { target: { value: "2026-11-10" } });
+  fireEvent.click(screen.getByText("Save event"));
+  expect(await screen.findByText("End date can't be before the start date.")).toBeInTheDocument();
+  expect(mockSave).not.toHaveBeenCalled();
 });
