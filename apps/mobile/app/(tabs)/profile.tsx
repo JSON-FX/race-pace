@@ -1,6 +1,7 @@
 import { useMemo, useEffect, useState } from "react";
 import { View, ScrollView, Pressable, Alert, Image, ActivityIndicator, TextInput } from "react-native";
 import { useRouter } from "expo-router";
+import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Camera, ChevronRight } from "lucide-react-native";
 import { useAuth } from "../../lib/auth";
@@ -45,6 +46,7 @@ export default function Profile() {
   const [coverUrl, setCoverUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [photoBusy, setPhotoBusy] = useState<null | "avatar" | "cover">(null);
+  const [overCover, setOverCover] = useState(true); // status-bar is light while the forest cover is under it
   const [saved, setSaved] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -99,8 +101,14 @@ export default function Profile() {
 
   return (
     <View className="flex-1 bg-background">
-      <ScrollView contentContainerStyle={{ paddingBottom: dirty ? insets.bottom + 92 : insets.bottom + 32 }} showsVerticalScrollIndicator={false}>
-        {/* ── Race passport header: cover photo + avatar + stats, all on forest ── */}
+      <StatusBar style={overCover ? "light" : "auto"} />
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: dirty ? insets.bottom + 92 : insets.bottom + 32 }}
+        showsVerticalScrollIndicator={false}
+        scrollEventThrottle={32}
+        onScroll={(e) => setOverCover(e.nativeEvent.contentOffset.y < 150)}
+      >
+        {/* ── Race passport header: full-bleed forest cover + avatar + stats ── */}
         <View className="relative overflow-hidden bg-forest">
           {coverUrl ? (
             <>
@@ -109,27 +117,27 @@ export default function Profile() {
             </>
           ) : null}
 
-          <View className="px-[22px] pt-5 pb-5">
-            <View className="flex-row items-center gap-3.5">
+          <View className="px-[22px] pb-8" style={{ paddingTop: insets.top + 18 }}>
+            <View className="flex-row items-center gap-4">
               <Pressable onPress={() => changePhoto("avatar")} accessibilityRole="button" accessibilityLabel="Change profile photo">
-                <Avatar alt={name} style={{ width: 60, height: 60, borderRadius: 30 }} className="border-2 border-white/25">
+                <Avatar alt={name} style={{ width: 76, height: 76, borderRadius: 38 }} className="border-2 border-white/25">
                   {avatarUrl ? <AvatarImage source={{ uri: avatarUrl }} /> : null}
-                  <AvatarFallback style={{ backgroundColor: "#0B2018", borderRadius: 30 }}>
-                    <Text style={{ color: "#fff", fontWeight: "700", fontSize: 22 }}>{initials(name)}</Text>
+                  <AvatarFallback style={{ backgroundColor: "#0B2018", borderRadius: 38 }}>
+                    <Text style={{ color: "#fff", fontWeight: "700", fontSize: 27 }}>{initials(name)}</Text>
                   </AvatarFallback>
                 </Avatar>
-                <View className="absolute -bottom-0.5 -right-0.5 h-[22px] w-[22px] items-center justify-center rounded-full border-2 border-forest bg-primary">
-                  {photoBusy === "avatar" ? <ActivityIndicator size="small" color="#fff" /> : <Icon as={Camera} size={11} className="text-primary-foreground" />}
+                <View className="absolute -bottom-0.5 -right-0.5 h-6 w-6 items-center justify-center rounded-full border-2 border-forest bg-primary">
+                  {photoBusy === "avatar" ? <ActivityIndicator size="small" color="#fff" /> : <Icon as={Camera} size={12} className="text-primary-foreground" />}
                 </View>
               </Pressable>
 
               <View className="flex-1">
-                <Text className="text-[19px] font-bold tracking-[-0.3px] text-white" numberOfLines={1}>{name}</Text>
-                {bibName ? <Text className="mt-1 self-start rounded-md bg-white/15 px-2 py-0.5 text-[11px] font-bold tracking-[0.06em] text-white">BIB · {bibName}</Text> : null}
+                <Text className="text-[20px] font-bold tracking-[-0.3px] text-white" numberOfLines={1}>{name}</Text>
+                {bibName ? <Text className="mt-1.5 self-start rounded-md bg-white/15 px-2 py-0.5 text-[11px] font-bold tracking-[0.06em] text-white">BIB · {bibName}</Text> : null}
               </View>
             </View>
 
-            <View className="mt-4 flex-row gap-8">
+            <View className="mt-7 flex-row gap-8">
               <Stat label="RACES" value={String(raceCount)} />
               <Stat label="BLOOD" value={bloodType || "—"} />
               <Stat label="SHIRT" value={shirtSize || "—"} />
@@ -140,7 +148,8 @@ export default function Profile() {
             onPress={() => changePhoto("cover")}
             accessibilityRole="button"
             accessibilityLabel="Change cover photo"
-            className="absolute right-3.5 top-3 flex-row items-center gap-1.5 rounded-full bg-black/30 px-3 py-1.5"
+            className="absolute right-3.5 flex-row items-center gap-1.5 rounded-full bg-black/30 px-3 py-1.5"
+            style={{ top: insets.top + 6 }}
           >
             {photoBusy === "cover" ? <ActivityIndicator size="small" color="#fff" /> : <Icon as={Camera} size={12} className="text-white" />}
             <Text className="text-[12px] font-semibold text-white">{photoBusy === "cover" ? "Uploading…" : "Edit cover"}</Text>
