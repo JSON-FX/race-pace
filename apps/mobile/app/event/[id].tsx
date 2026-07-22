@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { View, Text, ScrollView, Pressable, ActivityIndicator, StyleSheet } from "react-native";
+import { View, ScrollView, Pressable, ActivityIndicator } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { formatPeso } from "@race-pace/shared";
@@ -8,7 +8,9 @@ import { EventGallery } from "../../components/EventGallery";
 import { OrgAvatar } from "../../components/OrgAvatar";
 import { StatusBanner, eventStatusKind } from "../../components/StatusBadge";
 import { longDate } from "../../lib/format";
-import { theme } from "../../lib/theme";
+import { Button } from "@/components/ui/button";
+import { Text } from "@/components/ui/text";
+import { cn } from "@/lib/utils";
 
 export default function EventDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -18,9 +20,9 @@ export default function EventDetail() {
   const cats = useCategories(id);
   const [selected, setSelected] = useState<string | null>(null);
 
-  if (ev.isLoading || cats.isLoading) return <View style={styles.center}><ActivityIndicator color={theme.primary} /></View>;
+  if (ev.isLoading || cats.isLoading) return <View className="flex-1 items-center justify-center bg-background"><ActivityIndicator className="text-primary" /></View>;
   const event = ev.data;
-  if (!event) return <View style={styles.center}><Text style={styles.meta}>Event not found.</Text></View>;
+  if (!event) return <View className="flex-1 items-center justify-center bg-background"><Text className="text-muted-foreground text-[13px]">Event not found.</Text></View>;
 
   const categories = cats.data ?? [];
   const selectedId = selected ?? categories[0]?.id ?? null;
@@ -37,53 +39,69 @@ export default function EventDetail() {
   ].filter(Boolean) as string[];
 
   return (
-    <View style={styles.c}>
+    <View className="flex-1 bg-background">
       <ScrollView contentContainerStyle={{ paddingBottom: 130 }} showsVerticalScrollIndicator={false}>
         <View>
           <EventGallery images={[event.hero_image_url, ...(event.gallery ?? [])]} height={250} />
-          <Pressable onPress={() => router.back()} style={[styles.roundBtn, { top: insets.top + 4 }]} accessibilityRole="button"><Text style={styles.roundIcon}>‹</Text></Pressable>
+          <Pressable
+            onPress={() => router.back()}
+            className="absolute left-[18px] w-[36px] h-[36px] rounded-full bg-white/90 items-center justify-center"
+            style={{ top: insets.top + 4 }}
+            accessibilityRole="button"
+          >
+            <Text className="text-[20px] text-[#1D1D1F] -mt-[2px]">‹</Text>
+          </Pressable>
         </View>
 
         <StatusBanner event={event} />
 
-        <View style={styles.pad}>
-          <Text style={styles.name}>{event.name}</Text>
+        <View className="px-[22px] pt-[18px]">
+          <Text className="text-[26px] font-bold tracking-[-0.4px] text-foreground leading-[30px]">{event.name}</Text>
 
-          <Pressable style={styles.orgCard} onPress={() => router.push(`/org/${event.org_id}`)} accessibilityRole="button">
+          <Pressable className="flex-row items-center gap-[10px] bg-muted rounded-[14px] py-[11px] px-[13px] mt-[14px]" onPress={() => router.push(`/org/${event.org_id}`)} accessibilityRole="button">
             <OrgAvatar name={event.org_name} color={event.org_color} size={34} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.orgName}>{event.org_name}</Text>
-              {(event.province_name ?? event.region) ? <Text style={styles.orgRegion}>{event.province_name ?? event.region}</Text> : null}
+            <View className="flex-1">
+              <Text className="text-[13px] font-semibold text-foreground">{event.org_name}</Text>
+              {(event.province_name ?? event.region) ? <Text className="text-[12px] text-muted-foreground mt-[1px]">{event.province_name ?? event.region}</Text> : null}
             </View>
-            <Text style={styles.view}>View ›</Text>
+            <Text className="text-primary text-[13px] font-semibold">View ›</Text>
           </Pressable>
 
-          {event.description ? <Text style={styles.desc}>{event.description}</Text> : null}
+          {event.description ? <Text className="text-[14px] text-foreground leading-[22px] mt-[14px]">{event.description}</Text> : null}
 
           {meta.length ? (
-            <View style={styles.metaWrap}>
-              {meta.map((m) => <Text key={m} style={styles.metaChip}>{m}</Text>)}
+            <View className="flex-row flex-wrap gap-[16px] mt-[16px]">
+              {meta.map((m) => <Text key={m} className="text-[13px] text-muted-foreground">{m}</Text>)}
             </View>
           ) : null}
 
-          <Text style={styles.section}>Pick a distance</Text>
-          <View style={{ gap: 10 }}>
-            {categories.length === 0 ? <Text style={styles.meta}>No categories open.</Text> : null}
+          <Text className="text-[18px] font-bold tracking-[-0.3px] text-foreground mt-[22px] mb-[12px]">Pick a distance</Text>
+          <View className="gap-[10px]">
+            {categories.length === 0 ? <Text className="text-muted-foreground text-[13px]">No categories open.</Text> : null}
             {categories.map((c) => {
               const on = c.id === selectedId;
               const left = c.slots_total - c.slots_taken;
               const disabled = !registerable || left <= 0;
               return (
-                <Pressable key={c.id} disabled={disabled} onPress={() => setSelected(c.id)}
-                  style={[styles.catRow, on && styles.catRowOn, disabled && styles.catDisabled]} accessibilityRole="button">
-                  <View style={[styles.radio, { borderColor: on ? theme.primary : theme.inkFaint, backgroundColor: on ? theme.primary : "transparent" }]}>
-                    {on ? <Text style={styles.check}>✓</Text> : null}
+                <Pressable
+                  key={c.id}
+                  disabled={disabled}
+                  onPress={() => setSelected(c.id)}
+                  className={cn(
+                    "flex-row items-center gap-[13px] p-[14px] rounded-[14px] border-[1.5px] border-border bg-background",
+                    on && "border-primary bg-secondary",
+                    disabled && "opacity-50"
+                  )}
+                  accessibilityRole="button"
+                >
+                  <View className={cn("w-[22px] h-[22px] rounded-[11px] border-2 items-center justify-center", on ? "bg-primary border-primary" : "bg-transparent border-border")}>
+                    {on ? <Text className="text-primary-foreground text-[12px] font-bold">✓</Text> : null}
                   </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.catTitle}>{c.label}</Text>
-                    <Text style={styles.catSlots}>{left <= 0 ? "Sold out" : `${left} slots left`}</Text>
+                  <View className="flex-1">
+                    <Text className="text-[15px] font-semibold text-foreground">{c.label}</Text>
+                    <Text className="text-[12px] text-muted-foreground mt-[2px]">{left <= 0 ? "Sold out" : `${left} slots left`}</Text>
                   </View>
-                  <Text style={styles.price}>{formatPeso(c.base_price)}</Text>
+                  <Text className="text-[15px] font-semibold text-primary">{formatPeso(c.base_price)}</Text>
                 </Pressable>
               );
             })}
@@ -91,46 +109,17 @@ export default function EventDetail() {
         </View>
       </ScrollView>
 
-      <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
+      <View className="absolute left-0 right-0 bottom-0 px-[22px] pt-[14px] bg-background border-t border-divider" style={{ paddingBottom: insets.bottom + 16 }}>
         {registerable ? (
-          <Pressable style={styles.cta} onPress={() => selectedId && router.push(`/register/${selectedId}`)} accessibilityRole="button">
-            <Text style={styles.ctaT}>Register{selectedCat ? ` · ${selectedCat.label}` : ""}</Text>
-          </Pressable>
+          <Button className="h-auto py-[15px] sm:h-auto" onPress={() => selectedId && router.push(`/register/${selectedId}`)} accessibilityRole="button">
+            <Text className="text-[16px] font-semibold">Register{selectedCat ? ` · ${selectedCat.label}` : ""}</Text>
+          </Button>
         ) : (
-          <View style={styles.ctaClosed}><Text style={styles.ctaClosedT}>Registration closed</Text></View>
+          <View className="bg-muted rounded-full py-[15px] items-center">
+            <Text className="text-muted-foreground text-[16px] font-semibold">Registration closed</Text>
+          </View>
         )}
       </View>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  c: { flex: 1, backgroundColor: theme.canvas },
-  center: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: theme.canvas },
-  roundBtn: { position: "absolute", left: 18, width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.9)", alignItems: "center", justifyContent: "center" },
-  roundIcon: { fontSize: 20, color: theme.ink, marginTop: -2 },
-  pad: { paddingHorizontal: 22, paddingTop: 18 },
-  name: { fontSize: 26, fontWeight: "700", letterSpacing: -0.4, color: theme.ink, lineHeight: 30 },
-  orgCard: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: theme.parchment, borderRadius: theme.radius.card, padding: 11, paddingHorizontal: 13, marginTop: 14 },
-  orgName: { fontSize: 13, fontWeight: "600", color: theme.ink },
-  orgRegion: { fontSize: 12, color: theme.inkMuted, marginTop: 1 },
-  view: { color: theme.primary, fontSize: 13, fontWeight: "600" },
-  desc: { fontSize: 14, color: theme.ink, lineHeight: 22, marginTop: 14 },
-  metaWrap: { flexDirection: "row", flexWrap: "wrap", gap: 16, marginTop: 16 },
-  metaChip: { fontSize: 13, color: theme.inkMuted },
-  section: { fontSize: 18, fontWeight: "700", letterSpacing: -0.3, color: theme.ink, marginTop: 22, marginBottom: 12 },
-  meta: { color: theme.inkMuted, fontSize: 13 },
-  catRow: { flexDirection: "row", alignItems: "center", gap: 13, padding: 14, borderRadius: theme.radius.card, borderWidth: 1.5, borderColor: theme.hairline, backgroundColor: theme.canvas },
-  catRowOn: { borderColor: theme.primary, backgroundColor: theme.primaryTint },
-  catDisabled: { opacity: 0.5 },
-  radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, alignItems: "center", justifyContent: "center" },
-  check: { color: "#fff", fontSize: 12, fontWeight: "700" },
-  catTitle: { fontSize: 15, fontWeight: "600", color: theme.ink },
-  catSlots: { fontSize: 12, color: theme.inkMuted, marginTop: 2 },
-  price: { fontSize: 15, fontWeight: "600", color: theme.primary },
-  footer: { position: "absolute", left: 0, right: 0, bottom: 0, paddingHorizontal: 22, paddingTop: 14, backgroundColor: theme.canvas, borderTopWidth: 1, borderTopColor: theme.divider },
-  cta: { backgroundColor: theme.primary, borderRadius: theme.radius.pill, padding: 15, alignItems: "center" },
-  ctaT: { color: "#fff", fontSize: 16, fontWeight: "600" },
-  ctaClosed: { backgroundColor: "#E5E5E7", borderRadius: theme.radius.pill, padding: 15, alignItems: "center" },
-  ctaClosedT: { color: "#9A9A9E", fontSize: 16, fontWeight: "600" },
-});
