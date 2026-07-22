@@ -11,7 +11,11 @@ describe("PillSelect", () => {
   });
   it("marks the current value as selected", () => {
     render(<PillSelect label="SHIRT" value="M" options={["S", "M", "L"]} onChange={jest.fn()} />);
-    expect(screen.getByRole("button", { name: "M", selected: true })).toBeOnTheScreen();
-    expect(screen.getByRole("button", { name: "S", selected: false })).toBeOnTheScreen();
+    // ToggleGroup type="single" renders each option as a radio in a radiogroup
+    // (native single-select semantics), reporting selection via
+    // accessibilityState.checked rather than the old ad-hoc
+    // accessibilityRole="button" + accessibilityState.selected.
+    expect(screen.getByRole("radio", { name: "M", checked: true })).toBeOnTheScreen();
+    expect(screen.getByRole("radio", { name: "S", checked: false })).toBeOnTheScreen();
   });
 });

@@ -25,7 +25,8 @@ import Register from "../app/register/[categoryId]";
 describe("Register submit", () => {
   it("suppresses the blood_type question (prefilled in passport) but keeps the event club question", async () => {
     render(<Register />);
-    await waitFor(() => expect(screen.getByRole("button", { name: "O+", selected: true })).toBeOnTheScreen());
+    // PillSelect options are ToggleGroup radios (native single-select semantics).
+    await waitFor(() => expect(screen.getByRole("radio", { name: "O+", checked: true })).toBeOnTheScreen());
     expect(screen.getByText("Club")).toBeOnTheScreen();              // non-profile field still asked
   });
 

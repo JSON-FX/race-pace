@@ -41,8 +41,9 @@ describe("Profile", () => {
     render(<Profile />);
     await waitFor(() => expect(screen.getByDisplayValue("1990-05-15")).toBeOnTheScreen());
     expect(screen.getByDisplayValue("Jane 0917")).toBeOnTheScreen();
-    expect(screen.getByRole("button", { name: "O+", selected: true })).toBeOnTheScreen();
-    fireEvent.press(screen.getByRole("button", { name: "L" }));      // change shirt size
+    // PillSelect options are ToggleGroup radios (native single-select semantics).
+    expect(screen.getByRole("radio", { name: "O+", checked: true })).toBeOnTheScreen();
+    fireEvent.press(screen.getByRole("radio", { name: "L" }));      // change shirt size
     fireEvent.press(screen.getByText("Save changes"));
     await waitFor(() => expect(mockUpsert).toHaveBeenCalled());
     expect(mockUpsert.mock.calls[0][0]).toMatchObject({
