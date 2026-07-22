@@ -13,7 +13,8 @@
       "expo-video"
     ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.racepace.mobile"
     },
     "android": {
       "adaptiveIcon": {
