@@ -12,6 +12,7 @@ jest.mock("../lib/events", () => ({
     isLoading: false, isError: false, refetch: jest.fn(),
   }),
 }));
+jest.mock("../lib/useGlobalRefresh", () => ({ useGlobalRefresh: () => ({ refreshing: false, onRefresh: jest.fn() }) }));
 
 import Orgs from "../app/(tabs)/orgs";
 

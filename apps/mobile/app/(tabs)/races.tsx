@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { View, FlatList, Pressable, ActivityIndicator } from "react-native";
+import { View, FlatList, Pressable, ActivityIndicator, RefreshControl } from "react-native";
 import { useRouter } from "expo-router";
 import { useMyRegistrations } from "../../lib/registration";
+import { useGlobalRefresh } from "../../lib/useGlobalRefresh";
 import { cacheMyRaces, getCachedMyRaces, type CachedTicket } from "../../lib/ticketCache";
 import { shortDate } from "../../lib/format";
 import { Card } from "@/components/ui/card";
@@ -12,6 +13,7 @@ type Row = { id: string; eventName: string; categoryLabel: string; km: number | 
 
 export default function MyRaces() {
   const { data, isLoading, isError, refetch } = useMyRegistrations();
+  const { refreshing, onRefresh } = useGlobalRefresh();
   const router = useRouter();
   const [cached, setCached] = useState<CachedTicket[] | null>(null);
 
@@ -54,6 +56,7 @@ export default function MyRaces() {
       keyExtractor={(r) => r.id}
       contentContainerClassName="px-[22px] pt-2 pb-8"
       showsVerticalScrollIndicator={false}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       ListHeaderComponent={<Text className="mb-2 text-3xl font-bold tracking-[-0.5px] text-foreground">My Races</Text>}
       ListEmptyComponent={
         <View className="items-center pt-20">

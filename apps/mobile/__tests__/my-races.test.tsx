@@ -8,6 +8,7 @@ jest.mock("../lib/ticketCache", () => ({ cacheMyRaces: jest.fn(), getCachedMyRac
 // mock-prefixed per babel-plugin-jest-hoist.
 let mockMyRegResult: any = { data: [], isLoading: false, isError: false, refetch: jest.fn() };
 jest.mock("../lib/registration", () => ({ useMyRegistrations: () => mockMyRegResult }));
+jest.mock("../lib/useGlobalRefresh", () => ({ useGlobalRefresh: () => ({ refreshing: false, onRefresh: jest.fn() }) }));
 
 import MyRaces from "../app/(tabs)/races";
 import { getCachedMyRaces } from "../lib/ticketCache";
