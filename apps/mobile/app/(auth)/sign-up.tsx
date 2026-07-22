@@ -1,8 +1,10 @@
 import { useState } from "react";
-import { View, Text, TextInput, Pressable, StyleSheet } from "react-native";
+import { View } from "react-native";
 import { Link, useRouter } from "expo-router";
 import { useAuth } from "../../lib/auth";
-import { theme } from "../../lib/theme";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Text } from "@/components/ui/text";
 
 export default function SignUp() {
   const { signUp } = useAuth();
@@ -21,25 +23,15 @@ export default function SignUp() {
   }
 
   return (
-    <View style={styles.c}>
-      <Text style={styles.h}>Create account</Text>
-      <TextInput style={styles.i} placeholder="Email" placeholderTextColor={theme.inkMuted} autoCapitalize="none" keyboardType="email-address" value={email} onChangeText={setEmail} accessibilityLabel="Email" />
-      <TextInput style={styles.i} placeholder="Password (min 6)" placeholderTextColor={theme.inkMuted} secureTextEntry value={password} onChangeText={setPassword} accessibilityLabel="Password" />
-      {error ? <Text style={styles.err}>{error}</Text> : null}
-      <Pressable style={styles.btn} onPress={onSubmit} disabled={busy} accessibilityRole="button">
-        <Text style={styles.btnT}>{busy ? "Creating…" : "Create account"}</Text>
-      </Pressable>
-      <Link href="/(auth)/sign-in" style={styles.link}>I already have an account</Link>
+    <View className="flex-1 justify-center gap-3 bg-background p-6">
+      <Text className="mb-2 text-3xl font-semibold tracking-[-0.5px] text-foreground">Create account</Text>
+      <Input placeholder="Email" autoCapitalize="none" keyboardType="email-address" value={email} onChangeText={setEmail} accessibilityLabel="Email" />
+      <Input placeholder="Password (min 6)" secureTextEntry value={password} onChangeText={setPassword} accessibilityLabel="Password" />
+      {error ? <Text className="text-destructive">{error}</Text> : null}
+      <Button onPress={onSubmit} disabled={busy} className="mt-1 h-auto py-4 sm:h-auto">
+        <Text className="text-[17px] font-semibold text-primary-foreground">{busy ? "Creating…" : "Create account"}</Text>
+      </Button>
+      <Link href="/(auth)/sign-in" className="mt-2 text-center text-primary">I already have an account</Link>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  c: { flex: 1, justifyContent: "center", padding: 24, gap: 12, backgroundColor: theme.canvas },
-  h: { fontSize: 32, fontWeight: "600", letterSpacing: -0.5, color: theme.ink, marginBottom: 8 },
-  i: { borderWidth: 1, borderColor: theme.hairline, borderRadius: theme.radius.md, padding: 14, fontSize: 17, color: theme.ink, backgroundColor: theme.canvas },
-  btn: { backgroundColor: theme.primary, borderRadius: theme.radius.pill, paddingVertical: 15, alignItems: "center", marginTop: 4 },
-  btnT: { color: theme.onPrimary, fontWeight: "600", fontSize: 17 },
-  err: { color: theme.danger },
-  link: { color: theme.primary, textAlign: "center", marginTop: 8, fontSize: 17 },
-});
