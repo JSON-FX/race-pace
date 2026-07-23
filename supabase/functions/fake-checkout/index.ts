@@ -1,5 +1,6 @@
 import { serviceClient } from "../_shared/supabase.ts";
 import { confirmPayment } from "../_shared/confirm.ts";
+import { paymongoConfigured } from "../_shared/paymongo.ts";
 
 function page(body: string, status = 200): Response {
   return new Response(
@@ -24,6 +25,10 @@ function bounce(returnUrl: string, status: string): Response {
 
 // DEV ONLY. Stands in for a PayMongo-hosted checkout page while PayMongo is not wired.
 Deno.serve(async (req) => {
+  // Real-money safety: this sandbox confirms payments without a real charge — never
+  // reachable where PayMongo is configured (hosted). Local dev (no key) still works.
+  if (paymongoConfigured()) return page("<h2>Not available</h2>", 404);
+
   const u = new URL(req.url);
   const rid = u.searchParams.get("rid") ?? "";
   const ret = u.searchParams.get("return") ?? "";

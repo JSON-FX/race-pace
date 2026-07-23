@@ -1,10 +1,24 @@
 import { describe, it, expect } from "vitest";
 import { createClient } from "@supabase/supabase-js";
 import { loadEnv } from "../../test/env";
+import { createHmac } from "node:crypto";
 
 const { url, anonKey, serviceKey } = loadEnv();
 const anon = () => createClient(url, anonKey, { auth: { persistSession: false } });
 const service = () => createClient(url, serviceKey, { auth: { persistSession: false } });
+
+const WEBHOOK_SECRET = "whsec_test_localdev"; // must match supabase/functions/.env
+function signHeader(rawBody: string): string {
+  const t = Math.floor(Date.now() / 1000).toString();
+  const sig = createHmac("sha256", WEBHOOK_SECRET).update(`${t}.${rawBody}`).digest("hex");
+  return `t=${t},te=${sig}`;
+}
+function postWebhook(payload: unknown, header?: string) {
+  const raw = JSON.stringify(payload);
+  return fetch(`${FN}/payments-webhook`, { method: "POST", headers: { "content-type": "application/json", "Paymongo-Signature": header ?? signHeader(raw) }, body: raw });
+}
+const paidEvent = (registrationId: string) => ({ data: { attributes: { type: "checkout_session.payment.paid", data: { attributes: { metadata: { registration_id: registrationId }, payments: [{ attributes: { source: { type: "gcash" } } }] } } } } });
+const refundEvent = (refundId: string, status: string) => ({ data: { attributes: { type: "refund.updated", data: { id: refundId, attributes: { status } } } } });
 
 describe("organizations RLS", () => {
   it("anon can read an active org but not an inactive one", async () => {
@@ -201,11 +215,7 @@ describe("payment confirmation (fake) e2e", () => {
       }),
     }).then((r) => r.json());
 
-    const hook = await fetch(`${FN}/payments-webhook`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ registration_id: checkout.registration_id, method: "gcash" }),
-    });
+    const hook = await postWebhook(paidEvent(checkout.registration_id));
     expect(hook.status).toBe(200);
 
     const reg = await svc.from("registrations").select("status,ticket_token").eq("id", checkout.registration_id).single();
@@ -220,8 +230,34 @@ describe("payment confirmation (fake) e2e", () => {
     const after = await svc.from("categories").select("slots_taken").eq("id", "00000000-0000-0000-0000-0000000000c4").single();
     expect(after.data!.slots_taken).toBe(before.data!.slots_taken + 1); // relative — robust to prior runs
 
+    // A duplicate confirmation is a no-op — slot stays at +1 (idempotent through confirm_payment_tx).
+    await postWebhook(paidEvent(checkout.registration_id));
+    const afterDup = await svc.from("categories").select("slots_taken").eq("id", "00000000-0000-0000-0000-0000000000c4").single();
+    expect(afterDup.data!.slots_taken).toBe(before.data!.slots_taken + 1);
+
     await svc.from("registrations").delete().eq("id", checkout.registration_id);
     await svc.auth.admin.deleteUser(user.id);
+  });
+});
+
+describe("confirm replay-safety (refunded)", () => {
+  it("a replayed confirmation on a refunded registration is a no-op — no re-pay, no re-increment", async () => {
+    const svc = service();
+    const runner = await makeUser(`creplay_${Date.now()}@test.dev`);
+    const rid = await paidRegistration(runner.token); // paid
+    // move it to refunded (mirrors a refund: status flip + slot release)
+    await svc.from("registrations").update({ status: "refunded" }).eq("id", rid);
+    await svc.from("payments").update({ status: "refunded" }).eq("registration_id", rid);
+    await svc.rpc("decrement_slot", { p_category_id: C4_RF });
+    const slotAfterRefund = (await svc.from("categories").select("slots_taken").eq("id", C4_RF).single()).data!.slots_taken;
+    // replay a payment via the fake-checkout page (calls confirmPayment) — must NOT re-confirm
+    const res = await fetch(`${FN}/fake-checkout?rid=${rid}&return=${encodeURIComponent("racepace://cb")}&action=pay`);
+    expect(res.status).toBe(200);
+    expect((await svc.from("registrations").select("status").eq("id", rid).single()).data!.status).toBe("refunded");
+    expect((await svc.from("payments").select("status").eq("registration_id", rid).single()).data!.status).toBe("refunded");
+    expect((await svc.from("categories").select("slots_taken").eq("id", C4_RF).single()).data!.slots_taken).toBe(slotAfterRefund);
+    await svc.from("registrations").delete().eq("id", rid);
+    await svc.auth.admin.deleteUser(runner.id);
   });
 });
 
@@ -281,7 +317,7 @@ async function paidRegistration(runnerToken: string) {
     headers: { "content-type": "application/json", Authorization: `Bearer ${runnerToken}` },
     body: JSON.stringify({ event_id: E1_RF, category_id: C4_RF, custom_data: { blood_type: "A", shirt_size: "L" }, waiver_accepted: true, idempotency_key: `idem-rf-${Date.now()}` }),
   }).then((r) => r.json());
-  await fetch(`${FN}/payments-webhook`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ registration_id: checkout.registration_id, method: "gcash" }) });
+  await fetch(`${FN}/fake-checkout?rid=${checkout.registration_id}&return=${encodeURIComponent("racepace://cb")}&action=pay`);
   return checkout.registration_id as string;
 }
 const refundCall = (token: string, rid: string) => fetch(`${FN}/admin-refund`, { method: "POST", headers: { "content-type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ registration_id: rid }) });
@@ -313,6 +349,8 @@ describe("admin-refund", () => {
     // refund metadata recorded in payments.raw, and the ticket left intact
     const paidPay = await svc.from("payments").select("raw").eq("registration_id", rid).single();
     expect((paidPay.data?.raw as Record<string, unknown>)?.refunded_by).toBe(admin.id);
+    // A1: the provider refund result is recorded under payments.raw.provider_refund
+    expect((paidPay.data?.raw as Record<string, unknown>)?.provider_refund).toBeTruthy();
     const paidReg = await svc.from("registrations").select("ticket_token").eq("id", rid).single();
     expect(paidReg.data?.ticket_token).toBeTruthy();
     expect((await svc.from("categories").select("slots_taken").eq("id", C4_RF).single()).data!.slots_taken).toBe(before.data!.slots_taken);
@@ -345,5 +383,80 @@ describe("admin-refund", () => {
     await svc.from("registrations").delete().eq("id", checkout.registration_id);
     await svc.from("user_roles").delete().eq("user_id", admin.id);
     for (const u of [admin, runner]) await svc.auth.admin.deleteUser(u.id);
+  });
+
+  it("does not issue a second provider refund while one is parked pending", async () => {
+    const svc = service();
+    const admin = await makeUser(`rf_reentry_${Date.now()}@test.dev`);
+    await svc.from("user_roles").insert({ user_id: admin.id, role: "admin", org_id: RWP_RF });
+    const runner = await makeUser(`rf_reentry_run_${Date.now()}@test.dev`);
+    const rid = await paidRegistration(runner.token);
+    const pay = (await svc.from("payments").select("raw").eq("registration_id", rid).single()).data!;
+    await svc.from("payments").update({ raw: { ...(pay.raw ?? {}), refund: { status: "pending", id: "ref_pending_x" } } }).eq("registration_id", rid);
+    const res = await refundCall(admin.token, rid);
+    const body = await res.json();
+    expect(res.status).toBe(200);
+    expect(body.pending).toBe(true);
+    expect((await svc.from("registrations").select("status").eq("id", rid).single()).data!.status).toBe("paid"); // not double-refunded
+    await svc.from("registrations").delete().eq("id", rid);
+    await svc.from("user_roles").delete().eq("user_id", admin.id);
+    for (const u of [admin, runner]) await svc.auth.admin.deleteUser(u.id);
+  });
+});
+
+describe("payments-webhook signed", () => {
+  it("rejects a bad signature with 401", async () => {
+    const res = await postWebhook(paidEvent("00000000-0000-0000-0000-0000000000ff"), "t=123,te=deadbeef");
+    expect(res.status).toBe(401);
+  });
+
+  it("rejects a fresh timestamp with a wrong signature (HMAC path) with 401", async () => {
+    const t = Math.floor(Date.now() / 1000).toString();
+    const res = await postWebhook(paidEvent("00000000-0000-0000-0000-0000000000ff"), `t=${t},te=deadbeef`);
+    expect(res.status).toBe(401);
+  });
+
+  it("ignores an unknown event type with 200", async () => {
+    const res = await postWebhook({ data: { attributes: { type: "payment.failed", data: {} } } });
+    expect(res.status).toBe(200);
+  });
+
+  it("reconciles refund.updated=succeeded on a pending refund -> refunded + slot released", async () => {
+    const svc = service();
+    const runner = await makeUser(`wh_rf_${Date.now()}@test.dev`);
+    const rid = await paidRegistration(runner.token);
+    const before = (await svc.from("categories").select("slots_taken").eq("id", C4_RF).single()).data!.slots_taken;
+
+    // simulate a parked (pending) refund like refund.ts writes
+    const refId = `ref_test_${Date.now()}`;
+    const pay = (await svc.from("payments").select("raw").eq("registration_id", rid).single()).data!;
+    await svc.from("payments").update({ raw: { ...(pay.raw ?? {}), refund: { status: "pending", id: refId, refunded_by: runner.id, note: null } } }).eq("registration_id", rid);
+
+    const res = await postWebhook(refundEvent(refId, "succeeded"));
+    expect(res.status).toBe(200);
+    expect((await svc.from("registrations").select("status").eq("id", rid).single()).data!.status).toBe("refunded");
+    expect((await svc.from("payments").select("status").eq("registration_id", rid).single()).data!.status).toBe("refunded");
+    expect((await svc.from("categories").select("slots_taken").eq("id", C4_RF).single()).data!.slots_taken).toBe(before - 1);
+
+    await svc.from("registrations").delete().eq("id", rid);
+    await svc.auth.admin.deleteUser(runner.id);
+  });
+
+  it("marks refund.updated=failed as failed and leaves the registration paid", async () => {
+    const svc = service();
+    const runner = await makeUser(`wh_rff_${Date.now()}@test.dev`);
+    const rid = await paidRegistration(runner.token);
+    const refId = `ref_fail_${Date.now()}`;
+    const pay = (await svc.from("payments").select("raw").eq("registration_id", rid).single()).data!;
+    await svc.from("payments").update({ raw: { ...(pay.raw ?? {}), refund: { status: "pending", id: refId, refunded_by: runner.id, note: null } } }).eq("registration_id", rid);
+
+    const res = await postWebhook(refundEvent(refId, "failed"));
+    expect(res.status).toBe(200);
+    expect((await svc.from("registrations").select("status").eq("id", rid).single()).data!.status).toBe("paid");
+    const after = (await svc.from("payments").select("raw").eq("registration_id", rid).single()).data!;
+    expect((after.raw as any).refund.status).toBe("failed");
+
+    await svc.from("registrations").delete().eq("id", rid);
+    await svc.auth.admin.deleteUser(runner.id);
   });
 });

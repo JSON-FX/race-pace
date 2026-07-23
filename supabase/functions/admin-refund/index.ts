@@ -33,7 +33,7 @@ Deno.serve(async (req) => {
     const note = typeof body.note === "string" ? body.note : null;
     const r = await refundRegistration(registrationId, userId, note);
     if (!r.ok) return json({ error: r.error }, r.status);
-    return json({ ok: true, registration_id: r.registration_id, already: r.already });
+    return json({ ok: true, registration_id: r.registration_id, already: r.already, pending: r.pending });
   } catch (e) {
     return json({ error: "server_error" }, 500);
   }

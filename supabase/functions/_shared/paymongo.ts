@@ -72,3 +72,30 @@ export async function pmGetCheckoutSession(id: string): Promise<PmSession> {
   if (!res.ok) throw new Error(`paymongo_get_failed: ${JSON.stringify(body?.errors ?? body)}`);
   return parseSession(body);
 }
+
+/** Resolve the pay_… id captured by a paid checkout session (session.payments[].id). */
+export function pmPaymentIdFromSession(session: PmSession): string | null {
+  // deno-lint-ignore no-explicit-any
+  const a = (session.raw as any)?.data?.attributes ?? {};
+  // deno-lint-ignore no-explicit-any
+  const payments: any[] = Array.isArray(a.payments) ? a.payments : [];
+  const chosen = payments.find((p) => p?.attributes?.status === "paid") ?? payments[0];
+  return chosen?.id ?? null;
+}
+
+export interface PmRefund { id: string; status: "pending" | "succeeded" | "failed"; raw: unknown }
+
+/** POST /refunds — amount in centavos. PayMongo returns status pending|succeeded|failed. */
+export async function pmCreateRefund(input: { paymentId: string; amount: number; reason?: string }): Promise<PmRefund> {
+  const res = await fetch(`${BASE}/refunds`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: authHeader() },
+    body: JSON.stringify({
+      data: { attributes: { amount: input.amount, payment_id: input.paymentId, reason: input.reason ?? "requested_by_customer" } },
+    }),
+  });
+  const body = await res.json();
+  if (!res.ok) throw new Error(`paymongo_refund_failed: ${JSON.stringify(body?.errors ?? body)}`);
+  const d = body?.data;
+  return { id: d?.id, status: (d?.attributes?.status ?? "pending") as PmRefund["status"], raw: body };
+}
