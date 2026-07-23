@@ -11,7 +11,7 @@ const base: EventRow = {
   event_date: "2026-11-14", end_date: null, elevation_gain_m: null, cutoff_hours: null, status: "open",
   hero_image_url: null, description: null, gallery: [], original_date: null, status_note: null,
   city_psgc_code: null, region_name: null, province_name: null, city_name: null, venue: null,
-  joined_count: 0, org_name: "Race Pace", org_color: "#159A55",
+  joined_count: 0, distances: [], org_name: "Race Pace", org_color: "#159A55",
 };
 
 it("renders the featured image when hero_image_url is set", () => {
@@ -52,4 +52,15 @@ it("shows the joined count only when greater than zero", () => {
 it("hides the joined line when nobody has joined yet", () => {
   render(<EventCard event={{ ...base, joined_count: 0 }} onPress={() => {}} />);
   expect(screen.queryByText(/joined/)).toBeNull();
+});
+
+it("shows a distance pill for each distinct category distance", () => {
+  render(<EventCard event={{ ...base, distances: [21, 42, 21] }} onPress={() => {}} />);
+  expect(screen.getByText("21K")).toBeOnTheScreen();
+  expect(screen.getByText("42K")).toBeOnTheScreen();
+});
+
+it("shows no distance pills when the event has no categorized distances", () => {
+  render(<EventCard event={{ ...base, distances: [] }} onPress={() => {}} />);
+  expect(screen.queryByText(/^\d+K$/)).toBeNull();
 });

@@ -36,4 +36,24 @@ describe("useMarketplaceEvents", () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data?.[0]).toMatchObject({ id: "e2", end_date: "2026-09-03", joined_count: 128 });
   });
+
+  it("collects each category's distance_km into a distances array, skipping nulls", async () => {
+    mockOrder.mockResolvedValueOnce({
+      data: [{
+        id: "e3", org_id: "o1", name: "Highland Run", status: "open", gallery: null,
+        categories: [{ slots_taken: 10, distance_km: 21 }, { slots_taken: 5, distance_km: null }, { slots_taken: 2, distance_km: 42 }],
+        organizations: { name: "Race Pace", brand_color: "#159A55" },
+      }],
+      error: null,
+    });
+    const { result } = renderHook(() => useMarketplaceEvents(), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data?.[0]).toMatchObject({ id: "e3", distances: [21, 42] });
+  });
+
+  it("defaults distances to an empty array when there are no categories", async () => {
+    const { result } = renderHook(() => useMarketplaceEvents(), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data?.[0]).toMatchObject({ id: "e1", distances: [] });
+  });
 });

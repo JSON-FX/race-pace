@@ -17,3 +17,8 @@ export function longDate(iso: string | null | undefined): string {
   const p = parts(iso);
   return p ? `${MONTHS[p[1] - 1]} ${p[2]}, ${p[0]}` : (iso ?? "");
 }
+
+/** "21" -> "21K" — race distances are conventionally quoted rounded, in km. */
+export function distanceLabel(km: number): string {
+  return `${Math.round(km)}K`;
+}
