@@ -5,6 +5,7 @@ describe("paymentMethodLabel", () => {
     expect(paymentMethodLabel("card")).toBe("Card");
     expect(paymentMethodLabel("gcash")).toBe("GCash");
     expect(paymentMethodLabel("maya")).toBe("Maya");
+    expect(paymentMethodLabel("paymaya")).toBe("Maya");
   });
   it("falls back to a dash when the method is missing", () => {
     expect(paymentMethodLabel(null)).toBe("—");

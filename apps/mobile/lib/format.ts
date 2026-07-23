@@ -35,7 +35,8 @@ export function paymentMethodLabel(method: string | null | undefined): string {
   switch (method) {
     case "card": return "Card";
     case "gcash": return "GCash";
+    case "paymaya": return "Maya";
     case "maya": return "Maya";
-    default: return method ? method : "—";
+    default: return method || "—";
   }
 }
