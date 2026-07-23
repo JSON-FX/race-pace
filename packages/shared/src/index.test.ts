@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   customDataSchema, formatPeso, formatAddress, formatDateRange, registrationInputSchema, type FormField,
-  PROFILE_KEYS, isProfileKey, BLOOD_TYPES, SHIRT_SIZES, GENDERS,
+  PROFILE_KEYS, isProfileKey, BLOOD_TYPES, SHIRT_SIZES, GENDERS, NOTIFICATION_TYPE,
 } from "./index";
 
 describe("customDataSchema", () => {
@@ -85,5 +85,14 @@ describe("formatDateRange", () => {
   });
   it("joins start and end with an en dash when they differ", () => {
     expect(formatDateRange("2026-09-01", "2026-09-03", fmt)).toBe("2026-09-01 – 2026-09-03");
+  });
+});
+
+describe("NOTIFICATION_TYPE", () => {
+  it("lists the 8 notification types the triggers emit", () => {
+    expect(NOTIFICATION_TYPE).toEqual([
+      "registered", "paid", "event_reminder", "event_cancelled",
+      "event_rescheduled", "event_created", "checked_in", "event_completed",
+    ]);
   });
 });

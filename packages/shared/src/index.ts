@@ -18,6 +18,13 @@ export type CategoryCode = (typeof CATEGORY_CODES)[number];
 export const REGISTRATION_STATUS = ["pending", "paid", "refunded", "cancelled"] as const;
 export type RegistrationStatus = (typeof REGISTRATION_STATUS)[number];
 
+/** Notification types emitted by the DB triggers (push-notifications design §5.1). */
+export const NOTIFICATION_TYPE = [
+  "registered", "paid", "event_reminder", "event_cancelled",
+  "event_rescheduled", "event_created", "checked_in", "event_completed",
+] as const;
+export type NotificationType = (typeof NOTIFICATION_TYPE)[number];
+
 /** Types an organization can add to its registration form (PRD §5.1 / §6 form_fields). */
 export const FIELD_TYPES = ["text", "number", "select", "checkbox", "date", "file"] as const;
 export type FieldType = (typeof FIELD_TYPES)[number];

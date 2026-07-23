@@ -233,7 +233,7 @@ export default function Profile() {
           <View className={`${CARD} mt-2`}>
             <Text className={CARD_HEADING}>Account</Text>
             {ACCOUNT.map((m, i) => (
-              <Pressable key={m} onPress={() => Alert.alert(m, "Coming soon.")} accessibilityRole="button" className={cn("flex-row items-center py-3", i > 0 && "border-t border-border")}>
+              <Pressable key={m} onPress={() => m === "Notifications" ? router.push("/notifications") : Alert.alert(m, "Coming soon.")} accessibilityRole="button" className={cn("flex-row items-center py-3", i > 0 && "border-t border-border")}>
                 <Text className="flex-1 text-[14px] text-foreground">{m}</Text>
                 <Icon as={ChevronRight} size={18} className="text-muted-foreground/50" />
               </Pressable>
