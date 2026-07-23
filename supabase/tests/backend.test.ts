@@ -384,6 +384,24 @@ describe("admin-refund", () => {
     await svc.from("user_roles").delete().eq("user_id", admin.id);
     for (const u of [admin, runner]) await svc.auth.admin.deleteUser(u.id);
   });
+
+  it("does not issue a second provider refund while one is parked pending", async () => {
+    const svc = service();
+    const admin = await makeUser(`rf_reentry_${Date.now()}@test.dev`);
+    await svc.from("user_roles").insert({ user_id: admin.id, role: "admin", org_id: RWP_RF });
+    const runner = await makeUser(`rf_reentry_run_${Date.now()}@test.dev`);
+    const rid = await paidRegistration(runner.token);
+    const pay = (await svc.from("payments").select("raw").eq("registration_id", rid).single()).data!;
+    await svc.from("payments").update({ raw: { ...(pay.raw ?? {}), refund: { status: "pending", id: "ref_pending_x" } } }).eq("registration_id", rid);
+    const res = await refundCall(admin.token, rid);
+    const body = await res.json();
+    expect(res.status).toBe(200);
+    expect(body.pending).toBe(true);
+    expect((await svc.from("registrations").select("status").eq("id", rid).single()).data!.status).toBe("paid"); // not double-refunded
+    await svc.from("registrations").delete().eq("id", rid);
+    await svc.from("user_roles").delete().eq("user_id", admin.id);
+    for (const u of [admin, runner]) await svc.auth.admin.deleteUser(u.id);
+  });
 });
 
 describe("payments-webhook signed", () => {

@@ -27,15 +27,24 @@ export async function refundRegistration(
     .from("payments").select("provider,provider_ref,amount,raw").eq("registration_id", reg.id).single();
   if (!pay) return { ok: false, error: "payment_not_found", status: 404 };
 
+  // A refund already in flight (parked pending by a prior call) — do not issue a second
+  // provider refund; the refund.updated webhook will finalize it.
+  const parked = (pay.raw as { refund?: { status?: string } } | null)?.refund;
+  if (parked?.status === "pending") return { ok: true, registration_id: reg.id, pending: true, already: true };
+
   // 1) Provider refund — network, BEFORE any DB mutation.
   const provider = getPaymentProviderByName(pay.provider);
   let refund;
   try {
     refund = await provider.refund({ providerRef: pay.provider_ref ?? "", amount: pay.amount, reason: REFUND_REASON });
-  } catch (_e) {
+  } catch (e) {
+    console.error("[refund] provider threw", { registrationId, error: String(e) });
     return { ok: false, error: "provider_refund_failed", status: 502 };
   }
-  if (refund.status === "failed") return { ok: false, error: "provider_refund_declined", status: 502 };
+  if (refund.status === "failed") {
+    console.error("[refund] provider declined", { registrationId, providerRefundId: refund.providerRefundId });
+    return { ok: false, error: "provider_refund_declined", status: 502 };
+  }
 
   // 2) Pending — park it; the webhook finalizes. Do NOT flip status or release the slot.
   if (refund.status === "pending") {

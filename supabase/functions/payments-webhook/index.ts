@@ -41,17 +41,24 @@ Deno.serve(async (req) => {
       const parked = (pay.raw as any)?.refund ?? {};
       if (status === "succeeded") {
         const { error: rpcErr } = await db.rpc("refund_registration_tx", { p_registration_id: pay.registration_id, p_refunded_by: parked.refunded_by ?? null, p_note: parked.note ?? null, p_provider_refund: resource });
-        if (rpcErr) return json({ error: "refund_reconcile_failed" }, 500); // surface so PayMongo retries
+        if (rpcErr) {
+          console.error("[webhook] refund_registration_tx failed", rpcErr);
+          return json({ error: "refund_reconcile_failed" }, 500); // surface so PayMongo retries
+        }
       } else if (status === "failed") {
         const raw2 = { ...((pay.raw as Record<string, unknown>) ?? {}), refund: { ...parked, status: "failed" } };
         const { error: upErr } = await db.from("payments").update({ raw: raw2 }).eq("registration_id", pay.registration_id);
-        if (upErr) return json({ error: "refund_flag_failed" }, 500);
+        if (upErr) {
+          console.error("[webhook] refund flag update failed", upErr);
+          return json({ error: "refund_flag_failed" }, 500);
+        }
       }
       return json({ ok: true });
     }
 
     return json({ ok: true, ignored: type ?? "unknown" });
-  } catch (_e) {
+  } catch (e) {
+    console.error("[webhook] handler error", e);
     return json({ error: "server_error" }, 500);
   }
 });

@@ -40,6 +40,9 @@ export async function confirmPayment(
     p_token: token,
     p_raw: (raw ?? {}) as Record<string, unknown>,
   });
-  if (error) return { ok: false, error: "confirm_write_failed", status: 500 };
+  if (error) {
+    console.error("[confirm] confirm_payment_tx failed", { registrationId: reg.id, error });
+    return { ok: false, error: "confirm_write_failed", status: 500 };
+  }
   return { ok: true, registration_id: reg.id, already: result === "already" || result === "not_pending" };
 }
