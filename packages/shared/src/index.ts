@@ -18,6 +18,13 @@ export type CategoryCode = (typeof CATEGORY_CODES)[number];
 export const REGISTRATION_STATUS = ["pending", "paid", "refunded", "cancelled"] as const;
 export type RegistrationStatus = (typeof REGISTRATION_STATUS)[number];
 
+/** Notification types emitted by the DB triggers (push-notifications design §5.1). */
+export const NOTIFICATION_TYPE = [
+  "registered", "paid", "event_reminder", "event_cancelled",
+  "event_rescheduled", "event_created", "checked_in", "event_completed",
+] as const;
+export type NotificationType = (typeof NOTIFICATION_TYPE)[number];
+
 /** Types an organization can add to its registration form (PRD §5.1 / §6 form_fields). */
 export const FIELD_TYPES = ["text", "number", "select", "checkbox", "date", "file"] as const;
 export type FieldType = (typeof FIELD_TYPES)[number];
@@ -95,4 +102,17 @@ export type PsgcAddress = {
 export function formatAddress(a: Pick<PsgcAddress, "city_name" | "province_name">): string {
   if (!a.city_name) return "";
   return a.province_name ? `${a.city_name}, ${a.province_name}` : a.city_name;
+}
+
+/** Compose a date range from two ISO dates using the caller's own single-date
+ *  formatter, so "same month/year" logic never needs to live in shared code.
+ *  No end date, or end === start, collapses to a single formatted date. */
+export function formatDateRange(
+  startIso: string | null,
+  endIso: string | null,
+  formatOne: (iso: string) => string
+): string {
+  if (!startIso) return "";
+  if (!endIso || endIso === startIso) return formatOne(startIso);
+  return `${formatOne(startIso)} – ${formatOne(endIso)}`;
 }

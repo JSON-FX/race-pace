@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
-  customDataSchema, formatPeso, formatAddress, registrationInputSchema, type FormField,
-  PROFILE_KEYS, isProfileKey, BLOOD_TYPES, SHIRT_SIZES, GENDERS,
+  customDataSchema, formatPeso, formatAddress, formatDateRange, registrationInputSchema, type FormField,
+  PROFILE_KEYS, isProfileKey, BLOOD_TYPES, SHIRT_SIZES, GENDERS, NOTIFICATION_TYPE,
 } from "./index";
 
 describe("customDataSchema", () => {
@@ -69,5 +69,30 @@ describe("formatAddress", () => {
     expect(formatAddress({ city_name: "Digos City", province_name: "Davao del Sur" })).toBe("Digos City, Davao del Sur");
     expect(formatAddress({ city_name: "City of Manila", province_name: null })).toBe("City of Manila");
     expect(formatAddress({ city_name: null, province_name: "X" })).toBe("");
+  });
+});
+
+describe("formatDateRange", () => {
+  const fmt = (iso: string) => iso; // identity formatter — isolates range-composition logic from date formatting
+  it("returns '' when there is no start date", () => {
+    expect(formatDateRange(null, null, fmt)).toBe("");
+  });
+  it("returns just the start date when there is no end date", () => {
+    expect(formatDateRange("2026-09-01", null, fmt)).toBe("2026-09-01");
+  });
+  it("collapses to a single date when end equals start", () => {
+    expect(formatDateRange("2026-09-01", "2026-09-01", fmt)).toBe("2026-09-01");
+  });
+  it("joins start and end with an en dash when they differ", () => {
+    expect(formatDateRange("2026-09-01", "2026-09-03", fmt)).toBe("2026-09-01 – 2026-09-03");
+  });
+});
+
+describe("NOTIFICATION_TYPE", () => {
+  it("lists the 8 notification types the triggers emit", () => {
+    expect(NOTIFICATION_TYPE).toEqual([
+      "registered", "paid", "event_reminder", "event_cancelled",
+      "event_rescheduled", "event_created", "checked_in", "event_completed",
+    ]);
   });
 });

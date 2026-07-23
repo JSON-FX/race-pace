@@ -1,6 +1,6 @@
 import { eventInputSchema, categoryInputSchema, addonInputSchema } from "../lib/validation";
 
-const validEvent = { name: "Race", city_psgc_code: null, region_name: null, province_name: null, city_name: null, venue: null, event_date: "2026-10-18", flag_off: "04:00", status: "open", elevation_gain_m: 4300, cutoff_hours: 18, description: null, hero_image_url: null };
+const validEvent = { name: "Race", city_psgc_code: null, region_name: null, province_name: null, city_name: null, venue: null, event_date: "2026-10-18", end_date: null, flag_off: "04:00", status: "open", elevation_gain_m: 4300, cutoff_hours: 18, description: null, hero_image_url: null };
 
 it("accepts a valid event and rejects an empty name / bad date", () => {
   expect(eventInputSchema.safeParse(validEvent).success).toBe(true);

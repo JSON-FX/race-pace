@@ -9,6 +9,7 @@ import { Events } from "./routes/Events";
 import { EventEditor } from "./routes/EventEditor";
 import { Registrations } from "./routes/Registrations";
 import { Payments } from "./routes/Payments";
+import { Team } from "./routes/Team";
 
 function RequireAdmin() {
   const { session, loading } = useAuth();
@@ -36,6 +37,7 @@ export function App() {
             <Route path="registrations" element={<Registrations />} />
             <Route path="payments" element={<Payments />} />
             <Route path="check-in" element={<Placeholder title="Check-in" />} />
+            <Route path="team" element={<Team />} />
             <Route path="settings" element={<Placeholder title="Settings" />} />
             <Route path="organizations" element={<Placeholder title="Organizations" />} />
             <Route path="commission" element={<Placeholder title="Commission" />} />

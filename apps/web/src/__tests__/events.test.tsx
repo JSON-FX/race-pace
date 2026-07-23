@@ -40,3 +40,13 @@ it("shows the error state and retries on click", () => {
   fireEvent.click(screen.getByText("Retry"));
   expect(refetchSpy).toHaveBeenCalled();
 });
+
+it("shows a date range when end_date is set, and a single date otherwise", () => {
+  mockQuery = { isLoading: false, isError: false, refetch: () => {}, data: [
+    { id: "e1", name: "Apo Sky Ultra", event_date: "2026-11-14", end_date: "2026-11-16", status: "open", original_date: null, categories: [] },
+    { id: "e2", name: "Single Day Race", event_date: "2026-10-01", end_date: null, status: "open", original_date: null, categories: [] },
+  ] };
+  render(<Events />);
+  expect(screen.getByText("Nov 14, 2026 – Nov 16, 2026")).toBeInTheDocument();
+  expect(screen.getByText("Oct 1, 2026")).toBeInTheDocument();
+});

@@ -5,7 +5,7 @@ export type AddonDraft = { id?: string; tempId?: string; name: string; price: nu
 export type EventDraft = {
   id?: string; org_id: string; name: string;
   city_psgc_code: string | null; region_name: string | null; province_name: string | null; city_name: string | null; venue: string | null;
-  event_date: string | null; flag_off: string | null; status: string;
+  event_date: string | null; end_date: string | null; flag_off: string | null; status: string;
   elevation_gain_m: number | null; cutoff_hours: number | null; description: string | null;
   hero_image_url: string | null; gallery: string[];
 };
@@ -23,7 +23,7 @@ export function reconcileChildren<T extends WithId>(original: WithId[], current:
 const EVENT_COLS = (e: EventDraft) => ({
   org_id: e.org_id, name: e.name,
   city_psgc_code: e.city_psgc_code, region_name: e.region_name, province_name: e.province_name, city_name: e.city_name, venue: e.venue,
-  event_date: e.event_date, flag_off: e.flag_off, status: e.status,
+  event_date: e.event_date, end_date: e.end_date, flag_off: e.flag_off, status: e.status,
   elevation_gain_m: e.elevation_gain_m, cutoff_hours: e.cutoff_hours,
   description: e.description, hero_image_url: e.hero_image_url, gallery: e.gallery,
 });
@@ -76,8 +76,18 @@ export async function saveEvent(args: {
   return { eventId: eventId!, childErrors };
 }
 
-export async function rescheduleEvent(id: string, currentDate: string | null, newDate: string, note: string): Promise<{ error?: string }> {
-  const r = await supabase.from("events").update({ original_date: currentDate, event_date: newDate, status_note: note || null }).eq("id", id);
+function daysBetween(a: string, b: string): number {
+  return Math.round((new Date(`${b}T00:00:00Z`).getTime() - new Date(`${a}T00:00:00Z`).getTime()) / 86400000);
+}
+function addDays(iso: string, days: number): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+export async function rescheduleEvent(id: string, currentDate: string | null, currentEndDate: string | null, newDate: string, note: string): Promise<{ error?: string }> {
+  const newEndDate = currentEndDate && currentDate ? addDays(newDate, daysBetween(currentDate, currentEndDate)) : null;
+  const r = await supabase.from("events").update({ original_date: currentDate, event_date: newDate, end_date: newEndDate, status_note: note || null }).eq("id", id);
   return r.error ? { error: r.error.message } : {};
 }
 export async function cancelEvent(id: string, note: string): Promise<{ error?: string }> {

@@ -58,15 +58,19 @@ function DialogOverlay({
 }
 function DialogContent({
   className,
+  overlayClassName,
+  showCloseButton = true,
   portalHost,
   children,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   portalHost?: string;
+  overlayClassName?: string;
+  showCloseButton?: boolean;
 }) {
   return (
     <DialogPortal hostName={portalHost}>
-      <DialogOverlay>
+      <DialogOverlay className={overlayClassName}>
         <DialogPrimitive.Content
           className={cn(
             'bg-background border-border z-50 mx-auto flex w-full max-w-[calc(100%-2rem)] flex-col gap-4 rounded-lg border p-6 shadow-lg shadow-black/5 sm:max-w-lg',
@@ -77,20 +81,22 @@ function DialogContent({
           )}
           {...props}>
           <>{children}</>
-          <DialogPrimitive.Close
-            className={cn(
-              'absolute right-4 top-4 rounded opacity-70 active:opacity-100',
-              Platform.select({
-                web: 'ring-offset-background focus:ring-ring data-[state=open]:bg-accent transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-offset-2',
-              })
-            )}
-            hitSlop={12}>
-            <Icon
-              as={X}
-              className={cn('text-accent-foreground web:pointer-events-none size-4 shrink-0')}
-            />
-            <Text className="sr-only">Close</Text>
-          </DialogPrimitive.Close>
+          {showCloseButton ? (
+            <DialogPrimitive.Close
+              className={cn(
+                'absolute right-4 top-4 rounded opacity-70 active:opacity-100',
+                Platform.select({
+                  web: 'ring-offset-background focus:ring-ring data-[state=open]:bg-accent transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-offset-2',
+                })
+              )}
+              hitSlop={12}>
+              <Icon
+                as={X}
+                className={cn('text-accent-foreground web:pointer-events-none size-4 shrink-0')}
+              />
+              <Text className="sr-only">Close</Text>
+            </DialogPrimitive.Close>
+          ) : null}
         </DialogPrimitive.Content>
       </DialogOverlay>
     </DialogPortal>

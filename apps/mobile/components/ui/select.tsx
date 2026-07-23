@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils';
 import * as SelectPrimitive from '@rn-primitives/select';
 import { Check, ChevronDown, ChevronDownIcon, ChevronUpIcon } from 'lucide-react-native';
 import * as React from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
+import { Platform, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { FullWindowOverlay as RNFullWindowOverlay } from 'react-native-screens';
 
 type Option = SelectPrimitive.Option;
@@ -76,6 +76,7 @@ function SelectContent({
     className?: string;
     portalHost?: string;
   }) {
+  const { height: windowHeight } = useWindowDimensions();
   return (
     <SelectPrimitive.Portal hostName={portalHost}>
       <FullWindowOverlay>
@@ -120,7 +121,16 @@ function SelectContent({
                       })
                     )
                   )}>
-                  {children}
+                  {Platform.OS === 'web' ? (
+                    children
+                  ) : (
+                    // RNR's native Viewport is a no-op Fragment — real scrolling only
+                    // exists on web. Without this, a long option list (e.g. PSGC
+                    // cities) renders at full height with nothing to scroll.
+                    <ScrollView testID="select-native-scroll" style={{ maxHeight: windowHeight * 0.5 }} showsVerticalScrollIndicator nestedScrollEnabled>
+                      {children}
+                    </ScrollView>
+                  )}
                 </SelectPrimitive.Viewport>
                 <SelectScrollDownButton />
               </SelectPrimitive.Content>

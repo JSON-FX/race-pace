@@ -5,7 +5,7 @@ const overlay = { position: "fixed", inset: 0, background: "rgba(0,0,0,.3)", dis
 const box = { width: 380, background: "var(--canvas)", borderRadius: 16, padding: 24 } as const;
 const input = { border: "1px solid var(--hairline)", borderRadius: 11, padding: "12px 13px", fontSize: 14, width: "100%" } as const;
 
-export function RescheduleModal({ event, onClose, onDone }: { event: { id: string; event_date: string | null }; onClose: () => void; onDone: () => void }) {
+export function RescheduleModal({ event, onClose, onDone }: { event: { id: string; event_date: string | null; end_date: string | null }; onClose: () => void; onDone: () => void }) {
   const [date, setDate] = useState("");
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -13,7 +13,7 @@ export function RescheduleModal({ event, onClose, onDone }: { event: { id: strin
   async function submit() {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { setError("Enter a date as YYYY-MM-DD"); return; }
     setBusy(true); setError(null);
-    const { error } = await rescheduleEvent(event.id, event.event_date, date, note);
+    const { error } = await rescheduleEvent(event.id, event.event_date, event.end_date, date, note);
     setBusy(false);
     if (error) setError(error); else { onDone(); onClose(); }
   }

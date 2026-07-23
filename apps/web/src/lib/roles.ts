@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "./supabase";
 import { useAuth } from "./auth";
 
-export type MyRoles = { role: string | null; orgId: string | null; isSuperAdmin: boolean; isAdmin: boolean };
+export type MyRoles = { role: string | null; orgId: string | null; isSuperAdmin: boolean; isAdmin: boolean; isOrgAdmin: boolean };
 
 export function useMyRoles() {
   const { session } = useAuth();
@@ -21,6 +21,7 @@ export function useMyRoles() {
         orgId: adminRow?.org_id ?? null,
         isSuperAdmin,
         isAdmin: isSuperAdmin || !!adminRow,
+        isOrgAdmin: isSuperAdmin || rows.some((r) => r.role === "admin"),
       };
     },
   });

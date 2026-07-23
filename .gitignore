@@ -32,6 +32,12 @@ supabase/.temp/
 # Turborepo
 .turbo/
 
+# Git worktrees (isolated workspaces for agent sessions)
+.claude/worktrees/
+
+# Superpowers agent scratch (SDD progress ledger, etc.)
+.superpowers/
+
 # Logs
 *.log
 npm-debug.*

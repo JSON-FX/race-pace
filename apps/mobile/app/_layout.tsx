@@ -7,6 +7,7 @@ import { useColorScheme } from "nativewind";
 import { PortalHost } from "@rn-primitives/portal";
 import { AuthProvider } from "../lib/auth";
 import { NAV_LIGHT, NAV_DARK } from "../lib/nav-theme";
+import NotificationsBridge from "../components/NotificationsBridge";
 
 const queryClient = new QueryClient();
 
@@ -18,6 +19,7 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <ThemeProvider value={dark ? NAV_DARK : NAV_LIGHT}>
           <AuthProvider>
+            <NotificationsBridge />
             <StatusBar style={dark ? "light" : "dark"} />
             <Stack screenOptions={{ headerShown: false }} />
             <PortalHost />

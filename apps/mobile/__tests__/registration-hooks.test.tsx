@@ -7,7 +7,12 @@ const mockMaybeSingle = jest.fn().mockResolvedValue({
   data: {
     id: "r1", status: "paid", total_amount: 210000, ticket_token: "a.b", org_id: "o1",
     events: { name: "Apo Sky Ultra 2026" }, categories: { label: "21K", distance_km: 21 },
-    payments: [{ checkout_url: "http://x/functions/v1/fake-checkout?rid=r1" }],
+    payments: [{
+      checkout_url: "http://x/functions/v1/fake-checkout?rid=r1",
+      created_at: "2026-03-06T02:15:00Z", method: "gcash", amount: 120000,
+      platform_fee: 6000, net_to_org: 114000, provider: "paymongo",
+      provider_ref: "cs_abc123", status: "paid",
+    }],
   },
   error: null,
 });
@@ -28,6 +33,10 @@ describe("useRegistration", () => {
       id: "r1", status: "paid", ticket_token: "a.b",
       eventName: "Apo Sky Ultra 2026", categoryLabel: "21K",
       checkoutUrl: "http://x/functions/v1/fake-checkout?rid=r1",
+    });
+    expect(result.current.data?.payment).toMatchObject({
+      createdAt: "2026-03-06T02:15:00Z", method: "gcash", amount: 120000,
+      platformFee: 6000, netToOrg: 114000, provider: "paymongo", providerRef: "cs_abc123", status: "paid",
     });
   });
 });

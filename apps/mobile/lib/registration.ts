@@ -42,14 +42,21 @@ export async function verifyPayment(registrationId: string): Promise<{ status: s
   }
 }
 
+export type RegistrationPayment = {
+  createdAt: string | null; method: string | null; amount: number | null;
+  platformFee: number | null; netToOrg: number | null; provider: string | null;
+  providerRef: string | null; status: string | null;
+};
+
 export type RegistrationRow = {
   id: string; status: string; total_amount: number; ticket_token: string | null; org_id: string;
   eventName: string; categoryLabel: string; categoryDistance: number | null; checkoutUrl: string | null;
   eventStatus: string | null; eventDate: string | null; originalDate: string | null; statusNote: string | null;
+  payment: RegistrationPayment | null;
 };
 
 const REG_SELECT =
-  "id,status,total_amount,ticket_token,org_id,events(name,status,event_date,original_date,status_note),categories(label,distance_km),payments(checkout_url)";
+  "id,status,total_amount,ticket_token,org_id,events(name,status,event_date,original_date,status_note),categories(label,distance_km),payments(checkout_url,created_at,method,amount,platform_fee,net_to_org,provider,provider_ref,status)";
 
 function mapReg(r: any): RegistrationRow {
   const payment = Array.isArray(r.payments) ? r.payments[0] : r.payments;
@@ -59,6 +66,14 @@ function mapReg(r: any): RegistrationRow {
     checkoutUrl: payment?.checkout_url ?? null,
     eventStatus: r.events?.status ?? null, eventDate: r.events?.event_date ?? null,
     originalDate: r.events?.original_date ?? null, statusNote: r.events?.status_note ?? null,
+    payment: payment
+      ? {
+          createdAt: payment.created_at ?? null, method: payment.method ?? null,
+          amount: payment.amount ?? null, platformFee: payment.platform_fee ?? null,
+          netToOrg: payment.net_to_org ?? null, provider: payment.provider ?? null,
+          providerRef: payment.provider_ref ?? null, status: payment.status ?? null,
+        }
+      : null,
   };
 }
 
@@ -85,4 +100,16 @@ export async function fetchMyRegistrations(): Promise<RegistrationRow[]> {
 
 export function useMyRegistrations() {
   return useQuery({ queryKey: ["my-registrations"], queryFn: fetchMyRegistrations });
+}
+
+/** Permanently delete an unpaid (pending) registration. The RLS policy
+ *  `registrations_delete_own_pending` restricts this to the owner's own
+ *  pending rows; the pending payment and addons cascade away. Not for paid
+ *  registrations — those are refunded admin-side, never deleted here.
+ *  Throws if RLS blocked the delete (e.g. a payment already captured), since
+ *  a zero-row delete otherwise reports success with nothing actually deleted. */
+export async function cancelRegistration(rid: string): Promise<void> {
+  const { data, error } = await supabase.from("registrations").delete().eq("id", rid).select("id");
+  if (error) throw error;
+  if (!data || data.length === 0) throw new Error("not_cancellable");
 }

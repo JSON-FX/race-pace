@@ -34,6 +34,8 @@ const badgeVariants = cva(
         cancelled: 'bg-destructive-tint border-transparent',
         rescheduled: 'bg-info-tint border-transparent',
         paid: 'bg-paid-tint border-transparent',
+        unpaid: 'bg-amber-tint border-transparent',
+        refunded: 'bg-info-tint border-transparent',
       },
     },
     defaultVariants: {
@@ -56,6 +58,8 @@ const badgeTextVariants = cva('text-xs font-medium', {
       cancelled: 'text-destructive',
       rescheduled: 'text-info',
       paid: 'text-paid',
+      unpaid: 'text-amber',
+      refunded: 'text-info',
     },
   },
   defaultVariants: {
