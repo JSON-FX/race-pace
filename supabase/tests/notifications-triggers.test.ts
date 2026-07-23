@@ -38,3 +38,17 @@ describe("notifications table", () => {
     for (const u of [me, other]) await svc.auth.admin.deleteUser(u.id);
   });
 });
+
+describe("device_tokens table", () => {
+  it("lets a user upsert and read only their own token", async () => {
+    const svc = service();
+    const me = await makeUser(`dt_me_${Date.now()}@test.dev`);
+    const tok = `ExponentPushToken[${Date.now()}]`;
+    const up = await authed(me.token).from("device_tokens").upsert(
+      { user_id: me.id, token: tok, platform: "ios" }, { onConflict: "token" });
+    expect(up.error).toBeNull();
+    expect((await authed(me.token).from("device_tokens").select("token").eq("token", tok)).data).toHaveLength(1);
+    await svc.from("device_tokens").delete().eq("token", tok);
+    await svc.auth.admin.deleteUser(me.id);
+  });
+});
