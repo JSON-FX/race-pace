@@ -52,3 +52,33 @@ describe("device_tokens table", () => {
     await svc.auth.admin.deleteUser(me.id);
   });
 });
+
+describe("checkins table", () => {
+  it("is insertable by service role and unique per registration; clients cannot insert", async () => {
+    const svc = service();
+    const runner = await makeUser(`ci_run_${Date.now()}@test.dev`);
+    const reg = await svc.from("registrations").insert({
+      org_id: "00000000-0000-0000-0000-0000000000a1", event_id: "00000000-0000-0000-0000-0000000000e1",
+      category_id: "00000000-0000-0000-0000-0000000000c4", user_id: runner.id, status: "paid", total_amount: 100000,
+    }).select().single();
+
+    const ins = await svc.from("checkins").insert({
+      org_id: reg.data!.org_id, registration_id: reg.data!.id, event_id: reg.data!.event_id, checked_in_by: runner.id,
+    });
+    expect(ins.error).toBeNull();
+    // second insert for same registration violates the unique constraint
+    const dup = await svc.from("checkins").insert({
+      org_id: reg.data!.org_id, registration_id: reg.data!.id, event_id: reg.data!.event_id, checked_in_by: runner.id,
+    });
+    expect(dup.error).not.toBeNull();
+    // a runner cannot insert a check-in (no client insert policy)
+    const bad = await authed(runner.token).from("checkins").insert({
+      org_id: reg.data!.org_id, registration_id: reg.data!.id, event_id: reg.data!.event_id, checked_in_by: runner.id,
+    });
+    expect(bad.error).not.toBeNull();
+
+    await svc.from("checkins").delete().eq("registration_id", reg.data!.id);
+    await svc.from("registrations").delete().eq("id", reg.data!.id);
+    await svc.auth.admin.deleteUser(runner.id);
+  });
+});
