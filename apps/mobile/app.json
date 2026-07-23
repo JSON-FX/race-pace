@@ -10,6 +10,7 @@
     "plugins": [
       "expo-router",
       "expo-web-browser",
+      ["expo-notifications", { "color": "#159A55" }],
       "expo-video",
       [
         "expo-image-picker",
