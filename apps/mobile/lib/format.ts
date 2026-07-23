@@ -22,3 +22,20 @@ export function longDate(iso: string | null | undefined): string {
 export function distanceLabel(km: number): string {
   return `${Math.round(km)}K`;
 }
+
+/** Local calendar date as ISO "YYYY-MM-DD". Uses `new Date()` so tests can pin it
+ *  with fake timers. (The Events screen has an inline copy; not refactored here.) */
+export function todayIsoNow(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** PayMongo payment-method code -> display label. */
+export function paymentMethodLabel(method: string | null | undefined): string {
+  switch (method) {
+    case "card": return "Card";
+    case "gcash": return "GCash";
+    case "maya": return "Maya";
+    default: return method ? method : "—";
+  }
+}
