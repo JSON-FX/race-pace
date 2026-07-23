@@ -105,8 +105,11 @@ export function useMyRegistrations() {
 /** Permanently delete an unpaid (pending) registration. The RLS policy
  *  `registrations_delete_own_pending` restricts this to the owner's own
  *  pending rows; the pending payment and addons cascade away. Not for paid
- *  registrations — those are refunded admin-side, never deleted here. */
+ *  registrations — those are refunded admin-side, never deleted here.
+ *  Throws if RLS blocked the delete (e.g. a payment already captured), since
+ *  a zero-row delete otherwise reports success with nothing actually deleted. */
 export async function cancelRegistration(rid: string): Promise<void> {
-  const { error } = await supabase.from("registrations").delete().eq("id", rid);
+  const { data, error } = await supabase.from("registrations").delete().eq("id", rid).select("id");
   if (error) throw error;
+  if (!data || data.length === 0) throw new Error("not_cancellable");
 }

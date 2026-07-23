@@ -81,6 +81,20 @@ describe("My Races (segmented)", () => {
     fireEvent.press(screen.getByText("Cancel registration"));
     await waitFor(() => expect(mockCancel).toHaveBeenCalledWith("pay1"));
     expect(mockInvalidate).toHaveBeenCalledWith({ queryKey: ["my-registrations"] });
+    await waitFor(() => expect(screen.queryByText("Cancel this registration?")).toBeNull());
+  });
+
+  it("keeps the dialog open and shows an error when cancel fails", async () => {
+    mockMyRegResult = {
+      data: [row({ id: "pay1", status: "pending", eventName: "Sierra Madre Challenge" })],
+      isLoading: false, isError: false, refetch: jest.fn(),
+    };
+    mockCancel.mockRejectedValueOnce(new Error("nope"));
+    renderScreen();
+    fireEvent.press(await screen.findByText("Cancel"));
+    fireEvent.press(screen.getByText("Cancel registration"));
+    expect(await screen.findByText("Couldn't cancel. Try again.")).toBeOnTheScreen();
+    expect(screen.getByText("Cancel this registration?")).toBeOnTheScreen();
   });
 
   it("falls back to cached races when offline", async () => {

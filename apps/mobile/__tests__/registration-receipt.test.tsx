@@ -1,4 +1,5 @@
 import { render, screen, fireEvent } from "@testing-library/react-native";
+import { formatPeso } from "@race-pace/shared";
 
 const mockPush = jest.fn();
 const mockBack = jest.fn();
@@ -29,6 +30,8 @@ describe("Registration receipt", () => {
     expect(screen.getByText("GCash")).toBeOnTheScreen();
     expect(screen.getByText("Mar 6, 2026")).toBeOnTheScreen();
     expect(screen.getByText("cs_abc123")).toBeOnTheScreen();
+    expect(screen.getByText(formatPeso(120000))).toBeOnTheScreen();
+    expect(screen.getByText(formatPeso(6000))).toBeOnTheScreen();
     expect(screen.getByText("Not recorded yet")).toBeOnTheScreen();
     fireEvent.press(screen.getByText("View race pass"));
     expect(mockPush).toHaveBeenCalledWith("/ticket/r1abcdef99");
@@ -45,6 +48,7 @@ describe("Registration receipt", () => {
     };
     render(<RegistrationReceipt />);
     expect(screen.getByText("Refunded")).toBeOnTheScreen();
+    expect(screen.getByText("R1ABCDEF")).toBeOnTheScreen();
     expect(screen.queryByText("View race pass")).toBeNull();
   });
 });
