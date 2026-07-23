@@ -33,8 +33,12 @@ Deno.serve(async (req) => {
     const { data: inserted, error: insErr } = await db.from("checkins")
       .insert({ org_id: reg.org_id, registration_id: reg.id, event_id: reg.event_id, checked_in_by: userRes.user.id })
       .select("id");
-    if (insErr) return json({ ok: true, registration_id: reg.id, already: true }); // unique violation = already checked in
-    return json({ ok: true, registration_id: reg.id, checkin_id: inserted?.[0]?.id });
+    if (insErr) {
+      if (insErr.code === "23505") return json({ ok: true, registration_id: reg.id, already: true }); // unique violation = already checked in
+      console.error("check-in: insert failed", insErr);
+      return json({ error: "server_error" }, 500);
+    }
+    return json({ ok: true, registration_id: reg.id, checkin_id: inserted?.[0]?.id ?? null });
   } catch {
     return json({ error: "server_error" }, 500);
   }
