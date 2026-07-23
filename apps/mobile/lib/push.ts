@@ -13,6 +13,9 @@ Notifications.setNotificationHandler({
 // Registers this device's Expo push token. No-op on simulators (no APNs token) and when
 // the user denies permission — the in-app inbox still works everywhere. Design §6/§9.
 export async function registerForPush(userId: string): Promise<string | null> {
+  // Push is gated behind EXPO_PUBLIC_ENABLE_PUSH (see app.config.js). Off by default so
+  // local/dev device builds sign on a free Apple team; the in-app inbox works regardless.
+  if (process.env.EXPO_PUBLIC_ENABLE_PUSH !== "1") return null;
   if (!Device.isDevice) return null;
   const existing = await Notifications.getPermissionsAsync();
   const status = existing.status === "granted"

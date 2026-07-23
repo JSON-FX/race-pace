@@ -10,7 +10,6 @@
     "plugins": [
       "expo-router",
       "expo-web-browser",
-      ["expo-notifications", { "color": "#159A55" }],
       "expo-video",
       [
         "expo-image-picker",
@@ -31,7 +30,11 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ],
+      "package": "com.racepace.mobile"
     },
     "web": {
       "favicon": "./assets/favicon.png"
