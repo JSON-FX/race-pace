@@ -21,6 +21,8 @@ export function useMyOrg(orgId?: string) {
 }
 
 /** Compress `blob` and upload it under {orgId}/{kind}-{uuid}.{ext}; return the public URL. */
+// Assumes a pre-normalized (cropped) blob from the Branding page — no accepted-type
+// guard here; the crop step produces a known image type. Add a guard if reused elsewhere.
 export async function uploadOrgImage(orgId: string, blob: Blob, kind: OrgImageKind): Promise<string> {
   const file = blob instanceof File ? blob : new File([blob], "image", { type: blob.type || "image/png" });
   const compressed = await compressImage(file);

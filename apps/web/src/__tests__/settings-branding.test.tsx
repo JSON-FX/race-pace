@@ -3,9 +3,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 beforeEach(() => {
   (URL as unknown as { createObjectURL: (b: unknown) => string }).createObjectURL = () => "blob:mock";
+  (URL as unknown as { revokeObjectURL: (u: string) => void }).revokeObjectURL = () => {};
 });
 
-vi.mock("../lib/roles", () => ({ useMyRoles: () => ({ data: { orgId: "a1" } }) }));
+vi.mock("../lib/roles", () => ({ useMyRoles: vi.fn(() => ({ data: { orgId: "a1" } })) }));
 vi.mock("react-easy-crop", async () => {
   const React = await import("react");
   return { default: ({ onCropComplete }: { onCropComplete: (a: unknown, p: unknown) => void }) => {
@@ -26,6 +27,7 @@ vi.mock("../lib/org", async (importOriginal) => {
   };
 });
 
+import { useMyRoles } from "../lib/roles";
 import { Settings } from "../routes/Settings";
 
 function wrap(ui: React.ReactElement) {
@@ -47,4 +49,10 @@ it("crops and saves an avatar upload", async () => {
   fireEvent.click(screen.getByRole("button", { name: /save/i }));
   await waitFor(() => expect(uploadOrgImage).toHaveBeenCalledWith("a1", expect.anything(), "avatar"));
   await waitFor(() => expect(updateOrgBranding).toHaveBeenCalledWith("a1", { logo_url: "https://cdn/org-images/a1/avatar-x.png" }));
+});
+
+it("shows a message when the account has no organization", () => {
+  (useMyRoles as unknown as { mockReturnValueOnce: (v: unknown) => void }).mockReturnValueOnce({ data: { orgId: null } });
+  wrap(<Settings />);
+  expect(screen.getByText(/isn't linked to an organization/i)).toBeInTheDocument();
 });

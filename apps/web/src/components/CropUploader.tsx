@@ -22,9 +22,22 @@ export function CropUploader({ orgId, kind, aspect, field, label, currentUrl, ro
 
   const onFile = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) setSrc(URL.createObjectURL(file));
+    if (file) {
+      if (src) URL.revokeObjectURL(src);
+      setSrc(URL.createObjectURL(file));
+      setCrop({ x: 0, y: 0 });
+      setZoom(1);
+      setPixels(null);
+    }
     e.target.value = "";
   };
+
+  function close() {
+    if (src) URL.revokeObjectURL(src);
+    setSrc(null);
+    setPixels(null);
+    setError(null);
+  }
   const onCropComplete = useCallback((_a: Area, px: Area) => setPixels(px), []);
 
   async function save() {
@@ -36,7 +49,7 @@ export function CropUploader({ orgId, kind, aspect, field, label, currentUrl, ro
       const url = await uploadOrgImage(orgId, blob, kind);
       const res = await updateOrgBranding(orgId, { [field]: url });
       if (!res.ok) throw new Error(res.error);
-      setSrc(null);
+      close();
       onSaved();
     } catch (e) {
       setError((e as Error).message || "Upload failed. Try again.");
@@ -66,7 +79,7 @@ export function CropUploader({ orgId, kind, aspect, field, label, currentUrl, ro
           </div>
           {error ? <div role="alert" style={{ color: "var(--danger)", fontSize: 13 }}>{error}</div> : null}
           <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={() => { setSrc(null); setError(null); }} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid var(--hairline)", background: "#fff", cursor: "pointer" }}>Cancel</button>
+            <button onClick={close} disabled={busy} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid var(--hairline)", background: "#fff", cursor: "pointer" }}>Cancel</button>
             <button onClick={save} disabled={busy} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "var(--primary)", color: "#fff", fontWeight: 600, cursor: "pointer" }}>{busy ? "Saving…" : "Save"}</button>
           </div>
         </div>
