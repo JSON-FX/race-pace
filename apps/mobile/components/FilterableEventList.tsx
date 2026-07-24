@@ -1,0 +1,226 @@
+import { useMemo, useState, type ReactNode } from "react";
+import { View, SectionList, ActivityIndicator, Pressable, RefreshControl } from "react-native";
+import { useRouter } from "expo-router";
+import { Search } from "lucide-react-native";
+import { EventCard } from "./EventCard";
+import { FeaturedCarousel } from "./FeaturedCarousel";
+import { MarketplaceFilterBar } from "./MarketplaceFilterBar";
+import { MarketplaceFilterSheet } from "./MarketplaceFilterSheet";
+import {
+  DEFAULT_MARKETPLACE_FILTERS, filterMarketplaceEvents, pickFeaturedEvents,
+  groupEventsForDisplay, countActiveFilters, type MarketplaceFilters,
+} from "@/lib/marketplaceFilters";
+import { todayIsoNow } from "@/lib/format";
+import type { EventRow, OrgRow } from "@/lib/events";
+import { Icon } from "@/components/ui/icon";
+import { Input } from "@/components/ui/input";
+import { Text } from "@/components/ui/text";
+import { Button } from "@/components/ui/button";
+
+const PAST_EVENTS_TITLE = "Past events";
+
+/** Search + date-segment + "More filters" + grouped/sectioned list for a set of
+ *  events. Shared by the marketplace (all orgs) and an org's detail page (one
+ *  org) so the two stay behaviorally identical — the only differences are the
+ *  data source, whether cards show the org badge, and the header above search. */
+export function FilterableEventList({
+  events,
+  orgs,
+  showOrgOnCards = true,
+  topHeader,
+  emptyMessage = "Check back soon.",
+  isLoading = false,
+  isError = false,
+  onRetry,
+  refreshing,
+  onRefresh,
+  contentContainerClassName = "pb-8",
+}: {
+  events: EventRow[];
+  /** Organizers for the "More filters" organizer picker. */
+  orgs: OrgRow[];
+  showOrgOnCards?: boolean;
+  /** Rendered full-bleed above the search bar (a screen title, or an OrgHeader). */
+  topHeader?: ReactNode;
+  /** Copy shown when there are no events and no active search/filters. */
+  emptyMessage?: string;
+  isLoading?: boolean;
+  isError?: boolean;
+  onRetry?: () => void;
+  refreshing?: boolean;
+  onRefresh?: () => void;
+  contentContainerClassName?: string;
+}) {
+  const router = useRouter();
+  const [q, setQ] = useState("");
+  const [filters, setFilters] = useState<MarketplaceFilters>(DEFAULT_MARKETPLACE_FILTERS);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const todayIso = todayIsoNow();
+
+  const allEvents = events;
+
+  function search(list: EventRow[]) {
+    const needle = q.trim().toLowerCase();
+    if (!needle) return list;
+    return list.filter((e) =>
+      [e.name, e.place, e.region, e.city_name, e.province_name, e.region_name, e.org_name].filter(Boolean).some((s) => s!.toLowerCase().includes(needle))
+    );
+  }
+
+  // Upcoming and past are computed independently (not as an either/or mode
+  // switch) so the scroll order is always upcoming -> current -> past, with
+  // past appended at the very end rather than replacing the list above it.
+  const upcoming = useMemo(
+    () => search(filterMarketplaceEvents(allEvents, { ...filters, showPast: false }, todayIso)),
+    [allEvents, filters, q, todayIso]
+  );
+  const past = useMemo(
+    () => search(filterMarketplaceEvents(allEvents, { ...filters, showPast: true }, todayIso)),
+    [allEvents, filters, q, todayIso]
+  );
+
+  const featured = useMemo(() => pickFeaturedEvents(upcoming, todayIso), [upcoming, todayIso]);
+  const featuredIds = useMemo(() => new Set(featured.map((e) => e.id)), [featured]);
+  const listEvents = useMemo(() => upcoming.filter((e) => !featuredIds.has(e.id)), [upcoming, featuredIds]);
+  const upcomingSections = useMemo(
+    () => groupEventsForDisplay(listEvents, filters.dateSegment, todayIso),
+    [listEvents, filters.dateSegment, todayIso]
+  );
+  const sections = useMemo(() => {
+    if (!filters.showPast || past.length === 0) return upcomingSections;
+    return [...upcomingSections, { title: PAST_EVENTS_TITLE, data: past }];
+  }, [upcomingSections, past, filters.showPast]);
+
+  function clearFilters() {
+    setFilters(DEFAULT_MARKETPLACE_FILTERS);
+    setQ("");
+  }
+
+  if (isLoading) {
+    return (
+      <View className="flex-1 items-center justify-center bg-background">
+        <ActivityIndicator className="text-primary" />
+      </View>
+    );
+  }
+
+  if (isError) {
+    return (
+      <View className="flex-1 items-center justify-center bg-background">
+        <Button variant="ghost" onPress={onRetry}>
+          <Text className="text-destructive">Couldn't load events. Tap to retry.</Text>
+        </Button>
+      </View>
+    );
+  }
+
+  const hasActiveFilters = countActiveFilters(filters) > 0 || filters.dateSegment !== "all";
+  const pastSectionShown = sections.some((s) => s.title === PAST_EVENTS_TITLE);
+
+  return (
+    <>
+      <SectionList
+        className="flex-1 bg-background"
+        sections={sections}
+        keyExtractor={(e) => e.id}
+        contentContainerClassName={contentContainerClassName}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        refreshControl={onRefresh ? <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} /> : undefined}
+        ListHeaderComponent={
+          <View className="mb-2">
+            {topHeader}
+            <View className="px-[22px]">
+              <View className="flex-row items-center gap-2 bg-muted rounded-[11px] py-3 px-[14px] mt-[14px]">
+                <Icon as={Search} size={17} className="text-muted-foreground" />
+                <Input
+                  className="flex-1 border-0 bg-transparent h-auto p-0 shadow-none text-[15px]"
+                  value={q}
+                  onChangeText={setQ}
+                  placeholder="Search by name or place"
+                  autoCapitalize="none"
+                  accessibilityLabel="Search events"
+                />
+              </View>
+
+              <MarketplaceFilterBar
+                dateSegment={filters.dateSegment}
+                onDateSegmentChange={(dateSegment) => setFilters((f) => ({ ...f, dateSegment }))}
+                activeFilterCount={countActiveFilters(filters)}
+                onPressMoreFilters={() => setSheetOpen(true)}
+              />
+
+              {featured.length > 0 ? (
+                <View className="mt-5">
+                  <Text className="text-[13px] font-bold uppercase tracking-[0.6px] text-muted-foreground mb-3">Coming up soon</Text>
+                  <FeaturedCarousel events={featured} onPressEvent={(e) => router.push(`/event/${e.id}`)} />
+                </View>
+              ) : null}
+            </View>
+          </View>
+        }
+        renderSectionHeader={({ section }) =>
+          section.title === PAST_EVENTS_TITLE ? (
+            <Pressable
+              onPress={() => setFilters((f) => ({ ...f, showPast: false }))}
+              accessibilityRole="button"
+              className="flex-row items-center justify-between mt-2 pt-4 pb-3 border-t border-divider px-[22px]"
+            >
+              <Text className="text-[13px] font-bold uppercase tracking-[0.6px] text-muted-foreground">Past events</Text>
+              <Text className="text-[12.5px] font-semibold text-primary">Hide</Text>
+            </Pressable>
+          ) : section.title ? (
+            <View className="flex-row items-center gap-[10px] my-3 px-[22px]">
+              <View className="flex-1 h-px bg-divider" />
+              <Text className="text-[12.5px] font-bold text-muted-foreground">{section.title}</Text>
+              <View className="flex-1 h-px bg-divider" />
+            </View>
+          ) : null
+        }
+        ListFooterComponent={
+          pastSectionShown ? null : (
+            <Pressable
+              onPress={() => setFilters((f) => ({ ...f, showPast: !f.showPast }))}
+              accessibilityRole="button"
+              className="flex-row items-center justify-between mt-5 pt-4 border-t border-divider px-[22px]"
+            >
+              <Text className="text-[13px] font-bold uppercase tracking-[0.6px] text-muted-foreground">Past events</Text>
+              <Text className="text-[12.5px] font-semibold text-primary">{filters.showPast ? "Hide" : "Show"}</Text>
+            </Pressable>
+          )
+        }
+        ListEmptyComponent={
+          <View className="items-center pt-20 px-[22px]">
+            <View className="h-[74px] w-[74px] items-center justify-center rounded-full bg-muted">
+              <Icon as={Search} size={30} className="text-muted-foreground" />
+            </View>
+            <Text className="text-lg font-semibold text-foreground mt-[18px]">No events found</Text>
+            <Text className="text-sm text-muted-foreground mt-1.5 text-center max-w-[240px]">
+              {q ? "Try a different search." : hasActiveFilters ? "No events match your filters." : emptyMessage}
+            </Text>
+            {hasActiveFilters ? (
+              <Pressable onPress={clearFilters} accessibilityRole="button" className="mt-4">
+                <Text className="text-[14px] font-semibold text-primary">Clear filters</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        }
+        renderItem={({ item }) => (
+          <View className="px-[22px]">
+            <EventCard event={item} showOrg={showOrgOnCards} onPress={() => router.push(`/event/${item.id}`)} />
+          </View>
+        )}
+      />
+
+      <MarketplaceFilterSheet
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+        filters={filters}
+        onApply={setFilters}
+        allEvents={allEvents}
+        orgs={orgs}
+        todayIso={todayIso}
+      />
+    </>
+  );
+}
