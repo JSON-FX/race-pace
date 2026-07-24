@@ -23,6 +23,16 @@ export function distanceLabel(km: number): string {
   return `${Math.round(km)}K`;
 }
 
+/** Postgres time "06:00:00" -> "6:00 AM". Returns null for empty/unparseable input. */
+export function flagOffLabel(time: string | null | undefined): string | null {
+  if (!time) return null;
+  const [h, m] = time.split(":").map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+  const period = h < 12 ? "AM" : "PM";
+  const hour12 = h % 12 === 0 ? 12 : h % 12;
+  return `${hour12}:${String(m).padStart(2, "0")} ${period}`;
+}
+
 /** Local calendar date as ISO "YYYY-MM-DD". Uses `new Date()` so tests can pin it
  *  with fake timers. (The Events screen has an inline copy; not refactored here.) */
 export function todayIsoNow(): string {

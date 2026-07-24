@@ -29,3 +29,13 @@ it("replaces a slide that fails to load with the fallback, keeping the others", 
   expect(screen.getAllByTestId("gallery-image")).toHaveLength(1);
   expect(screen.getByTestId("elevation-hero")).toBeOnTheScreen();
 });
+
+it("opens a full-screen viewer when a slide is tapped and closes it", () => {
+  render(<EventGallery images={["https://cdn/a.png", "https://cdn/b.png"]} height={250} />);
+  expect(screen.queryByTestId("gallery-viewer")).toBeNull();
+  fireEvent.press(screen.getAllByLabelText("View image")[0]);
+  expect(screen.getByTestId("gallery-viewer")).toBeOnTheScreen();
+  expect(screen.getByText("1 / 2")).toBeOnTheScreen();
+  fireEvent.press(screen.getByLabelText("Close"));
+  expect(screen.queryByTestId("gallery-viewer")).toBeNull();
+});

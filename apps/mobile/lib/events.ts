@@ -3,7 +3,7 @@ import { supabase } from "./supabase";
 
 export type EventRow = {
   id: string; org_id: string; name: string; place: string | null; region: string | null;
-  event_date: string | null; end_date: string | null; elevation_gain_m: number | null; cutoff_hours: number | null;
+  event_date: string | null; end_date: string | null; elevation_gain_m: number | null; cutoff_hours: number | null; flag_off?: string | null;
   status: string; hero_image_url: string | null; description: string | null;
   gallery: string[]; original_date: string | null; status_note: string | null;
   city_psgc_code: string | null; region_name: string | null; province_name: string | null; city_name: string | null; venue: string | null;
@@ -26,7 +26,7 @@ export type FormFieldRow = {
 };
 
 const EVENT_COLS =
-  "id,org_id,name,place,region,event_date,end_date,elevation_gain_m,cutoff_hours,status,hero_image_url,description,gallery,original_date,status_note,city_psgc_code,region_name,province_name,city_name,venue,categories(slots_taken,distance_km)";
+  "id,org_id,name,place,region,event_date,end_date,elevation_gain_m,cutoff_hours,flag_off,status,hero_image_url,description,gallery,original_date,status_note,city_psgc_code,region_name,province_name,city_name,venue,categories(slots_taken,distance_km)";
 const ORG_COLS = "id,name,slug,logo_url,banner_url,description,brand_color";
 const CAT_COLS = "id,event_id,org_id,code,label,distance_km,base_price,slots_total,slots_taken";
 
