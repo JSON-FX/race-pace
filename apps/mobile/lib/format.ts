@@ -34,7 +34,7 @@ export function flagOffLabel(time: string | null | undefined): string | null {
 }
 
 /** Local calendar date as ISO "YYYY-MM-DD". Uses `new Date()` so tests can pin it
- *  with fake timers. (The Events screen has an inline copy; not refactored here.) */
+ *  with fake timers. */
 export function todayIsoNow(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
