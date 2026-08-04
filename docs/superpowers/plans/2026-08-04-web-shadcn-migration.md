@@ -20,7 +20,9 @@
 - **Do not replace** the native `<input type="date">` / `type="time">` fields in `EventEditor`. Plan 12 chose them deliberately and `event-editor.test.tsx` asserts `.type === "date"`.
 - **Test intent is preserved.** When a test's query strategy must change (native `<select>` → Radix), the assertion it makes must stay the same.
 - **Supabase CLI is pinned to 2.109.1.** SQL against the hosted project runs via `pnpm exec supabase db query --linked` (no DB password needed); migrations push via `pnpm exec supabase db push --linked`.
-- Existing test counts to protect: web **51/51**, backend **54/54**. Report real numbers from real runs; never assert a count from memory.
+- **Baseline, measured 2026-08-04 on this branch:** web **75 passed / 23 files**, `tsc --noEmit` clean. (The `51/51` in `docs/README.md` is stale — it predates the team-management and org-branding work.) Backend baseline is unmeasured: see "Environment" below.
+- **Per-task expected counts are `baseline + the tests that task adds`.** The gate is *all green with no pre-existing test lost*, not a specific total. Report the real number from the real run every time; never assert a count from memory.
+- **Environment (already set up, do not redo):** this worktree needed `pnpm install`, and `apps/web/.env` was copied in from the main checkout — without it 8 test files fail to collect with a Supabase URL error. Both are done. `apps/web/.env` is git-ignored; never commit it.
 
 ## Deviation from the spec
 
@@ -380,7 +382,7 @@ rm apps/web/src/theme.css
 - [ ] **Step 11: Verify nothing regressed**
 
 Run: `pnpm --filter web test && pnpm --filter web typecheck`
-Expected: **51/51 passing**, typecheck clean. The UI is byte-identical because the legacy variables are still declared.
+Expected: baseline 75 passed / 23 files, unchanged, typecheck clean. The UI is byte-identical because the legacy variables are still declared.
 
 - [ ] **Step 12: Commit**
 
@@ -537,7 +539,7 @@ vi.mock("../components/StatusBadge", () => ({ PaymentStatusBadge: ({ status }: {
 - [ ] **Step 8: Run the full suite**
 
 Run: `pnpm --filter web test && pnpm --filter web typecheck`
-Expected: **54/54** (51 + 3 new), typecheck clean.
+Expected: baseline + 3 new (78), typecheck clean.
 
 - [ ] **Step 9: Commit**
 
@@ -900,7 +902,7 @@ Also widen the `mockRoles` type at line 5 to `{ data?: { isSuperAdmin: boolean; 
 - [ ] **Step 12: Run the full suite**
 
 Run: `pnpm --filter web test && pnpm --filter web typecheck`
-Expected: **58/58** (54 + 2 theme + 2 sidebar), typecheck clean.
+Expected: previous + 2 theme + 2 sidebar (82), typecheck clean.
 
 - [ ] **Step 13: Commit**
 
@@ -1591,7 +1593,7 @@ Expected: PASS, 9 tests.
 - [ ] **Step 10: Run the full suite**
 
 Run: `pnpm --filter web test && pnpm --filter web typecheck`
-Expected: **71/71** (58 + 9 + 4), typecheck clean.
+Expected: previous + 9 DataTable + 4 params (95), typecheck clean.
 
 - [ ] **Step 11: Commit**
 
@@ -1876,7 +1878,7 @@ it("navigates to the event roster when a row is clicked", async () => {
 - [ ] **Step 7: Run the suite**
 
 Run: `pnpm --filter web test && pnpm --filter web typecheck`
-Expected: **75/75** (71 − 2 replaced payments tests + 4 new payments tests + 1 query test + 1). Report the real number.
+Expected: previous − 2 replaced payments tests + 4 rewritten + 1 query test. Report the real number; the gate is green with no pre-existing test lost.
 
 - [ ] **Step 8: Commit**
 
