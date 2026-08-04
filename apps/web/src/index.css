@@ -1,0 +1,150 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --background: 255 255 255;
+  --foreground: 29 29 31;
+  --card: 255 255 255;
+  --card-foreground: 29 29 31;
+  --popover: 255 255 255;
+  --popover-foreground: 29 29 31;
+  --muted: 245 245 247;
+  --muted-foreground: 122 122 122;
+  --secondary: 234 243 238;
+  --secondary-foreground: 15 122 66;
+  --accent: 234 243 238;
+  --accent-foreground: 15 122 66;
+  --primary: 21 154 85;
+  --primary-foreground: 255 255 255;
+  --primary-focus: 15 122 66;
+  --border: 224 224 224;
+  --divider: 239 239 241;
+  --input: 224 224 224;
+  --ring: 21 154 85;
+  --destructive: 255 59 48;
+  --destructive-foreground: 255 255 255;
+  --destructive-tint: 253 236 234;
+  --forest: 15 42 32;
+  --paid: 15 122 66;      --paid-tint: 234 243 238;
+  --info: 0 102 204;      --info-tint: 232 240 251;
+  --amber: 180 83 9;      --amber-tint: 251 239 227;
+
+  /* Sidebar surface — handover: white panel, #F1F7F4 active row */
+  --sidebar: 255 255 255;
+  --sidebar-foreground: 29 29 31;
+  --sidebar-primary: 21 154 85;
+  --sidebar-primary-foreground: 255 255 255;
+  --sidebar-accent: 241 247 244;
+  --sidebar-accent-foreground: 29 29 31;
+  --sidebar-border: 224 224 224;
+  --sidebar-ring: 21 154 85;
+
+  --radius: 0.6875rem;    /* 11px — handover --radius */
+  --radius-card: 1rem;    /* 16px */
+  --radius-pill: 9999px;
+}
+
+.dark {
+  --background: 11 15 13;
+  --foreground: 245 245 247;
+  --card: 20 25 22;
+  --card-foreground: 245 245 247;
+  --popover: 20 25 22;
+  --popover-foreground: 245 245 247;
+  --muted: 27 33 29;
+  --muted-foreground: 161 161 166;
+  --secondary: 19 37 28;
+  --secondary-foreground: 127 224 166;
+  --accent: 19 37 28;
+  --accent-foreground: 127 224 166;
+  --primary: 47 181 106;
+  --primary-foreground: 6 18 11;
+  --primary-focus: 30 158 92;
+  --border: 38 43 40;
+  --divider: 38 43 40;
+  --input: 38 43 40;
+  --ring: 47 181 106;
+  --destructive: 255 69 58;
+  --destructive-foreground: 255 255 255;
+  --destructive-tint: 42 20 20;
+  --forest: 15 42 32;
+  --paid: 53 192 110;   --paid-tint: 19 37 28;
+  --info: 10 132 255;   --info-tint: 16 35 58;
+  --amber: 224 163 69;  --amber-tint: 42 33 19;
+
+  --sidebar: 20 25 22;
+  --sidebar-foreground: 245 245 247;
+  --sidebar-primary: 47 181 106;
+  --sidebar-primary-foreground: 6 18 11;
+  --sidebar-accent: 19 37 28;
+  --sidebar-accent-foreground: 127 224 166;
+  --sidebar-border: 38 43 40;
+  --sidebar-ring: 47 181 106;
+}
+
+@theme inline {
+  --color-background: rgb(var(--background));
+  --color-foreground: rgb(var(--foreground));
+  --color-card: rgb(var(--card));
+  --color-card-foreground: rgb(var(--card-foreground));
+  --color-popover: rgb(var(--popover));
+  --color-popover-foreground: rgb(var(--popover-foreground));
+  --color-muted: rgb(var(--muted));
+  --color-muted-foreground: rgb(var(--muted-foreground));
+  --color-secondary: rgb(var(--secondary));
+  --color-secondary-foreground: rgb(var(--secondary-foreground));
+  --color-accent: rgb(var(--accent));
+  --color-accent-foreground: rgb(var(--accent-foreground));
+  --color-primary: rgb(var(--primary));
+  --color-primary-foreground: rgb(var(--primary-foreground));
+  --color-primary-focus: rgb(var(--primary-focus));
+  --color-border: rgb(var(--border));
+  --color-divider: rgb(var(--divider));
+  --color-input: rgb(var(--input));
+  --color-ring: rgb(var(--ring));
+  --color-destructive: rgb(var(--destructive));
+  --color-destructive-foreground: rgb(var(--destructive-foreground));
+  --color-destructive-tint: rgb(var(--destructive-tint));
+  --color-forest: rgb(var(--forest));
+  --color-paid: rgb(var(--paid));
+  --color-paid-tint: rgb(var(--paid-tint));
+  --color-info: rgb(var(--info));
+  --color-info-tint: rgb(var(--info-tint));
+  --color-amber: rgb(var(--amber));
+  --color-amber-tint: rgb(var(--amber-tint));
+  --color-sidebar: rgb(var(--sidebar));
+  --color-sidebar-foreground: rgb(var(--sidebar-foreground));
+  --color-sidebar-primary: rgb(var(--sidebar-primary));
+  --color-sidebar-primary-foreground: rgb(var(--sidebar-primary-foreground));
+  --color-sidebar-accent: rgb(var(--sidebar-accent));
+  --color-sidebar-accent-foreground: rgb(var(--sidebar-accent-foreground));
+  --color-sidebar-border: rgb(var(--sidebar-border));
+  --color-sidebar-ring: rgb(var(--sidebar-ring));
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: var(--radius-card);
+  --radius-pill: var(--radius-pill);
+}
+
+@layer base {
+  * { box-sizing: border-box; }
+  html, body, #root { height: 100%; margin: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Inter, system-ui, sans-serif;
+    color: rgb(var(--foreground));
+    background: rgb(var(--muted));
+  }
+  .rp-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+  .rp-scroll::-webkit-scrollbar-thumb { background: #D6D6DA; border-radius: 8px; }
+  .rp-scroll::-webkit-scrollbar-track { background: transparent; }
+}
+
+/* LEGACY — inline-style screens still read these. Deleted in Task 11. */
+:root {
+  --ink: #1D1D1F; --ink-muted: #7A7A7A; --ink-subtle: #8A8A8E; --ink-faint: #C7C7CC;
+  --section: #A0A0A5; --canvas: #ffffff; --parchment: #F5F5F7; --surface: #FAFAFB;
+  --nav-active: #F1F7F4; --hairline: #E0E0E0; --row-border: #F3F3F5;
+  --danger: #FF3B30; --danger-tint: #FDECEA;
+}
