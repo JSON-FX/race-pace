@@ -18,6 +18,7 @@ it("renders a row per event with category count + fill", () => {
   render(<Events />);
   expect(screen.getByText("Apo Sky Ultra")).toBeInTheDocument();
   expect(screen.getByText("4/15")).toBeInTheDocument();  // fill summed across categories
+  expect(screen.getByRole("columnheader", { name: /Event/ })).toBeInTheDocument();
 });
 
 it("shows the empty state when there are no events", () => {

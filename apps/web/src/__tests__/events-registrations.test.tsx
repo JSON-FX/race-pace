@@ -1,4 +1,5 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { Events } from "../routes/Events";
 
@@ -11,10 +12,11 @@ vi.mock("../lib/registrations", () => ({ useEventRegistrationCounts: () => ({ da
 vi.mock("@tanstack/react-query", async (orig) => ({ ...(await orig() as object), useQueryClient: () => ({ invalidateQueries: vi.fn() }) }));
 beforeEach(() => navigate.mockClear());
 
-it("shows the registration count and navigates to the roster from the row menu", () => {
+it("shows the registration count and navigates to the roster from the row menu", async () => {
+  const user = userEvent.setup();
   render(<MemoryRouter><Events /></MemoryRouter>);
   expect(screen.getByText("7")).toBeInTheDocument();
-  fireEvent.click(screen.getByLabelText("Actions for Apo Sky Ultra"));
-  fireEvent.click(screen.getByText("View registrations"));
+  await user.click(screen.getByLabelText("Actions for Apo Sky Ultra"));
+  await user.click(await screen.findByText("View registrations"));
   expect(navigate).toHaveBeenCalledWith("/registrations?event=e1");
 });
