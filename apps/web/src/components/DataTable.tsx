@@ -52,7 +52,6 @@ export function DataTable<TData>({
     },
     manualPagination: !!server,
     manualSorting: !!server,
-    sortDescFirst: false,
     pageCount: server?.pageCount,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: server ? undefined : getSortedRowModel(),

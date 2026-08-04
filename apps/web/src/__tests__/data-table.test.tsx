@@ -80,7 +80,34 @@ it("reports header clicks through onSortingChange in server mode", () => {
     />
   );
   fireEvent.click(screen.getByRole("button", { name: "Amount" }));
-  expect(onSortingChange).toHaveBeenCalledWith([{ id: "amount", desc: false }]);
+  expect(onSortingChange).toHaveBeenCalledWith([{ id: "amount", desc: true }]);
+});
+
+it("defaults numeric columns to descending-first and string columns to ascending-first on the first click", () => {
+  const onSortingChangeNumeric = vi.fn();
+  const { unmount } = render(
+    <DataTable
+      columns={columns}
+      data={rows}
+      messages={messages}
+      server={{ pageIndex: 0, pageCount: 1, totalRows: 2, onPageChange: vi.fn(), sorting: [], onSortingChange: onSortingChangeNumeric }}
+    />
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Amount" }));
+  expect(onSortingChangeNumeric).toHaveBeenCalledWith([{ id: "amount", desc: true }]);
+  unmount();
+
+  const onSortingChangeString = vi.fn();
+  render(
+    <DataTable
+      columns={columns}
+      data={rows}
+      messages={messages}
+      server={{ pageIndex: 0, pageCount: 1, totalRows: 2, onPageChange: vi.fn(), sorting: [], onSortingChange: onSortingChangeString }}
+    />
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Runner" }));
+  expect(onSortingChangeString).toHaveBeenCalledWith([{ id: "name", desc: false }]);
 });
 
 it("disables Previous on the first page and Next on the last", () => {

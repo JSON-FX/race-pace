@@ -13,6 +13,7 @@ function Probe() {
       <button onClick={() => t.setPage(3)}>page3</button>
       <button onClick={() => t.setFilter("status", "refunded")}>filter</button>
       <button onClick={() => t.setSort([{ id: "amount", desc: false }])}>sort</button>
+      <button onClick={() => t.setQ("ben")}>setq</button>
     </div>
   );
 }
@@ -46,4 +47,18 @@ it("resets to page 1 when a filter changes", () => {
   fireEvent.click(screen.getByText("filter"));
   expect(screen.getByTestId("page")).toHaveTextContent("1");
   expect(screen.getByTestId("status")).toHaveTextContent("refunded");
+});
+
+it("resets to page 1 when the search query changes", () => {
+  at("/payments?page=5");
+  fireEvent.click(screen.getByText("setq"));
+  expect(screen.getByTestId("page")).toHaveTextContent("1");
+  expect(screen.getByTestId("q")).toHaveTextContent("ben");
+});
+
+it("resets to page 1 when sort changes", () => {
+  at("/payments?page=5");
+  fireEvent.click(screen.getByText("sort"));
+  expect(screen.getByTestId("page")).toHaveTextContent("1");
+  expect(screen.getByTestId("sort")).toHaveTextContent("amount:asc");
 });
