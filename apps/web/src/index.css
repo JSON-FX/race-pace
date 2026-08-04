@@ -140,12 +140,3 @@
   .rp-scroll::-webkit-scrollbar-thumb { background: #D6D6DA; border-radius: 8px; }
   .rp-scroll::-webkit-scrollbar-track { background: transparent; }
 }
-
-/* LEGACY — inline-style screens still read these. Deleted in Task 11. */
-:root {
-  --ink: #1D1D1F; --ink-muted: #7A7A7A; --ink-subtle: #8A8A8E; --ink-faint: #C7C7CC;
-  --section: #A0A0A5; --canvas: #ffffff; --parchment: #F5F5F7; --surface: #FAFAFB;
-  --nav-active: #F1F7F4; --hairline: #E0E0E0; --row-border: #F3F3F5;
-  --danger: #FF3B30; --danger-tint: #FDECEA;
-  --legacy-primary: #159A55;
-}
