@@ -1,34 +1,36 @@
 import type { AddonDraft } from "../lib/eventWrites";
+import { Card } from "./ui/card";
+import { Input } from "./ui/input";
+import { Button } from "./ui/button";
 
 const peso = (c: number) => (c / 100).toString();
 const cent = (p: string) => Math.round((parseFloat(p) || 0) * 100);
-const inp = { border: "1px solid var(--hairline)", borderRadius: 8, padding: "7px 9px", fontSize: 13, width: "100%" } as const;
-const head = { fontSize: 10, fontWeight: 700, letterSpacing: ".3px", color: "var(--ink-muted)", textTransform: "uppercase", paddingLeft: 2 } as const;
+const head = "text-[10px] font-bold tracking-wide text-muted-foreground uppercase pl-0.5";
 const GRID = "1fr 1fr auto";
 
 export function AddonEditor({ rows, onChange }: { rows: AddonDraft[]; onChange: (r: AddonDraft[]) => void }) {
   const set = (i: number, patch: Partial<AddonDraft>) => onChange(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
   const add = () => onChange([...rows, { tempId: `t${Date.now()}${rows.length}`, name: "", price: 0 }]);
   return (
-    <div style={{ background: "var(--canvas)", border: "1px solid var(--hairline)", borderRadius: "var(--radius-card)", padding: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div style={{ fontSize: 14, fontWeight: 600 }}>Add-ons</div>
-        <button onClick={add} style={{ color: "var(--legacy-primary)", fontSize: 12, fontWeight: 600, background: "none", border: 0, cursor: "pointer" }}>+ Add</button>
+    <Card className="gap-0 p-5">
+      <div className="flex items-center justify-between">
+        <div className="text-sm font-semibold">Add-ons</div>
+        <Button variant="ghost" size="sm" onClick={add} className="h-auto p-0 text-xs font-semibold text-primary hover:bg-transparent">+ Add</Button>
       </div>
       {rows.length > 0 ? (
-        <div style={{ display: "grid", gridTemplateColumns: GRID, gap: 8, marginTop: 12 }}>
-          <span style={head}>Name</span>
-          <span style={head}>Price (₱)</span>
+        <div className="mt-3 grid gap-2" style={{ gridTemplateColumns: GRID }}>
+          <span className={head}>Name</span>
+          <span className={head}>Price (₱)</span>
           <span />
         </div>
       ) : null}
       {rows.map((r, i) => (
-        <div key={r.id ?? r.tempId} style={{ display: "grid", gridTemplateColumns: GRID, gap: 8, alignItems: "center", padding: "10px 0", borderTop: "1px solid var(--row-border)" }}>
-          <input aria-label="Add-on name" placeholder="Event singlet" style={inp} value={r.name} onChange={(e) => set(i, { name: e.target.value })} />
-          <input aria-label="Add-on price" placeholder="₱" type="number" step="0.01" style={inp} value={peso(r.price)} onChange={(e) => set(i, { price: cent(e.target.value) })} />
-          <button aria-label="Remove add-on" onClick={() => onChange(rows.filter((_, j) => j !== i))} style={{ color: "var(--danger)", background: "none", border: 0, cursor: "pointer", fontSize: 16 }}>×</button>
+        <div key={r.id ?? r.tempId} className="grid items-center gap-2 border-t border-border py-2.5" style={{ gridTemplateColumns: GRID }}>
+          <Input aria-label="Add-on name" placeholder="Event singlet" className="h-auto rounded-lg px-2.5 py-[7px] text-[13px]" value={r.name} onChange={(e) => set(i, { name: e.target.value })} />
+          <Input aria-label="Add-on price" placeholder="₱" type="number" step="0.01" className="h-auto rounded-lg px-2.5 py-[7px] text-[13px]" value={peso(r.price)} onChange={(e) => set(i, { price: cent(e.target.value) })} />
+          <Button aria-label="Remove add-on" variant="ghost" size="icon" onClick={() => onChange(rows.filter((_, j) => j !== i))} className="h-auto w-auto p-0 text-base text-destructive hover:bg-transparent">×</Button>
         </div>
       ))}
-    </div>
+    </Card>
   );
 }

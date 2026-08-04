@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { useMyRoles } from "../lib/roles";
 import { useEventForEditor } from "../lib/events";
 import { saveEvent, type CategoryDraft, type AddonDraft, type EventDraft } from "../lib/eventWrites";
@@ -9,10 +10,14 @@ import { CategoryEditor } from "../components/CategoryEditor";
 import { AddonEditor } from "../components/AddonEditor";
 import { EventImagesEditor } from "../components/EventImagesEditor";
 import { PsgcAddressField } from "../components/PsgcAddressField";
+import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
+import { Input } from "../components/ui/input";
+import { Textarea } from "../components/ui/textarea";
+import { Label } from "../components/ui/label";
+import { Button } from "../components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 
-const label = { display: "block", fontSize: 11, fontWeight: 600, letterSpacing: ".4px", color: "var(--ink-muted)", marginBottom: 6 } as const;
-const input = { background: "var(--canvas)", border: "1px solid var(--hairline)", borderRadius: 11, padding: "12px 13px", color: "var(--ink)", fontSize: 14, width: "100%" } as const;
-const card = { background: "var(--canvas)", border: "1px solid var(--hairline)", borderRadius: "var(--radius-card)", padding: 22 } as const;
+const fieldLabel = "mb-1.5 block text-[11px] font-semibold tracking-wide text-muted-foreground";
 const blank: EventDraft = { org_id: "", name: "", city_psgc_code: null, region_name: null, province_name: null, city_name: null, venue: null, event_date: null, end_date: null, flag_off: null, status: "draft", elevation_gain_m: null, cutoff_hours: null, description: null, hero_image_url: null, gallery: [] };
 
 export function EventEditor() {
@@ -83,53 +88,91 @@ export function EventEditor() {
           await qc.invalidateQueries({ queryKey: ["event-editor", id] });
           setError(res.childErrors.join(" "));
         }
+        toast.error(res.childErrors.join(" "));
         setBusy(false);
         return;
       }
       nav("/events");
-    } catch (e) { setError((e as Error).message); setBusy(false); }
+    } catch (e) {
+      const message = (e as Error).message;
+      setError(message);
+      toast.error(message);
+      setBusy(false);
+    }
   }
 
-  if (id && loaded.isLoading) return <div style={{ padding: "26px 30px" }}>Loading…</div>;
+  if (id && loaded.isLoading) return <div className="px-[30px] py-[26px]">Loading…</div>;
 
   return (
-    <div style={{ padding: "26px 30px 40px" }}>
-      <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 16 }}>
-        <div style={card}>
-          <div style={{ fontSize: 15, fontWeight: 600 }}>Event details</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 16 }}>
-            <div><span style={label}>EVENT NAME</span><input aria-label="Event name" style={input} value={event.name} onChange={(e) => set({ name: e.target.value })} /></div>
+    <div className="px-[30px] pt-[26px] pb-10">
+      <div className="grid grid-cols-[1.4fr_1fr] gap-4">
+        <Card className="gap-0 p-[22px]">
+          <CardHeader className="p-0">
+            <CardTitle className="text-[15px] font-semibold">Event details</CardTitle>
+          </CardHeader>
+          <CardContent className="mt-4 flex flex-col gap-3.5 p-0">
+            <div>
+              <Label className={fieldLabel}>EVENT NAME</Label>
+              <Input aria-label="Event name" value={event.name} onChange={(e) => set({ name: e.target.value })} />
+            </div>
             <PsgcAddressField
               value={{ city_psgc_code: event.city_psgc_code, city_name: event.city_name, province_name: event.province_name, region_name: event.region_name }}
               onChange={(a) => set(a)}
             />
-            <div><span style={label}>VENUE</span><input aria-label="Venue" style={input} value={event.venue ?? ""} onChange={(e) => set({ venue: e.target.value || null })} /></div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 12 }}>
-              <div><span style={label}>DATE</span><input aria-label="Date" type="date" style={input} value={event.event_date ?? ""} onChange={(e) => set({ event_date: e.target.value || null })} /></div>
-              <div><span style={label}>END DATE</span><input aria-label="End date" type="date" style={input} value={event.end_date ?? ""} onChange={(e) => set({ end_date: e.target.value || null })} /></div>
-              <div><span style={label}>FLAG-OFF</span><input aria-label="Flag-off" type="time" style={input} value={event.flag_off ?? ""} onChange={(e) => set({ flag_off: e.target.value || null })} /></div>
-              <div><span style={label}>STATUS</span>
-                <select aria-label="Status" style={input} value={event.status} onChange={(e) => set({ status: e.target.value })}>
-                  {EVENT_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-                </select>
+            <div>
+              <Label className={fieldLabel}>VENUE</Label>
+              <Input aria-label="Venue" value={event.venue ?? ""} onChange={(e) => set({ venue: e.target.value || null })} />
+            </div>
+            <div className="grid grid-cols-4 gap-3">
+              <div>
+                <Label className={fieldLabel}>DATE</Label>
+                <Input aria-label="Date" type="date" value={event.event_date ?? ""} onChange={(e) => set({ event_date: e.target.value || null })} />
+              </div>
+              <div>
+                <Label className={fieldLabel}>END DATE</Label>
+                <Input aria-label="End date" type="date" value={event.end_date ?? ""} onChange={(e) => set({ end_date: e.target.value || null })} />
+              </div>
+              <div>
+                <Label className={fieldLabel}>FLAG-OFF</Label>
+                <Input aria-label="Flag-off" type="time" value={event.flag_off ?? ""} onChange={(e) => set({ flag_off: e.target.value || null })} />
+              </div>
+              <div>
+                <Label className={fieldLabel}>STATUS</Label>
+                <Select value={event.status} onValueChange={(v) => set({ status: v })}>
+                  <SelectTrigger aria-label="Status" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {EVENT_STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              <div><span style={label}>ELEVATION GAIN (M)</span><input aria-label="Elevation gain" type="number" style={input} value={event.elevation_gain_m ?? ""} onChange={(e) => set({ elevation_gain_m: num(e.target.value) })} /></div>
-              <div><span style={label}>CUTOFF (HOURS)</span><input aria-label="Cutoff hours" type="number" style={input} value={event.cutoff_hours ?? ""} onChange={(e) => set({ cutoff_hours: num(e.target.value) })} /></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className={fieldLabel}>ELEVATION GAIN (M)</Label>
+                <Input aria-label="Elevation gain" type="number" value={event.elevation_gain_m ?? ""} onChange={(e) => set({ elevation_gain_m: num(e.target.value) })} />
+              </div>
+              <div>
+                <Label className={fieldLabel}>CUTOFF (HOURS)</Label>
+                <Input aria-label="Cutoff hours" type="number" value={event.cutoff_hours ?? ""} onChange={(e) => set({ cutoff_hours: num(e.target.value) })} />
+              </div>
             </div>
-            <div><span style={label}>DESCRIPTION</span><textarea aria-label="Description" style={{ ...input, height: 82, resize: "vertical" }} value={event.description ?? ""} onChange={(e) => set({ description: e.target.value || null })} /></div>
-          </div>
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div>
+              <Label className={fieldLabel}>DESCRIPTION</Label>
+              <Textarea aria-label="Description" className="h-[82px] resize-y" value={event.description ?? ""} onChange={(e) => set({ description: e.target.value || null })} />
+            </div>
+          </CardContent>
+        </Card>
+        <div className="flex flex-col gap-4">
           <EventImagesEditor orgId={orgId} heroUrl={event.hero_image_url} gallery={event.gallery} onChange={(v) => set(v)} />
           <CategoryEditor rows={cats} onChange={setCats} />
           <AddonEditor rows={addons} onChange={setAddons} />
         </div>
-        <div style={{ gridColumn: "1 / -1", display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 12 }}>
-          {error ? <span style={{ color: "var(--danger)", fontSize: 13, marginRight: "auto" }}>{error}</span> : null}
-          <button onClick={() => nav("/events")} style={{ background: "var(--canvas)", border: "1px solid var(--hairline)", color: "var(--ink)", fontSize: 14, fontWeight: 600, padding: "11px 22px", borderRadius: "var(--radius-pill)", cursor: "pointer" }}>Cancel</button>
-          <button onClick={onSave} disabled={busy} style={{ background: "var(--legacy-primary)", color: "#fff", fontSize: 14, fontWeight: 600, padding: "11px 26px", borderRadius: "var(--radius-pill)", border: 0, cursor: "pointer" }}>{busy ? "Saving…" : "Save event"}</button>
+        <div className="col-span-full flex items-center justify-end gap-3">
+          {error ? <span className="mr-auto text-[13px] text-destructive">{error}</span> : null}
+          <Button variant="outline" className="rounded-pill" onClick={() => nav("/events")}>Cancel</Button>
+          <Button className="rounded-pill" onClick={onSave} disabled={busy}>{busy ? "Saving…" : "Save event"}</Button>
         </div>
       </div>
     </div>

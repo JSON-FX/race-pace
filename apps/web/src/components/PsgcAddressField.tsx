@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import type { PsgcAddress } from "@race-pace/shared";
 import { usePsgcRegions, usePsgcProvinces, usePsgcCities, usePsgcCity } from "../lib/psgc";
+import { Label } from "./ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 
-const label = { display: "block", fontSize: 11, fontWeight: 600, letterSpacing: ".4px", color: "var(--ink-muted)", marginBottom: 6 } as const;
-const input = { background: "var(--canvas)", border: "1px solid var(--hairline)", borderRadius: 11, padding: "12px 13px", color: "var(--ink)", fontSize: 14, width: "100%" } as const;
+const fieldLabel = "mb-1.5 block text-[11px] font-semibold tracking-wide text-muted-foreground";
 
 /** Cascading Region → Province → City selects. Emits a full PsgcAddress on each
  *  change (partial until a city is chosen). NCR-style regions with no provinces
@@ -45,27 +46,39 @@ export function PsgcAddressField({ value, onChange }: { value: PsgcAddress | nul
   }
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+    <div className="grid grid-cols-3 gap-3">
       <div>
-        <span style={label}>REGION</span>
-        <select aria-label="Region" style={input} value={regionCode} onChange={(e) => pickRegion(e.target.value)}>
-          <option value="">— Select —</option>
-          {(regions.data ?? []).map((r) => <option key={r.code} value={r.code}>{r.name}</option>)}
-        </select>
+        <Label className={fieldLabel}>REGION</Label>
+        <Select value={regionCode || undefined} onValueChange={pickRegion}>
+          <SelectTrigger aria-label="Region" className="w-full">
+            <SelectValue placeholder="— Select —" />
+          </SelectTrigger>
+          <SelectContent>
+            {(regions.data ?? []).map((r) => <SelectItem key={r.code} value={r.code}>{r.name}</SelectItem>)}
+          </SelectContent>
+        </Select>
       </div>
       <div>
-        <span style={label}>PROVINCE</span>
-        <select aria-label="Province" style={input} value={provinceCode} disabled={!regionCode || noProvinces} onChange={(e) => pickProvince(e.target.value)}>
-          <option value="">{noProvinces ? "— None —" : "— Select —"}</option>
-          {(provinces.data ?? []).map((p) => <option key={p.code} value={p.code}>{p.name}</option>)}
-        </select>
+        <Label className={fieldLabel}>PROVINCE</Label>
+        <Select value={provinceCode || undefined} onValueChange={pickProvince} disabled={!regionCode || noProvinces}>
+          <SelectTrigger aria-label="Province" className="w-full">
+            <SelectValue placeholder={noProvinces ? "— None —" : "— Select —"} />
+          </SelectTrigger>
+          <SelectContent>
+            {(provinces.data ?? []).map((p) => <SelectItem key={p.code} value={p.code}>{p.name}</SelectItem>)}
+          </SelectContent>
+        </Select>
       </div>
       <div>
-        <span style={label}>CITY / MUNICIPALITY</span>
-        <select aria-label="City" style={input} value={value?.city_psgc_code ?? ""} disabled={!(provinceCode || noProvinces)} onChange={(e) => pickCity(e.target.value)}>
-          <option value="">— Select —</option>
-          {(cities.data ?? []).map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
-        </select>
+        <Label className={fieldLabel}>CITY / MUNICIPALITY</Label>
+        <Select value={value?.city_psgc_code ?? undefined} onValueChange={pickCity} disabled={!(provinceCode || noProvinces)}>
+          <SelectTrigger aria-label="City" className="w-full">
+            <SelectValue placeholder="— Select —" />
+          </SelectTrigger>
+          <SelectContent>
+            {(cities.data ?? []).map((c) => <SelectItem key={c.code} value={c.code}>{c.name}</SelectItem>)}
+          </SelectContent>
+        </Select>
       </div>
     </div>
   );
