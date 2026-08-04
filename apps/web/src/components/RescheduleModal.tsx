@@ -24,9 +24,9 @@ export function RescheduleModal({ event, onClose, onDone }: { event: { id: strin
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="w-[380px]">
+      <DialogContent className="w-[380px] rounded-xl">
         <DialogHeader>
-          <DialogTitle>Reschedule event</DialogTitle>
+          <DialogTitle className="text-[17px] font-bold">Reschedule event</DialogTitle>
         </DialogHeader>
         <Input aria-label="New date" placeholder="YYYY-MM-DD" value={date} onChange={(e) => setDate(e.target.value)} />
         <Input aria-label="Note" placeholder="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} />

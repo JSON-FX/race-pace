@@ -27,10 +27,10 @@ export function RefundModal({ registration, onClose, onDone }: {
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="w-[380px]">
+      <DialogContent className="w-[380px] rounded-xl">
         <DialogHeader>
-          <DialogTitle>Refund {peso}?</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="text-[17px] font-bold">Refund {peso}?</DialogTitle>
+          <DialogDescription className="text-[13px] text-muted-foreground">
             Refunds {registration.full_name ?? "this runner"} and reopens their slot. This can't be undone.
           </DialogDescription>
         </DialogHeader>

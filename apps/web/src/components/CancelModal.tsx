@@ -22,10 +22,10 @@ export function CancelModal({ event, onClose, onDone }: { event: { id: string; n
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="w-[380px]">
+      <DialogContent className="w-[380px] rounded-xl">
         <DialogHeader>
-          <DialogTitle>Cancel “{event.name}”?</DialogTitle>
-          <DialogDescription>Registrations are kept; refunds are handled from Payments.</DialogDescription>
+          <DialogTitle className="text-[17px] font-bold">Cancel “{event.name}”?</DialogTitle>
+          <DialogDescription className="text-[13px] text-muted-foreground">Registrations are kept; refunds are handled from Payments.</DialogDescription>
         </DialogHeader>
         <Input aria-label="Cancel note" placeholder="Reason (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
         {error ? <span role="alert" className="text-[13px] text-destructive">{error}</span> : null}
