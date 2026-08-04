@@ -1,6 +1,10 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/auth";
+import { Card } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import logo from "../assets/login-logo.png";
 
 export function Login() {
@@ -23,46 +27,69 @@ export function Login() {
   }
 
   return (
-    <div style={{ minHeight: "100%", display: "grid", placeItems: "center", background: "var(--parchment)", padding: 24 }}>
-      <form onSubmit={onSubmit} style={{ width: 400, maxWidth: "100%", background: "var(--canvas)", border: "1px solid var(--hairline)", borderRadius: 22, padding: "38px 36px" }}>
-        <img src={logo} alt="Race Pace" style={{ display: "block", height: 34, width: "auto", maxWidth: 190, margin: "0 auto" }} />
-        <div style={{ textAlign: "center", color: "var(--ink-muted)", fontSize: 13, marginTop: 8 }}>Event admin console</div>
+    <div className="grid min-h-full place-items-center bg-muted p-6">
+      <Card className="w-full max-w-[400px] rounded-[22px] border-border p-9 shadow-sm">
+        <form onSubmit={onSubmit}>
+          <img src={logo} alt="Race Pace" className="mx-auto block h-16 w-auto" />
+          <div className="mt-2 text-center text-[13px] text-muted-foreground">Event admin console</div>
 
-        <h1 style={{ fontSize: 22, fontWeight: 700, letterSpacing: "-.3px", margin: "28px 0 0" }}>Sign in</h1>
+          <h1 className="mt-7 text-[22px] font-bold tracking-[-.3px] text-foreground">Sign in</h1>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 16 }}>
-          <label style={fieldStyle}>
-            <span style={labelStyle}>EMAIL</span>
-            <input aria-label="Email" type="email" autoCapitalize="none" placeholder="alma@aposkyrunners.ph"
-              value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} />
-          </label>
-          <label style={fieldStyle}>
-            <span style={labelStyle}>PASSWORD</span>
-            <div style={{ ...inputStyle, display: "flex", alignItems: "center", padding: 0 }}>
-              <input aria-label="Password" type={show ? "text" : "password"} placeholder="••••••••••"
-                value={password} onChange={(e) => setPassword(e.target.value)}
-                style={{ flex: 1, border: 0, outline: "none", background: "transparent", padding: "12px 13px", fontSize: 14, color: "var(--ink)" }} />
-              <span onClick={() => setShow((v) => !v)} role="switch" aria-checked={show} aria-label="Show password"
-                style={{ color: "var(--primary)", fontSize: 13, fontWeight: 600, cursor: "pointer", padding: "0 13px", userSelect: "none" }}>
-                {show ? "Hide" : "Show"}
-              </span>
+          <div className="mt-4 flex flex-col gap-3.5">
+            <div>
+              <Label htmlFor="login-email" className="mb-1.5 text-[11px] font-semibold tracking-[.4px] text-muted-foreground uppercase">
+                Email
+              </Label>
+              <Input
+                id="login-email"
+                aria-label="Email"
+                type="email"
+                autoCapitalize="none"
+                placeholder="alma@aposkyrunners.ph"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
             </div>
-          </label>
-        </div>
+            <div>
+              <Label htmlFor="login-password" className="mb-1.5 text-[11px] font-semibold tracking-[.4px] text-muted-foreground uppercase">
+                Password
+              </Label>
+              <div className="flex h-9 items-center rounded-md border border-input bg-transparent pr-1 focus-within:ring-[3px] focus-within:ring-ring/50 focus-within:border-ring">
+                <Input
+                  id="login-password"
+                  aria-label="Password"
+                  type={show ? "text" : "password"}
+                  placeholder="••••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="h-full flex-1 border-0 bg-transparent shadow-none focus-visible:ring-0"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setShow((v) => !v)}
+                  role="switch"
+                  aria-checked={show}
+                  aria-label="Show password"
+                  className="h-7 select-none px-3 text-[13px] font-semibold text-primary hover:text-primary"
+                >
+                  {show ? "Hide" : "Show"}
+                </Button>
+              </div>
+            </div>
+          </div>
 
-        {error ? <p style={{ color: "var(--danger)", margin: "14px 0 0", fontSize: 14 }}>{error}</p> : null}
+          {error ? <p className="mt-3.5 text-sm text-destructive">{error}</p> : null}
 
-        <button type="submit" disabled={busy} style={pillStyle}>{busy ? "Signing in…" : "Sign in"}</button>
+          <Button type="submit" disabled={busy} className="mt-6 h-12 w-full rounded-pill text-[15px]">
+            {busy ? "Signing in…" : "Sign in"}
+          </Button>
 
-        <p style={{ textAlign: "center", color: "var(--ink-muted)", fontSize: 12, margin: "16px 0 0" }}>
-          Admin &amp; staff accounts are provisioned by Race Pace.
-        </p>
-      </form>
+          <p className="mt-4 text-center text-xs text-muted-foreground">
+            Admin &amp; staff accounts are provisioned by Race Pace.
+          </p>
+        </form>
+      </Card>
     </div>
   );
 }
-
-const fieldStyle = { display: "block" } as const;
-const labelStyle = { display: "block", fontSize: 11, fontWeight: 600, letterSpacing: ".4px", color: "var(--ink-muted)", marginBottom: 6 } as const;
-const inputStyle = { background: "var(--canvas)", border: "1px solid var(--hairline)", borderRadius: 11, padding: "12px 13px", color: "var(--ink)", fontSize: 14, width: "100%" } as const;
-const pillStyle = { width: "100%", background: "var(--primary)", color: "#fff", fontSize: 15, fontWeight: 600, textAlign: "center", padding: 14, borderRadius: "var(--radius-pill)", border: 0, cursor: "pointer", marginTop: 22 } as const;

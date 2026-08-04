@@ -1,52 +1,92 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import type { ColumnDef } from "@tanstack/react-table";
+import { Search } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DataTable } from "@/components/DataTable";
+import { useTableParams } from "@/lib/useTableParams";
 import { useMyRoles } from "../lib/roles";
-import { usePayments } from "../lib/registrations";
-import { PaymentBadge } from "../components/PaymentBadge";
+import { usePayments, PAGE_SIZE, type PaymentRow, type PaymentStatus } from "../lib/registrations";
+import { PaymentStatusBadge } from "../components/StatusBadge";
 
 const FILTERS = ["all", "pending", "paid", "refunded", "failed"] as const;
-const GRID = "1.4fr 1.4fr .9fr .8fr .8fr .9fr .9fr .9fr";
 const peso = (c: number) => `₱${(c / 100).toLocaleString()}`;
 const fmtDate = (d: string) => new Date(d).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 
 export function Payments() {
   const roles = useMyRoles();
-  const pays = usePayments(roles.data?.orgId ?? undefined);
   const nav = useNavigate();
-  const [filter, setFilter] = useState<(typeof FILTERS)[number]>("all");
-  const rows = useMemo(() => (pays.data ?? []).filter((p) => filter === "all" || p.status === filter), [pays.data, filter]);
+  const t = useTableParams({ sort: [{ id: "created_at", desc: true }] });
+  const status = (t.filters.status ?? "all") as PaymentStatus | "all";
+  const pays = usePayments(roles.data?.orgId ?? undefined, { page: t.page, sort: t.sort, status, q: t.q });
+
+  const [searchInput, setSearchInput] = useState(t.q);
+  const setQRef = useRef(t.setQ);
+  setQRef.current = t.setQ;
+  const searchMountedRef = useRef(false);
+  useEffect(() => {
+    if (!searchMountedRef.current) { searchMountedRef.current = true; return; }
+    const id = setTimeout(() => setQRef.current(searchInput), 300);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchInput]);
+
+  const columns = useMemo<ColumnDef<PaymentRow, unknown>[]>(() => [
+    { accessorKey: "event_name", header: "Event", cell: ({ row }) => <span className="font-semibold">{row.original.event_name ?? "—"}</span> },
+    { accessorKey: "full_name", header: "Runner", cell: ({ row }) => row.original.full_name ?? "—" },
+    { accessorKey: "amount", header: "Amount", cell: ({ row }) => peso(row.original.amount) },
+    { accessorKey: "platform_fee", header: "Fee", cell: ({ row }) => peso(row.original.platform_fee) },
+    { accessorKey: "net_to_org", header: "Net", cell: ({ row }) => peso(row.original.net_to_org) },
+    { accessorKey: "method", header: "Method", cell: ({ row }) => row.original.method ?? "—" },
+    { accessorKey: "status", header: "Status", cell: ({ row }) => <PaymentStatusBadge status={row.original.status} /> },
+    { accessorKey: "created_at", header: "Date", cell: ({ row }) => fmtDate(row.original.created_at) },
+  ], []);
+
+  const total = pays.data?.total ?? 0;
 
   return (
-    <div style={{ padding: "26px 30px 40px" }}>
-      <div style={{ marginBottom: 16 }}>
-        <select aria-label="Payment status" style={selectStyle} value={filter} onChange={(e) => setFilter(e.target.value as (typeof FILTERS)[number])}>
-          {FILTERS.map((f) => <option key={f} value={f}>{f === "all" ? "All payments" : f.charAt(0).toUpperCase() + f.slice(1)}</option>)}
-        </select>
-      </div>
-      <div style={{ ...cardStyle, overflow: "hidden" }}>
-        <div style={{ ...theadStyle, gridTemplateColumns: GRID }}>
-          <span>Event</span><span>Runner</span><span>Amount</span><span>Fee</span><span>Net</span><span>Method</span><span>Status</span><span>Date</span>
+    <div className="px-4 pb-10 pt-6 md:px-[30px]">
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <Select value={status} onValueChange={(v) => t.setFilter("status", v)}>
+          <SelectTrigger aria-label="Payment status" className="w-[180px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {FILTERS.map((f) => (
+              <SelectItem key={f} value={f}>{f === "all" ? "All payments" : f.charAt(0).toUpperCase() + f.slice(1)}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            aria-label="Search payments"
+            placeholder="Search runner or event…"
+            className="w-[240px] pl-8"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+          />
         </div>
-        {pays.isLoading ? <div style={emptyStyle}>Loading payments…</div> :
-         rows.length === 0 ? <div style={emptyStyle}>No payments yet.</div> :
-         rows.map((p) => (
-          <div key={p.registration_id} role="button" onClick={() => p.event_id && nav(`/registrations?event=${p.event_id}`)} style={{ display: "grid", gridTemplateColumns: GRID, padding: "14px 20px", borderTop: "1px solid var(--row-border)", alignItems: "center", cursor: "pointer" }}>
-            <div style={{ fontSize: 13, fontWeight: 600 }}>{p.event_name ?? "—"}</div>
-            <div style={{ fontSize: 13 }}>{p.full_name ?? "—"}</div>
-            <div style={{ fontSize: 13 }}>{peso(p.amount)}</div>
-            <div style={{ fontSize: 13 }}>{peso(p.platform_fee)}</div>
-            <div style={{ fontSize: 13 }}>{peso(p.net_to_org)}</div>
-            <div style={{ fontSize: 13 }}>{p.method ?? "—"}</div>
-            <div><PaymentBadge status={p.status} /></div>
-            <div style={{ fontSize: 13 }}>{fmtDate(p.created_at)}</div>
-          </div>
-        ))}
       </div>
+
+      <DataTable
+        columns={columns}
+        data={pays.data?.rows ?? []}
+        isLoading={pays.isLoading}
+        isError={pays.isError}
+        onRetry={() => pays.refetch()}
+        messages={{ loading: "Loading payments…", empty: "No payments yet.", error: "Couldn't load payments." }}
+        onRowClick={(p) => p.event_id && nav(`/registrations?event=${p.event_id}`)}
+        server={{
+          pageIndex: t.page - 1,
+          pageCount: Math.max(1, Math.ceil(total / PAGE_SIZE)),
+          totalRows: total,
+          onPageChange: (i) => t.setPage(i + 1),
+          sorting: t.sort,
+          onSortingChange: t.setSort,
+        }}
+      />
     </div>
   );
 }
-
-const cardStyle = { background: "var(--canvas)", border: "1px solid var(--hairline)", borderRadius: "var(--radius-card)" } as const;
-const theadStyle = { display: "grid", padding: "12px 20px", background: "var(--surface)", color: "var(--section)", fontSize: 11, fontWeight: 600, letterSpacing: ".4px", textTransform: "uppercase" } as const;
-const selectStyle = { background: "var(--canvas)", border: "1px solid var(--hairline)", borderRadius: 11, padding: "9px 12px", fontSize: 13, color: "var(--ink)" } as const;
-const emptyStyle = { padding: 20, color: "var(--ink-muted)", fontSize: 14 } as const;

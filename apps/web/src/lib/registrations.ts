@@ -15,52 +15,72 @@ export type RegistrationRow = {
   payment_method: string | null;
   created_at: string;
   custom_data: Record<string, unknown>;
-  addons: { name: string | null; price: number }[];
 };
 
-// PostgREST returns an embedded to-one either as an object or a 1-element array
-// depending on how it detects the relationship — normalize to the object.
-const one = (v: unknown) => (Array.isArray(v) ? v[0] : v) as Record<string, unknown> | undefined;
+/**
+ * PostgREST's `.or()` filter string is a structural mini-language where
+ * `,`, `(`, `)` and `.` separate logic-tree nodes. A raw user search term
+ * containing any of those (e.g. "Dela Cruz, Ana") breaks the parse
+ * (PGRST100) and 400s the whole query. Quoting the value as
+ * `col.ilike."value"` makes it a single opaque token; escape backslashes
+ * and double quotes inside it per PostgREST's quoted-value syntax.
+ */
+function quotePostgrestValue(value: string): string {
+  return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+}
 
-export function useEventRegistrations(eventId?: string) {
-  return useQuery<RegistrationRow[]>({
-    queryKey: ["event-registrations", eventId],
+export type RegistrationsQuery = {
+  page: number;
+  sort: { id: string; desc: boolean }[];
+  status: PaymentStatus | "all";
+  categoryId: string | "all";
+  q: string;
+};
+
+export function useEventRegistrations(eventId: string | undefined, query: RegistrationsQuery) {
+  const { page, sort, status, categoryId, q } = query;
+  return useQuery<{ rows: RegistrationRow[]; total: number }>({
+    queryKey: ["event-registrations", eventId, page, sort, status, categoryId, q],
     enabled: !!eventId,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("registrations")
-        .select("id,user_id,category_id,total_amount,created_at,custom_data,categories(label),payments(status,method),registration_addons(price,addons(name))")
-        .eq("event_id", eventId!)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      const regs = (data ?? []) as Record<string, unknown>[];
+      const from = (page - 1) * PAGE_SIZE;
+      let req = supabase
+        .from("admin_registrations_v")
+        .select(
+          "id,user_id,category_id,category_label,full_name,bib_name,total_amount,payment_status,payment_method,custom_data,created_at",
+          { count: "exact" }
+        )
+        .eq("event_id", eventId!);
 
-      const ids = [...new Set(regs.map((r) => r.user_id as string))];
-      let profiles: Record<string, { full_name: string | null; bib_name: string | null }> = {};
-      if (ids.length) {
-        const { data: profs, error: pErr } = await supabase.from("profiles").select("id,full_name,bib_name").in("id", ids);
-        if (pErr) throw pErr;
-        profiles = Object.fromEntries((profs ?? []).map((p: Record<string, unknown>) => [p.id as string, { full_name: (p.full_name as string) ?? null, bib_name: (p.bib_name as string) ?? null }]));
+      if (status !== "all") req = req.eq("payment_status", status);
+      if (categoryId !== "all") req = req.eq("category_id", categoryId);
+      if (q.trim()) {
+        const term = quotePostgrestValue(`%${q.trim()}%`);
+        req = req.or(`full_name.ilike.${term},bib_name.ilike.${term}`);
       }
+      const s = sort[0] ?? { id: "created_at", desc: true };
+      req = req.order(s.id, { ascending: !s.desc }).range(from, from + PAGE_SIZE - 1);
 
-      return regs.map((r): RegistrationRow => {
-        const cat = one(r.categories);
-        const pay = one(r.payments);
-        const addons = ((r.registration_addons as Record<string, unknown>[]) ?? []).map((a) => ({ name: (one(a.addons)?.name as string) ?? null, price: a.price as number }));
-        return {
-          id: r.id as string,
-          user_id: r.user_id as string,
-          category_id: r.category_id as string,
-          category_label: (cat?.label as string) ?? null,
-          full_name: profiles[r.user_id as string]?.full_name ?? null,
-          bib_name: profiles[r.user_id as string]?.bib_name ?? null,
-          total_amount: r.total_amount as number,
-          payment_status: (pay?.status as PaymentStatus) ?? null,
-          payment_method: (pay?.method as string) ?? null,
-          created_at: r.created_at as string,
-          custom_data: (r.custom_data as Record<string, unknown>) ?? {},
-          addons,
-        };
+      const { data, error, count } = await req;
+      if (error) throw error;
+      return { rows: (data ?? []) as RegistrationRow[], total: count ?? 0 };
+    },
+  });
+}
+
+export function useRegistrationAddons(registrationId?: string) {
+  return useQuery<{ name: string | null; price: number }[]>({
+    queryKey: ["registration-addons", registrationId],
+    enabled: !!registrationId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("registration_addons")
+        .select("price,addons(name)")
+        .eq("registration_id", registrationId!);
+      if (error) throw error;
+      return ((data ?? []) as Record<string, unknown>[]).map((a) => {
+        const addon = Array.isArray(a.addons) ? a.addons[0] : a.addons;
+        return { name: ((addon as { name?: string })?.name) ?? null, price: a.price as number };
       });
     },
   });
@@ -71,11 +91,12 @@ export function useEventRegistrationCounts(orgId?: string) {
     queryKey: ["event-registration-counts", orgId],
     enabled: !!orgId,
     queryFn: async () => {
-      const { data, error } = await supabase.from("registrations").select("event_id").eq("org_id", orgId!).order("event_id");
+      const { data, error } = await supabase
+        .from("admin_event_reg_counts_v")
+        .select("event_id,reg_count")
+        .eq("org_id", orgId!);
       if (error) throw error;
-      const counts: Record<string, number> = {};
-      for (const r of (data ?? []) as { event_id: string }[]) counts[r.event_id] = (counts[r.event_id] ?? 0) + 1;
-      return counts;
+      return Object.fromEntries(((data ?? []) as { event_id: string; reg_count: number }[]).map((r) => [r.event_id, r.reg_count]));
     },
   });
 }
@@ -109,45 +130,41 @@ export type PaymentRow = {
   created_at: string;
 };
 
-export function usePayments(orgId?: string) {
-  return useQuery<PaymentRow[]>({
-    queryKey: ["org-payments", orgId],
+export const PAGE_SIZE = 25;
+
+export type PaymentsQuery = {
+  page: number;
+  sort: { id: string; desc: boolean }[];
+  status: PaymentStatus | "all";
+  q: string;
+};
+
+export function usePayments(orgId: string | undefined, query: PaymentsQuery) {
+  const { page, sort, status, q } = query;
+  return useQuery<{ rows: PaymentRow[]; total: number }>({
+    queryKey: ["org-payments", orgId, page, sort, status, q],
     enabled: !!orgId,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("payments")
-        .select("registration_id,amount,platform_fee,net_to_org,method,status,created_at,registrations(event_id,user_id,events(name))")
-        .eq("org_id", orgId!)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      const rows = (data ?? []) as Record<string, unknown>[];
+      const from = (page - 1) * PAGE_SIZE;
+      let req = supabase
+        .from("admin_payments_v")
+        .select(
+          "registration_id,event_id,event_name,user_id,full_name,amount,platform_fee,net_to_org,method,status,created_at",
+          { count: "exact" }
+        )
+        .eq("org_id", orgId!);
 
-      const ids = [...new Set(rows.map((r) => one(r.registrations)?.user_id as string).filter(Boolean))];
-      let profiles: Record<string, string | null> = {};
-      if (ids.length) {
-        const { data: profs, error: pErr } = await supabase.from("profiles").select("id,full_name").in("id", ids);
-        if (pErr) throw pErr;
-        profiles = Object.fromEntries((profs ?? []).map((p: Record<string, unknown>) => [p.id as string, (p.full_name as string) ?? null]));
+      if (status !== "all") req = req.eq("status", status);
+      if (q.trim()) {
+        const term = quotePostgrestValue(`%${q.trim()}%`);
+        req = req.or(`full_name.ilike.${term},event_name.ilike.${term}`);
       }
+      const s = sort[0] ?? { id: "created_at", desc: true };
+      req = req.order(s.id, { ascending: !s.desc }).range(from, from + PAGE_SIZE - 1);
 
-      return rows.map((r): PaymentRow => {
-        const rg = one(r.registrations);
-        const ev = one(rg?.events);
-        const uid = (rg?.user_id as string) ?? null;
-        return {
-          registration_id: r.registration_id as string,
-          event_id: (rg?.event_id as string) ?? null,
-          event_name: (ev?.name as string) ?? null,
-          user_id: uid,
-          full_name: uid ? profiles[uid] ?? null : null,
-          amount: r.amount as number,
-          platform_fee: r.platform_fee as number,
-          net_to_org: r.net_to_org as number,
-          method: (r.method as string) ?? null,
-          status: r.status as PaymentStatus,
-          created_at: r.created_at as string,
-        };
-      });
+      const { data, error, count } = await req;
+      if (error) throw error;
+      return { rows: (data ?? []) as PaymentRow[], total: count ?? 0 };
     },
   });
 }

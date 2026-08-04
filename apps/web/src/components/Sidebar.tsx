@@ -1,42 +1,52 @@
 import { NavLink } from "react-router-dom";
+import {
+  LayoutDashboard, CalendarDays, ClipboardList, CreditCard,
+  QrCode, Users, Settings as SettingsIcon, Building2, Percent, Banknote, type LucideIcon,
+} from "lucide-react";
+import {
+  Sidebar as UISidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent,
+  SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarRail,
+} from "@/components/ui/sidebar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "./ThemeToggle";
 import { useMyRoles } from "../lib/roles";
 import { useAuth } from "../lib/auth";
 import mark from "../assets/topnav-logo.png";
 
-const ORG_ITEMS = [
-  { to: "/dashboard", label: "Dashboard" },
-  { to: "/events", label: "Events" },
-  { to: "/registrations", label: "Registrations" },
-  { to: "/payments", label: "Payments" },
-  { to: "/check-in", label: "Check-in" },
-  { to: "/team", label: "Team" },
-  { to: "/settings", label: "Settings" },
+type Item = { to: string; label: string; icon: LucideIcon };
+
+const ORG_ITEMS: Item[] = [
+  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/events", label: "Events", icon: CalendarDays },
+  { to: "/registrations", label: "Registrations", icon: ClipboardList },
+  { to: "/payments", label: "Payments", icon: CreditCard },
+  { to: "/check-in", label: "Check-in", icon: QrCode },
+  { to: "/team", label: "Team", icon: Users },
+  { to: "/settings", label: "Settings", icon: SettingsIcon },
 ];
-const SUPER_ITEMS = [
-  { to: "/organizations", label: "Organizations" },
-  { to: "/commission", label: "Commission" },
-  { to: "/payouts", label: "Payouts" },
+const SUPER_ITEMS: Item[] = [
+  { to: "/organizations", label: "Organizations", icon: Building2 },
+  { to: "/commission", label: "Commission", icon: Percent },
+  { to: "/payouts", label: "Payouts", icon: Banknote },
 ];
 
-function NavItem({ to, label }: { to: string; label: string }) {
+function NavItem({ to, label, icon: Icon }: Item) {
   return (
-    <NavLink to={to} style={({ isActive }) => ({
-      display: "flex", alignItems: "center", gap: 11, padding: "10px 12px", borderRadius: 10,
-      textDecoration: "none", fontSize: 14, fontWeight: isActive ? 600 : 500,
-      color: isActive ? "var(--ink)" : "var(--ink-muted)",
-      background: isActive ? "var(--nav-active)" : "transparent",
-    })}>
-      {({ isActive }) => (
-        <>
-          <span style={{ width: 18, height: 18, borderRadius: 5, flex: "none", background: isActive ? "var(--primary)" : "var(--ink-faint)" }} />
-          <span>{label}</span>
-        </>
-      )}
-    </NavLink>
+    <SidebarMenuItem>
+      <NavLink to={to}>
+        {({ isActive }) => (
+          <SidebarMenuButton asChild isActive={isActive} tooltip={label}>
+            <span>
+              <Icon className={isActive ? "text-sidebar-primary" : "text-muted-foreground"} />
+              <span className={isActive ? "font-semibold text-sidebar-accent-foreground" : "font-medium text-muted-foreground"}>{label}</span>
+            </span>
+          </SidebarMenuButton>
+        )}
+      </NavLink>
+    </SidebarMenuItem>
   );
 }
-
-const sectionStyle = { fontSize: 11, fontWeight: 600, letterSpacing: ".5px", color: "var(--section)", padding: "6px 12px" } as const;
 
 export function Sidebar() {
   const roles = useMyRoles();
@@ -47,33 +57,60 @@ export function Sidebar() {
   const role = roles.data?.isSuperAdmin ? "Super admin" : "Admin";
 
   return (
-    <nav style={{ width: 248, flex: "none", background: "var(--canvas)", borderRight: "1px solid var(--hairline)", display: "flex", flexDirection: "column", padding: "22px 14px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "4px 10px 18px" }}>
-        <img src={mark} alt="" style={{ width: 26, height: 26, objectFit: "contain" }} />
-        <div>
-          <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: "-.3px" }}>Race Pace</div>
-          <div style={{ fontSize: 11, color: "var(--ink-muted)" }}>Admin console</div>
+    <UISidebar collapsible="icon">
+      <SidebarHeader>
+        <div className="flex items-center gap-2 px-2 py-1">
+          <img src={mark} alt="" className="size-[26px] shrink-0 object-contain" />
+          <div className="group-data-[collapsible=icon]:hidden">
+            <div className="text-base font-bold tracking-tight">Race Pace</div>
+            <div className="text-[11px] text-muted-foreground">Admin console</div>
+          </div>
         </div>
-      </div>
+      </SidebarHeader>
 
-      <div style={sectionStyle}>ORGANIZATION</div>
-      {ORG_ITEMS.filter((it) => it.to !== "/team" || roles.data?.isOrgAdmin).map((it) => <NavItem key={it.to} {...it} />)}
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarGroupLabel className="text-[11px] font-semibold tracking-wide">ORGANIZATION</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {ORG_ITEMS.filter((it) => it.to !== "/team" || roles.data?.isOrgAdmin).map((it) => (
+                <NavItem key={it.to} {...it} />
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
 
-      {roles.data?.isSuperAdmin ? (
-        <>
-          <div style={{ ...sectionStyle, padding: "16px 12px 6px" }}>PLATFORM · SUPER ADMIN</div>
-          {SUPER_ITEMS.map((it) => <NavItem key={it.to} {...it} />)}
-        </>
-      ) : null}
+        {roles.data?.isSuperAdmin ? (
+          <SidebarGroup>
+            <SidebarGroupLabel className="text-[11px] font-semibold tracking-wide">PLATFORM · SUPER ADMIN</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>{SUPER_ITEMS.map((it) => <NavItem key={it.to} {...it} />)}</SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ) : null}
+      </SidebarContent>
 
-      <div style={{ marginTop: "auto", display: "flex", alignItems: "center", gap: 10, padding: "12px 8px 2px", borderTop: "1px solid var(--divider)" }}>
-        <div style={{ width: 34, height: 34, borderRadius: "50%", background: "var(--forest)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 12, flex: "none" }}>{initials}</div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{local}</div>
-          <div style={{ fontSize: 11, color: "var(--ink-muted)" }}>{role}</div>
+      <SidebarFooter>
+        <div className="flex items-center gap-2.5 border-t border-sidebar-border px-2 pt-3">
+          <Avatar className="size-8 shrink-0">
+            <AvatarFallback className="bg-forest text-[11px] font-bold text-white">{initials}</AvatarFallback>
+          </Avatar>
+          <div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
+            <div className="truncate text-[13px] font-semibold">{local}</div>
+            <div className="text-[11px] text-muted-foreground">{role}</div>
+          </div>
+          <ThemeToggle />
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => signOut()}
+            className="text-[12px] font-semibold text-destructive group-data-[collapsible=icon]:hidden"
+          >
+            Sign out
+          </Button>
         </div>
-        <span onClick={() => signOut()} role="button" style={{ color: "var(--danger)", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Sign out</span>
-      </div>
-    </nav>
+      </SidebarFooter>
+      <SidebarRail />
+    </UISidebar>
   );
 }

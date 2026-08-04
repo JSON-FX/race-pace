@@ -1,8 +1,23 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import type { ColumnDef } from "@tanstack/react-table";
+import { toast } from "sonner";
 import { useMyRoles } from "../lib/roles";
 import { useOrgMembers, setMemberRole, removeMember, ASSIGNABLE_ROLES, ROLE_LABELS, type OrgMember } from "../lib/team";
 import { InviteMemberForm } from "../components/InviteMemberForm";
+import { DataTable } from "@/components/DataTable";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export function Team() {
   const roles = useMyRoles();
@@ -18,62 +33,112 @@ export function Team() {
     if (role === m.role || !orgId) return;
     setRowError(null);
     const res = await setMemberRole(orgId, m.user_id, role);
-    if (res.ok) refresh(); else setRowError(res.error ?? "Couldn't change the role.");
+    if (res.ok) { refresh(); toast.success("Role updated"); } else setRowError(res.error ?? "Couldn't change the role.");
   }
 
   async function confirmRemove() {
     if (!pendingRemove || !orgId) return;
     setRowError(null);
     const res = await removeMember(orgId, pendingRemove.user_id);
-    if (res.ok) { setPendingRemove(null); refresh(); }
+    if (res.ok) { setPendingRemove(null); refresh(); toast.success("Member removed"); }
     else setRowError(res.error ?? "Couldn't remove the member.");
   }
 
+  const columns = useMemo<ColumnDef<OrgMember, unknown>[]>(() => [
+    {
+      id: "member",
+      header: "Member",
+      cell: ({ row }) => {
+        const m = row.original;
+        return (
+          <div>
+            <div className="text-sm font-semibold">{m.full_name || m.email || m.user_id}</div>
+            <div className="text-xs text-muted-foreground">{m.email}</div>
+          </div>
+        );
+      },
+    },
+    {
+      id: "role",
+      header: "Role",
+      cell: ({ row }) => {
+        const m = row.original;
+        return (
+          <Select value={m.role} onValueChange={(role) => changeRole(m, role)}>
+            <SelectTrigger aria-label={`Role for ${m.email ?? m.user_id}`} size="sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {ASSIGNABLE_ROLES.map((r) => <SelectItem key={r} value={r}>{ROLE_LABELS[r]}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        );
+      },
+    },
+    {
+      id: "actions",
+      header: "",
+      cell: ({ row }) => {
+        const m = row.original;
+        return (
+          <div className="text-right">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-destructive hover:text-destructive"
+              aria-label={`Remove ${m.email ?? m.user_id}`}
+              onClick={() => { setRowError(null); setPendingRemove(m); }}
+            >
+              Remove
+            </Button>
+          </div>
+        );
+      },
+    },
+  ], [orgId]);
+
   if (roles.data && !roles.data.isOrgAdmin) {
-    return <div style={{ padding: 8, color: "var(--ink-muted)" }}>Team management is available to organization admins only.</div>;
+    return <div className="p-2 text-muted-foreground">Team management is available to organization admins only.</div>;
   }
 
   return (
-    <div style={{ maxWidth: 760 }}>
-      <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Team</h1>
-      <p style={{ color: "var(--ink-muted)", fontSize: 14, marginBottom: 20 }}>Invite staff and assign their role. Roles decide what they can do across the console and the mobile app.</p>
+    <div className="max-w-[760px] px-4 pb-10 pt-6 md:px-[30px]">
+      <h1 className="mb-1 text-[22px] font-bold">Team</h1>
+      <p className="mb-5 text-sm text-muted-foreground">Invite staff and assign their role. Roles decide what they can do across the console and the mobile app.</p>
 
       {orgId ? <InviteMemberForm orgId={orgId} onInvited={refresh} /> : null}
 
-      <div style={{ marginTop: 24 }}>
-        {members.isLoading ? <div style={{ color: "var(--ink-muted)" }}>Loading…</div> : null}
-        {members.data?.map((m) => (
-          <div key={m.user_id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 0", borderBottom: "1px solid var(--divider)" }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 14, fontWeight: 600 }}>{m.full_name || m.email || m.user_id}</div>
-              <div style={{ fontSize: 12, color: "var(--ink-muted)" }}>{m.email}</div>
-            </div>
-            <select value={m.role} aria-label={`Role for ${m.email ?? m.user_id}`} onChange={(e) => changeRole(m, e.target.value)}
-              style={{ padding: "7px 9px", borderRadius: 8, border: "1px solid var(--hairline)" }}>
-              {ASSIGNABLE_ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
-            </select>
-            <button onClick={() => { setRowError(null); setPendingRemove(m); }} aria-label={`Remove ${m.email ?? m.user_id}`}
-              style={{ color: "var(--danger)", background: "none", border: "none", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Remove</button>
-          </div>
-        ))}
-        {members.data && members.data.length === 0 ? <div style={{ color: "var(--ink-muted)" }}>No team members yet.</div> : null}
+      <div className="mt-6">
+        <DataTable
+          columns={columns}
+          data={members.data ?? []}
+          isLoading={members.isLoading}
+          messages={{ loading: "Loading…", empty: "No team members yet.", error: "Couldn't load team members." }}
+        />
       </div>
 
-      {rowError && !pendingRemove ? <div role="alert" style={{ color: "var(--danger)", fontSize: 13, marginTop: 10 }}>{rowError}</div> : null}
+      {rowError && !pendingRemove ? <div role="alert" className="mt-2.5 text-[13px] text-destructive">{rowError}</div> : null}
 
-      {pendingRemove ? (
-        <div role="dialog" aria-label="Confirm remove" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 }}>
-          <div style={{ background: "var(--canvas)", borderRadius: 14, padding: 22, width: 340 }}>
-            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>Remove this member?</div>
-            <div style={{ fontSize: 13, color: "var(--ink-muted)", marginBottom: 16 }}>{pendingRemove.email} loses access to this organization. Their account isn't deleted.</div>
-            {rowError ? <div role="alert" style={{ color: "var(--danger)", fontSize: 13, marginBottom: 10 }}>{rowError}</div> : null}
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-              <button onClick={() => { setPendingRemove(null); setRowError(null); }} style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid var(--hairline)", background: "none", cursor: "pointer" }}>Cancel</button>
-              <button onClick={confirmRemove} style={{ padding: "8px 14px", borderRadius: 8, border: "none", background: "var(--danger)", color: "#fff", fontWeight: 600, cursor: "pointer" }}>Remove member</button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <AlertDialog open={!!pendingRemove} onOpenChange={(o) => { if (!o) { setPendingRemove(null); setRowError(null); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove this member?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingRemove?.email} loses access to this organization. Their account isn't deleted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {rowError ? <div role="alert" className="text-[13px] text-destructive">{rowError}</div> : null}
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground"
+              onClick={(e) => { e.preventDefault(); void confirmRemove(); }}
+            >
+              Remove member
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

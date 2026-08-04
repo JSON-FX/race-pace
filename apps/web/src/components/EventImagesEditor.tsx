@@ -1,12 +1,12 @@
 import { useRef, useState } from "react";
 import { uploadEventImage } from "../lib/imageUpload";
+import { Card } from "./ui/card";
+import { Button } from "./ui/button";
 
 export type EventImagesValue = { hero_image_url: string | null; gallery: string[] };
 const MAX = 8;
 
-const card = { background: "var(--canvas)", border: "1px solid var(--hairline)", borderRadius: "var(--radius-card)", padding: 22 } as const;
-const tile = { position: "relative" as const, width: "100%", aspectRatio: "4 / 3", borderRadius: 10, overflow: "hidden" as const, border: "1px solid var(--hairline)", background: "var(--parchment)" };
-const round = (bg: string) => ({ position: "absolute" as const, border: 0, borderRadius: 999, width: 26, height: 26, cursor: "pointer", color: "#fff", background: bg, fontSize: 13, lineHeight: "26px", textAlign: "center" as const, padding: 0 });
+const roundBtn = "absolute h-[26px] w-[26px] rounded-full border-0 p-0 text-[13px] leading-[26px] text-white hover:text-white";
 
 /** One image set for an event; the starred image is the featured (card) image.
  *  Controlled: on change it emits { hero_image_url: starred, gallery: the rest in order }. */
@@ -62,42 +62,42 @@ export function EventImagesEditor({ orgId, heroUrl, gallery, onChange }: {
   const full = urls.length + pending >= MAX;
 
   return (
-    <div style={card}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span style={{ fontSize: 15, fontWeight: 600 }}>Images</span>
-        <span style={{ fontSize: 12, color: "var(--ink-muted)" }}>{urls.length}/{MAX} · ★ = featured</span>
+    <Card className="gap-0 p-[22px]">
+      <div className="flex items-center justify-between">
+        <span className="text-[15px] font-semibold">Images</span>
+        <span className="text-xs text-muted-foreground">{urls.length}/{MAX} · ★ = featured</span>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginTop: 14 }}>
+      <div className="mt-3.5 grid grid-cols-3 gap-2.5">
         {urls.map((url) => (
-          <div key={url} style={tile}>
-            <img src={url} alt="Event image" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-            <button type="button" aria-label={url === featured ? "Featured image" : "Set as featured"}
+          <div key={url} className="relative aspect-[4/3] w-full overflow-hidden rounded-[10px] border border-border bg-muted">
+            <img src={url} alt="Event image" className="block h-full w-full object-cover" />
+            <Button type="button" variant="ghost" aria-label={url === featured ? "Featured image" : "Set as featured"}
               onClick={() => star(url)} disabled={pending > 0}
-              style={{ ...round(url === featured ? "var(--primary)" : "rgba(0,0,0,0.5)"), top: 6, left: 6, opacity: pending > 0 ? 0.5 : 1 }}>★</button>
-            <button type="button" aria-label="Remove image"
+              className={`${roundBtn} top-1.5 left-1.5 ${url === featured ? "bg-primary hover:bg-primary" : "bg-black/50 hover:bg-black/50"} ${pending > 0 ? "opacity-50" : ""}`}>★</Button>
+            <Button type="button" variant="ghost" aria-label="Remove image"
               onClick={() => remove(url)} disabled={pending > 0}
-              style={{ ...round("rgba(0,0,0,0.5)"), top: 6, right: 6, fontSize: 15, opacity: pending > 0 ? 0.5 : 1 }}>×</button>
+              className={`${roundBtn} top-1.5 right-1.5 bg-black/50 text-[15px] hover:bg-black/50 ${pending > 0 ? "opacity-50" : ""}`}>×</Button>
             {url === featured ? (
-              <span style={{ position: "absolute", bottom: 6, left: 6, background: "var(--primary)", color: "#fff", fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 999 }}>FEATURED</span>
+              <span className="absolute bottom-1.5 left-1.5 rounded-full bg-primary px-[7px] py-[2px] text-[10px] font-bold text-primary-foreground">FEATURED</span>
             ) : null}
           </div>
         ))}
         {Array.from({ length: pending }).map((_, i) => (
-          <div key={`p${i}`} style={{ ...tile, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <span aria-label="Uploading" style={{ fontSize: 12, color: "var(--ink-muted)" }}>Uploading…</span>
+          <div key={`p${i}`} className="flex aspect-[4/3] w-full items-center justify-center rounded-[10px] border border-border bg-muted">
+            <span aria-label="Uploading" className="text-xs text-muted-foreground">Uploading…</span>
           </div>
         ))}
       </div>
 
       {!full && pending === 0 ? (
-        <label style={{ display: "inline-block", marginTop: 12, fontSize: 13, fontWeight: 600, color: "var(--primary)", cursor: "pointer" }}>
+        <label className="mt-3 inline-block cursor-pointer text-[13px] font-semibold text-primary">
           + Add images
           <input ref={fileRef} type="file" accept="image/*" multiple aria-label="Add images"
-            style={{ display: "none" }} onChange={(e) => addFiles(e.target.files)} />
+            className="hidden" onChange={(e) => addFiles(e.target.files)} />
         </label>
       ) : null}
-      {err ? <div style={{ color: "var(--danger)", fontSize: 12, marginTop: 8 }}>{err}</div> : null}
-    </div>
+      {err ? <div className="mt-2 text-xs text-destructive">{err}</div> : null}
+    </Card>
   );
 }

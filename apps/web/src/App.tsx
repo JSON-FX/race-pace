@@ -15,9 +15,9 @@ import { Settings } from "./routes/Settings";
 function RequireAdmin() {
   const { session, loading } = useAuth();
   const roles = useMyRoles();
-  if (loading) return <div style={{ padding: 32 }}>Loading…</div>;
+  if (loading) return <div className="p-8">Loading…</div>;
   if (!session) return <Navigate to="/login" replace />;
-  if (roles.isLoading) return <div style={{ padding: 32 }}>Loading…</div>;
+  if (roles.isLoading) return <div className="p-8">Loading…</div>;
   if (!roles.data?.isAdmin) return <Navigate to="/no-access" replace />;
   return <Outlet />;
 }

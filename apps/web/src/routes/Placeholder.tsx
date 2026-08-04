@@ -1,9 +1,9 @@
 export function Placeholder({ title }: { title: string }) {
   return (
-    <div style={{ padding: "26px 30px 40px" }}>
-      <div style={{ background: "var(--canvas)", border: "1px solid var(--hairline)", borderRadius: "var(--radius-card)", padding: "40px 24px", textAlign: "center" }}>
-        <div style={{ fontSize: 16, fontWeight: 600 }}>{title}</div>
-        <div style={{ color: "var(--ink-muted)", fontSize: 14, marginTop: 6 }}>Coming soon.</div>
+    <div className="px-[30px] pt-[26px] pb-10">
+      <div className="rounded-xl border border-border bg-card px-6 py-10 text-center">
+        <div className="text-base font-semibold">{title}</div>
+        <div className="mt-1.5 text-sm text-muted-foreground">Coming soon.</div>
       </div>
     </div>
   );

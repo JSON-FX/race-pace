@@ -3,11 +3,11 @@ import { useAuth } from "../lib/auth";
 export function NoAccess() {
   const { signOut } = useAuth();
   return (
-    <div style={{ minHeight: "100%", display: "grid", placeItems: "center", textAlign: "center" }}>
+    <div className="grid min-h-full place-items-center text-center">
       <div>
-        <h1 style={{ fontSize: 22, fontWeight: 700 }}>No admin access</h1>
-        <p style={{ color: "var(--ink-muted)" }}>This account isn't an organizer on Race Pace.</p>
-        <button onClick={() => signOut()} style={{ marginTop: 8 }}>Sign out</button>
+        <h1 className="text-[22px] font-bold">No admin access</h1>
+        <p className="text-muted-foreground">This account isn't an organizer on Race Pace.</p>
+        <button onClick={() => signOut()} className="mt-2">Sign out</button>
       </div>
     </div>
   );

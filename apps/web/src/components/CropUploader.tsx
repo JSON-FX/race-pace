@@ -1,7 +1,10 @@
 import { useCallback, useState, type ChangeEvent } from "react";
 import Cropper, { type Area } from "react-easy-crop";
+import { toast } from "sonner";
 import { getCroppedBlob } from "../lib/cropImage";
 import { uploadOrgImage, updateOrgBranding, type OrgImageKind } from "../lib/org";
+import { Dialog, DialogContent, DialogTitle } from "./ui/dialog";
+import { Button } from "./ui/button";
 
 export function CropUploader({ orgId, kind, aspect, field, label, currentUrl, round, onSaved }: {
   orgId: string;
@@ -50,6 +53,7 @@ export function CropUploader({ orgId, kind, aspect, field, label, currentUrl, ro
       const res = await updateOrgBranding(orgId, { [field]: url });
       if (!res.ok) throw new Error(res.error);
       close();
+      toast.success("Branding updated");
       onSaved();
     } catch (e) {
       setError((e as Error).message || "Upload failed. Try again.");
@@ -60,30 +64,34 @@ export function CropUploader({ orgId, kind, aspect, field, label, currentUrl, ro
 
   return (
     <div>
-      <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>{label}</div>
+      <div className="mb-2 text-sm font-semibold">{label}</div>
       {currentUrl ? (
         <img src={currentUrl} alt={`Current ${label.toLowerCase()}`}
-          style={{ width: round ? 72 : 234, height: round ? 72 : 90, borderRadius: round ? "50%" : 10, objectFit: "cover", display: "block", marginBottom: 10, border: "1px solid var(--hairline)" }} />
+          className={`mb-2.5 block border border-border object-cover ${round ? "h-[72px] w-[72px] rounded-full" : "h-[90px] w-[234px] rounded-[10px]"}`} />
       ) : null}
-      <label style={{ fontSize: 13, fontWeight: 600, color: "var(--primary)", cursor: "pointer" }}>
+      <label className="cursor-pointer text-[13px] font-semibold text-primary">
         Choose image
-        <input type="file" accept="image/*" aria-label={`Choose ${label}`} onChange={onFile} style={{ display: "none" }} />
+        <input type="file" accept="image/*" aria-label={`Choose ${label}`} onChange={onFile} className="hidden" />
       </label>
 
-      {src ? (
-        <div role="dialog" aria-label={`Crop ${label}`}
-          style={{ position: "fixed", inset: 0, zIndex: 50, background: "rgba(0,0,0,.55)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12 }}>
-          <div style={{ position: "relative", width: 320, height: 320, background: "#000", borderRadius: 10, overflow: "hidden" }}>
-            <Cropper image={src} crop={crop} zoom={zoom} aspect={aspect} cropShape={round ? "round" : "rect"}
-              onCropChange={setCrop} onZoomChange={setZoom} onCropComplete={onCropComplete} />
-          </div>
-          {error ? <div role="alert" style={{ color: "var(--danger)", fontSize: 13 }}>{error}</div> : null}
-          <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={close} disabled={busy} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid var(--hairline)", background: "#fff", cursor: "pointer" }}>Cancel</button>
-            <button onClick={save} disabled={busy} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "var(--primary)", color: "#fff", fontWeight: 600, cursor: "pointer" }}>{busy ? "Saving…" : "Save"}</button>
-          </div>
-        </div>
-      ) : null}
+      <Dialog open={!!src} onOpenChange={(open) => { if (!open) close(); }}>
+        <DialogContent aria-label={`Crop ${label}`} className="w-auto max-w-none gap-3 p-6">
+          <DialogTitle className="sr-only">{`Crop ${label}`}</DialogTitle>
+          {src ? (
+            <>
+              <div className="relative h-80 w-80 overflow-hidden rounded-[10px] bg-black">
+                <Cropper image={src} crop={crop} zoom={zoom} aspect={aspect} cropShape={round ? "round" : "rect"}
+                  onCropChange={setCrop} onZoomChange={setZoom} onCropComplete={onCropComplete} />
+              </div>
+              {error ? <div role="alert" className="text-[13px] text-destructive">{error}</div> : null}
+              <div className="flex justify-center gap-2">
+                <Button type="button" variant="outline" onClick={close} disabled={busy}>Cancel</Button>
+                <Button type="button" onClick={save} disabled={busy}>{busy ? "Saving…" : "Save"}</Button>
+              </div>
+            </>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useMyRoles } from "../lib/roles";
 
@@ -35,15 +36,17 @@ it("lists members with their details", () => {
 });
 
 it("changes a member's role", async () => {
+  const user = userEvent.setup();
   wrap(<Team />);
-  fireEvent.change(screen.getByLabelText("Role for ben@x.com"), { target: { value: "editor" } });
+  await user.click(screen.getByLabelText("Role for ben@x.com"));
+  await user.click(await screen.findByRole("option", { name: "Editor" }));
   await waitFor(() => expect(setMemberRole).toHaveBeenCalledWith("a1", "u2", "editor"));
 });
 
 it("removes a member after confirming in the dialog", async () => {
   wrap(<Team />);
   fireEvent.click(screen.getByLabelText("Remove ben@x.com"));
-  expect(screen.getByRole("dialog")).toBeInTheDocument();
+  expect(screen.getByRole("alertdialog")).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Remove member" }));
   await waitFor(() => expect(removeMember).toHaveBeenCalledWith("a1", "u2"));
 });

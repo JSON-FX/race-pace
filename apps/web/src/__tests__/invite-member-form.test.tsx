@@ -1,4 +1,5 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 
 const inviteMember = vi.fn((..._a: unknown[]): Promise<{ ok: boolean; error?: string }> => Promise.resolve({ ok: true }));
 vi.mock("../lib/team", async (importOriginal) => {
@@ -11,9 +12,11 @@ import { InviteMemberForm } from "../components/InviteMemberForm";
 it("submits an invite with the entered email and selected role", async () => {
   const onInvited = vi.fn();
   render(<InviteMemberForm orgId="a1" onInvited={onInvited} />);
-  fireEvent.change(screen.getByLabelText("Invite email"), { target: { value: "crew@x.com" } });
-  fireEvent.change(screen.getByLabelText("Role"), { target: { value: "marshal" } });
-  fireEvent.click(screen.getByRole("button", { name: /invite/i }));
+  const user = userEvent.setup();
+  await user.type(screen.getByLabelText("Invite email"), "crew@x.com");
+  await user.click(screen.getByLabelText("Role"));
+  await user.click(screen.getByRole("option", { name: "Marshal" }));
+  await user.click(screen.getByRole("button", { name: /invite/i }));
   await waitFor(() => expect(inviteMember).toHaveBeenCalledWith("a1", "crew@x.com", "marshal"));
   await waitFor(() => expect(onInvited).toHaveBeenCalled());
 });

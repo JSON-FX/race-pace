@@ -1,49 +1,77 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
+import { createElement } from "react";
 
-let rosterRows: unknown[];
-let countRows: unknown[];
-let profilesData: unknown[];
+const calls: Record<string, unknown[]> = { range: [], order: [], eq: [], or: [] };
+const builder: Record<string, unknown> = {};
+["select", "eq", "order", "range", "or"].forEach((m) => {
+  builder[m] = (...args: unknown[]) => { calls[m]?.push(args); return builder; };
+});
+let resolved: unknown = { data: [], count: 97, error: null };
+(builder as { then: unknown }).then = (resolve: (v: unknown) => unknown) => resolve(resolved);
+
 vi.mock("../lib/supabase", () => {
   const invoke = vi.fn(() => Promise.resolve({ data: { ok: true }, error: null }));
-  const from = vi.fn((table: string) => {
-    const b: Record<string, unknown> = { _select: "" };
-    b.select = (cols: string) => { b._select = cols; return b; };
-    b.eq = () => b;
-    b.in = () => Promise.resolve({ data: profilesData, error: null });
-    b.order = () => Promise.resolve({ data: table === "profiles" ? profilesData : (b._select === "event_id" ? countRows : rosterRows), error: null });
-    return b;
-  });
-  return { supabase: { from, functions: { invoke } } };
+  return {
+    supabase: {
+      from: (t: string) => { calls.from = [[t]]; return builder; },
+      functions: { invoke },
+    },
+  };
 });
 
 import { supabase } from "../lib/supabase";
-import { useEventRegistrations, useEventRegistrationCounts, refundRegistration } from "../lib/registrations";
+import { useEventRegistrations, useEventRegistrationCounts, refundRegistration, PAGE_SIZE } from "../lib/registrations";
 
-function wrap() {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
-  return ({ children }: { children: ReactNode }) => <QueryClientProvider client={qc}>{children}</QueryClientProvider>;
-}
+const wrapper = ({ children }: { children: ReactNode }) =>
+  createElement(QueryClientProvider, { client: new QueryClient({ defaultOptions: { queries: { retry: false } } }) }, children);
+
 beforeEach(() => {
-  rosterRows = [{ id: "r1", user_id: "u1", category_id: "c4", total_amount: 100000, created_at: "2026-07-01T00:00:00Z", custom_data: { blood_type: "O" }, categories: { label: "10K" }, payments: { status: "paid", method: "gcash" }, registration_addons: [{ price: 60000, addons: { name: "Singlet" } }] }];
-  countRows = [{ event_id: "e1" }, { event_id: "e1" }, { event_id: "e2" }];
-  profilesData = [{ id: "u1", full_name: "Ana Cruz", bib_name: "ANA" }];
+  resolved = { data: [], count: 97, error: null };
+  (supabase.functions.invoke as unknown as { mockClear: () => void }).mockClear();
+  (supabase.functions.invoke as unknown as { mockImplementation: (fn: () => Promise<unknown>) => void }).mockImplementation(() =>
+    Promise.resolve({ data: { ok: true }, error: null })
+  );
 });
 
-it("useEventRegistrations merges category + payment + profile + addons into a row", async () => {
-  const { result } = renderHook(() => useEventRegistrations("e1"), { wrapper: wrap() });
-  await waitFor(() => expect(result.current.data).toHaveLength(1));
-  expect(result.current.data![0]).toMatchObject({
-    id: "r1", full_name: "Ana Cruz", bib_name: "ANA", category_label: "10K",
-    payment_status: "paid", payment_method: "gcash", total_amount: 100000,
-    addons: [{ name: "Singlet", price: 60000 }],
-  });
+it("queries the flattened registrations view with filters, range and an exact count", async () => {
+  const { result } = renderHook(
+    () => useEventRegistrations("e1", { page: 1, sort: [], status: "paid", categoryId: "c1", q: "" }),
+    { wrapper }
+  );
+  await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+  expect(calls.from).toEqual([["admin_registrations_v"]]);
+  expect(calls.eq).toContainEqual(["event_id", "e1"]);
+  expect(calls.eq).toContainEqual(["payment_status", "paid"]);
+  expect(calls.eq).toContainEqual(["category_id", "c1"]);
+  expect(calls.range).toContainEqual([0, PAGE_SIZE - 1]);
+  expect(result.current.data!.total).toBe(97);
 });
 
-it("useEventRegistrationCounts tallies registrations per event", async () => {
-  const { result } = renderHook(() => useEventRegistrationCounts("a1"), { wrapper: wrap() });
-  await waitFor(() => expect(result.current.data).toEqual({ e1: 2, e2: 1 }));
+it("quotes a search term containing commas and double quotes into a well-formed or() argument", async () => {
+  calls.or = [];
+  const { result } = renderHook(
+    () => useEventRegistrations("e1", { page: 1, sort: [], status: "all", categoryId: "all", q: 'Dela Cruz, "Ana"' }),
+    { wrapper }
+  );
+  await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+  const orCalls = calls.or as unknown[][];
+  const arg = orCalls[0]![0] as string;
+  expect(arg).toBe(
+    'full_name.ilike."%Dela Cruz, \\"Ana\\"%",bib_name.ilike."%Dela Cruz, \\"Ana\\"%"'
+  );
+});
+
+it("queries the reg-count view and returns a per-event map", async () => {
+  resolved = { data: [{ event_id: "e1", reg_count: 4 }], count: null, error: null };
+  const { result } = renderHook(() => useEventRegistrationCounts("a1"), { wrapper });
+  await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+  expect(calls.from).toEqual([["admin_event_reg_counts_v"]]);
+  expect(result.current.data).toEqual({ e1: 4 });
 });
 
 it("refundRegistration invokes the admin-refund function with the registration id", async () => {

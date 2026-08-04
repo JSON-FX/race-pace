@@ -1,5 +1,8 @@
 import { useState, type FormEvent } from "react";
 import { ASSIGNABLE_ROLES, ROLE_LABELS, inviteMember } from "../lib/team";
+import { Input } from "./ui/input";
+import { Button } from "./ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 
 export function InviteMemberForm({ orgId, onInvited }: { orgId: string; onInvited: () => void }) {
   const [email, setEmail] = useState("");
@@ -19,21 +22,24 @@ export function InviteMemberForm({ orgId, onInvited }: { orgId: string; onInvite
   }
 
   return (
-    <form onSubmit={submit} style={{ display: "flex", gap: 8, alignItems: "flex-start", flexWrap: "wrap" }}>
-      <input
+    <form onSubmit={submit} className="flex flex-wrap items-start gap-2">
+      <Input
         type="email" value={email} onChange={(e) => setEmail(e.target.value)}
         placeholder="name@email.com" aria-label="Invite email"
-        style={{ flex: 1, minWidth: 200, padding: "9px 11px", borderRadius: 8, border: "1px solid var(--hairline)" }}
+        className="min-w-[200px] flex-1"
       />
-      <select value={role} onChange={(e) => setRole(e.target.value)} aria-label="Role"
-        style={{ padding: "9px 11px", borderRadius: 8, border: "1px solid var(--hairline)" }}>
-        {ASSIGNABLE_ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
-      </select>
-      <button type="submit" disabled={busy}
-        style={{ padding: "9px 16px", borderRadius: 8, border: "none", background: "var(--primary)", color: "#fff", fontWeight: 600, cursor: "pointer" }}>
+      <Select value={role} onValueChange={setRole}>
+        <SelectTrigger aria-label="Role">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {ASSIGNABLE_ROLES.map((r) => <SelectItem key={r} value={r}>{ROLE_LABELS[r]}</SelectItem>)}
+        </SelectContent>
+      </Select>
+      <Button type="submit" disabled={busy}>
         {busy ? "Inviting…" : "Invite"}
-      </button>
-      {error ? <div role="alert" style={{ flexBasis: "100%", color: "var(--danger)", fontSize: 13 }}>{error}</div> : null}
+      </Button>
+      {error ? <div role="alert" className="basis-full text-[13px] text-destructive">{error}</div> : null}
     </form>
   );
 }
