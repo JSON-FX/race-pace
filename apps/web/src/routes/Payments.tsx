@@ -24,7 +24,9 @@ export function Payments() {
   const [searchInput, setSearchInput] = useState(t.q);
   const setQRef = useRef(t.setQ);
   setQRef.current = t.setQ;
+  const searchMountedRef = useRef(false);
   useEffect(() => {
+    if (!searchMountedRef.current) { searchMountedRef.current = true; return; }
     const id = setTimeout(() => setQRef.current(searchInput), 300);
     return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps

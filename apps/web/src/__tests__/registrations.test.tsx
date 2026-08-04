@@ -101,6 +101,17 @@ it("keeps a deep-linked category filter on first mount", () => {
   expect(useEventRegistrations).toHaveBeenLastCalledWith("e1", expect.objectContaining({ categoryId: "c4" }));
 });
 
+it("does not strip the page from a deep link when the debounce timer fires on mount untouched", () => {
+  vi.useFakeTimers();
+  try {
+    at("/registrations?event=e1&page=3");
+    act(() => { vi.advanceTimersByTime(300); });
+    expect(useEventRegistrations).toHaveBeenLastCalledWith("e1", expect.objectContaining({ page: 3 }));
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
 it("resets the category filter and closes the detail when the event changes", async () => {
   const user = userEvent.setup();
   at();

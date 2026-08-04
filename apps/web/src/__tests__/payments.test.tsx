@@ -67,6 +67,17 @@ it("debounces the search box so it does not call through on every keystroke", ()
   }
 });
 
+it("does not strip the page from a deep link when the debounce timer fires on mount untouched", () => {
+  vi.useFakeTimers();
+  try {
+    renderAt("/payments?status=paid&page=2");
+    act(() => { vi.advanceTimersByTime(300); });
+    expect(usePayments).toHaveBeenLastCalledWith("a1", expect.objectContaining({ page: 2 }));
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
 it("navigates to the event roster when a row is clicked", async () => {
   const user = userEvent.setup();
   renderAt();
