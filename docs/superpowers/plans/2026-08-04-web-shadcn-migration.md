@@ -1399,7 +1399,7 @@ it("reports header clicks through onSortingChange in server mode", () => {
     />
   );
   fireEvent.click(screen.getByRole("button", { name: "Amount" }));
-  expect(onSortingChange).toHaveBeenCalledWith([{ id: "amount", desc: false }]);
+  expect(onSortingChange).toHaveBeenCalledWith([{ id: "amount", desc: true }]);   // TanStack auto-sorts numerics desc-first; strings go asc-first
 });
 
 it("disables Previous on the first page and Next on the last", () => {
