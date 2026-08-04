@@ -65,7 +65,7 @@ export function CropUploader({ orgId, kind, aspect, field, label, currentUrl, ro
         <img src={currentUrl} alt={`Current ${label.toLowerCase()}`}
           style={{ width: round ? 72 : 234, height: round ? 72 : 90, borderRadius: round ? "50%" : 10, objectFit: "cover", display: "block", marginBottom: 10, border: "1px solid var(--hairline)" }} />
       ) : null}
-      <label style={{ fontSize: 13, fontWeight: 600, color: "var(--primary)", cursor: "pointer" }}>
+      <label style={{ fontSize: 13, fontWeight: 600, color: "var(--legacy-primary)", cursor: "pointer" }}>
         Choose image
         <input type="file" accept="image/*" aria-label={`Choose ${label}`} onChange={onFile} style={{ display: "none" }} />
       </label>
@@ -80,7 +80,7 @@ export function CropUploader({ orgId, kind, aspect, field, label, currentUrl, ro
           {error ? <div role="alert" style={{ color: "var(--danger)", fontSize: 13 }}>{error}</div> : null}
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={close} disabled={busy} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid var(--hairline)", background: "#fff", cursor: "pointer" }}>Cancel</button>
-            <button onClick={save} disabled={busy} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "var(--primary)", color: "#fff", fontWeight: 600, cursor: "pointer" }}>{busy ? "Saving…" : "Save"}</button>
+            <button onClick={save} disabled={busy} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "var(--legacy-primary)", color: "#fff", fontWeight: 600, cursor: "pointer" }}>{busy ? "Saving…" : "Save"}</button>
           </div>
         </div>
       ) : null}

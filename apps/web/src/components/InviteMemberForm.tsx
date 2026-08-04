@@ -30,7 +30,7 @@ export function InviteMemberForm({ orgId, onInvited }: { orgId: string; onInvite
         {ASSIGNABLE_ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
       </select>
       <button type="submit" disabled={busy}
-        style={{ padding: "9px 16px", borderRadius: 8, border: "none", background: "var(--primary)", color: "#fff", fontWeight: 600, cursor: "pointer" }}>
+        style={{ padding: "9px 16px", borderRadius: 8, border: "none", background: "var(--legacy-primary)", color: "#fff", fontWeight: 600, cursor: "pointer" }}>
         {busy ? "Inviting…" : "Invite"}
       </button>
       {error ? <div role="alert" style={{ flexBasis: "100%", color: "var(--danger)", fontSize: 13 }}>{error}</div> : null}

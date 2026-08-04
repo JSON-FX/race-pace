@@ -13,7 +13,7 @@ export function AddonEditor({ rows, onChange }: { rows: AddonDraft[]; onChange: 
     <div style={{ background: "var(--canvas)", border: "1px solid var(--hairline)", borderRadius: "var(--radius-card)", padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ fontSize: 14, fontWeight: 600 }}>Add-ons</div>
-        <button onClick={add} style={{ color: "var(--primary)", fontSize: 12, fontWeight: 600, background: "none", border: 0, cursor: "pointer" }}>+ Add</button>
+        <button onClick={add} style={{ color: "var(--legacy-primary)", fontSize: 12, fontWeight: 600, background: "none", border: 0, cursor: "pointer" }}>+ Add</button>
       </div>
       {rows.length > 0 ? (
         <div style={{ display: "grid", gridTemplateColumns: GRID, gap: 8, marginTop: 12 }}>

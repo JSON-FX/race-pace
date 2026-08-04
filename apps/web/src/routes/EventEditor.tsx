@@ -129,7 +129,7 @@ export function EventEditor() {
         <div style={{ gridColumn: "1 / -1", display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 12 }}>
           {error ? <span style={{ color: "var(--danger)", fontSize: 13, marginRight: "auto" }}>{error}</span> : null}
           <button onClick={() => nav("/events")} style={{ background: "var(--canvas)", border: "1px solid var(--hairline)", color: "var(--ink)", fontSize: 14, fontWeight: 600, padding: "11px 22px", borderRadius: "var(--radius-pill)", cursor: "pointer" }}>Cancel</button>
-          <button onClick={onSave} disabled={busy} style={{ background: "var(--primary)", color: "#fff", fontSize: 14, fontWeight: 600, padding: "11px 26px", borderRadius: "var(--radius-pill)", border: 0, cursor: "pointer" }}>{busy ? "Saving…" : "Save event"}</button>
+          <button onClick={onSave} disabled={busy} style={{ background: "var(--legacy-primary)", color: "#fff", fontSize: 14, fontWeight: 600, padding: "11px 26px", borderRadius: "var(--radius-pill)", border: 0, cursor: "pointer" }}>{busy ? "Saving…" : "Save event"}</button>
         </div>
       </div>
     </div>

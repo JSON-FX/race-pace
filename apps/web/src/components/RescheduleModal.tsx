@@ -27,7 +27,7 @@ export function RescheduleModal({ event, onClose, onDone }: { event: { id: strin
           {error ? <span style={{ color: "var(--danger)", fontSize: 13 }}>{error}</span> : null}
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
             <button onClick={onClose} style={{ background: "var(--canvas)", border: "1px solid var(--hairline)", borderRadius: "var(--radius-pill)", padding: "9px 18px", fontWeight: 600, cursor: "pointer" }}>Cancel</button>
-            <button onClick={submit} disabled={busy} style={{ background: "var(--primary)", color: "#fff", border: 0, borderRadius: "var(--radius-pill)", padding: "9px 20px", fontWeight: 600, cursor: "pointer" }}>{busy ? "Saving…" : "Reschedule"}</button>
+            <button onClick={submit} disabled={busy} style={{ background: "var(--legacy-primary)", color: "#fff", border: 0, borderRadius: "var(--radius-pill)", padding: "9px 20px", fontWeight: 600, cursor: "pointer" }}>{busy ? "Saving…" : "Reschedule"}</button>
           </div>
         </div>
       </div>

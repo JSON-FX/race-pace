@@ -147,4 +147,5 @@
   --section: #A0A0A5; --canvas: #ffffff; --parchment: #F5F5F7; --surface: #FAFAFB;
   --nav-active: #F1F7F4; --hairline: #E0E0E0; --row-border: #F3F3F5;
   --danger: #FF3B30; --danger-tint: #FDECEA;
+  --legacy-primary: #159A55;
 }

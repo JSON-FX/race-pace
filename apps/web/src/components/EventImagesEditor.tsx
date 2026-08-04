@@ -74,12 +74,12 @@ export function EventImagesEditor({ orgId, heroUrl, gallery, onChange }: {
             <img src={url} alt="Event image" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
             <button type="button" aria-label={url === featured ? "Featured image" : "Set as featured"}
               onClick={() => star(url)} disabled={pending > 0}
-              style={{ ...round(url === featured ? "var(--primary)" : "rgba(0,0,0,0.5)"), top: 6, left: 6, opacity: pending > 0 ? 0.5 : 1 }}>★</button>
+              style={{ ...round(url === featured ? "var(--legacy-primary)" : "rgba(0,0,0,0.5)"), top: 6, left: 6, opacity: pending > 0 ? 0.5 : 1 }}>★</button>
             <button type="button" aria-label="Remove image"
               onClick={() => remove(url)} disabled={pending > 0}
               style={{ ...round("rgba(0,0,0,0.5)"), top: 6, right: 6, fontSize: 15, opacity: pending > 0 ? 0.5 : 1 }}>×</button>
             {url === featured ? (
-              <span style={{ position: "absolute", bottom: 6, left: 6, background: "var(--primary)", color: "#fff", fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 999 }}>FEATURED</span>
+              <span style={{ position: "absolute", bottom: 6, left: 6, background: "var(--legacy-primary)", color: "#fff", fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 999 }}>FEATURED</span>
             ) : null}
           </div>
         ))}
@@ -91,7 +91,7 @@ export function EventImagesEditor({ orgId, heroUrl, gallery, onChange }: {
       </div>
 
       {!full && pending === 0 ? (
-        <label style={{ display: "inline-block", marginTop: 12, fontSize: 13, fontWeight: 600, color: "var(--primary)", cursor: "pointer" }}>
+        <label style={{ display: "inline-block", marginTop: 12, fontSize: 13, fontWeight: 600, color: "var(--legacy-primary)", cursor: "pointer" }}>
           + Add images
           <input ref={fileRef} type="file" accept="image/*" multiple aria-label="Add images"
             style={{ display: "none" }} onChange={(e) => addFiles(e.target.files)} />
