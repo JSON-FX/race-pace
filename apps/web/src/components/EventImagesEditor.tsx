@@ -6,7 +6,7 @@ import { Button } from "./ui/button";
 export type EventImagesValue = { hero_image_url: string | null; gallery: string[] };
 const MAX = 8;
 
-const roundBtn = "absolute h-[26px] w-[26px] rounded-full border-0 p-0 text-[13px] leading-[26px] text-white";
+const roundBtn = "absolute h-[26px] w-[26px] rounded-full border-0 p-0 text-[13px] leading-[26px] text-white hover:text-white";
 
 /** One image set for an event; the starred image is the featured (card) image.
  *  Controlled: on change it emits { hero_image_url: starred, gallery: the rest in order }. */
@@ -72,12 +72,12 @@ export function EventImagesEditor({ orgId, heroUrl, gallery, onChange }: {
         {urls.map((url) => (
           <div key={url} className="relative aspect-[4/3] w-full overflow-hidden rounded-[10px] border border-border bg-muted">
             <img src={url} alt="Event image" className="block h-full w-full object-cover" />
-            <Button type="button" aria-label={url === featured ? "Featured image" : "Set as featured"}
+            <Button type="button" variant="ghost" aria-label={url === featured ? "Featured image" : "Set as featured"}
               onClick={() => star(url)} disabled={pending > 0}
-              className={`${roundBtn} top-1.5 left-1.5 ${url === featured ? "bg-primary" : "bg-black/50"} ${pending > 0 ? "opacity-50" : ""}`}>★</Button>
-            <Button type="button" aria-label="Remove image"
+              className={`${roundBtn} top-1.5 left-1.5 ${url === featured ? "bg-primary hover:bg-primary" : "bg-black/50 hover:bg-black/50"} ${pending > 0 ? "opacity-50" : ""}`}>★</Button>
+            <Button type="button" variant="ghost" aria-label="Remove image"
               onClick={() => remove(url)} disabled={pending > 0}
-              className={`${roundBtn} top-1.5 right-1.5 bg-black/50 text-[15px] ${pending > 0 ? "opacity-50" : ""}`}>×</Button>
+              className={`${roundBtn} top-1.5 right-1.5 bg-black/50 text-[15px] hover:bg-black/50 ${pending > 0 ? "opacity-50" : ""}`}>×</Button>
             {url === featured ? (
               <span className="absolute bottom-1.5 left-1.5 rounded-full bg-primary px-[7px] py-[2px] text-[10px] font-bold text-primary-foreground">FEATURED</span>
             ) : null}
