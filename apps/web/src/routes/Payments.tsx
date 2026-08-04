@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMyRoles } from "../lib/roles";
 import { usePayments } from "../lib/registrations";
-import { PaymentBadge } from "../components/PaymentBadge";
+import { PaymentStatusBadge } from "../components/StatusBadge";
 
 const FILTERS = ["all", "pending", "paid", "refunded", "failed"] as const;
 const GRID = "1.4fr 1.4fr .9fr .8fr .8fr .9fr .9fr .9fr";
@@ -37,7 +37,7 @@ export function Payments() {
             <div style={{ fontSize: 13 }}>{peso(p.platform_fee)}</div>
             <div style={{ fontSize: 13 }}>{peso(p.net_to_org)}</div>
             <div style={{ fontSize: 13 }}>{p.method ?? "—"}</div>
-            <div><PaymentBadge status={p.status} /></div>
+            <div><PaymentStatusBadge status={p.status} /></div>
             <div style={{ fontSize: 13 }}>{fmtDate(p.created_at)}</div>
           </div>
         ))}

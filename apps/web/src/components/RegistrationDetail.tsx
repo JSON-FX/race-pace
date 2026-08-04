@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { RegistrationRow } from "../lib/registrations";
-import { PaymentBadge } from "./PaymentBadge";
+import { PaymentStatusBadge } from "./StatusBadge";
 import { RefundModal } from "./RefundModal";
 
 const overlay = { position: "fixed", inset: 0, background: "rgba(0,0,0,.3)", display: "flex", justifyContent: "flex-end", zIndex: 40 } as const;
@@ -34,7 +34,7 @@ export function RegistrationDetail({ row, onClose, onRefunded }: { row: Registra
         <div style={{ display: "grid", gap: 10 }}>
           <Row label="Category" value={row.category_label ?? "—"} />
           <Row label="Amount" value={peso(row.total_amount)} />
-          <Row label="Payment" value={<PaymentBadge status={row.payment_status} />} />
+          <Row label="Payment" value={<PaymentStatusBadge status={row.payment_status} />} />
           {row.payment_method ? <Row label="Method" value={row.payment_method} /> : null}
           <Row label="Registered" value={fmtDate(row.created_at)} />
         </div>

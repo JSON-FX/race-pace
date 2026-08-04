@@ -5,7 +5,7 @@ import { useMyRoles } from "../lib/roles";
 import { useOrgEvents } from "../lib/events";
 import { useEventRegistrations, useEventRegistrationCounts, type RegistrationRow } from "../lib/registrations";
 import { RegistrationDetail } from "../components/RegistrationDetail";
-import { PaymentBadge } from "../components/PaymentBadge";
+import { PaymentStatusBadge } from "../components/StatusBadge";
 
 const PAY_FILTERS = ["all", "pending", "paid", "refunded", "failed"] as const;
 const GRID = "2fr 1fr .9fr 1fr .9fr";
@@ -80,7 +80,7 @@ export function Registrations() {
               </div>
               <div style={{ fontSize: 13 }}>{r.category_label ?? "—"}</div>
               <div style={{ fontSize: 13 }}>{peso(r.total_amount)}</div>
-              <div><PaymentBadge status={r.payment_status} /></div>
+              <div><PaymentStatusBadge status={r.payment_status} /></div>
               <div style={{ fontSize: 13 }}>{fmtDate(r.created_at)}</div>
             </div>
           ))}

@@ -14,7 +14,7 @@ vi.mock("../lib/registrations", () => ({
     isLoading: false,
   }),
 }));
-vi.mock("../components/PaymentBadge", () => ({ PaymentBadge: ({ status }: { status: string }) => <span>{status}</span> }));
+vi.mock("../components/StatusBadge", () => ({ PaymentStatusBadge: ({ status }: { status: string }) => <span>{status}</span> }));
 beforeEach(() => navigate.mockClear());
 
 it("lists payments with money columns and filters by status", () => {

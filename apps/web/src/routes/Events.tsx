@@ -7,26 +7,7 @@ import { useOrgEvents, type AdminEventRow } from "../lib/events";
 import { useEventRegistrationCounts } from "../lib/registrations";
 import { RescheduleModal } from "../components/RescheduleModal";
 import { CancelModal } from "../components/CancelModal";
-
-// status enum -> { label, text color, tint bg } — mirrors the handover's statusChip
-const STATUS: Record<string, { label: string; color: string; bg: string }> = {
-  open: { label: "Open", color: "var(--ink)", bg: "var(--parchment)" },
-  almost_full: { label: "Almost full", color: "var(--amber)", bg: "var(--amber-tint)" },
-  cancelled: { label: "Cancelled", color: "var(--danger)", bg: "var(--danger-tint)" },
-  rescheduled: { label: "Rescheduled", color: "var(--info)", bg: "var(--info-tint)" },
-  completed: { label: "Completed", color: "var(--ink-muted)", bg: "var(--parchment)" },
-  closed: { label: "Closed", color: "var(--ink-muted)", bg: "var(--parchment)" },
-  draft: { label: "Draft", color: "var(--ink-muted)", bg: "var(--parchment)" },
-};
-
-function StatusChip({ status }: { status: string }) {
-  const s = STATUS[status] ?? { label: status.replace(/_/g, " "), color: "var(--ink)", bg: "var(--parchment)" };
-  return (
-    <span style={{ display: "inline-block", fontSize: 11, fontWeight: 600, padding: "4px 10px", borderRadius: "var(--radius-pill)", color: s.color, background: s.bg, textTransform: "capitalize" }}>
-      {s.label}
-    </span>
-  );
-}
+import { EventStatusBadge } from "../components/StatusBadge";
 
 function fill(cats: AdminEventRow["categories"]) {
   const taken = cats.reduce((s, c) => s + c.slots_taken, 0);
@@ -87,7 +68,7 @@ export function Events() {
                 {e.event_date ? formatDateRange(e.event_date, e.end_date, fmtDate) : "—"}
                 {e.original_date ? <span style={{ color: "var(--info)", fontSize: 12 }}> · was {fmtDate(e.original_date)}</span> : null}
               </div>
-              <div><StatusChip status={e.status} /></div>
+              <div><EventStatusBadge status={e.status} /></div>
               <div style={{ fontSize: 13 }}>{e.categories.length}</div>
               <div style={{ fontSize: 13 }}>{fill(e.categories)}</div>
               <div style={{ fontSize: 13 }}>{counts.data?.[e.id] ?? 0}</div>
