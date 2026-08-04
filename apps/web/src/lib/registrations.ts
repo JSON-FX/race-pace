@@ -17,6 +17,18 @@ export type RegistrationRow = {
   custom_data: Record<string, unknown>;
 };
 
+/**
+ * PostgREST's `.or()` filter string is a structural mini-language where
+ * `,`, `(`, `)` and `.` separate logic-tree nodes. A raw user search term
+ * containing any of those (e.g. "Dela Cruz, Ana") breaks the parse
+ * (PGRST100) and 400s the whole query. Quoting the value as
+ * `col.ilike."value"` makes it a single opaque token; escape backslashes
+ * and double quotes inside it per PostgREST's quoted-value syntax.
+ */
+function quotePostgrestValue(value: string): string {
+  return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+}
+
 export type RegistrationsQuery = {
   page: number;
   sort: { id: string; desc: boolean }[];
@@ -43,7 +55,7 @@ export function useEventRegistrations(eventId: string | undefined, query: Regist
       if (status !== "all") req = req.eq("payment_status", status);
       if (categoryId !== "all") req = req.eq("category_id", categoryId);
       if (q.trim()) {
-        const term = `%${q.trim()}%`;
+        const term = quotePostgrestValue(`%${q.trim()}%`);
         req = req.or(`full_name.ilike.${term},bib_name.ilike.${term}`);
       }
       const s = sort[0] ?? { id: "created_at", desc: true };
@@ -144,7 +156,7 @@ export function usePayments(orgId: string | undefined, query: PaymentsQuery) {
 
       if (status !== "all") req = req.eq("status", status);
       if (q.trim()) {
-        const term = `%${q.trim()}%`;
+        const term = quotePostgrestValue(`%${q.trim()}%`);
         req = req.or(`full_name.ilike.${term},event_name.ilike.${term}`);
       }
       const s = sort[0] ?? { id: "created_at", desc: true };

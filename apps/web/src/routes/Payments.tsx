@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Search } from "lucide-react";
@@ -20,6 +20,15 @@ export function Payments() {
   const t = useTableParams({ sort: [{ id: "created_at", desc: true }] });
   const status = (t.filters.status ?? "all") as PaymentStatus | "all";
   const pays = usePayments(roles.data?.orgId ?? undefined, { page: t.page, sort: t.sort, status, q: t.q });
+
+  const [searchInput, setSearchInput] = useState(t.q);
+  const setQRef = useRef(t.setQ);
+  setQRef.current = t.setQ;
+  useEffect(() => {
+    const id = setTimeout(() => setQRef.current(searchInput), 300);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchInput]);
 
   const columns = useMemo<ColumnDef<PaymentRow, unknown>[]>(() => [
     { accessorKey: "event_name", header: "Event", cell: ({ row }) => <span className="font-semibold">{row.original.event_name ?? "—"}</span> },
@@ -53,8 +62,8 @@ export function Payments() {
             aria-label="Search payments"
             placeholder="Search runner or event…"
             className="w-[240px] pl-8"
-            defaultValue={t.q}
-            onChange={(e) => t.setQ(e.target.value)}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
           />
         </div>
       </div>

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { Payments } from "../routes/Payments";
@@ -46,6 +46,25 @@ it("passes the chosen status filter to the query", async () => {
 it("reads the initial status and page from the URL", () => {
   renderAt("/payments?status=paid&page=2");
   expect(usePayments).toHaveBeenLastCalledWith("a1", expect.objectContaining({ status: "paid", page: 2 }));
+});
+
+it("debounces the search box so it does not call through on every keystroke", () => {
+  vi.useFakeTimers();
+  try {
+    renderAt();
+    const input = screen.getByLabelText("Search payments");
+    fireEvent.change(input, { target: { value: "a" } });
+    fireEvent.change(input, { target: { value: "an" } });
+    fireEvent.change(input, { target: { value: "ana" } });
+    // Still within the debounce window — the query hook has not seen "ana" yet.
+    act(() => { vi.advanceTimersByTime(299); });
+    expect(usePayments).not.toHaveBeenLastCalledWith("a1", expect.objectContaining({ q: "ana" }));
+
+    act(() => { vi.advanceTimersByTime(1); });
+    expect(usePayments).toHaveBeenLastCalledWith("a1", expect.objectContaining({ q: "ana" }));
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 it("navigates to the event roster when a row is clicked", async () => {

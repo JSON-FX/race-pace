@@ -33,3 +33,18 @@ it("queries the flattened view with range, order and an exact count", async () =
   expect(orCalls[0]![0]).toContain("ana");
   expect(result.current.data!.total).toBe(97);
 });
+
+it("quotes a search term containing commas and double quotes into a well-formed or() argument", async () => {
+  calls.or = [];
+  const { result } = renderHook(
+    () => usePayments("a1", { page: 1, sort: [], status: "all", q: 'Dela Cruz, "Ana"' }),
+    { wrapper }
+  );
+  await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+  const orCalls = calls.or as unknown[][];
+  const arg = orCalls[0]![0] as string;
+  expect(arg).toBe(
+    'full_name.ilike."%Dela Cruz, \\"Ana\\"%",event_name.ilike."%Dela Cruz, \\"Ana\\"%"'
+  );
+});

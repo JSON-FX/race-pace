@@ -50,6 +50,21 @@ it("queries the flattened registrations view with filters, range and an exact co
   expect(result.current.data!.total).toBe(97);
 });
 
+it("quotes a search term containing commas and double quotes into a well-formed or() argument", async () => {
+  calls.or = [];
+  const { result } = renderHook(
+    () => useEventRegistrations("e1", { page: 1, sort: [], status: "all", categoryId: "all", q: 'Dela Cruz, "Ana"' }),
+    { wrapper }
+  );
+  await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+  const orCalls = calls.or as unknown[][];
+  const arg = orCalls[0]![0] as string;
+  expect(arg).toBe(
+    'full_name.ilike."%Dela Cruz, \\"Ana\\"%",bib_name.ilike."%Dela Cruz, \\"Ana\\"%"'
+  );
+});
+
 it("queries the reg-count view and returns a per-event map", async () => {
   resolved = { data: [{ event_id: "e1", reg_count: 4 }], count: null, error: null };
   const { result } = renderHook(() => useEventRegistrationCounts("a1"), { wrapper });

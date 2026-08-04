@@ -83,6 +83,20 @@
   --sidebar-ring: 47 181 106;
 }
 
+/*
+ * Token contract: `--x` (defined in :root/.dark above) is a raw RGB channel
+ * triple, e.g. `--popover: 255 255 255` — NOT a usable CSS color on its own.
+ * `--color-x` below wraps it as `rgb(var(--x))`, which IS a usable color,
+ * and is what @theme inline exposes to Tailwind utilities (bg-popover, etc.)
+ * and to arbitrary-value CSS (`var(--color-popover)`).
+ *
+ * shadcn's own generated components assume `--x` itself is a color (its
+ * upstream convention), so every `pnpm dlx shadcn add <component>` will
+ * emit bare `var(--token)` references (e.g. `var(--popover)`,
+ * `var(--sidebar-border)`) that silently produce invalid, dropped CSS here.
+ * After adding a new shadcn component, grep it for `var(--` and rewrite any
+ * hit that isn't already `var(--color-*)`.
+ */
 @theme inline {
   --color-background: rgb(var(--background));
   --color-foreground: rgb(var(--foreground));
@@ -137,6 +151,6 @@
     background: rgb(var(--muted));
   }
   .rp-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
-  .rp-scroll::-webkit-scrollbar-thumb { background: #D6D6DA; border-radius: 8px; }
+  .rp-scroll::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 8px; }
   .rp-scroll::-webkit-scrollbar-track { background: transparent; }
 }

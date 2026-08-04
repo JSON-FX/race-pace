@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { Registrations } from "../routes/Registrations";
@@ -59,16 +59,46 @@ it("passes the chosen category filter to the query", async () => {
   );
 });
 
-it("passes the name search to the query", () => {
-  at();
-  fireEvent.change(screen.getByLabelText("Search name"), { target: { value: "ben" } });
-  expect(useEventRegistrations).toHaveBeenLastCalledWith("e1", expect.objectContaining({ q: "ben" }));
+it("passes the name search to the query after the debounce", () => {
+  vi.useFakeTimers();
+  try {
+    at();
+    fireEvent.change(screen.getByLabelText("Search name"), { target: { value: "ben" } });
+    act(() => { vi.advanceTimersByTime(300); });
+    expect(useEventRegistrations).toHaveBeenLastCalledWith("e1", expect.objectContaining({ q: "ben" }));
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it("debounces the search box so it does not call through on every keystroke", () => {
+  vi.useFakeTimers();
+  try {
+    at();
+    const input = screen.getByLabelText("Search name");
+    fireEvent.change(input, { target: { value: "b" } });
+    fireEvent.change(input, { target: { value: "be" } });
+    fireEvent.change(input, { target: { value: "ben" } });
+    // Still within the debounce window — the query hook has not seen "ben" yet.
+    act(() => { vi.advanceTimersByTime(299); });
+    expect(useEventRegistrations).not.toHaveBeenLastCalledWith("e1", expect.objectContaining({ q: "ben" }));
+
+    act(() => { vi.advanceTimersByTime(1); });
+    expect(useEventRegistrations).toHaveBeenLastCalledWith("e1", expect.objectContaining({ q: "ben" }));
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 it("opens the detail when a row is clicked", () => {
   at();
   fireEvent.click(screen.getByText("Ana Cruz"));
   expect(screen.getByTestId("detail")).toHaveTextContent("Ana Cruz");
+});
+
+it("keeps a deep-linked category filter on first mount", () => {
+  at("/registrations?event=e1&category=c4");
+  expect(useEventRegistrations).toHaveBeenLastCalledWith("e1", expect.objectContaining({ categoryId: "c4" }));
 });
 
 it("resets the category filter and closes the detail when the event changes", async () => {

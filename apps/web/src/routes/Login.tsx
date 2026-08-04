@@ -54,25 +54,27 @@ export function Login() {
               <Label htmlFor="login-password" className="mb-1.5 text-[11px] font-semibold tracking-[.4px] text-muted-foreground uppercase">
                 Password
               </Label>
-              <div className="flex h-9 items-center rounded-md border border-input bg-transparent pr-1">
-                <input
+              <div className="flex h-9 items-center rounded-md border border-input bg-transparent pr-1 focus-within:ring-[3px] focus-within:ring-ring/50 focus-within:border-ring">
+                <Input
                   id="login-password"
                   aria-label="Password"
                   type={show ? "text" : "password"}
                   placeholder="••••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="h-full flex-1 border-0 bg-transparent px-3 text-sm text-foreground outline-none placeholder:text-muted-foreground"
+                  className="h-full flex-1 border-0 bg-transparent shadow-none focus-visible:ring-0"
                 />
-                <span
+                <Button
+                  type="button"
+                  variant="ghost"
                   onClick={() => setShow((v) => !v)}
                   role="switch"
                   aria-checked={show}
                   aria-label="Show password"
-                  className="cursor-pointer select-none px-3 text-[13px] font-semibold text-primary"
+                  className="h-7 select-none px-3 text-[13px] font-semibold text-primary hover:text-primary"
                 >
                   {show ? "Hide" : "Show"}
-                </span>
+                </Button>
               </div>
             </div>
           </div>

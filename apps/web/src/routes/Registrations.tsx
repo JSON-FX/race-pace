@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -38,12 +38,26 @@ export function Registrations() {
   const regs = useEventRegistrations(eventId, { page: t.page, sort: t.sort, status, categoryId, q: t.q });
 
   // Category ids are per-event, so a stale category filter would silently return
-  // zero rows after switching events. Clear it, and any open detail, on change.
+  // zero rows after switching events. Clear it, and any open detail, on change —
+  // but not on first mount, or a deep link like ?event=e1&category=c4 would have
+  // its filters stripped before the first paint.
+  const prevEventIdRef = useRef(eventId);
   useEffect(() => {
+    if (prevEventIdRef.current === eventId) return;
+    prevEventIdRef.current = eventId;
     t.setFilter("category", "all");
     t.setFilter("reg", "all");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId]);
+
+  const [searchInput, setSearchInput] = useState(t.q);
+  const setQRef = useRef(t.setQ);
+  setQRef.current = t.setQ;
+  useEffect(() => {
+    const id = setTimeout(() => setQRef.current(searchInput), 300);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchInput]);
 
   const rows = regs.data?.rows ?? [];
   const total = regs.data?.total ?? 0;
@@ -100,7 +114,7 @@ export function Registrations() {
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input aria-label="Search name" placeholder="Search name…" className="w-[200px] pl-8"
-            defaultValue={t.q} onChange={(e) => t.setQ(e.target.value)} />
+            value={searchInput} onChange={(e) => setSearchInput(e.target.value)} />
         </div>
       </div>
 
