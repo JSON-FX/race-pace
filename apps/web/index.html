@@ -7,9 +7,13 @@
     <script>
       (function () {
         try {
-          var s = localStorage.getItem("rp-theme");
-          var dark = s ? s === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
-          if (dark) document.documentElement.classList.add("dark");
+          // Only an explicit stored choice enables dark. prefers-color-scheme is
+          // deliberately ignored until the shadcn migration finishes — screens still
+          // on the legacy variables have no dark variant. Must match readTheme() in
+          // src/lib/theme.ts; the two disagreeing causes a flash of the wrong theme.
+          if (localStorage.getItem("rp-theme") === "dark") {
+            document.documentElement.classList.add("dark");
+          }
         } catch (e) {}
       })();
     </script>
