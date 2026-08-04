@@ -408,8 +408,8 @@ Proves the "preserve the look with tokens" approach on the smallest possible sur
 - Consumes: `cn()` from Task 1; the `--paid` / `--amber` / `--info` / `--destructive` tokens.
 - Produces:
   ```ts
-  export type BadgeTone = "paid" | "pending" | "info" | "danger" | "neutral";
-  export function StatusBadge(props: { tone: BadgeTone; children: React.ReactNode }): JSX.Element;
+  export type BadgeTone = "paid" | "pending" | "info" | "danger" | "neutral" | "highlight";
+  export function StatusBadge(props: { tone: BadgeTone; children: React.ReactNode; className?: string }): JSX.Element;
   export function PaymentStatusBadge(props: { status: string | null }): JSX.Element;
   export function EventStatusBadge(props: { status: string }): JSX.Element;
   ```
@@ -461,7 +461,7 @@ Tones map to the same colours the two old components used, so nothing changes vi
 import { cva } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
-export type BadgeTone = "paid" | "pending" | "info" | "danger" | "neutral";
+export type BadgeTone = "paid" | "pending" | "info" | "danger" | "neutral" | "highlight";
 
 const tone = cva(
   "inline-block rounded-pill px-2.5 py-1 text-[11px] font-semibold",
@@ -473,14 +473,15 @@ const tone = cva(
         info: "bg-info-tint text-info",
         danger: "bg-destructive-tint text-destructive",
         neutral: "bg-muted text-muted-foreground",
+        highlight: "bg-muted text-foreground",
       },
     },
     defaultVariants: { tone: "neutral" },
   }
 );
 
-export function StatusBadge({ tone: t, children }: { tone: BadgeTone; children: React.ReactNode }) {
-  return <span className={cn(tone({ tone: t }))}>{children}</span>;
+export function StatusBadge({ tone: t, children, className }: { tone: BadgeTone; children: React.ReactNode; className?: string }) {
+  return <span className={cn(tone({ tone: t }), className)}>{children}</span>;
 }
 
 const PAYMENT: Record<string, { label: string; tone: BadgeTone }> = {
@@ -496,7 +497,7 @@ export function PaymentStatusBadge({ status }: { status: string | null }) {
 }
 
 const EVENT: Record<string, { label: string; tone: BadgeTone }> = {
-  open: { label: "Open", tone: "neutral" },
+  open: { label: "Open", tone: "highlight" },   // was --ink, distinct from the muted statuses
   almost_full: { label: "Almost full", tone: "pending" },
   cancelled: { label: "Cancelled", tone: "danger" },
   rescheduled: { label: "Rescheduled", tone: "info" },
@@ -507,7 +508,7 @@ const EVENT: Record<string, { label: string; tone: BadgeTone }> = {
 
 export function EventStatusBadge({ status }: { status: string }) {
   const s = EVENT[status] ?? { label: status.replace(/_/g, " "), tone: "neutral" as const };
-  return <StatusBadge tone={s.tone}>{s.label}</StatusBadge>;
+  return <StatusBadge tone={s.tone} className="capitalize">{s.label}</StatusBadge>;   // StatusChip had text-transform: capitalize
 }
 ```
 
