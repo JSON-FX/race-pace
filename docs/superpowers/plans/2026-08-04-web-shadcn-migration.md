@@ -918,6 +918,10 @@ git commit -m "feat(web): shadcn app shell — collapsible sidebar, lucide icons
 
 ### Task 4: Database — flattened admin views
 
+> **Correction applied during execution.** The test listing below ends by asserting that the runner — "not an admin anywhere" — sees zero rows through `admin_payments_v`. That assertion is wrong and the shipped test does the opposite. `payments_read_own` (`20260718183018_registrations_payments.sql`) lets a registrant read their own payment, and `security_invoker` correctly inherits it; the fixture makes that runner the payment's own registrant, so they legitimately see exactly one row. The shipped test instead (a) runs the negative check against a true bystander — a fresh user with no `user_roles` row and no registration — asserting zero rows and a zero count on all three views, and (b) keeps the registrant case as an inverted, positive assertion that they see exactly their own one row, commented as `payments_read_own`/`registrations_read_own` flowing through `security_invoker`. Both directions are pinned, so a later change that either leaks wider or accidentally makes the views admin-only gets caught.
+>
+> **Also:** every `--linked` command in the steps below was run as `--local` — the hosted project is paused. Pushing this migration to hosted is still outstanding.
+
 **Files:**
 - Create: `supabase/migrations/20260804120000_admin_list_views.sql`, `supabase/tests/admin-list-views.test.ts`
 
