@@ -39,7 +39,7 @@ function NavItem({ to, label, icon: Icon }: Item) {
           <SidebarMenuButton asChild isActive={isActive} tooltip={label}>
             <span>
               <Icon className={isActive ? "text-sidebar-primary" : "text-muted-foreground"} />
-              <span className={isActive ? "font-semibold" : "font-medium"}>{label}</span>
+              <span className={isActive ? "font-semibold text-sidebar-accent-foreground" : "font-medium text-muted-foreground"}>{label}</span>
             </span>
           </SidebarMenuButton>
         )}
@@ -70,7 +70,7 @@ export function Sidebar() {
 
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>ORGANIZATION</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-[11px] font-semibold tracking-wide">ORGANIZATION</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {ORG_ITEMS.filter((it) => it.to !== "/team" || roles.data?.isOrgAdmin).map((it) => (
@@ -82,7 +82,7 @@ export function Sidebar() {
 
         {roles.data?.isSuperAdmin ? (
           <SidebarGroup>
-            <SidebarGroupLabel>PLATFORM · SUPER ADMIN</SidebarGroupLabel>
+            <SidebarGroupLabel className="text-[11px] font-semibold tracking-wide">PLATFORM · SUPER ADMIN</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>{SUPER_ITEMS.map((it) => <NavItem key={it.to} {...it} />)}</SidebarMenu>
             </SidebarGroupContent>
@@ -104,7 +104,7 @@ export function Sidebar() {
             variant="ghost"
             size="sm"
             onClick={() => signOut()}
-            className="text-destructive group-data-[collapsible=icon]:hidden"
+            className="text-[12px] font-semibold text-destructive group-data-[collapsible=icon]:hidden"
           >
             Sign out
           </Button>
