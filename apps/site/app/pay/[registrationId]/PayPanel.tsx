@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Lock } from "lucide-react";
 import { formatPeso } from "@race-pace/shared";
+import { isRegistrationClosed } from "@/lib/eventStatus";
 import { useRegistration, createMethodCheckout } from "@/lib/registration";
 import { PAY_METHODS, breakdown } from "@/lib/payment";
 import { TicketStub } from "@/components/TicketStub";
@@ -35,6 +37,28 @@ export function PayPanel({ registrationId }: { registrationId: string }) {
   const { entry, addons } = breakdown(total, reg.data.basePrice);
   const inclusions = reg.data.inclusions ?? [];
 
+  // The organizer can cancel while this page is open — the query polls, so the
+  // status can flip under the runner. The server page redirects on load; this
+  // covers the live case. Critical because `reg.data.checkoutUrl` holds a
+  // PayMongo session created while the event was open and still chargeable.
+  const eventClosed = isRegistrationClosed(reg.data.eventStatus ?? "");
+  if (eventClosed) {
+    return (
+      <div className="mx-auto w-full max-w-2xl px-6 py-20 text-center">
+        <h1 className="text-[26px] font-semibold tracking-[-0.5px] text-foreground">
+          This race is no longer accepting entries
+        </h1>
+        <p className="mt-3 text-[15px] leading-relaxed text-muted-foreground">
+          {reg.data.statusNote ??
+            "The organizer closed registration for this event. You have not been charged."}
+        </p>
+        <Button asChild className="mt-8 h-auto rounded-pill px-8 py-4 text-[16px] font-semibold">
+          <Link href="/races">Back to My Races</Link>
+        </Button>
+      </div>
+    );
+  }
+
   async function pay() {
     setBusy(true);
     setError(null);
@@ -43,7 +67,11 @@ export function PayPanel({ registrationId }: { registrationId: string }) {
     sessionStorage.setItem("rp:paying", registrationId);
 
     const scoped = await createMethodCheckout(registrationId, method);
-    const url = scoped ?? reg.data!.checkoutUrl;
+    // Only fall back to the session created at registration when the event is
+    // still open. createMethodCheckout returns null for ANY failure — including
+    // the server's `registration_closed` 409 — so without this guard a
+    // cancelled race would quietly charge the stored session anyway.
+    const url = scoped ?? (isRegistrationClosed(reg.data!.eventStatus ?? "") ? null : reg.data!.checkoutUrl);
     if (!url) {
       setBusy(false);
       setError("No checkout link is available. Go back and try registering again.");

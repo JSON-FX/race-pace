@@ -37,8 +37,22 @@ Deno.serve(async (req) => {
     const to = userRes?.user?.email;
     if (!to) return json({ error: "no_email" }, 422);
 
-    const siteUrl = Deno.env.get("PUBLIC_SITE_URL") ?? "https://racepace.vercel.app";
-    const functionsUrl = Deno.env.get("PUBLIC_FUNCTIONS_URL") ?? "";
+    // No defaults here on purpose. A wrong base URL is worse than no email:
+    // PUBLIC_SITE_URL previously defaulted to a hostname owned by an unrelated
+    // third party, so an unset secret would have mailed runners links to a
+    // stranger's site; PUBLIC_FUNCTIONS_URL defaulted to "" and produced a
+    // silently broken QR <img>. Misconfiguration must fail loudly and visibly.
+    // Failing here is safe: confirmPayment() invokes this best-effort inside a
+    // try/catch, so a captured payment still confirms.
+    const siteUrl = Deno.env.get("PUBLIC_SITE_URL");
+    const functionsUrl = Deno.env.get("PUBLIC_FUNCTIONS_URL");
+    if (!siteUrl || !functionsUrl) {
+      console.error("[send-ticket-email] missing config", {
+        PUBLIC_SITE_URL: !!siteUrl,
+        PUBLIC_FUNCTIONS_URL: !!functionsUrl,
+      });
+      return json({ error: "not_configured" }, 500);
+    }
     const event = reg.events as { name: string; event_date: string | null; venue: string | null } | null;
     const category = reg.categories as { label: string } | null;
 

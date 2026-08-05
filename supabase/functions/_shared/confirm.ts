@@ -46,6 +46,13 @@ export async function confirmPayment(
   }
   const already = result === "already" || result === "not_pending";
 
+  // DELIBERATELY no event-status check here, unlike registrations-checkout and
+  // payment-session. By the time this runs PayMongo has already captured the
+  // money. Rejecting a cancelled event's payment at this point would leave a
+  // runner charged with no registration row — and the refund flow needs a row
+  // to find. The doors that matter close BEFORE money moves; this last step
+  // stays permissive so anything that slips through is still refundable.
+
   // Fire the ticket email only on a genuine first confirmation, and only as
   // best-effort — a mail failure must never fail a captured payment. This is
   // the single choke point both payment-verify and payments-webhook reach, so

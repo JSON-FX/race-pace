@@ -37,10 +37,16 @@ export function EventBody({ event, categories, closed }: { event: EventRow; cate
         ) : null}
       </div>
 
+      {/* RaceSchedule renders in BOTH layouts. The admin offers the schedule
+          editor for all eight disciplines, so publishing it only on road events
+          meant a trail organizer could save a full race-morning timeline and
+          have it silently go nowhere. It returns null on an empty schedule,
+          which is the default and the common case. */}
       {layout === "profile" ? (
         <>
           <ProfileCourseSection event={event} categories={categories} closed={closed} />
           <RaceFacts event={event} />
+          <RaceSchedule schedule={schedule} />
           <InclusionsBand event={event} />
         </>
       ) : (

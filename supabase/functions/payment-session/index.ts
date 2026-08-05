@@ -1,6 +1,7 @@
 import { serviceClient } from "../_shared/supabase.ts";
 import { getPaymentProviderByName } from "../_shared/payments.ts";
 import { preflight, corsHeaders } from "../_shared/cors.ts";
+import { isRegistrationClosed } from "../_shared/eventStatus.ts";
 
 // The register flow creates an all-methods checkout at registration time (before the runner picks
 // how to pay). When they choose a method on the pay screen and tap Pay, this recreates the PayMongo
@@ -32,9 +33,17 @@ Deno.serve(async (req) => {
     const userId = userRes.user.id;
 
     // Own the registration + it must still be payable. Service role bypasses RLS, so check ownership.
-    const { data: reg } = await db.from("registrations").select("id,user_id,status,total_amount,category_id").eq("id", registrationId).single();
+    const { data: reg } = await db.from("registrations").select("id,user_id,status,total_amount,category_id,event_id").eq("id", registrationId).single();
     if (!reg || reg.user_id !== userId) return json({ error: "registration_not_found" }, 404);
     if (reg.status !== "pending") return json({ error: "not_pending" }, 409);
+
+    // The event can be cancelled AFTER a runner registered, while their pending
+    // registration and its PayMongo session are still live. Without this, a
+    // bookmarked /pay/<rid> charges a card for a race that no longer exists.
+    // The page-level guard is a UX nicety; this is the boundary.
+    const { data: event } = await db.from("events").select("status").eq("id", reg.event_id).single();
+    if (!event) return json({ error: "registration_not_found" }, 404);
+    if (isRegistrationClosed(event.status)) return json({ error: "registration_closed" }, 409);
 
     const { data: payment } = await db.from("payments").select("provider").eq("registration_id", reg.id).single();
     const { data: category } = await db.from("categories").select("label,base_price").eq("id", reg.category_id).single();
