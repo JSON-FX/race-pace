@@ -311,6 +311,7 @@ export function CourseLocator({ event, tone }: { event: EventRow; tone: Tone }) 
                 lng={sLng}
                 finishLat={fLat ?? null}
                 finishLng={fLng ?? null}
+                route={event.route ?? null}
                 terrain={disciplineLayout(event.discipline) === "profile"}
                 dark={tone.dark}
                 label={event.venue ?? event.name}

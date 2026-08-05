@@ -12,7 +12,15 @@ import {
   AttributionControl,
   NavigationControl,
   type ErrorEvent,
+  type GeoJSONSource,
 } from "maplibre-gl";
+import {
+  isValidRoute,
+  routeBounds,
+  routeDistanceMetres,
+  type RoutePoint,
+} from "@race-pace/shared";
+import { createRouteAnimator, drawDurationMs } from "./routeAnimation";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 /**
@@ -41,6 +49,7 @@ export function CourseMap({
   lng,
   finishLat,
   finishLng,
+  route,
   terrain,
   dark,
   label,
@@ -49,13 +58,24 @@ export function CourseMap({
   lng: number;
   finishLat: number | null;
   finishLng: number | null;
+  route: RoutePoint[] | null;
   terrain: boolean;
   dark: boolean;
   label: string;
 }) {
   const holder = React.useRef<HTMLDivElement>(null);
   const mapRef = React.useRef<MlMap | null>(null);
+  const headMarker = React.useRef<Marker | null>(null);
+  const rafRef = React.useRef<number>(0);
   const [failed, setFailed] = React.useState(false);
+  const [canReplay, setCanReplay] = React.useState(false);
+  const [playing, setPlaying] = React.useState(false);
+
+  const hasRoute = isValidRoute(route);
+
+  /** Runs the draw-on. Declared as a ref-held closure so both the initial
+   *  autoplay (inside map `load`) and the Replay button drive the same code. */
+  const playRouteRef = React.useRef<() => void>(() => {});
 
   React.useEffect(() => {
     if (!holder.current || mapRef.current) return;
@@ -94,6 +114,53 @@ export function CourseMap({
 
     map.addControl(new AttributionControl({ compact: true }), "bottom-right");
     map.addControl(new NavigationControl({ visualizePitch: true }), "top-right");
+
+    /** Draw-on + optional chase camera. */
+    function playRoute() {
+      if (!hasRoute) return;
+      cancelAnimationFrame(rafRef.current);
+
+      const frameAt = createRouteAnimator(route!);
+      const durationMs = drawDurationMs(routeDistanceMetres(route!) / 1000);
+      const source = map.getSource("route-drawn") as GeoJSONSource | undefined;
+      if (!source) return;
+
+      setPlaying(true);
+      const started = performance.now();
+
+      const step = (now: number) => {
+        const frame = frameAt((now - started) / durationMs);
+        source.setData(lineOf(frame.drawn));
+        headMarker.current?.setLngLat(frame.head);
+
+        // Chase camera on terrain events only. jumpTo, not easeTo: easeTo
+        // queues its own animation and fighting it every frame produces a
+        // stutter. Bearing trails the direction of travel so the runner sees
+        // the course the way they would run it.
+        if (terrain) {
+          map.jumpTo({ center: frame.head, bearing: frame.bearing, pitch: 66, zoom: 12.6 });
+        }
+
+        if (frame.t < 1) {
+          rafRef.current = requestAnimationFrame(step);
+        } else {
+          setPlaying(false);
+          // Settle back to the whole course so the final state answers "where
+          // does it go" rather than leaving the camera buried at the finish.
+          const b = routeBounds(route!);
+          if (b) {
+            map.fitBounds([[b[0], b[1]], [b[2], b[3]]], {
+              padding: 48,
+              duration: 1600,
+              pitch: terrain ? 60 : 0,
+              bearing: 0,
+            });
+          }
+        }
+      };
+      rafRef.current = requestAnimationFrame(step);
+    }
+    playRouteRef.current = playRoute;
 
     map.on("error", (e: ErrorEvent) => {
       // A tile host being down must not leave a blank grey box with no
@@ -149,7 +216,72 @@ export function CourseMap({
       addMarker(map, lng, lat, loop ? "Start / Finish" : "Start");
       if (!loop) addMarker(map, finishLng!, finishLat!, "Finish");
 
-      if (reduced) return;
+      if (hasRoute) {
+        // Two layers, one geometry: a dim "ghost" of the whole course sits
+        // underneath so a runner can see the shape of the route before the
+        // animation reaches it, and the bright line draws over it. Without the
+        // ghost the map looks empty until the draw catches up.
+        map.addSource("route-full", { type: "geojson", data: lineOf(route!) });
+        map.addSource("route-drawn", { type: "geojson", data: lineOf([route![0]!, route![0]!]) });
+
+        map.addLayer({
+          id: "route-ghost",
+          type: "line",
+          source: "route-full",
+          layout: { "line-cap": "round", "line-join": "round" },
+          paint: {
+            "line-color": dark ? "#ffffff" : "#0A1410",
+            "line-opacity": 0.22,
+            "line-width": 2,
+          },
+        });
+        // Casing under the bright line keeps it legible over both pale roads
+        // and dark forest — a single green stroke disappears on green terrain.
+        map.addLayer({
+          id: "route-casing",
+          type: "line",
+          source: "route-drawn",
+          layout: { "line-cap": "round", "line-join": "round" },
+          paint: { "line-color": dark ? "#04120b" : "#ffffff", "line-width": 7, "line-opacity": 0.85 },
+        });
+        map.addLayer({
+          id: "route-line",
+          type: "line",
+          source: "route-drawn",
+          layout: { "line-cap": "round", "line-join": "round" },
+          paint: { "line-color": "#159A55", "line-width": 4 },
+        });
+
+        // The moving head. A Marker rather than a circle layer so it can carry
+        // the same CSS pulse as the start/finish pins.
+        const headEl = document.createElement("div");
+        headEl.className = "rp-head";
+        headMarker.current = new Marker({ element: headEl, anchor: "center" })
+          .setLngLat([route![0]![0], route![0]![1]])
+          .addTo(map);
+
+        // Frame the whole course rather than just the start: a runner needs to
+        // see where this thing goes before it starts moving.
+        const b = routeBounds(route!);
+        if (b) map.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 48, duration: 0, pitch: terrain ? 66 : 0 });
+      }
+
+      if (reduced) {
+        // Static end-state: the entire course drawn, no motion. The
+        // information is identical; only the choreography is dropped.
+        if (hasRoute) {
+          (map.getSource("route-drawn") as GeoJSONSource | undefined)?.setData(lineOf(route!));
+          const last = route![route!.length - 1]!;
+          headMarker.current?.setLngLat([last[0], last[1]]);
+        }
+        return;
+      }
+
+      if (hasRoute) {
+        setCanReplay(true);
+        playRoute();
+        return;
+      }
 
       // The reveal: rise from a flat overview into the pitched 3D view, so the
       // terrain arriving is the thing the eye follows. Cause and effect, not
@@ -164,10 +296,15 @@ export function CourseMap({
     });
 
     return () => {
+      // Cancel first: a frame firing after remove() would call setData on a
+      // destroyed source and throw inside requestAnimationFrame, where React
+      // error boundaries cannot catch it.
+      cancelAnimationFrame(rafRef.current);
+      headMarker.current = null;
       map.remove();
       mapRef.current = null;
     };
-  }, [lat, lng, finishLat, finishLng, terrain, dark]);
+  }, [lat, lng, finishLat, finishLng, terrain, dark, route, hasRoute]);
 
   if (failed) {
     return (
@@ -186,7 +323,34 @@ export function CourseMap({
   // container computes no covering tiles, so the style and sprites load, no
   // vector tiles are ever requested, and the canvas renders blank with no
   // error. Sizing from the parent avoids the whole interaction.
-  return <div ref={holder} className="h-full w-full" aria-label={`3D map of the course at ${label}`} role="img" />;
+  return (
+    <div className="relative h-full w-full">
+      <div ref={holder} className="h-full w-full" aria-label={`3D map of the course at ${label}`} role="img" />
+
+      {/* Replay. Only offered once a route has actually been drawn, so the
+          control never promises something the map cannot do. Bottom-LEFT to
+          stay clear of maplibre's own attribution and zoom controls. */}
+      {canReplay ? (
+        <button
+          type="button"
+          onClick={() => playRouteRef.current()}
+          disabled={playing}
+          className="absolute bottom-3 left-3 z-10 inline-flex items-center gap-2 rounded-pill bg-black/75 px-4 py-2.5 text-[13px] font-semibold text-white backdrop-blur-sm transition-colors hover:bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:opacity-60"
+        >
+          {playing ? "Running the course…" : "Replay the course"}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+/** GeoJSON LineString feature for a set of course points. */
+function lineOf(points: RoutePoint[]) {
+  return {
+    type: "Feature" as const,
+    properties: {},
+    geometry: { type: "LineString" as const, coordinates: points.map((p) => [p[0], p[1]]) },
+  };
 }
 
 function addMarker(map: MlMap, lng: number, lat: number, text: string) {

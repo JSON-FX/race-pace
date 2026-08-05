@@ -10,6 +10,7 @@ import { eventInputSchema, categoryInputSchema, addonInputSchema, sanitizeListFi
 import { CategoryEditor } from "../components/CategoryEditor";
 import { AddonEditor } from "../components/AddonEditor";
 import { ScheduleEditor } from "../components/ScheduleEditor";
+import { RouteEditor } from "../components/RouteEditor";
 import { InclusionsEditor } from "../components/InclusionsEditor";
 import { EventImagesEditor } from "../components/EventImagesEditor";
 import { PsgcAddressField } from "../components/PsgcAddressField";
@@ -21,7 +22,7 @@ import { Button } from "../components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 
 const fieldLabel = "mb-1.5 block text-[11px] font-semibold tracking-wide text-muted-foreground";
-const blank: EventDraft = { org_id: "", name: "", city_psgc_code: null, region_name: null, province_name: null, city_name: null, venue: null, event_date: null, end_date: null, flag_off: null, status: "draft", discipline: "trail", elevation_gain_m: null, cutoff_hours: null, start_lat: null, start_lng: null, finish_lat: null, finish_lng: null, description: null, hero_image_url: null, gallery: [], schedule: [], inclusions: [] };
+const blank: EventDraft = { org_id: "", name: "", city_psgc_code: null, region_name: null, province_name: null, city_name: null, venue: null, event_date: null, end_date: null, flag_off: null, status: "draft", discipline: "trail", elevation_gain_m: null, cutoff_hours: null, start_lat: null, start_lng: null, finish_lat: null, finish_lng: null, route: null, description: null, hero_image_url: null, gallery: [], schedule: [], inclusions: [] };
 
 export function EventEditor() {
   const { id } = useParams();
@@ -201,6 +202,7 @@ export function EventEditor() {
                 Right-click a spot in Google Maps and choose the coordinates to copy them. Leave blank to hide the map.
               </p>
             </div>
+            <RouteEditor route={event.route} onChange={(route) => set({ route })} />
             <div>
               <Label className={fieldLabel}>DESCRIPTION</Label>
               <Textarea aria-label="Description" className="h-[82px] resize-y" value={event.description ?? ""} onChange={(e) => set({ description: e.target.value || null })} />

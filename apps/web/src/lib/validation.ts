@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { EVENT_DISCIPLINES } from "@race-pace/shared";
+import { EVENT_DISCIPLINES, isValidRoute, type RoutePoint } from "@race-pace/shared";
 
 // 'cancelled' is set via the Cancel modal, not the editor status field.
 export const EVENT_STATUSES = ["draft", "open", "almost_full", "closed", "completed"] as const;
@@ -53,6 +53,10 @@ export const eventInputSchema = z.object({
   start_lng: z.number().min(-180, "-180 to 180").max(180, "-180 to 180").nullable().default(null),
   finish_lat: z.number().min(-90, "-90 to 90").max(90, "-90 to 90").nullable().default(null),
   finish_lng: z.number().min(-180, "-180 to 180").max(180, "-180 to 180").nullable().default(null),
+  // Route points are validated structurally by isValidRoute (shared) rather
+  // than re-described here: one definition, used by the importer, the form
+  // and the public map alike.
+  route: z.custom<RoutePoint[] | null>((v) => v === null || isValidRoute(v), "Invalid course route").nullable().default(null),
   description: z.string().nullable(),
   hero_image_url: z.string().nullable(),
   gallery: z.array(z.string()).default([]),

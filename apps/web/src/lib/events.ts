@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import type { EventDiscipline } from "@race-pace/shared";
+import type { EventDiscipline, RoutePoint } from "@race-pace/shared";
 import { supabase } from "./supabase";
 import type { ScheduleItem } from "./validation";
 
@@ -38,6 +38,7 @@ export type EditorEvent = {
   event_date: string | null; end_date: string | null; flag_off: string | null; status: string; discipline: EventDiscipline;
   elevation_gain_m: number | null; cutoff_hours: number | null; description: string | null;
   start_lat: number | null; start_lng: number | null; finish_lat: number | null; finish_lng: number | null;
+  route: RoutePoint[] | null;
   hero_image_url: string | null; gallery: string[]; schedule: ScheduleItem[]; inclusions: string[];
 };
 export type EditorCategory = {
@@ -53,7 +54,7 @@ export function useEventForEditor(id?: string) {
     enabled: !!id,
     queryFn: async () => {
       const ev = await supabase.from("events")
-        .select("id,org_id,name,city_psgc_code,region_name,province_name,city_name,venue,event_date,end_date,flag_off,status,discipline,elevation_gain_m,cutoff_hours,start_lat,start_lng,finish_lat,finish_lng,description,hero_image_url,gallery,schedule,inclusions")
+        .select("id,org_id,name,city_psgc_code,region_name,province_name,city_name,venue,event_date,end_date,flag_off,status,discipline,elevation_gain_m,cutoff_hours,start_lat,start_lng,finish_lat,finish_lng,route,description,hero_image_url,gallery,schedule,inclusions")
         .eq("id", id!).single();
       if (ev.error) throw ev.error;
       const cats = await supabase.from("categories").select("id,code,label,distance_km,base_price,slots_total,slots_taken,elevation_gain_m,cutoff_hours,blurb").eq("event_id", id!).order("base_price", { ascending: false });

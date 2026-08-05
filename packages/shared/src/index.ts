@@ -160,3 +160,4 @@ export const DISCIPLINE_LAYOUT: Record<EventDiscipline, "profile" | "route"> = {
 export function disciplineLayout(discipline: string | null | undefined): "profile" | "route" {
   return DISCIPLINE_LAYOUT[discipline as EventDiscipline] ?? "profile";
 }
+export * from "./route";
