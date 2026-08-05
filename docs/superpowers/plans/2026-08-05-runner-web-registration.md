@@ -2352,3 +2352,1383 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 ```
 
 ---
+
+### Task 7: Draft persistence, error mapping, profile, registration client
+
+Pure logic and data access for the wizard, split out so Task 8 is purely UI. The idempotency-key rule here is the single most important detail in the plan: get it wrong and runners create duplicate paid registrations.
+
+**Files:**
+- Create: `apps/site/lib/draft.ts`, `apps/site/lib/errors.ts`, `apps/site/lib/profile.ts`, `apps/site/lib/registration.ts`
+- Test: `apps/site/lib/__tests__/draft.test.ts`, `apps/site/lib/__tests__/errors.test.ts`
+
+**Interfaces:**
+- Consumes: `createClient` from `@/lib/supabase/client` (Task 3); `RegistrationInput` from `@race-pace/shared`.
+- Produces, from `@/lib/draft`:
+  - `type RegistrationDraft = { idempotencyKey: string; step: number; details: Record<string, string>; kit: Record<string, string>; firstUltra: boolean; values: Record<string, unknown>; addonIds: string[]; waiver: boolean; saveBack: boolean }`
+  - `newDraft(categoryId: string): RegistrationDraft`
+  - `loadDraft(categoryId: string): RegistrationDraft | null`
+  - `saveDraft(categoryId: string, draft: RegistrationDraft): void`
+  - `clearDraft(categoryId: string): void`
+- Produces, from `@/lib/errors`: `checkoutErrorMessage(code: string): string`, `parseFunctionError(error: unknown): Promise<string>`.
+- Produces, from `@/lib/profile`: `type Profile`, `getProfile(userId: string): Promise<Profile | null>`, `upsertProfile(row: Partial<Profile> & { id: string }): Promise<{ error?: string }>`.
+- Produces, from `@/lib/registration`: `type RegistrationRow`, `type RegistrationPayment`, `mapReg(r: any): RegistrationRow`, `startCheckout(input: RegistrationInput): Promise<{ registration_id: string; checkout_url: string }>`, `verifyPayment(rid: string): Promise<{ status: string }>`, `createMethodCheckout(rid: string, method: string): Promise<string | null>`, `fetchRegistration(rid: string): Promise<RegistrationRow | null>`, `useRegistration(rid: string, opts?: { poll?: boolean })`, `fetchMyRegistrations(): Promise<RegistrationRow[]>`, `useMyRegistrations()`, `cancelRegistration(rid: string): Promise<void>`.
+
+- [ ] **Step 1: Write the failing draft test**
+
+Create `apps/site/lib/__tests__/draft.test.ts`:
+
+```ts
+import { describe, it, expect, beforeEach } from "vitest";
+import { newDraft, loadDraft, saveDraft, clearDraft } from "../draft";
+
+beforeEach(() => sessionStorage.clear());
+
+describe("draft persistence", () => {
+  it("returns null when nothing is stored", () => {
+    expect(loadDraft("cat1")).toBeNull();
+  });
+
+  it("round-trips a draft", () => {
+    const d = newDraft("cat1");
+    d.step = 2;
+    d.details.bib_name = "JUAN";
+    d.addonIds = ["a1", "a2"];
+    saveDraft("cat1", d);
+
+    const loaded = loadDraft("cat1");
+    expect(loaded?.step).toBe(2);
+    expect(loaded?.details.bib_name).toBe("JUAN");
+    expect(loaded?.addonIds).toEqual(["a1", "a2"]);
+  });
+
+  it("scopes drafts per category", () => {
+    saveDraft("cat1", { ...newDraft("cat1"), step: 3 });
+    expect(loadDraft("cat2")).toBeNull();
+  });
+
+  it("clears a draft", () => {
+    saveDraft("cat1", newDraft("cat1"));
+    clearDraft("cat1");
+    expect(loadDraft("cat1")).toBeNull();
+  });
+
+  // THE critical guarantee. apps/mobile generates its key with
+  // useState(() => `${categoryId}:${Date.now()}`), which on the web mints a
+  // NEW key on every refresh — and the server's
+  // onConflict:"user_id,idempotency_key" upsert then creates a SECOND
+  // pending registration instead of reusing the first.
+  it("keeps the idempotency key stable across a reload", () => {
+    const first = newDraft("cat1");
+    saveDraft("cat1", first);
+
+    const afterReload = loadDraft("cat1");
+    expect(afterReload!.idempotencyKey).toBe(first.idempotencyKey);
+  });
+
+  it("generates a distinct key per new draft", () => {
+    expect(newDraft("cat1").idempotencyKey).not.toBe(newDraft("cat1").idempotencyKey);
+  });
+
+  it("generates a key long enough for the server schema", () => {
+    // registrationInputSchema requires idempotency_key.min(8).
+    expect(newDraft("cat1").idempotencyKey.length).toBeGreaterThanOrEqual(8);
+  });
+
+  it("returns null rather than throwing on corrupted storage", () => {
+    sessionStorage.setItem("rp:draft:cat1", "{not json");
+    expect(loadDraft("cat1")).toBeNull();
+  });
+});
+```
+
+- [ ] **Step 2: Write the failing error-mapping test**
+
+Create `apps/site/lib/__tests__/errors.test.ts`:
+
+```ts
+import { describe, it, expect } from "vitest";
+import { checkoutErrorMessage } from "../errors";
+
+describe("checkoutErrorMessage", () => {
+  it("explains a sold-out distance", () => {
+    expect(checkoutErrorMessage("sold_out")).toBe("This distance just sold out. Try another distance for this race.");
+  });
+
+  it("points an already-paid runner at their ticket", () => {
+    expect(checkoutErrorMessage("not_pending")).toBe("You've already paid for this registration. Check My Races for your ticket.");
+  });
+
+  it("covers every error code the edge functions return", () => {
+    for (const code of [
+      "sold_out", "not_pending", "waiver_required", "invalid_custom_data",
+      "invalid_input", "unauthorized", "category_not_found",
+      "registration_not_found", "registration_failed", "server_error",
+    ]) {
+      expect(checkoutErrorMessage(code)).not.toBe("");
+      expect(checkoutErrorMessage(code)).not.toContain("_");
+    }
+  });
+
+  it("falls back to readable copy for an unknown code", () => {
+    expect(checkoutErrorMessage("something_new")).toBe("Something went wrong. Please try again.");
+  });
+});
+```
+
+- [ ] **Step 3: Run both tests to verify they fail**
+
+```bash
+pnpm --filter site test -- draft errors
+```
+
+Expected: FAIL — cannot resolve `../draft` or `../errors`.
+
+- [ ] **Step 4: Write `lib/draft.ts`**
+
+```ts
+export type RegistrationDraft = {
+  /** Generated ONCE per draft and persisted with it. See the note below. */
+  idempotencyKey: string;
+  step: number;
+  /** Step 1 — profile-key fields: bib_name, date_of_birth, gender, emergency_contact, full_name. */
+  details: Record<string, string>;
+  /** Step 2 — kit pills: shirt_size, blood_type. */
+  kit: Record<string, string>;
+  firstUltra: boolean;
+  /** Step 2 — the organizer's own form_fields, keyed by field.key. */
+  values: Record<string, unknown>;
+  addonIds: string[];
+  waiver: boolean;
+  saveBack: boolean;
+};
+
+const key = (categoryId: string) => `rp:draft:${categoryId}`;
+
+/** The idempotency key is minted here and then persisted, NEVER regenerated on
+ *  load. apps/mobile can get away with `useState(() => Date.now())` because a
+ *  native screen is not reloaded mid-flow; a browser tab is. Regenerating on
+ *  refresh defeats the server's onConflict:"user_id,idempotency_key" upsert and
+ *  produces a second pending registration. */
+export function newDraft(categoryId: string): RegistrationDraft {
+  return {
+    idempotencyKey: `${categoryId}:${Date.now()}:${Math.random().toString(36).slice(2, 10)}`,
+    step: 1,
+    details: {},
+    kit: {},
+    firstUltra: false,
+    values: {},
+    addonIds: [],
+    waiver: false,
+    saveBack: false,
+  };
+}
+
+export function loadDraft(categoryId: string): RegistrationDraft | null {
+  if (typeof window === "undefined") return null;
+  const raw = sessionStorage.getItem(key(categoryId));
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as RegistrationDraft;
+  } catch {
+    // Corrupted storage must never block a runner from registering.
+    return null;
+  }
+}
+
+export function saveDraft(categoryId: string, draft: RegistrationDraft): void {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(key(categoryId), JSON.stringify(draft));
+  } catch {
+    // Private-mode quota errors are not worth failing the flow over.
+  }
+}
+
+export function clearDraft(categoryId: string): void {
+  if (typeof window === "undefined") return;
+  sessionStorage.removeItem(key(categoryId));
+}
+```
+
+**Why `sessionStorage` and not `localStorage`:** a registration takes minutes, and a stale draft should not survive on a shared machine. The trade-off — closing the tab loses the draft — is acceptable and deliberate.
+
+- [ ] **Step 5: Write `lib/errors.ts`**
+
+```ts
+import { FunctionsHttpError } from "@supabase/supabase-js";
+
+const MESSAGES: Record<string, string> = {
+  sold_out: "This distance just sold out. Try another distance for this race.",
+  not_pending: "You've already paid for this registration. Check My Races for your ticket.",
+  waiver_required: "Please accept the event waiver before registering.",
+  invalid_custom_data: "Some answers need fixing. Check the highlighted fields.",
+  invalid_input: "Some details are missing or invalid. Check the form and try again.",
+  unauthorized: "Your session expired. Please sign in again.",
+  category_not_found: "This distance is no longer available.",
+  registration_not_found: "We couldn't find that registration.",
+  registration_failed: "We couldn't save your registration. Please try again.",
+  server_error: "Something went wrong on our end. Please try again.",
+};
+
+export function checkoutErrorMessage(code: string): string {
+  return MESSAGES[code] ?? "Something went wrong. Please try again.";
+}
+
+/** Edge Functions return their error code in the response BODY, not the
+ *  message — supabase-js only surfaces "Edge Function returned a non-2xx
+ *  status code" without this. Mirrors apps/mobile/lib/registration.ts. */
+export async function parseFunctionError(error: unknown): Promise<string> {
+  if (error instanceof FunctionsHttpError) {
+    try {
+      const body = await error.context.json();
+      if (body?.error) return checkoutErrorMessage(String(body.error));
+    } catch {
+      // Fall through to the generic message.
+    }
+  }
+  return checkoutErrorMessage("server_error");
+}
+```
+
+- [ ] **Step 6: Run both tests to verify they pass**
+
+```bash
+pnpm --filter site test -- draft errors
+```
+
+Expected: PASS — 12 tests.
+
+- [ ] **Step 7: Write `lib/profile.ts`**
+
+Mirrors `apps/mobile/lib/profile.ts`, using the browser client.
+
+```ts
+import { createClient } from "@/lib/supabase/client";
+
+export type Profile = {
+  id: string;
+  full_name: string | null;
+  bib_name: string | null;
+  city: string | null;
+  emergency_contact?: string | null;
+  date_of_birth?: string | null;
+  gender?: string | null;
+  shirt_size?: string | null;
+  blood_type?: string | null;
+  city_psgc_code?: string | null;
+  city_name?: string | null;
+  province_name?: string | null;
+  avatar_url?: string | null;
+  cover_url?: string | null;
+};
+
+const PROFILE_COLS =
+  "id,full_name,bib_name,city,emergency_contact,date_of_birth,gender,shirt_size,blood_type,city_psgc_code,city_name,province_name,avatar_url,cover_url";
+
+export async function getProfile(userId: string): Promise<Profile | null> {
+  const supabase = createClient();
+  const { data } = await supabase.from("profiles").select(PROFILE_COLS).eq("id", userId).maybeSingle();
+  return data as Profile | null;
+}
+
+/** Partial upsert: PostgREST merge-duplicates updates only the provided columns. */
+export async function upsertProfile(row: Partial<Profile> & { id: string }): Promise<{ error?: string }> {
+  const supabase = createClient();
+  const { error } = await supabase.from("profiles").upsert(row);
+  return error ? { error: error.message } : {};
+}
+```
+
+- [ ] **Step 8: Write `lib/registration.ts`**
+
+Mirrors `apps/mobile/lib/registration.ts`, with the return URL pointing at the web callback instead of the `racepace://` deep link.
+
+```ts
+"use client";
+
+import { useQuery } from "@tanstack/react-query";
+import type { RegistrationInput } from "@race-pace/shared";
+import { createClient } from "@/lib/supabase/client";
+import { parseFunctionError } from "@/lib/errors";
+
+export type CheckoutResult = { registration_id: string; checkout_url: string };
+
+/** Where PayMongo sends the runner after pay/cancel. Mobile uses a
+ *  racepace:// deep link; the web equivalent is a real route. */
+export function payReturnUrl(registrationId: string): string {
+  const origin = process.env.NEXT_PUBLIC_SITE_URL ?? window.location.origin;
+  return `${origin}/pay/callback?rid=${encodeURIComponent(registrationId)}`;
+}
+
+export async function startCheckout(input: RegistrationInput): Promise<CheckoutResult> {
+  const supabase = createClient();
+  // The registration id isn't known yet, so the return URL carries no rid here;
+  // /pay/callback falls back to the rid the pay page stored. The per-method
+  // session created in createMethodCheckout does include it.
+  const origin = process.env.NEXT_PUBLIC_SITE_URL ?? window.location.origin;
+  const body = { ...input, return_url: `${origin}/pay/callback` };
+  const { data, error } = await supabase.functions.invoke("registrations-checkout", { body });
+  if (error) throw new Error(await parseFunctionError(error));
+  return data as CheckoutResult;
+}
+
+/** Confirm server-side by re-fetching the PayMongo session — the redirect is
+ *  never trusted. Best-effort: on any error, polling drives the outcome. */
+export async function verifyPayment(registrationId: string): Promise<{ status: string }> {
+  try {
+    const supabase = createClient();
+    const { data, error } = await supabase.functions.invoke("payment-verify", {
+      body: { registration_id: registrationId },
+    });
+    if (error) return { status: "pending" };
+    return (data as { status: string }) ?? { status: "pending" };
+  } catch {
+    return { status: "pending" };
+  }
+}
+
+/** Recreate the checkout scoped to the chosen method so PayMongo opens straight
+ *  to it. Returns null on any error; the pay page falls back to the all-methods
+ *  session created at registration. */
+export async function createMethodCheckout(registrationId: string, method: string): Promise<string | null> {
+  try {
+    const supabase = createClient();
+    const { data, error } = await supabase.functions.invoke("payment-session", {
+      body: { registration_id: registrationId, method, return_url: payReturnUrl(registrationId) },
+    });
+    if (error) return null;
+    return (data as { checkout_url?: string })?.checkout_url ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export type RegistrationPayment = {
+  createdAt: string | null; method: string | null; amount: number | null;
+  platformFee: number | null; netToOrg: number | null; provider: string | null;
+  providerRef: string | null; status: string | null;
+};
+
+export type RegistrationRow = {
+  id: string; status: string; total_amount: number; ticket_token: string | null; org_id: string;
+  eventName: string; categoryLabel: string; categoryDistance: number | null; checkoutUrl: string | null;
+  eventStatus: string | null; eventDate: string | null; originalDate: string | null; statusNote: string | null;
+  orgName: string | null; eventHeroUrl: string | null; basePrice: number | null; inclusions: string[] | null;
+  payment: RegistrationPayment | null;
+};
+
+const REG_SELECT =
+  "id,status,total_amount,ticket_token,org_id,organizations(name),events(name,status,event_date,original_date,status_note,hero_image_url,inclusions),categories(label,distance_km,base_price),payments(checkout_url,created_at,method,amount,platform_fee,net_to_org,provider,provider_ref,status)";
+
+export function mapReg(r: any): RegistrationRow {
+  const payment = Array.isArray(r.payments) ? r.payments[0] : r.payments;
+  return {
+    id: r.id, status: r.status, total_amount: r.total_amount,
+    ticket_token: r.ticket_token ?? null, org_id: r.org_id,
+    eventName: r.events?.name ?? "Event",
+    categoryLabel: r.categories?.label ?? "",
+    categoryDistance: r.categories?.distance_km ?? null,
+    orgName: r.organizations?.name ?? null,
+    eventHeroUrl: r.events?.hero_image_url ?? null,
+    basePrice: r.categories?.base_price ?? null,
+    inclusions: r.events?.inclusions ?? null,
+    checkoutUrl: payment?.checkout_url ?? null,
+    eventStatus: r.events?.status ?? null,
+    eventDate: r.events?.event_date ?? null,
+    originalDate: r.events?.original_date ?? null,
+    statusNote: r.events?.status_note ?? null,
+    payment: payment
+      ? {
+          createdAt: payment.created_at ?? null, method: payment.method ?? null,
+          amount: payment.amount ?? null, platformFee: payment.platform_fee ?? null,
+          netToOrg: payment.net_to_org ?? null, provider: payment.provider ?? null,
+          providerRef: payment.provider_ref ?? null, status: payment.status ?? null,
+        }
+      : null,
+  };
+}
+
+export async function fetchRegistration(rid: string): Promise<RegistrationRow | null> {
+  const supabase = createClient();
+  const { data, error } = await supabase.from("registrations").select(REG_SELECT).eq("id", rid).maybeSingle();
+  if (error) throw error;
+  return data ? mapReg(data) : null;
+}
+
+export function useRegistration(rid: string, opts?: { poll?: boolean }) {
+  return useQuery({
+    queryKey: ["registration", rid],
+    queryFn: () => fetchRegistration(rid),
+    refetchInterval: opts?.poll
+      ? (query) => (query.state.data?.status === "paid" ? false : 3000)
+      : false,
+  });
+}
+
+/** RLS `registrations_read_own` restricts rows to the signed-in user. */
+export async function fetchMyRegistrations(): Promise<RegistrationRow[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("registrations").select(REG_SELECT).order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(mapReg);
+}
+
+export function useMyRegistrations() {
+  return useQuery({ queryKey: ["my-registrations"], queryFn: fetchMyRegistrations });
+}
+
+/** Delete an unpaid registration. RLS `registrations_delete_own_pending`
+ *  restricts this to the owner's own pending rows. A zero-row delete means RLS
+ *  blocked it, which must surface as an error rather than a silent success. */
+export async function cancelRegistration(rid: string): Promise<void> {
+  const supabase = createClient();
+  const { data, error } = await supabase.from("registrations").delete().eq("id", rid).select("id");
+  if (error) throw error;
+  if (!data || data.length === 0) throw new Error("not_cancellable");
+}
+```
+
+- [ ] **Step 9: Add the TanStack Query provider**
+
+Create `apps/site/app/providers.tsx`:
+
+```tsx
+"use client";
+
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useState } from "react";
+
+export function Providers({ children }: { children: React.ReactNode }) {
+  // One client per browser session, created lazily so it is never shared
+  // across requests on the server.
+  const [client] = useState(() => new QueryClient({
+    defaultOptions: { queries: { staleTime: 30_000, refetchOnWindowFocus: false } },
+  }));
+  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+}
+```
+
+Wrap the app in `apps/site/app/layout.tsx` — change the body line to:
+
+```tsx
+      <body><Providers>{children}</Providers></body>
+```
+
+and add the import:
+
+```tsx
+import { Providers } from "./providers";
+```
+
+- [ ] **Step 10: Full verification**
+
+```bash
+pnpm --filter site typecheck && pnpm --filter site test && pnpm --filter site build
+```
+
+Expected: all pass.
+
+- [ ] **Step 11: Commit**
+
+```bash
+git add apps/site
+git commit -m "feat(site): draft persistence, error mapping, registration client
+
+The idempotency key is minted once and persisted with the draft rather
+than regenerated on load — mobile's Date.now() pattern would mint a new
+key on every browser refresh and defeat the server's
+onConflict:user_id,idempotency_key upsert, creating duplicate pending
+registrations.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 8: The registration wizard
+
+Three in-form steps then the pay page, shown as a four-dot rail. The largest single task. **Invoke the `frontend-design` skill before writing the step components.**
+
+**Files:**
+- Create: `apps/site/components/PillSelect.tsx`, `apps/site/components/DynamicField.tsx`, `apps/site/components/StepRail.tsx`, `apps/site/components/TicketStub.tsx`, `apps/site/lib/wizard.ts`, `apps/site/app/register/[categoryId]/page.tsx`, `apps/site/app/register/[categoryId]/RegisterWizard.tsx`
+- Test: `apps/site/lib/__tests__/wizard.test.ts`, `apps/site/app/register/__tests__/wizard.test.tsx`
+
+**Interfaces:**
+- Consumes: everything from Task 7; `fetchCategory`, `fetchEvent`, `fetchAddons`, `fetchFormFields`, `FormFieldRow`, `CategoryRow`, `AddonRow` (Task 5); `customDataSchema`, `isProfileKey`, `SHIRT_SIZES`, `BLOOD_TYPES`, `GENDERS`, `formatPeso`, `type FormField` from `@race-pace/shared`.
+- Produces, from `@/lib/wizard`:
+  - `totalAmount(basePrice: number, addons: AddonRow[], selectedIds: string[]): number`
+  - `stepOneErrors(details: Record<string, string>, requiredKeys: string[]): Record<string, string>`
+  - `showSaveBack(profile: Profile | null, kit: Record<string, string>): boolean`
+  - `WAIVER_TEXT: string`
+- Produces components `PillSelect`, `DynamicField`, `StepRail`, `TicketStub`.
+
+- [ ] **Step 1: Add the shadcn primitives this task needs**
+
+```bash
+cd apps/site && pnpm dlx shadcn@latest add checkbox switch dialog toggle-group
+```
+
+Then apply the token fix — `grep -rn "var(--" apps/site/components/ui/` and rewrite any hit that is not `var(--color-*)`.
+
+- [ ] **Step 2: Write the failing wizard-logic test**
+
+Create `apps/site/lib/__tests__/wizard.test.ts`:
+
+```ts
+import { describe, it, expect } from "vitest";
+import { totalAmount, stepOneErrors, showSaveBack } from "../wizard";
+import type { Profile } from "../profile";
+
+const addons = [
+  { id: "a1", name: "Finisher shirt", price: 45000 },
+  { id: "a2", name: "Drop bag", price: 15000 },
+];
+
+describe("totalAmount", () => {
+  it("returns the base price when nothing is selected", () => {
+    expect(totalAmount(250000, addons, [])).toBe(250000);
+  });
+
+  it("adds every selected add-on", () => {
+    expect(totalAmount(250000, addons, ["a1", "a2"])).toBe(310000);
+  });
+
+  it("ignores an id that is not a real add-on", () => {
+    expect(totalAmount(250000, addons, ["ghost"])).toBe(250000);
+  });
+
+  // Money is integer centavos end to end — a float here would reach PayMongo.
+  it("stays an integer", () => {
+    expect(Number.isInteger(totalAmount(250000, addons, ["a1"]))).toBe(true);
+  });
+});
+
+describe("stepOneErrors", () => {
+  it("is empty when every required field is filled", () => {
+    expect(stepOneErrors({ bib_name: "JUAN", date_of_birth: "1990-01-01" }, ["bib_name", "date_of_birth"])).toEqual({});
+  });
+
+  it("flags a missing required field", () => {
+    expect(stepOneErrors({ bib_name: "" }, ["bib_name"])).toEqual({ bib_name: "This is required." });
+  });
+
+  it("treats whitespace as missing", () => {
+    expect(stepOneErrors({ bib_name: "   " }, ["bib_name"])).toEqual({ bib_name: "This is required." });
+  });
+
+  it("ignores fields the organizer did not request", () => {
+    expect(stepOneErrors({ bib_name: "JUAN" }, ["bib_name"])).toEqual({});
+  });
+});
+
+describe("showSaveBack", () => {
+  const empty: Profile = { id: "u1", full_name: null, bib_name: null, city: null };
+
+  it("offers save-back when the profile was empty and the runner filled a field", () => {
+    expect(showSaveBack(empty, { shirt_size: "M" })).toBe(true);
+  });
+
+  it("offers save-back when the runner changed an existing value", () => {
+    expect(showSaveBack({ ...empty, shirt_size: "S" }, { shirt_size: "M" })).toBe(true);
+  });
+
+  it("stays hidden when nothing changed", () => {
+    expect(showSaveBack({ ...empty, shirt_size: "M" }, { shirt_size: "M" })).toBe(false);
+  });
+
+  it("stays hidden when the runner cleared a field rather than setting one", () => {
+    expect(showSaveBack({ ...empty, shirt_size: "M" }, { shirt_size: "" })).toBe(false);
+  });
+
+  it("handles a null profile for a brand-new account", () => {
+    expect(showSaveBack(null, { shirt_size: "M" })).toBe(true);
+  });
+});
+```
+
+- [ ] **Step 3: Run the test to verify it fails**
+
+```bash
+pnpm --filter site test -- wizard
+```
+
+Expected: FAIL — cannot resolve `../wizard`.
+
+- [ ] **Step 4: Write `lib/wizard.ts`**
+
+```ts
+import type { AddonRow } from "@/lib/events";
+import type { Profile } from "@/lib/profile";
+
+/** Kit fields the wizard can write back to the Race Passport. */
+const SAVE_BACK_KEYS = ["gender", "shirt_size", "blood_type"] as const;
+
+export const WAIVER_TEXT =
+  "I understand that trail and ultra running is an inherently dangerous activity, held over remote and technical terrain, in variable weather, and often far from immediate medical care. I confirm that I am medically fit to take part and have trained appropriately for this distance.\n\n" +
+  "I accept full responsibility for my own safety and assume all risks associated with the event — including injury, illness, and in extreme cases death. I agree to follow all race rules, marshal instructions, and mandatory-gear requirements, and to retire from the course if instructed or if I cannot continue safely.\n\n" +
+  "To the fullest extent permitted by law, I release the organizer, its staff, volunteers, sponsors, and landowners from liability for any loss, injury, or damage arising from my participation, and I consent to receive first aid or emergency medical treatment if needed.";
+
+/** Integer centavos throughout — never introduce a float here. */
+export function totalAmount(basePrice: number, addons: AddonRow[], selectedIds: string[]): number {
+  const selected = new Set(selectedIds);
+  return addons.reduce((sum, a) => (selected.has(a.id) ? sum + a.price : sum), basePrice);
+}
+
+export function stepOneErrors(
+  details: Record<string, string>,
+  requiredKeys: string[],
+): Record<string, string> {
+  const errors: Record<string, string> = {};
+  for (const k of requiredKeys) {
+    if (!(details[k] ?? "").trim()) errors[k] = "This is required.";
+  }
+  return errors;
+}
+
+/** Mirrors apps/mobile's filledFromEmpty || editedExisting logic: offer to save
+ *  when the runner supplied something the passport lacked, or changed something
+ *  it had. Clearing a field is not an edit worth persisting. */
+export function showSaveBack(profile: Profile | null, kit: Record<string, string>): boolean {
+  return SAVE_BACK_KEYS.some((k) => {
+    const existing = ((profile?.[k] as string | null) ?? "").trim();
+    const next = (kit[k] ?? "").trim();
+    if (!next) return false;
+    return existing === "" || existing !== next;
+  });
+}
+```
+
+- [ ] **Step 5: Run the test to verify it passes**
+
+```bash
+pnpm --filter site test -- wizard
+```
+
+Expected: PASS — 13 tests.
+
+- [ ] **Step 6: Write `components/PillSelect.tsx`**
+
+```tsx
+"use client";
+
+import { cn } from "@/lib/utils";
+
+export function PillSelect({ label, value, options, onChange, error }: {
+  label: string;
+  value: string;
+  options: readonly string[];
+  onChange: (v: string) => void;
+  error?: string;
+}) {
+  return (
+    <fieldset className="mt-6">
+      <legend className="text-[11px] font-semibold uppercase tracking-[0.6px] text-muted-foreground">{label}</legend>
+      <div className="mt-2.5 flex flex-wrap gap-2">
+        {options.map((opt) => {
+          const active = value === opt;
+          return (
+            <button
+              key={opt}
+              type="button"
+              aria-pressed={active}
+              onClick={() => onChange(opt)}
+              className={cn(
+                "rounded-pill border px-4 py-2 text-[14px] transition-colors",
+                active
+                  ? "border-primary bg-primary font-semibold text-primary-foreground"
+                  : "border-border text-foreground hover:border-primary",
+              )}
+            >
+              {opt}
+            </button>
+          );
+        })}
+      </div>
+      {error ? <p className="mt-2 text-[13px] text-destructive">{error}</p> : null}
+    </fieldset>
+  );
+}
+```
+
+- [ ] **Step 7: Write `components/DynamicField.tsx`**
+
+Renders one organizer-configured `form_fields` row. Mirrors `apps/mobile/components/DynamicField.tsx`.
+
+```tsx
+"use client";
+
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { PillSelect } from "@/components/PillSelect";
+import type { FormFieldRow } from "@/lib/events";
+
+export function DynamicField({ field, value, onChange, error }: {
+  field: FormFieldRow;
+  value: unknown;
+  onChange: (v: unknown) => void;
+  error?: string;
+}) {
+  const label = `${field.label}${field.required ? " *" : ""}`;
+
+  if (field.type === "select") {
+    return (
+      <PillSelect
+        label={label}
+        value={(value as string) ?? ""}
+        options={field.options ?? []}
+        onChange={onChange}
+        error={error}
+      />
+    );
+  }
+
+  if (field.type === "checkbox") {
+    return (
+      <div className="mt-6 flex items-center gap-3 rounded-lg border border-border p-4">
+        <Checkbox id={field.key} checked={!!value} onCheckedChange={(c) => onChange(c === true)} />
+        <Label htmlFor={field.key} className="text-[14px]">{label}</Label>
+      </div>
+    );
+  }
+
+  if (field.type === "file") {
+    return (
+      <p className="mt-6 text-[14px] italic text-muted-foreground">
+        {field.label}: file uploads aren&apos;t supported on the web yet.
+      </p>
+    );
+  }
+
+  const inputType = field.type === "number" ? "number" : field.type === "date" ? "date" : "text";
+
+  return (
+    <div className="mt-6 flex flex-col gap-2">
+      <Label htmlFor={field.key}>{label}</Label>
+      <Input
+        id={field.key}
+        type={inputType}
+        value={value != null ? String(value) : ""}
+        onChange={(e) => {
+          const raw = e.target.value;
+          // A number field must yield a number (or undefined), never a string —
+          // customDataSchema types it as z.number().
+          onChange(field.type === "number" ? (raw === "" ? undefined : Number(raw)) : raw);
+        }}
+        aria-invalid={!!error}
+      />
+      {error ? <p className="text-[13px] text-destructive">{error}</p> : null}
+    </div>
+  );
+}
+```
+
+- [ ] **Step 8: Write `components/StepRail.tsx` and `components/TicketStub.tsx`**
+
+```tsx
+import { cn } from "@/lib/utils";
+
+const STEPS = ["Your details", "Kit & extras", "Review", "Pay"];
+
+export function StepRail({ current }: { current: number }) {
+  return (
+    <ol className="no-print flex items-center gap-2" aria-label="Registration progress">
+      {STEPS.map((label, i) => {
+        const n = i + 1;
+        const state = n < current ? "done" : n === current ? "current" : "todo";
+        return (
+          <li key={label} className="flex flex-1 items-center gap-2">
+            <span
+              aria-current={state === "current" ? "step" : undefined}
+              className={cn(
+                "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[12px] font-semibold",
+                state === "todo" && "bg-muted text-muted-foreground",
+                state === "current" && "bg-primary text-primary-foreground",
+                state === "done" && "bg-secondary text-secondary-foreground",
+              )}
+            >
+              {n}
+            </span>
+            <span className={cn("hidden text-[13px] sm:inline", state === "current" ? "font-semibold text-foreground" : "text-muted-foreground")}>
+              {label}
+            </span>
+            {n < STEPS.length ? <span className="h-px flex-1 bg-divider" /> : null}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+```
+
+```tsx
+import { formatPeso } from "@race-pace/shared";
+
+/** The ticket-stub summary that appears on register, pay, and the ticket —
+ *  a forest panel with a dashed perforation and notched edges. */
+export function TicketStub({ eventName, categoryLabel, meta, amountLabel, amount }: {
+  eventName: string;
+  categoryLabel: string;
+  meta?: string;
+  amountLabel: string;
+  amount: number;
+}) {
+  return (
+    <div className="overflow-hidden rounded-xl bg-forest">
+      <div className="px-5 pt-5">
+        <p className="text-[10.5px] font-semibold uppercase tracking-[1.2px] text-[#7FE0A6]">{eventName}</p>
+        <p className="mt-1 text-[19px] font-bold tracking-[-0.3px] text-white">{categoryLabel}</p>
+        {meta ? <p className="mt-1.5 text-[12px] text-white/70">{meta}</p> : null}
+      </div>
+      <div className="relative my-1 h-4">
+        <div className="absolute inset-x-0 top-1/2 border-t border-dashed border-white/30" />
+        <div className="absolute -left-2 top-1/2 h-4 w-4 -translate-y-1/2 rounded-full bg-background" />
+        <div className="absolute -right-2 top-1/2 h-4 w-4 -translate-y-1/2 rounded-full bg-background" />
+      </div>
+      <div className="flex items-center justify-between px-5 pb-4">
+        <span className="text-[10px] font-semibold uppercase tracking-[1px] text-white/60">{amountLabel}</span>
+        <span className="text-[18px] font-bold tabular-nums text-white">{formatPeso(amount)}</span>
+      </div>
+    </div>
+  );
+}
+```
+
+- [ ] **Step 9: Write the failing wizard component test**
+
+Create `apps/site/app/register/__tests__/wizard.test.tsx`:
+
+```tsx
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { RegisterWizard } from "../[categoryId]/RegisterWizard";
+import type { CategoryRow, AddonRow, FormFieldRow, EventRow } from "@/lib/events";
+
+const category: CategoryRow = {
+  id: "c1", event_id: "e1", org_id: "a1", code: "100k", label: "100K",
+  distance_km: 100, base_price: 250000, slots_total: 100, slots_taken: 10,
+};
+
+const event = { id: "e1", name: "Apo Sky Ultra 2026", event_date: "2026-11-14", end_date: null, org_name: "Race Pace" } as EventRow;
+const addons: AddonRow[] = [{ id: "ad1", name: "Finisher shirt", price: 45000 }];
+const fields: FormFieldRow[] = [
+  { id: "f1", key: "shirt_size", label: "Shirt size", type: "select", required: true, options: ["S", "M", "L"], sort_order: 1 },
+  { id: "f2", key: "club", label: "Running club", type: "text", required: false, options: null, sort_order: 2 },
+];
+
+const startCheckout = vi.fn();
+vi.mock("@/lib/registration", () => ({
+  startCheckout: (...a: unknown[]) => startCheckout(...a),
+}));
+vi.mock("@/lib/profile", () => ({
+  getProfile: vi.fn().mockResolvedValue(null),
+  upsertProfile: vi.fn().mockResolvedValue({}),
+}));
+
+beforeEach(() => {
+  sessionStorage.clear();
+  startCheckout.mockReset();
+  startCheckout.mockResolvedValue({ registration_id: "r1", checkout_url: "https://checkout.paymongo.com/x" });
+});
+
+function renderWizard() {
+  return render(
+    <RegisterWizard userId="u1" category={category} event={event} addons={addons} formFields={fields} />,
+  );
+}
+
+describe("RegisterWizard", () => {
+  it("starts on step 1 with the entry fee shown", () => {
+    renderWizard();
+    expect(screen.getByText("Your details")).toBeInTheDocument();
+    expect(screen.getByText("₱2,500.00")).toBeInTheDocument();
+  });
+
+  it("blocks advancing past step 1 while a required detail is empty", async () => {
+    renderWizard();
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(await screen.findAllByText("This is required.")).not.toHaveLength(0);
+    expect(screen.getByText("Your details")).toBeInTheDocument();
+  });
+
+  it("adds a selected add-on to the total", async () => {
+    renderWizard();
+    await userEvent.type(screen.getByLabelText(/Bib name/), "JUAN");
+    await userEvent.type(screen.getByLabelText(/Date of birth/), "1990-01-01");
+    await userEvent.type(screen.getByLabelText(/Emergency contact/), "Maria 09171234567");
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+    await userEvent.click(screen.getByRole("button", { name: "Finisher shirt" }));
+    expect(screen.getByText("₱2,950.00")).toBeInTheDocument();
+  });
+
+  it("refuses to submit without the waiver accepted", async () => {
+    renderWizard();
+    await userEvent.type(screen.getByLabelText(/Bib name/), "JUAN");
+    await userEvent.type(screen.getByLabelText(/Date of birth/), "1990-01-01");
+    await userEvent.type(screen.getByLabelText(/Emergency contact/), "Maria 09171234567");
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await userEvent.click(screen.getByRole("button", { name: "M" }));
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+    await userEvent.click(screen.getByRole("button", { name: /Register/ }));
+    expect(startCheckout).not.toHaveBeenCalled();
+  });
+
+  it("persists the draft so a remount resumes the same step", async () => {
+    const { unmount } = renderWizard();
+    await userEvent.type(screen.getByLabelText(/Bib name/), "JUAN");
+    await userEvent.type(screen.getByLabelText(/Date of birth/), "1990-01-01");
+    await userEvent.type(screen.getByLabelText(/Emergency contact/), "Maria 09171234567");
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+    unmount();
+
+    renderWizard();
+    expect(await screen.findByText("Kit & extras")).toBeInTheDocument();
+  });
+
+  // Guards the duplicate-registration bug from Task 7.
+  it("reuses the persisted idempotency key after a remount", async () => {
+    const { unmount } = renderWizard();
+    await userEvent.type(screen.getByLabelText(/Bib name/), "JUAN");
+    const keyBefore = JSON.parse(sessionStorage.getItem("rp:draft:c1")!).idempotencyKey;
+    unmount();
+
+    renderWizard();
+    const keyAfter = JSON.parse(sessionStorage.getItem("rp:draft:c1")!).idempotencyKey;
+    expect(keyAfter).toBe(keyBefore);
+  });
+});
+```
+
+- [ ] **Step 10: Run the test to verify it fails**
+
+```bash
+pnpm --filter site test -- register
+```
+
+Expected: FAIL — cannot resolve `../[categoryId]/RegisterWizard`.
+
+- [ ] **Step 11: Write the wizard client component**
+
+Create `apps/site/app/register/[categoryId]/RegisterWizard.tsx`. It owns all wizard state, persists on every change, and submits on step 3.
+
+```tsx
+"use client";
+
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import {
+  customDataSchema, isProfileKey, formatPeso, formatDateRange,
+  SHIRT_SIZES, BLOOD_TYPES, GENDERS, type FormField,
+} from "@race-pace/shared";
+import type { CategoryRow, AddonRow, FormFieldRow, EventRow } from "@/lib/events";
+import { loadDraft, newDraft, saveDraft, clearDraft, type RegistrationDraft } from "@/lib/draft";
+import { totalAmount, stepOneErrors, showSaveBack, WAIVER_TEXT } from "@/lib/wizard";
+import { getProfile, upsertProfile, type Profile } from "@/lib/profile";
+import { startCheckout } from "@/lib/registration";
+import { longDate } from "@/lib/format";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { PillSelect } from "@/components/PillSelect";
+import { DynamicField } from "@/components/DynamicField";
+import { StepRail } from "@/components/StepRail";
+import { TicketStub } from "@/components/TicketStub";
+import { cn } from "@/lib/utils";
+
+export function RegisterWizard({ userId, category, event, addons, formFields }: {
+  userId: string;
+  category: CategoryRow;
+  event: EventRow;
+  addons: AddonRow[];
+  formFields: FormFieldRow[];
+}) {
+  const router = useRouter();
+  const [draft, setDraft] = useState<RegistrationDraft>(() => loadDraft(category.id) ?? newDraft(category.id));
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [formError, setFormError] = useState<string | null>(null);
+  const [waiverOpen, setWaiverOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const prefilled = useRef(false);
+
+  // Persist on every change — a refresh mid-flow must not lose progress, and
+  // must not mint a new idempotency key.
+  useEffect(() => { saveDraft(category.id, draft); }, [category.id, draft]);
+
+  // Prefill from the Race Passport once, and never over a value the runner
+  // already typed (a resumed draft wins).
+  useEffect(() => {
+    if (prefilled.current) return;
+    prefilled.current = true;
+    getProfile(userId).then((p) => {
+      if (!p) return;
+      setProfile(p);
+      setDraft((d) => ({
+        ...d,
+        details: {
+          full_name: d.details.full_name || (p.full_name ?? ""),
+          bib_name: d.details.bib_name || (p.bib_name ?? ""),
+          date_of_birth: d.details.date_of_birth || (p.date_of_birth ?? ""),
+          gender: d.details.gender || (p.gender ?? ""),
+          emergency_contact: d.details.emergency_contact || (p.emergency_contact ?? ""),
+        },
+        kit: {
+          shirt_size: d.kit.shirt_size || (p.shirt_size ?? ""),
+          blood_type: d.kit.blood_type || (p.blood_type ?? ""),
+        },
+      }));
+    });
+  }, [userId]);
+
+  const eventQuestions = useMemo(() => formFields.filter((f) => !isProfileKey(f.key)), [formFields]);
+  const requestedProfileKeys = useMemo(
+    () => new Set(formFields.filter((f) => isProfileKey(f.key)).map((f) => f.key)),
+    [formFields],
+  );
+  const total = totalAmount(category.base_price, addons, draft.addonIds);
+  const dateLabel = event.event_date ? formatDateRange(event.event_date, event.end_date, longDate) : null;
+  const stubMeta = [dateLabel, event.org_name].filter(Boolean).join(" · ");
+
+  const patch = (p: Partial<RegistrationDraft>) => setDraft((d) => ({ ...d, ...p }));
+  const setDetail = (k: string, v: string) => setDraft((d) => ({ ...d, details: { ...d.details, [k]: v } }));
+  const setKit = (k: string, v: string) => setDraft((d) => ({ ...d, kit: { ...d.kit, [k]: v } }));
+  const setValue = (k: string, v: unknown) => setDraft((d) => ({ ...d, values: { ...d.values, [k]: v } }));
+
+  // bib_name, date_of_birth and emergency_contact are always required on the
+  // web — mobile can rely on the passport, a first-time web signup cannot.
+  const REQUIRED_DETAILS = ["bib_name", "date_of_birth", "emergency_contact"];
+
+  function next() {
+    setFormError(null);
+    if (draft.step === 1) {
+      const errs = stepOneErrors(draft.details, REQUIRED_DETAILS);
+      setErrors(errs);
+      if (Object.keys(errs).length) return;
+    }
+    if (draft.step === 2) {
+      const eventFields: FormField[] = eventQuestions.map((f) => ({
+        key: f.key, label: f.label, type: f.type, required: f.required, options: f.options ?? undefined,
+      }));
+      const parsed = customDataSchema(eventFields).safeParse(draft.values);
+      if (!parsed.success) {
+        const fieldErrors = parsed.error.flatten().fieldErrors;
+        setErrors(Object.fromEntries(Object.entries(fieldErrors).map(([k, v]) => [k, v?.[0] ?? "Invalid"])));
+        return;
+      }
+      // A required profile-key field must be present; the server enforces this
+      // too, so skipping it here just produces a worse error later.
+      const missing = formFields
+        .filter((f) => isProfileKey(f.key) && f.required)
+        .map((f) => f.key)
+        .filter((k) => !(draft.details[k] ?? draft.kit[k] ?? "").trim());
+      if (missing.length) {
+        setErrors(Object.fromEntries(missing.map((k) => [k, "This is required."])));
+        return;
+      }
+      setErrors({});
+    }
+    patch({ step: draft.step + 1 });
+  }
+
+  async function submit() {
+    if (!draft.waiver) { setFormError("Please accept the waiver to continue."); return; }
+    setBusy(true);
+    setFormError(null);
+    try {
+      if (draft.saveBack) {
+        // Best-effort — a passport write must never block a registration.
+        try {
+          await upsertProfile({
+            id: userId,
+            gender: draft.details.gender || null,
+            shirt_size: draft.kit.shirt_size || null,
+            blood_type: draft.kit.blood_type || null,
+          });
+        } catch { /* ignore */ }
+      }
+
+      const res = await startCheckout({
+        event_id: category.event_id,
+        category_id: category.id,
+        addon_ids: draft.addonIds,
+        custom_data: {
+          bib_name: draft.details.bib_name,
+          date_of_birth: draft.details.date_of_birth,
+          gender: draft.details.gender,
+          shirt_size: draft.kit.shirt_size,
+          blood_type: draft.kit.blood_type,
+          emergency_contact: draft.details.emergency_contact,
+          first_ultra: draft.firstUltra,
+          ...draft.values,
+        },
+        waiver_accepted: true,
+        idempotency_key: draft.idempotencyKey,
+      });
+
+      clearDraft(category.id);
+      router.replace(`/pay/${res.registration_id}`);
+    } catch (e) {
+      setFormError(e instanceof Error ? e.message : "Registration failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="mx-auto w-full max-w-2xl px-6 py-10">
+      <StepRail current={draft.step} />
+
+      <div className="mt-8">
+        <TicketStub
+          eventName={event.name}
+          categoryLabel={category.label}
+          meta={stubMeta || undefined}
+          amountLabel={draft.addonIds.length ? "Total" : "Entry fee"}
+          amount={total}
+        />
+      </div>
+
+      {draft.step === 1 ? (
+        <section className="mt-8">
+          <h2 className="text-[24px] font-semibold tracking-[-0.5px] text-foreground">Your details</h2>
+          <div className="mt-6 flex flex-col gap-2">
+            <Label htmlFor="full_name">Full name</Label>
+            <Input id="full_name" value={draft.details.full_name ?? ""} onChange={(e) => setDetail("full_name", e.target.value)} />
+          </div>
+          <div className="mt-6 flex flex-col gap-2">
+            <Label htmlFor="bib_name">Bib name *</Label>
+            <Input id="bib_name" value={draft.details.bib_name ?? ""} onChange={(e) => setDetail("bib_name", e.target.value)} aria-invalid={!!errors.bib_name} />
+            <p className="text-[13px] text-muted-foreground">Printed on your race bib.</p>
+            {errors.bib_name ? <p className="text-[13px] text-destructive">{errors.bib_name}</p> : null}
+          </div>
+          <div className="mt-6 flex flex-col gap-2">
+            <Label htmlFor="date_of_birth">Date of birth *</Label>
+            <Input id="date_of_birth" type="date" value={draft.details.date_of_birth ?? ""} onChange={(e) => setDetail("date_of_birth", e.target.value)} aria-invalid={!!errors.date_of_birth} />
+            {errors.date_of_birth ? <p className="text-[13px] text-destructive">{errors.date_of_birth}</p> : null}
+          </div>
+          <div className="mt-6 flex flex-col gap-2">
+            <Label htmlFor="emergency_contact">Emergency contact *</Label>
+            <Input id="emergency_contact" value={draft.details.emergency_contact ?? ""} onChange={(e) => setDetail("emergency_contact", e.target.value)} placeholder="Name and mobile number" aria-invalid={!!errors.emergency_contact} />
+            {errors.emergency_contact ? <p className="text-[13px] text-destructive">{errors.emergency_contact}</p> : null}
+          </div>
+          {requestedProfileKeys.has("gender") ? (
+            <PillSelect label="GENDER" value={draft.details.gender ?? ""} options={GENDERS} onChange={(v) => setDetail("gender", v)} error={errors.gender} />
+          ) : null}
+        </section>
+      ) : null}
+
+      {draft.step === 2 ? (
+        <section className="mt-8">
+          <h2 className="text-[24px] font-semibold tracking-[-0.5px] text-foreground">Kit &amp; extras</h2>
+          <PillSelect label="SHIRT SIZE" value={draft.kit.shirt_size ?? ""} options={SHIRT_SIZES} onChange={(v) => setKit("shirt_size", v)} error={errors.shirt_size} />
+          {requestedProfileKeys.has("blood_type") ? (
+            <PillSelect label="BLOOD TYPE" value={draft.kit.blood_type ?? ""} options={BLOOD_TYPES} onChange={(v) => setKit("blood_type", v)} error={errors.blood_type} />
+          ) : null}
+
+          <div className="mt-6 flex items-center gap-3 rounded-lg border border-border p-4">
+            <Checkbox id="first_ultra" checked={draft.firstUltra} onCheckedChange={(c) => patch({ firstUltra: c === true })} />
+            <Label htmlFor="first_ultra" className="text-[14px]">First ultra at this distance?</Label>
+          </div>
+
+          {eventQuestions.map((f) => (
+            <DynamicField key={f.id} field={f} value={draft.values[f.key]} onChange={(v) => setValue(f.key, v)} error={errors[f.key]} />
+          ))}
+
+          {addons.length > 0 ? (
+            <>
+              <h3 className="mt-10 text-[15px] font-semibold text-foreground">Add-ons</h3>
+              <div className="mt-3 flex flex-col gap-3">
+                {addons.map((a) => {
+                  const on = draft.addonIds.includes(a.id);
+                  return (
+                    <button
+                      key={a.id}
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() => patch({ addonIds: on ? draft.addonIds.filter((id) => id !== a.id) : [...draft.addonIds, a.id] })}
+                      className={cn(
+                        "flex items-center justify-between rounded-lg border p-4 text-left transition-colors",
+                        on ? "border-primary bg-secondary" : "border-border hover:border-primary",
+                      )}
+                    >
+                      <span className="text-[14px] font-medium text-foreground">{a.name}</span>
+                      <span className="text-[14px] font-semibold text-primary">+{formatPeso(a.price)}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          ) : null}
+
+          {showSaveBack(profile, draft.kit) ? (
+            <div className="mt-6 flex items-center gap-3 rounded-lg border border-border p-4">
+              <Checkbox id="save_back" checked={draft.saveBack} onCheckedChange={(c) => patch({ saveBack: c === true })} />
+              <Label htmlFor="save_back" className="text-[14px]">Save these details to my profile</Label>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+
+      {draft.step === 3 ? (
+        <section className="mt-8">
+          <h2 className="text-[24px] font-semibold tracking-[-0.5px] text-foreground">Review</h2>
+          <dl className="mt-6 divide-y divide-divider rounded-xl border border-border">
+            <Row label="Bib name" value={draft.details.bib_name} />
+            <Row label="Date of birth" value={draft.details.date_of_birth} />
+            <Row label="Emergency contact" value={draft.details.emergency_contact} />
+            {draft.kit.shirt_size ? <Row label="Shirt size" value={draft.kit.shirt_size} /> : null}
+            {draft.kit.blood_type ? <Row label="Blood type" value={draft.kit.blood_type} /> : null}
+            <Row label="Entry fee" value={formatPeso(category.base_price)} />
+            {draft.addonIds.length ? (
+              <Row label="Add-ons" value={`+${formatPeso(total - category.base_price)}`} />
+            ) : null}
+            <Row label="Total" value={formatPeso(total)} strong />
+          </dl>
+
+          <div className="mt-6 flex items-start gap-3 rounded-lg border border-border p-4">
+            <Checkbox id="waiver" checked={draft.waiver} onCheckedChange={(c) => patch({ waiver: c === true })} />
+            <Label htmlFor="waiver" className="text-[13px] leading-relaxed">
+              I accept the event{" "}
+              <button type="button" className="font-semibold text-primary underline" onClick={() => setWaiverOpen(true)}>
+                waiver
+              </button>{" "}
+              and confirm I&apos;m medically fit to take part.
+            </Label>
+          </div>
+        </section>
+      ) : null}
+
+      {formError ? <p className="mt-6 text-[14px] text-destructive">{formError}</p> : null}
+
+      <div className="mt-10 flex items-center gap-3">
+        {draft.step > 1 ? (
+          <Button type="button" variant="outline" className="h-auto rounded-pill px-6 py-4" onClick={() => patch({ step: draft.step - 1 })}>
+            Back
+          </Button>
+        ) : null}
+        {draft.step < 3 ? (
+          <Button type="button" className="h-auto flex-1 rounded-pill py-4 text-[16px] font-semibold" onClick={next}>
+            Continue
+          </Button>
+        ) : (
+          <Button type="button" disabled={busy} className="h-auto flex-1 rounded-pill py-4 text-[16px] font-semibold" onClick={submit}>
+            {busy ? "Submitting…" : `Register · ${formatPeso(total)}`}
+          </Button>
+        )}
+      </div>
+
+      <Dialog open={waiverOpen} onOpenChange={setWaiverOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>Event waiver</DialogTitle></DialogHeader>
+          <div className="max-h-[60vh] overflow-y-auto whitespace-pre-line text-[14px] leading-relaxed text-foreground">
+            {WAIVER_TEXT}
+          </div>
+          <Button type="button" className="mt-4 h-auto rounded-pill py-3" onClick={() => { patch({ waiver: true }); setWaiverOpen(false); }}>
+            I accept
+          </Button>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function Row({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
+  return (
+    <div className="flex items-center justify-between px-5 py-3.5">
+      <dt className="text-[14px] text-muted-foreground">{label}</dt>
+      <dd className={cn("text-[14px] text-foreground", strong && "text-[16px] font-semibold")}>{value}</dd>
+    </div>
+  );
+}
+```
+
+- [ ] **Step 12: Write the wizard page (Server Component)**
+
+Create `apps/site/app/register/[categoryId]/page.tsx`:
+
+```tsx
+import { notFound, redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { fetchCategory, fetchEvent, fetchAddons, fetchFormFields } from "@/lib/events";
+import { SiteHeader } from "@/components/SiteHeader";
+import { RegisterWizard } from "./RegisterWizard";
+
+export const dynamic = "force-dynamic";
+
+export default async function RegisterPage({ params }: { params: Promise<{ categoryId: string }> }) {
+  const { categoryId } = await params;
+  const db = await createClient();
+
+  const { data: { user } } = await db.auth.getUser();
+  if (!user) redirect(`/sign-in?next=${encodeURIComponent(`/register/${categoryId}`)}`);
+
+  const category = await fetchCategory(db, categoryId);
+  if (!category) notFound();
+
+  const [event, addons, formFields] = await Promise.all([
+    fetchEvent(db, category.event_id),
+    fetchAddons(db, category.event_id),
+    fetchFormFields(db, category.event_id),
+  ]);
+  if (!event) notFound();
+
+  // Slot state is authoritative on the server at submit time, but there is no
+  // reason to walk a runner through three steps just to reject them.
+  if (category.slots_taken >= category.slots_total) {
+    redirect(`/events/${category.event_id}?soldout=${categoryId}`);
+  }
+
+  return (
+    <>
+      <SiteHeader />
+      <main>
+        <RegisterWizard
+          userId={user.id}
+          category={category}
+          event={event}
+          addons={addons}
+          formFields={formFields}
+        />
+      </main>
+    </>
+  );
+}
+```
+
+- [ ] **Step 13: Run the test to verify it passes**
+
+```bash
+pnpm --filter site test -- register
+```
+
+Expected: PASS — 6 tests.
+
+- [ ] **Step 14: Full verification**
+
+```bash
+pnpm --filter site typecheck && pnpm --filter site test && pnpm --filter site build
+```
+
+Expected: all pass.
+
+- [ ] **Step 15: Commit**
+
+```bash
+git add apps/site
+git commit -m "feat(site): registration wizard
+
+Three in-form steps then pay, with the draft persisted to sessionStorage
+on every change so a refresh resumes rather than restarts. Validation
+runs against the same @race-pace/shared schemas the edge function uses,
+so the browser cannot accept input the server will reject.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
+```
+
+---
