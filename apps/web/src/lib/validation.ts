@@ -9,14 +9,28 @@ const timeStr = z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/, "Use HH:MM").nullable
 const scheduleTimeStr = z.string().regex(/^\d{2}:\d{2}$/, "Use HH:MM");
 const intNonNeg = z.number().int().min(0);
 
-/** One race-morning timeline row. Both fields required — a blank row isn't a
- *  meaningful entry, so it's dropped from the array before save rather than
- *  persisted as a partial row. */
+/** One race-morning timeline row. Both fields required — a fully blank row
+ *  isn't a meaningful entry, so it's dropped from the array by
+ *  sanitizeListFields() before validation/save rather than persisted as a
+ *  partial row or blocking Save with a "fix the fields" error. */
 export const scheduleItemSchema = z.object({
   time: scheduleTimeStr,
   label: z.string().trim().min(1, "Label required"),
 });
 export type ScheduleItem = z.infer<typeof scheduleItemSchema>;
+
+// One bullet in the "what's included" list on the public page — short prose,
+// roughly one line ("Six aid stations with hot food").
+export const INCLUSION_MAX_LEN = 140;
+
+/** One inclusion line. A blank row is dropped by sanitizeListFields() before
+ *  validation/save, same as a blank schedule row, rather than persisted as an
+ *  empty bullet or persisted with incidental whitespace. */
+export const inclusionItemSchema = z
+  .string()
+  .trim()
+  .min(1, "Required")
+  .max(INCLUSION_MAX_LEN, `Keep each line under ${INCLUSION_MAX_LEN} characters`);
 
 export const eventInputSchema = z.object({
   name: z.string().trim().min(1, "Name is required"),
@@ -36,7 +50,26 @@ export const eventInputSchema = z.object({
   hero_image_url: z.string().nullable(),
   gallery: z.array(z.string()).default([]),
   schedule: z.array(scheduleItemSchema).default([]),
+  inclusions: z.array(inclusionItemSchema).default([]),
 });
+
+/** Drops blank rows from the two ordered list fields (schedule, inclusions)
+ *  and trims their text, ahead of both validation and save. A row an
+ *  organizer leaves empty is removed rather than either blocking Save with a
+ *  partial-row error or reaching the database as '' / a hollow schedule
+ *  entry. Call this on the draft right before eventInputSchema.safeParse and
+ *  right before saveEvent — never mutate component state with it, so a
+ *  half-typed row doesn't vanish from the screen while the organizer is
+ *  still filling it in. */
+export function sanitizeListFields<T extends { schedule: ScheduleItem[]; inclusions: string[] }>(draft: T): T {
+  return {
+    ...draft,
+    schedule: draft.schedule
+      .map((r) => ({ time: r.time, label: r.label.trim() }))
+      .filter((r) => r.time.trim() !== "" || r.label !== ""),
+    inclusions: draft.inclusions.map((r) => r.trim()).filter((r) => r !== ""),
+  };
+}
 export const categoryInputSchema = z.object({
   code: z.string().trim().min(1, "Code required"),
   label: z.string().trim().min(1, "Label required"),

@@ -1,5 +1,5 @@
 import { EVENT_DISCIPLINES } from "@race-pace/shared";
-import { eventInputSchema, categoryInputSchema, addonInputSchema, scheduleItemSchema } from "../lib/validation";
+import { eventInputSchema, categoryInputSchema, addonInputSchema, scheduleItemSchema, inclusionItemSchema, sanitizeListFields, INCLUSION_MAX_LEN } from "../lib/validation";
 
 const validEvent = { name: "Race", city_psgc_code: null, region_name: null, province_name: null, city_name: null, venue: null, event_date: "2026-10-18", end_date: null, flag_off: "04:00", status: "open", discipline: "trail", elevation_gain_m: 4300, cutoff_hours: 18, description: null, hero_image_url: null };
 
@@ -49,6 +49,39 @@ it("schedule rows require HH:MM time and a non-empty label; empty schedule is va
     ...validEvent,
     schedule: [{ time: "04:30", label: "Gun start" }, { time: "07:00", label: "Cut-off, 10K" }],
   }).success).toBe(true);
+});
+it("inclusion rows are short, non-blank prose; empty inclusions is valid", () => {
+  expect(eventInputSchema.safeParse({ ...validEvent, inclusions: [] }).success).toBe(true);
+  expect(eventInputSchema.parse(validEvent).inclusions).toEqual([]);
+  expect(inclusionItemSchema.safeParse("Finisher medal and summit certificate").success).toBe(true);
+  expect(inclusionItemSchema.safeParse("").success).toBe(false);
+  expect(inclusionItemSchema.safeParse("x".repeat(INCLUSION_MAX_LEN)).success).toBe(true);
+  expect(inclusionItemSchema.safeParse("x".repeat(INCLUSION_MAX_LEN + 1)).success).toBe(false);
+  expect(eventInputSchema.safeParse({
+    ...validEvent,
+    inclusions: ["Race kit, bib, and timing chip", "Six aid stations with hot food"],
+  }).success).toBe(true);
+});
+it("sanitizeListFields trims text and drops blank schedule/inclusion rows without dropping partial ones", () => {
+  const draft = {
+    schedule: [
+      { time: "  ", label: "  " },              // fully blank -> dropped
+      { time: "04:30", label: "  Gun start  " }, // trimmed, kept
+      { time: "", label: "Cut-off, 10K" },       // partial -> kept as-is (still invalid, surfaces an error)
+    ],
+    inclusions: ["  ", "Finisher medal  ", "", "   Six aid stations   "],
+  };
+  const sanitized = sanitizeListFields(draft);
+  expect(sanitized.schedule).toEqual([
+    { time: "04:30", label: "Gun start" },
+    { time: "", label: "Cut-off, 10K" },
+  ]);
+  expect(sanitized.inclusions).toEqual(["Finisher medal", "Six aid stations"]);
+});
+it("sanitizeListFields applied before save means removing every row persists [] rather than null/undefined", () => {
+  const sanitized = sanitizeListFields({ schedule: [], inclusions: ["  ", ""] });
+  expect(sanitized.inclusions).toEqual([]);
+  expect(Array.isArray(sanitized.inclusions)).toBe(true);
 });
 it("category gain/cutoff are optional and bounded; out-of-range values are rejected", () => {
   expect(categoryInputSchema.safeParse(validCategory).success).toBe(true); // both null is valid

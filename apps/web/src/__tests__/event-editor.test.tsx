@@ -51,7 +51,7 @@ it("allows saving a cancelled event instead of dead-ending on the status validat
         id: "e1", org_id: "a1", name: "Apo Sky Ultra",
         city_psgc_code: null, region_name: null, province_name: null, city_name: null, venue: null,
         event_date: null, end_date: null, flag_off: null, status: "cancelled",
-        discipline: "trail", elevation_gain_m: null, cutoff_hours: null, description: null, hero_image_url: null, gallery: [], schedule: [],
+        discipline: "trail", elevation_gain_m: null, cutoff_hours: null, description: null, hero_image_url: null, gallery: [], schedule: [], inclusions: [],
       },
       categories: [],
       addons: [],
@@ -91,7 +91,7 @@ it("carries hero_image_url + gallery through to save", async () => {
         city_psgc_code: null, region_name: null, province_name: null, city_name: null, venue: null,
         event_date: null, end_date: null, flag_off: null, status: "open", discipline: "trail",
         elevation_gain_m: null, cutoff_hours: null, description: null,
-        hero_image_url: "https://cdn/hero.png", gallery: ["https://cdn/g1.png"], schedule: [],
+        hero_image_url: "https://cdn/hero.png", gallery: ["https://cdn/g1.png"], schedule: [], inclusions: [],
       },
       categories: [],
       addons: [],
@@ -118,7 +118,7 @@ it("carries PSGC address + venue + date range through to save", async () => {
         id: "e1", org_id: "a1", name: "Apo",
         city_psgc_code: "112603", region_name: "Davao Region", province_name: "Davao del Sur", city_name: "City of Digos", venue: "Camp Sabros",
         event_date: "2026-11-14", end_date: "2026-11-16", flag_off: "04:00", status: "open",
-        discipline: "trail", elevation_gain_m: null, cutoff_hours: null, description: null, hero_image_url: null, gallery: [], schedule: [],
+        discipline: "trail", elevation_gain_m: null, cutoff_hours: null, description: null, hero_image_url: null, gallery: [], schedule: [], inclusions: [],
       },
       categories: [],
       addons: [],
@@ -149,7 +149,7 @@ it("blocks save when the end date is before the start date", async () => {
         id: "e1", org_id: "a1", name: "Apo",
         city_psgc_code: null, region_name: null, province_name: null, city_name: null, venue: null,
         event_date: "2026-11-14", end_date: null, flag_off: null, status: "open",
-        discipline: "trail", elevation_gain_m: null, cutoff_hours: null, description: null, hero_image_url: null, gallery: [], schedule: [],
+        discipline: "trail", elevation_gain_m: null, cutoff_hours: null, description: null, hero_image_url: null, gallery: [], schedule: [], inclusions: [],
       },
       categories: [],
       addons: [],
@@ -187,7 +187,7 @@ it("adds, edits, reorders, and removes schedule rows, saving the final order", a
         id: "e1", org_id: "a1", name: "Apo",
         city_psgc_code: null, region_name: null, province_name: null, city_name: null, venue: null,
         event_date: null, end_date: null, flag_off: null, status: "open",
-        discipline: "trail", elevation_gain_m: null, cutoff_hours: null, description: null, hero_image_url: null, gallery: [], schedule: [],
+        discipline: "trail", elevation_gain_m: null, cutoff_hours: null, description: null, hero_image_url: null, gallery: [], schedule: [], inclusions: [],
       },
       categories: [],
       addons: [],
@@ -221,4 +221,110 @@ it("adds, edits, reorders, and removes schedule rows, saving the final order", a
 
   fireEvent.click(screen.getAllByLabelText("Remove schedule row")[0]!);
   expect(screen.getAllByLabelText("Schedule time")).toHaveLength(1);
+});
+
+it("adds, edits, reorders, and removes inclusion rows, saving the final order", async () => {
+  mockUseParams.mockReturnValue({ id: "e1" });
+  mockUseEventForEditor.mockReturnValue({
+    data: {
+      event: {
+        id: "e1", org_id: "a1", name: "Apo",
+        city_psgc_code: null, region_name: null, province_name: null, city_name: null, venue: null,
+        event_date: null, end_date: null, flag_off: null, status: "open",
+        discipline: "trail", elevation_gain_m: null, cutoff_hours: null, description: null, hero_image_url: null, gallery: [], schedule: [], inclusions: [],
+      },
+      categories: [],
+      addons: [],
+    },
+    isLoading: false,
+  });
+  render(<MemoryRouter><EventEditor /></MemoryRouter>);
+
+  const addButtons = await screen.findAllByText("+ Add");
+  // EventImagesEditor, ScheduleEditor, InclusionsEditor, CategoryEditor, AddonEditor.
+  fireEvent.click(addButtons[1]!);
+  fireEvent.change(screen.getByLabelText("Inclusion"), { target: { value: "Six aid stations with hot food" } });
+
+  fireEvent.click(screen.getAllByText("+ Add")[1]!);
+  const lines = screen.getAllByLabelText("Inclusion");
+  fireEvent.change(lines[1]!, { target: { value: "Race kit, bib, and timing chip" } });
+  fireEvent.click(screen.getAllByLabelText("Move inclusion up")[1]!);
+
+  fireEvent.click(screen.getByText("Save event"));
+  await waitFor(() => expect(mockSave).toHaveBeenCalled());
+  expect(mockSave.mock.calls[0]![0].event.inclusions).toEqual([
+    "Race kit, bib, and timing chip",
+    "Six aid stations with hot food",
+  ]);
+
+  fireEvent.click(screen.getAllByLabelText("Remove inclusion")[0]!);
+  expect(screen.getAllByLabelText("Inclusion")).toHaveLength(1);
+});
+
+it("a blank inclusion row left alongside a real one is dropped rather than saved as ''", async () => {
+  mockUseParams.mockReturnValue({ id: "e1" });
+  mockUseEventForEditor.mockReturnValue({
+    data: {
+      event: {
+        id: "e1", org_id: "a1", name: "Apo",
+        city_psgc_code: null, region_name: null, province_name: null, city_name: null, venue: null,
+        event_date: null, end_date: null, flag_off: null, status: "open",
+        discipline: "trail", elevation_gain_m: null, cutoff_hours: null, description: null, hero_image_url: null, gallery: [], schedule: [],
+        inclusions: ["Finisher medal and summit certificate"],
+      },
+      categories: [],
+      addons: [],
+    },
+    isLoading: false,
+  });
+  render(<MemoryRouter><EventEditor /></MemoryRouter>);
+
+  // Leave a second, blank row alongside the existing one — it must not reach save as ''.
+  const addButtons = await screen.findAllByText("+ Add");
+  fireEvent.click(addButtons[1]!);
+  fireEvent.change(screen.getAllByLabelText("Inclusion")[1]!, { target: { value: "   " } });
+
+  fireEvent.click(screen.getByText("Save event"));
+  await waitFor(() => expect(mockSave).toHaveBeenCalled());
+  expect(mockSave.mock.calls[0]![0].event.inclusions).toEqual(["Finisher medal and summit certificate"]);
+});
+
+it("removing every inclusion row persists an empty array rather than null", async () => {
+  mockUseParams.mockReturnValue({ id: "e1" });
+  mockUseEventForEditor.mockReturnValue({
+    data: {
+      event: {
+        id: "e1", org_id: "a1", name: "Apo",
+        city_psgc_code: null, region_name: null, province_name: null, city_name: null, venue: null,
+        event_date: null, end_date: null, flag_off: null, status: "open",
+        discipline: "trail", elevation_gain_m: null, cutoff_hours: null, description: null, hero_image_url: null, gallery: [], schedule: [],
+        inclusions: ["Finisher medal and summit certificate"],
+      },
+      categories: [],
+      addons: [],
+    },
+    isLoading: false,
+  });
+  render(<MemoryRouter><EventEditor /></MemoryRouter>);
+
+  fireEvent.click(await screen.findByLabelText("Remove inclusion"));
+  fireEvent.click(screen.getByText("Save event"));
+  await waitFor(() => expect(mockSave).toHaveBeenCalled());
+  expect(mockSave.mock.calls[0]![0].event.inclusions).toEqual([]);
+});
+
+it("blocks save with a visible message when an inclusion line is over the length cap", async () => {
+  mockUseParams.mockReturnValue({});
+  render(<MemoryRouter><EventEditor /></MemoryRouter>);
+  fireEvent.change(screen.getByLabelText("Event name"), { target: { value: "Apo Sky Ultra" } });
+
+  const addButtons = await screen.findAllByText("+ Add");
+  fireEvent.click(addButtons[1]!);
+  // Bypass the input's maxLength (fireEvent.change sets the DOM value directly)
+  // so the over-length case actually reaches validation instead of native truncation.
+  fireEvent.change(screen.getByLabelText("Inclusion"), { target: { value: "x".repeat(141) } });
+
+  fireEvent.click(screen.getByText("Save event"));
+  expect(await screen.findByText(/Fix the event fields/)).toBeInTheDocument();
+  expect(mockSave).not.toHaveBeenCalled();
 });

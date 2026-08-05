@@ -6,10 +6,11 @@ import { EVENT_DISCIPLINES, DISCIPLINE_LABELS, disciplineLayout } from "@race-pa
 import { useMyRoles } from "../lib/roles";
 import { useEventForEditor } from "../lib/events";
 import { saveEvent, type CategoryDraft, type AddonDraft, type EventDraft } from "../lib/eventWrites";
-import { eventInputSchema, categoryInputSchema, addonInputSchema, EVENT_STATUSES } from "../lib/validation";
+import { eventInputSchema, categoryInputSchema, addonInputSchema, sanitizeListFields, EVENT_STATUSES } from "../lib/validation";
 import { CategoryEditor } from "../components/CategoryEditor";
 import { AddonEditor } from "../components/AddonEditor";
 import { ScheduleEditor } from "../components/ScheduleEditor";
+import { InclusionsEditor } from "../components/InclusionsEditor";
 import { EventImagesEditor } from "../components/EventImagesEditor";
 import { PsgcAddressField } from "../components/PsgcAddressField";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
@@ -20,7 +21,7 @@ import { Button } from "../components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 
 const fieldLabel = "mb-1.5 block text-[11px] font-semibold tracking-wide text-muted-foreground";
-const blank: EventDraft = { org_id: "", name: "", city_psgc_code: null, region_name: null, province_name: null, city_name: null, venue: null, event_date: null, end_date: null, flag_off: null, status: "draft", discipline: "trail", elevation_gain_m: null, cutoff_hours: null, description: null, hero_image_url: null, gallery: [], schedule: [] };
+const blank: EventDraft = { org_id: "", name: "", city_psgc_code: null, region_name: null, province_name: null, city_name: null, venue: null, event_date: null, end_date: null, flag_off: null, status: "draft", discipline: "trail", elevation_gain_m: null, cutoff_hours: null, description: null, hero_image_url: null, gallery: [], schedule: [], inclusions: [] };
 
 export function EventEditor() {
   const { id } = useParams();
@@ -45,7 +46,9 @@ export function EventEditor() {
     if (id && loaded.data && seededFor.current !== id) {
       seededFor.current = id;
       const d = loaded.data;
-      setEvent({ ...d.event });
+      // inclusions has no DB default (unlike gallery/schedule) so a legacy row can
+      // still have it null — coalesce so InclusionsEditor never sees non-array rows.
+      setEvent({ ...d.event, inclusions: d.event.inclusions ?? [] });
       setCats(d.categories.map((c) => ({ id: c.id, code: c.code, label: c.label, distance_km: c.distance_km, base_price: c.base_price, slots_total: c.slots_total, elevation_gain_m: c.elevation_gain_m, cutoff_hours: c.cutoff_hours, blurb: c.blurb })));
       setAddons(d.addons.map((a) => ({ id: a.id, name: a.name, price: a.price })));
       setOrigCats(d.categories.map((c) => ({ id: c.id })));
@@ -62,7 +65,7 @@ export function EventEditor() {
     // intentionally outside EVENT_STATUSES, and the dropdown already restricts input
     // to valid values — validating it here would permanently block Save on a
     // cancelled event with a misleading "fix the event fields" message.
-    if (!eventInputSchema.omit({ status: true }).safeParse({ ...event }).success) return "Fix the event fields (name is required, valid date/time, schedule times as HH:MM).";
+    if (!eventInputSchema.omit({ status: true }).safeParse(sanitizeListFields(event)).success) return "Fix the event fields (name is required, valid date/time, schedule times as HH:MM, inclusion lines under 140 characters).";
     if (event.end_date && event.event_date && event.end_date < event.event_date) return "End date can't be before the start date.";
     for (const c of cats) if (!categoryInputSchema.safeParse(c).success) return "Fix the category rows (code, label, non-negative price/slots, gain 0-30000m, cut-off 0-240h).";
     for (const a of addons) if (!addonInputSchema.safeParse(a).success) return "Fix the add-on rows (name, non-negative price).";
@@ -73,7 +76,8 @@ export function EventEditor() {
     if (invalid) { setError(invalid); return; }
     setBusy(true); setError(null);
     try {
-      const res = await saveEvent({ event: { ...event, id, org_id: orgId }, categories: { current: cats, original: origCats }, addons: { current: addons, original: origAddons } });
+      const sanitized = sanitizeListFields(event);
+      const res = await saveEvent({ event: { ...sanitized, id, org_id: orgId }, categories: { current: cats, original: origCats }, addons: { current: addons, original: origAddons } });
       if (res.childErrors.length) {
         // The event row (and any children that succeeded) persisted, but the editor's
         // cats/addons state is now stale vs. the DB — e.g. a newly inserted category
@@ -185,6 +189,7 @@ export function EventEditor() {
         <div className="flex flex-col gap-4">
           <EventImagesEditor orgId={orgId} heroUrl={event.hero_image_url} gallery={event.gallery} onChange={(v) => set(v)} />
           <ScheduleEditor rows={event.schedule} onChange={(schedule) => set({ schedule })} />
+          <InclusionsEditor rows={event.inclusions} onChange={(inclusions) => set({ inclusions })} />
           <CategoryEditor rows={cats} onChange={setCats} />
           <AddonEditor rows={addons} onChange={setAddons} />
         </div>
