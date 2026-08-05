@@ -13,12 +13,16 @@
 ## Global Constraints
 
 - **pnpm 9.7.0, Node 20.** Never `npm` or `npx` — use `pnpm` / `pnpm exec` / `pnpm dlx`.
-- **Never run a bare `pnpm exec vitest run` at the repo root.** It picks up 8 files under `supabase/tests/` needing a live local stack. Use `pnpm --filter web test` or `pnpm exec vitest run supabase/functions packages`.
+- **NEVER run `supabase db reset`, `supabase start`, or `supabase stop`.** This worktree is linked to the **hosted** project and there is no local stack. `db reset --linked` **drops the remote database**. The only schema command you may run is `pnpm exec supabase db push`.
+- **Never run a bare `pnpm exec vitest run` at the repo root.** It sweeps in the `supabase/tests/` suites, which now talk to the hosted project over the network — slow, and not what you want on every web edit. Use `pnpm --filter web test` for the admin, `pnpm exec vitest run supabase/functions packages` for the rest, and name a `supabase/tests/...` file explicitly when you want a database suite.
 - **Money is integer centavos everywhere.** Format only at the render edge with `formatPeso` from `@race-pace/shared`. Never do floating-point arithmetic on amounts.
 - **Types and validators come from `@race-pace/shared`.** Never redefine them locally.
 - **Authorization is RLS/RPC, not UI conditionals.** A hidden nav item is not a permission check.
 - **The token contract:** in `apps/web/src/index.css`, `--primary: 21 154 85` is a raw RGB channel triple, NOT a color. Only `--color-primary: rgb(var(--primary))` is usable. After any `pnpm dlx shadcn@latest add`, run `grep -rn "var(--" apps/web/src/components/ui/` and rewrite every hit that isn't `var(--color-*)`. **This plan adds no shadcn components** — every primitive it needs already exists — but run the grep before the PR anyway; the failure mode is silent.
-- **Hosted Supabase project is `whaqarofxdlzxrelbcrq`.** The old `ytwdrsmclwghwktpupqd` is retired. Run `pnpm exec supabase projects list` before any database work — a stale CLI token sees other projects but not this one and `supabase link` fails confusingly.
+- **Hosted Supabase project `whaqarofxdlzxrelbcrq` is the only backend.** The old `ytwdrsmclwghwktpupqd` is retired. The worktree is already linked and `apps/web/.env` already points at hosted. If `supabase link` ever fails confusingly, the cause is a stale CLI token — `pnpm exec supabase projects list` must show `whaqarofxdlzxrelbcrq`.
+- **Hosted is two migrations ahead of this branch.** `20260806090000_event_discipline_category_detail` and `20260806140000_expand_event_discipline` were pushed from the runner-web worktree and have no local file here. They are purely additive (an `event_discipline` enum plus new columns) and touch nothing this plan reads. **Every migration you add must be timestamped after `20260806140000`** — an earlier timestamp makes `db push` refuse with "found local migration files to be inserted before the last migration on remote".
+- **Database tests build and destroy their own fixtures in the hosted project.** They create a throwaway organization and throwaway auth users, assert, then delete them. Deleting an auth user cascades to its profile, `user_roles`, `registrations`, and from there to `payments` and `checkins`; deleting the throwaway org cascades its events and categories. Cleanup runs in `afterAll` so it happens even when assertions fail. **Never write a test that mutates the real org `00000000-0000-0000-0000-0000000000a1` or its events.**
+- **Hosted data as of 2026-08-06:** one org (`…a1`, Race Pace), two events (`…e1` Apo Sky Ultra 2026 trail, `…e2` Davao Sunrise Run 2026 road, **both under `…a1`**), one registration, one payment, zero check-ins. There is no second organization — that is why the isolation tests create their own.
 - **`apps/web` runs in Docker** at `https://admin.racepace.lan` (`docker compose up -d web` from the repo root). Source edits hot-reload over a bind mount; **a new dependency requires `docker compose restart web`**.
 - **Use `127.0.0.1` explicitly**, never `localhost` — another project holds `[::1]` on common ports and macOS resolves IPv6 first. Check the page title before trusting what you see.
 - **The role set `marshal | editor | admin | super_admin` in the new RPCs mirrors `canCheckIn()`** in `supabase/functions/_shared/authz.ts`. A change to one is a change to the other.
@@ -26,8 +30,8 @@
 ## File Structure
 
 **Migrations**
-- `supabase/migrations/20260806120000_checkin_rpcs.sql` — `checkin_events()`, `checkin_roster()`
-- `supabase/migrations/20260806130000_admin_dashboard_views.sql` — `admin_org_totals_v`, `admin_event_totals_v`
+- `supabase/migrations/20260806150000_checkin_rpcs.sql` — `checkin_events()`, `checkin_roster()`
+- `supabase/migrations/20260806160000_admin_dashboard_views.sql` — `admin_org_totals_v`, `admin_event_totals_v`
 
 **Database tests**
 - `supabase/tests/checkin-rpcs.test.ts` — RPC authorization and column-leak assertions
@@ -58,10 +62,56 @@
 
 ---
 
+## Task 0: Confirm the hosted wiring
+
+**Files:** none changed — this is a gate, not an edit. `apps/web/.env`, `apps/web/.env.example`, `.env.hosted`, and `test/env.ts` were already repointed at hosted before this plan was executed; this task proves it works before anything depends on it.
+
+**Interfaces:** Produces nothing. Everything after this assumes hosted is reachable and the admin console talks to it.
+
+- [ ] **Step 1: Confirm the CLI account and link**
+
+```bash
+pnpm exec supabase projects list
+```
+
+`whaqarofxdlzxrelbcrq` must appear with `"linked": true`. If it is absent, `pnpm exec supabase login` with the newer Gmail account. If present but unlinked, `pnpm exec supabase link --project-ref whaqarofxdlzxrelbcrq`.
+
+- [ ] **Step 2: Confirm the app points at hosted, not `127.0.0.1`**
+
+```bash
+grep VITE_SUPABASE_URL apps/web/.env
+```
+
+Expected: `https://whaqarofxdlzxrelbcrq.supabase.co`.
+
+- [ ] **Step 3: Restart the container so Vite re-reads the env**
+
+Vite reads `.env` once at startup, so an edit alone changes nothing.
+
+```bash
+docker compose up -d web && docker compose restart web
+```
+
+- [ ] **Step 4: Confirm the console actually reaches hosted**
+
+Open `https://admin.racepace.lan`, sign in as `admin@racepace.test` / `password123`, and open Events. **Check the page title is Race Pace's** before trusting the page — another project holds `[::1]` on common ports. You should see **two** events: Apo Sky Ultra 2026 and Davao Sunrise Run 2026. Seeing one event, or none, means the app is still on the old local stack.
+
+- [ ] **Step 5: Confirm the database test credentials load**
+
+```bash
+pnpm exec supabase db query --linked "select count(*) orgs from organizations"
+```
+
+Expected: 1 row, `orgs: 1`.
+
+No commit — nothing changed.
+
+---
+
 ## Task 1: Check-in RPCs
 
 **Files:**
-- Create: `supabase/migrations/20260806120000_checkin_rpcs.sql`
+- Create: `supabase/migrations/20260806150000_checkin_rpcs.sql`
 - Test: `supabase/tests/checkin-rpcs.test.ts`
 
 **Interfaces:**
@@ -70,138 +120,182 @@
 
 **Context you need:** `returns table` fails at runtime with "structure of query does not match function result type" on any type mismatch. `registrations.status` is the enum `registration_status`, not `text`, so it **must** be cast. Every returned column is cast explicitly for the same reason. `profiles.full_name` and `profiles.bib_name` are `text`; `categories.label` is `text`; `events.event_date` and `events.end_date` are `date`.
 
-These tests need a running local stack. Start it first:
+These tests run against the **hosted** project using credentials in `.env.hosted` (already created). They build their own throwaway organization, event, category, and users, and delete all of it in `afterAll`. **Do not reference the real org `…a1` or events `…e1` / `…e2`** — they belong to the live console.
 
-```bash
-pnpm exec supabase start && pnpm exec supabase db reset
-```
-
-Then write local credentials for the test helper:
-
-```bash
-pnpm exec supabase status -o env > .env.local
-```
+There is no local stack. Do not run `supabase start`, `supabase stop`, or `supabase db reset`.
 
 - [ ] **Step 1: Write the failing test**
 
 Create `supabase/tests/checkin-rpcs.test.ts`:
 
 ```ts
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { createClient } from "@supabase/supabase-js";
 import { loadEnv } from "../../test/env";
 
 const { url, anonKey, serviceKey } = loadEnv();
 const anon = () => createClient(url, anonKey, { auth: { persistSession: false } });
-const service = () => createClient(url, serviceKey, { auth: { persistSession: false } });
+const svc = createClient(url, serviceKey, { auth: { persistSession: false } });
 const authed = (t: string) =>
   createClient(url, anonKey, { global: { headers: { Authorization: `Bearer ${t}` } }, auth: { persistSession: false } });
 
-async function makeUser(email: string) {
-  const svc = service();
+// Everything below is created by this file and destroyed in afterAll. The real
+// org (…a1) and its events are never touched.
+const TAG = `citest${Date.now()}`;
+const userIds: string[] = [];
+const orgIds: string[] = [];
+
+async function makeUser(label: string) {
+  const email = `${TAG}_${label}@test.dev`;
   const c = await svc.auth.admin.createUser({ email, password: "password123", email_confirm: true });
+  if (c.error) throw c.error;
+  userIds.push(c.data.user!.id);
   const s = await anon().auth.signInWithPassword({ email, password: "password123" });
+  if (s.error) throw s.error;
   return { id: c.data.user!.id, token: s.data.session!.access_token };
 }
 
-const RWP = "00000000-0000-0000-0000-0000000000a1";
-const APO = "00000000-0000-0000-0000-0000000000a2";
-const E1 = "00000000-0000-0000-0000-0000000000e1";
-const E2 = "00000000-0000-0000-0000-0000000000e2";
-const C4 = "00000000-0000-0000-0000-0000000000c4";
+async function makeOrg(label: string): Promise<string> {
+  const r = await svc.from("organizations")
+    .insert({ name: `${TAG} ${label}`, slug: `${TAG}-${label}` }).select("id").single();
+  if (r.error) throw r.error;
+  orgIds.push(r.data.id);
+  return r.data.id;
+}
 
-describe("check-in RPCs", () => {
-  it("give a marshal their org's roster and nobody else's, without leaking money columns", async () => {
-    const svc = service();
-    const stamp = Date.now();
+async function makeEvent(orgId: string, name: string): Promise<string> {
+  const r = await svc.from("events").insert({ org_id: orgId, name: `${TAG} ${name}` }).select("id").single();
+  if (r.error) throw r.error;
+  return r.data.id;
+}
 
-    const marshal = await makeUser(`ci_mar_${stamp}@test.dev`);
-    await svc.from("user_roles").insert({ user_id: marshal.id, role: "marshal", org_id: RWP });
+async function makeCategory(orgId: string, eventId: string): Promise<string> {
+  const r = await svc.from("categories")
+    .insert({ org_id: orgId, event_id: eventId, code: "10k", label: "10K", base_price: 100000 })
+    .select("id").single();
+  if (r.error) throw r.error;
+  return r.data.id;
+}
 
-    const otherAdmin = await makeUser(`ci_oth_${stamp}@test.dev`);
-    await svc.from("user_roles").insert({ user_id: otherAdmin.id, role: "admin", org_id: APO });
+async function makeRunner(label: string, name: string, bib: string) {
+  const u = await makeUser(label);
+  await svc.from("profiles").insert({ id: u.id, full_name: name, bib_name: bib });
+  return u;
+}
 
-    const plain = await makeUser(`ci_usr_${stamp}@test.dev`);
+type Ctx = {
+  orgA: string; orgB: string; eventA: string; eventA2: string; eventB: string; catA: string;
+  marshal: { token: string }; otherAdmin: { token: string }; plain: { token: string }; scoped: { token: string };
+  paidReg: string; pendingReg: string; checkedReg: string;
+};
+let ctx: Ctx;
 
-    const runner = await makeUser(`ci_run_${stamp}@test.dev`);
-    await svc.from("profiles").insert({ id: runner.id, full_name: "Ana Cruz", bib_name: "ANA" });
+beforeAll(async () => {
+  const orgA = await makeOrg("orga");
+  const orgB = await makeOrg("orgb");
+  const eventA = await makeEvent(orgA, "Event A");
+  const eventA2 = await makeEvent(orgA, "Event A2");     // proves event_scope narrows
+  const eventB = await makeEvent(orgB, "Event B");
+  const catA = await makeCategory(orgA, eventA);
 
-    const reg = await svc.from("registrations")
-      .insert({ org_id: RWP, event_id: E1, category_id: C4, user_id: runner.id,
-                status: "paid", total_amount: 100000, ticket_token: `tok_${stamp}`,
-                custom_data: { shirt: "M" } })
-      .select().single();
+  const marshal = await makeUser("marshal");
+  await svc.from("user_roles").insert({ user_id: marshal.id, role: "marshal", org_id: orgA });
 
-    // The marshal sees the roster row with exactly the roster fields.
-    const roster = await authed(marshal.token).rpc("checkin_roster", { p_event_id: E1 });
-    expect(roster.error).toBeNull();
-    const row = (roster.data ?? []).find((r: any) => r.registration_id === reg.data!.id);
+  const otherAdmin = await makeUser("otheradmin");
+  await svc.from("user_roles").insert({ user_id: otherAdmin.id, role: "admin", org_id: orgB });
+
+  const plain = await makeUser("plain");
+
+  const scoped = await makeUser("scoped");
+  await svc.from("user_roles")
+    .insert({ user_id: scoped.id, role: "marshal", org_id: orgA, event_scope: eventA });
+
+  const reg = async (label: string, name: string, bib: string, status: string, token: string) => {
+    const runner = await makeRunner(label, name, bib);
+    const r = await svc.from("registrations").insert({
+      org_id: orgA, event_id: eventA, category_id: catA, user_id: runner.id,
+      status, total_amount: 100000, ticket_token: token, custom_data: { shirt: "M" },
+    }).select("id").single();
+    if (r.error) throw r.error;
+    return r.data.id as string;
+  };
+
+  const paidReg = await reg("r1", "Ana Cruz", "ANA", "paid", `${TAG}_tok1`);
+  const pendingReg = await reg("r2", "Ben Reyes", "BEN", "pending", `${TAG}_tok2`);
+  const checkedReg = await reg("r3", "Cely Lim", "CEL", "paid", `${TAG}_tok3`);
+  await svc.from("checkins").insert({ org_id: orgA, registration_id: checkedReg, event_id: eventA });
+
+  ctx = { orgA, orgB, eventA, eventA2, eventB, catA, marshal, otherAdmin, plain, scoped, paidReg, pendingReg, checkedReg };
+}, 60_000);
+
+// Users first: that cascades registrations → payments/checkins, and user_roles.
+// Orgs second: that cascades events and categories, which registrations reference
+// with NO ACTION and would otherwise block.
+afterAll(async () => {
+  for (const id of userIds) await svc.auth.admin.deleteUser(id);
+  for (const id of orgIds) await svc.from("organizations").delete().eq("id", id);
+}, 60_000);
+
+describe("checkin_roster", () => {
+  it("gives a marshal the roster fields and nothing else", async () => {
+    const res = await authed(ctx.marshal.token).rpc("checkin_roster", { p_event_id: ctx.eventA });
+    expect(res.error).toBeNull();
+    const row = (res.data ?? []).find((r: any) => r.registration_id === ctx.paidReg);
     expect(row).toMatchObject({
-      ticket_token: `tok_${stamp}`, runner: "Ana Cruz", bib: "ANA", status: "paid", checked_in_at: null,
+      ticket_token: `${TAG}_tok1`, runner: "Ana Cruz", bib: "ANA", status: "paid", checked_in_at: null,
     });
-    expect(row.category).toBeTruthy();
+    expect(row.category).toBe("10K");
 
-    // The whole reason this is an RPC and not an RLS policy: no money, no custom data.
+    // The whole reason this is an RPC and not an RLS policy.
     expect(row).not.toHaveProperty("total_amount");
     expect(row).not.toHaveProperty("custom_data");
-
-    // checkin_events lists the org's event.
-    const evs = await authed(marshal.token).rpc("checkin_events");
-    expect((evs.data ?? []).map((e: any) => e.id)).toContain(E1);
-
-    // An admin of another org gets nothing from either function.
-    const otherRoster = await authed(otherAdmin.token).rpc("checkin_roster", { p_event_id: E1 });
-    expect(otherRoster.data ?? []).toHaveLength(0);
-    const otherEvents = await authed(otherAdmin.token).rpc("checkin_events");
-    expect((otherEvents.data ?? []).map((e: any) => e.id)).not.toContain(E1);
-    expect((otherEvents.data ?? []).map((e: any) => e.id)).toContain(E2);
-
-    // A user with no role gets nothing.
-    const plainRoster = await authed(plain.token).rpc("checkin_roster", { p_event_id: E1 });
-    expect(plainRoster.data ?? []).toHaveLength(0);
-    const plainEvents = await authed(plain.token).rpc("checkin_events");
-    expect(plainEvents.data ?? []).toHaveLength(0);
   });
 
-  it("reflects an existing check-in and narrows by event_scope", async () => {
-    const svc = service();
-    const stamp = Date.now() + 1;
-
-    const runner = await makeUser(`ci_run2_${stamp}@test.dev`);
-    await svc.from("profiles").insert({ id: runner.id, full_name: "Ben Reyes", bib_name: "BEN" });
-    const reg = await svc.from("registrations")
-      .insert({ org_id: RWP, event_id: E1, category_id: C4, user_id: runner.id,
-                status: "paid", total_amount: 100000, ticket_token: `tok2_${stamp}` })
-      .select().single();
-    await svc.from("checkins").insert({ org_id: RWP, registration_id: reg.data!.id, event_id: E1 });
-
-    // Scoped to E1 only.
-    const scoped = await makeUser(`ci_scoped_${stamp}@test.dev`);
-    await svc.from("user_roles").insert({ user_id: scoped.id, role: "marshal", org_id: RWP, event_scope: E1 });
-
-    const roster = await authed(scoped.token).rpc("checkin_roster", { p_event_id: E1 });
-    const row = (roster.data ?? []).find((r: any) => r.registration_id === reg.data!.id);
-    expect(row.checked_in_at).not.toBeNull();
-
-    const evs = await authed(scoped.token).rpc("checkin_events");
-    expect((evs.data ?? []).map((e: any) => e.id)).toEqual([E1]);
-  });
-
-  it("includes pending registrations so the client can say 'not paid' rather than 'not found'", async () => {
-    const svc = service();
-    const stamp = Date.now() + 2;
-    const admin = await makeUser(`ci_adm_${stamp}@test.dev`);
-    await svc.from("user_roles").insert({ user_id: admin.id, role: "admin", org_id: RWP });
-    const runner = await makeUser(`ci_run3_${stamp}@test.dev`);
-    await svc.from("profiles").insert({ id: runner.id, full_name: "Cely Lim", bib_name: "CEL" });
-    const reg = await svc.from("registrations")
-      .insert({ org_id: RWP, event_id: E1, category_id: C4, user_id: runner.id,
-                status: "pending", total_amount: 100000, ticket_token: `tok3_${stamp}` })
-      .select().single();
-
-    const roster = await authed(admin.token).rpc("checkin_roster", { p_event_id: E1 });
-    const row = (roster.data ?? []).find((r: any) => r.registration_id === reg.data!.id);
+  it("includes pending so the client can say 'not paid' rather than 'not found'", async () => {
+    const res = await authed(ctx.marshal.token).rpc("checkin_roster", { p_event_id: ctx.eventA });
+    const row = (res.data ?? []).find((r: any) => r.registration_id === ctx.pendingReg);
     expect(row).toMatchObject({ status: "pending" });
+  });
+
+  it("reflects an existing check-in", async () => {
+    const res = await authed(ctx.marshal.token).rpc("checkin_roster", { p_event_id: ctx.eventA });
+    const row = (res.data ?? []).find((r: any) => r.registration_id === ctx.checkedReg);
+    expect(row.checked_in_at).not.toBeNull();
+  });
+
+  it("returns nothing to an admin of another org, or to a user with no role", async () => {
+    const other = await authed(ctx.otherAdmin.token).rpc("checkin_roster", { p_event_id: ctx.eventA });
+    expect(other.data ?? []).toHaveLength(0);
+    const plain = await authed(ctx.plain.token).rpc("checkin_roster", { p_event_id: ctx.eventA });
+    expect(plain.data ?? []).toHaveLength(0);
+  });
+});
+
+describe("checkin_events", () => {
+  it("lists every event of the marshal's org", async () => {
+    const res = await authed(ctx.marshal.token).rpc("checkin_events");
+    const ids = (res.data ?? []).map((e: any) => e.id);
+    expect(ids).toContain(ctx.eventA);
+    expect(ids).toContain(ctx.eventA2);
+    expect(ids).not.toContain(ctx.eventB);
+  });
+
+  it("narrows to a single event when event_scope is set", async () => {
+    const res = await authed(ctx.scoped.token).rpc("checkin_events");
+    const ids = (res.data ?? []).map((e: any) => e.id);
+    expect(ids).toContain(ctx.eventA);
+    expect(ids).not.toContain(ctx.eventA2);
+
+    // …and the scoped marshal still cannot read the sibling event's roster.
+    const sibling = await authed(ctx.scoped.token).rpc("checkin_roster", { p_event_id: ctx.eventA2 });
+    expect(sibling.data ?? []).toHaveLength(0);
+  });
+
+  it("returns nothing to a user with no role", async () => {
+    const res = await authed(ctx.plain.token).rpc("checkin_events");
+    const ids = (res.data ?? []).map((e: any) => e.id);
+    expect(ids).not.toContain(ctx.eventA);
+    expect(ids).not.toContain(ctx.eventB);
   });
 });
 ```
@@ -213,7 +307,7 @@ Expected: FAIL — every `rpc()` call errors with `Could not find the function p
 
 - [ ] **Step 3: Write the migration**
 
-Create `supabase/migrations/20260806120000_checkin_rpcs.sql`:
+Create `supabase/migrations/20260806150000_checkin_rpcs.sql`:
 
 ```sql
 -- Race-day check-in read models. Design 2026-08-06 §4.
@@ -293,20 +387,36 @@ grant execute on function checkin_events()     to authenticated;
 grant execute on function checkin_roster(uuid) to authenticated;
 ```
 
-- [ ] **Step 4: Apply the migration and run the test**
+- [ ] **Step 4: Push the migration to hosted and run the test**
 
 ```bash
-pnpm exec supabase db reset && pnpm exec vitest run supabase/tests/checkin-rpcs.test.ts
+pnpm exec supabase db push
 ```
 
-Expected: PASS, 3 tests.
-
-If you get `structure of query does not match function result type`, a cast is missing or in the wrong position — the `returns table` column order and the `select` list order must line up exactly.
-
-- [ ] **Step 5: Commit**
+Then:
 
 ```bash
-git add supabase/migrations/20260806120000_checkin_rpcs.sql supabase/tests/checkin-rpcs.test.ts
+pnpm exec vitest run supabase/tests/checkin-rpcs.test.ts
+```
+
+Expected: PASS, 7 tests.
+
+Two failure modes worth naming:
+- `structure of query does not match function result type` — a cast is missing or misordered; the `returns table` column order and the `select` list order must line up exactly.
+- `found local migration files to be inserted before the last migration on remote` — the timestamp is earlier than `20260806140000`. Rename the file, do not force.
+
+- [ ] **Step 5: Confirm the fixtures were cleaned up**
+
+```bash
+pnpm exec supabase db query --linked "select count(*) leftover from organizations where slug like 'citest%'"
+```
+
+Expected: `0`. If not, the run aborted before `afterAll`; delete the rows by that slug prefix before moving on.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add supabase/migrations/20260806150000_checkin_rpcs.sql supabase/tests/checkin-rpcs.test.ts
 git commit -m "feat(db): checkin_events and checkin_roster RPCs for marshal access"
 ```
 
@@ -2263,8 +2373,8 @@ docker compose up -d web
 ```
 
 Open `https://admin.racepace.lan`, sign in as `admin@racepace.test` / `password123`, go to Check-in. **Confirm the page title is Race Pace's** before trusting anything. Then check:
-- The event picker lists Apo Sky Ultra 2026 and auto-selects it.
-- Roster sync line and the `0 / 0` progress render (there are no registrations yet — the empty roster is correct, not a bug).
+- The event picker lists **both** Apo Sky Ultra 2026 and Davao Sunrise Run 2026. Because there are two, nothing auto-selects — you must choose one. That is correct behaviour, not a bug.
+- After choosing, the roster sync line renders. Hosted currently holds a single registration, so expect a roster of 0 or 1 depending on which event you pick, and progress of `0 / 0` or `0 / 1`.
 - Camera prompts for permission; denying it shows the fallback rather than a dead panel.
 - DevTools → Network → Offline flips the header to "Offline — scans are queued".
 
@@ -2281,7 +2391,7 @@ git commit -m "feat(web): race-day check-in UI with camera, wedge scanner and of
 ## Task 7: Dashboard aggregate views
 
 **Files:**
-- Create: `supabase/migrations/20260806130000_admin_dashboard_views.sql`
+- Create: `supabase/migrations/20260806160000_admin_dashboard_views.sql`
 - Test: `supabase/tests/admin-dashboard-views.test.ts`
 
 **Interfaces:**
@@ -2297,72 +2407,115 @@ All money columns are integer centavos. `sum()` over `integer` returns `bigint`;
 Create `supabase/tests/admin-dashboard-views.test.ts`:
 
 ```ts
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { createClient } from "@supabase/supabase-js";
 import { loadEnv } from "../../test/env";
 
 const { url, anonKey, serviceKey } = loadEnv();
 const anon = () => createClient(url, anonKey, { auth: { persistSession: false } });
-const service = () => createClient(url, serviceKey, { auth: { persistSession: false } });
+const svc = createClient(url, serviceKey, { auth: { persistSession: false } });
 const authed = (t: string) =>
   createClient(url, anonKey, { global: { headers: { Authorization: `Bearer ${t}` } }, auth: { persistSession: false } });
 
-async function makeUser(email: string) {
-  const svc = service();
+// Self-contained fixtures in the hosted project; destroyed in afterAll.
+// Because the org is created here, the totals are EXACT — no >= fudging against
+// whatever else happens to live in the database.
+const TAG = `dvtest${Date.now()}`;
+const userIds: string[] = [];
+const orgIds: string[] = [];
+
+async function makeUser(label: string) {
+  const email = `${TAG}_${label}@test.dev`;
   const c = await svc.auth.admin.createUser({ email, password: "password123", email_confirm: true });
+  if (c.error) throw c.error;
+  userIds.push(c.data.user!.id);
   const s = await anon().auth.signInWithPassword({ email, password: "password123" });
+  if (s.error) throw s.error;
   return { id: c.data.user!.id, token: s.data.session!.access_token };
 }
 
-const RWP = "00000000-0000-0000-0000-0000000000a1";
-const APO = "00000000-0000-0000-0000-0000000000a2";
-const E1 = "00000000-0000-0000-0000-0000000000e1";
-const C4 = "00000000-0000-0000-0000-0000000000c4";
+async function makeOrg(label: string): Promise<string> {
+  const r = await svc.from("organizations")
+    .insert({ name: `${TAG} ${label}`, slug: `${TAG}-${label}` }).select("id").single();
+  if (r.error) throw r.error;
+  orgIds.push(r.data.id);
+  return r.data.id;
+}
+
+let ctx: {
+  orgA: string; orgB: string; eventA: string;
+  admin: { token: string }; other: { token: string };
+};
+
+beforeAll(async () => {
+  const orgA = await makeOrg("orga");
+  const orgB = await makeOrg("orgb");
+
+  const ev = await svc.from("events").insert({ org_id: orgA, name: `${TAG} Event A` }).select("id").single();
+  if (ev.error) throw ev.error;
+  const eventA = ev.data.id;
+
+  const cat = await svc.from("categories")
+    .insert({ org_id: orgA, event_id: eventA, code: "10k", label: "10K", base_price: 100000 })
+    .select("id").single();
+  if (cat.error) throw cat.error;
+
+  const admin = await makeUser("admin");
+  await svc.from("user_roles").insert({ user_id: admin.id, role: "admin", org_id: orgA });
+  const other = await makeUser("other");
+  await svc.from("user_roles").insert({ user_id: other.id, role: "admin", org_id: orgB });
+
+  const mk = async (label: string, status: "paid" | "pending", amount: number) => {
+    const runner = await makeUser(label);
+    await svc.from("profiles").insert({ id: runner.id, full_name: `R ${amount}` });
+    const reg = await svc.from("registrations").insert({
+      org_id: orgA, event_id: eventA, category_id: cat.data.id, user_id: runner.id, status, total_amount: amount,
+    }).select("id").single();
+    if (reg.error) throw reg.error;
+    await svc.from("payments").insert({
+      org_id: orgA, registration_id: reg.data.id, amount,
+      platform_fee: amount / 10, net_to_org: amount - amount / 10, method: "gcash", status,
+    });
+  };
+  await mk("p1", "paid", 100000);
+  await mk("p2", "paid", 200000);
+  await mk("p3", "pending", 50000);
+
+  ctx = { orgA, orgB, eventA, admin, other };
+}, 60_000);
+
+afterAll(async () => {
+  for (const id of userIds) await svc.auth.admin.deleteUser(id);
+  for (const id of orgIds) await svc.from("organizations").delete().eq("id", id);
+}, 60_000);
 
 describe("dashboard totals views", () => {
-  it("aggregate paid money per org and per event, and leak nothing across orgs", async () => {
-    const svc = service();
-    const stamp = Date.now();
-    const admin = await makeUser(`dt_adm_${stamp}@test.dev`);
-    await svc.from("user_roles").insert({ user_id: admin.id, role: "admin", org_id: RWP });
-    const other = await makeUser(`dt_oth_${stamp}@test.dev`);
-    await svc.from("user_roles").insert({ user_id: other.id, role: "admin", org_id: APO });
+  it("sums only paid money, and counts pending without summing it", async () => {
+    const res = await authed(ctx.admin.token)
+      .from("admin_org_totals_v").select("*").eq("org_id", ctx.orgA).single();
+    expect(res.error).toBeNull();
+    expect(res.data).toMatchObject({
+      reg_count: 3, paid_count: 2, pending_count: 1,
+      gross_revenue: 300000, net_to_org: 270000, platform_fee: 30000,
+    });
+  });
 
-    const mk = async (status: "paid" | "pending", amount: number) => {
-      const runner = await makeUser(`dt_run_${stamp}_${status}_${amount}@test.dev`);
-      await svc.from("profiles").insert({ id: runner.id, full_name: `R ${amount}` });
-      const reg = await svc.from("registrations")
-        .insert({ org_id: RWP, event_id: E1, category_id: C4, user_id: runner.id, status, total_amount: amount })
-        .select().single();
-      await svc.from("payments").insert({
-        org_id: RWP, registration_id: reg.data!.id, amount,
-        platform_fee: amount / 10, net_to_org: amount - amount / 10, method: "gcash", status,
-      });
-    };
-    await mk("paid", 100000);
-    await mk("paid", 200000);
-    await mk("pending", 50000);
+  it("aggregates per event", async () => {
+    const res = await authed(ctx.admin.token)
+      .from("admin_event_totals_v").select("*").eq("event_id", ctx.eventA).single();
+    expect(res.data).toMatchObject({ reg_count: 3, gross_revenue: 300000 });
+  });
 
-    const totals = await authed(admin.token).from("admin_org_totals_v").select("*").eq("org_id", RWP).single();
-    expect(totals.error).toBeNull();
-    // Only paid money counts; pending is counted but not summed.
-    expect(totals.data!.gross_revenue).toBeGreaterThanOrEqual(300000);
-    expect(totals.data!.net_to_org).toBeGreaterThanOrEqual(270000);
-    expect(totals.data!.platform_fee).toBeGreaterThanOrEqual(30000);
-    expect(totals.data!.paid_count).toBeGreaterThanOrEqual(2);
-    expect(totals.data!.pending_count).toBeGreaterThanOrEqual(1);
-    expect(totals.data!.reg_count).toBeGreaterThanOrEqual(3);
+  it("leaks neither rows nor counts to another org", async () => {
+    const org = await authed(ctx.other.token)
+      .from("admin_org_totals_v").select("*", { count: "exact" }).eq("org_id", ctx.orgA);
+    expect(org.data ?? []).toHaveLength(0);
+    expect(org.count ?? 0).toBe(0);
 
-    const perEvent = await authed(admin.token).from("admin_event_totals_v").select("*").eq("event_id", E1).single();
-    expect(perEvent.data!.gross_revenue).toBeGreaterThanOrEqual(300000);
-    expect(perEvent.data!.reg_count).toBeGreaterThanOrEqual(3);
-
-    // The other org sees neither rows nor counts.
-    const leakOrg = await authed(other.token).from("admin_org_totals_v").select("*", { count: "exact" }).eq("org_id", RWP);
-    expect(leakOrg.data ?? []).toHaveLength(0);
-    expect(leakOrg.count ?? 0).toBe(0);
-    const leakEvent = await authed(other.token).from("admin_event_totals_v").select("*", { count: "exact" }).eq("event_id", E1);
-    expect(leakEvent.data ?? []).toHaveLength(0);
+    const event = await authed(ctx.other.token)
+      .from("admin_event_totals_v").select("*", { count: "exact" }).eq("event_id", ctx.eventA);
+    expect(event.data ?? []).toHaveLength(0);
+    expect(event.count ?? 0).toBe(0);
   });
 });
 ```
@@ -2374,7 +2527,7 @@ Expected: FAIL — relation `admin_org_totals_v` does not exist.
 
 - [ ] **Step 3: Write the migration**
 
-Create `supabase/migrations/20260806130000_admin_dashboard_views.sql`:
+Create `supabase/migrations/20260806160000_admin_dashboard_views.sql`:
 
 ```sql
 -- Aggregate read models for the admin dashboard. Design 2026-08-06 §8.1.
@@ -2420,18 +2573,32 @@ grant select on admin_org_totals_v   to authenticated;
 grant select on admin_event_totals_v to authenticated;
 ```
 
-- [ ] **Step 4: Apply and run**
+- [ ] **Step 4: Push to hosted and run**
 
 ```bash
-pnpm exec supabase db reset && pnpm exec vitest run supabase/tests/admin-dashboard-views.test.ts
+pnpm exec supabase db push
 ```
 
-Expected: PASS.
-
-- [ ] **Step 5: Commit**
+Then:
 
 ```bash
-git add supabase/migrations/20260806130000_admin_dashboard_views.sql supabase/tests/admin-dashboard-views.test.ts
+pnpm exec vitest run supabase/tests/admin-dashboard-views.test.ts
+```
+
+Expected: PASS, 3 tests.
+
+- [ ] **Step 5: Confirm the fixtures were cleaned up**
+
+```bash
+pnpm exec supabase db query --linked "select count(*) leftover from organizations where slug like 'dvtest%'"
+```
+
+Expected: `0`.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add supabase/migrations/20260806160000_admin_dashboard_views.sql supabase/tests/admin-dashboard-views.test.ts
 git commit -m "feat(db): org and per-event dashboard aggregate views"
 ```
 
@@ -2759,11 +2926,9 @@ Expected: PASS, 3 tests.
 
 - [ ] **Step 6: Verify in the browser**
 
-Open `https://admin.racepace.lan/dashboard`. With the current hosted data — one event, zero registrations — you should see four tiles, the "No registrations yet" card, and one row in the Events table. **That is the correct rendering, not a failure.** For real numbers, load the seed:
+Open `https://admin.racepace.lan/dashboard`. With the current hosted data — one org, two events, one registration and one payment — expect four tiles with small non-zero numbers, one row under Recent sign-ups, and **two** rows in the Events table.
 
-```bash
-pnpm exec supabase db reset
-```
+Do **not** try to load more sample data by resetting the database. `supabase db reset` against this linked project drops the hosted database. If you want richer numbers, insert rows deliberately with `db query --linked` and remove them afterwards.
 
 - [ ] **Step 7: Full suite, typecheck, commit**
 
@@ -2789,11 +2954,21 @@ pnpm --filter web test
 pnpm exec vitest run supabase/functions packages
 ```
 
-- [ ] **Database suites green** (needs the local stack up)
+- [ ] **The two new database suites green** (they run against hosted and build/destroy their own fixtures)
 
 ```bash
-pnpm exec vitest run supabase/tests
+pnpm exec vitest run supabase/tests/checkin-rpcs.test.ts supabase/tests/admin-dashboard-views.test.ts
 ```
+
+The other files in `supabase/tests/` were written for the retired local stack and are out of scope here — do not treat their failures as caused by this branch.
+
+- [ ] **No fixture rows left behind in hosted**
+
+```bash
+pnpm exec supabase db query --linked "select slug from organizations where slug like 'citest%' or slug like 'dvtest%'"
+```
+
+Expected: no rows.
 
 - [ ] **Typecheck and build clean**
 
@@ -2821,10 +2996,16 @@ pnpm exec supabase projects list
 pnpm exec supabase db push
 ```
 
-- [ ] **Verify a marshal end to end against hosted.** Create a marshal user, insert a `user_roles` row for org `a1`, sign in at `https://admin.racepace.lan`, and confirm: they land on `/check-in`, the sidebar shows only Check-in, `/events` redirects to `/no-access`, and the event picker lists Apo Sky Ultra 2026.
+- [ ] **Verify a marshal end to end against hosted.** Create a marshal user in the Supabase dashboard (Authentication → Add user), give it a `marshal` role on the real org, sign in at `https://admin.racepace.lan`, and confirm: they land on `/check-in`, the sidebar shows only Check-in, visiting `/events` redirects to `/no-access`, and the event picker lists both events.
 
 ```bash
-pnpm exec supabase db query --linked "select id, role, org_id from user_roles order by created_at desc limit 5"
+pnpm exec supabase db query --linked "insert into user_roles (user_id, role, org_id) values ('<marshal-uuid>', 'marshal', '00000000-0000-0000-0000-0000000000a1') returning id"
+```
+
+This one is a deliberate, kept row — unlike the test fixtures. Remove it when you are done if you do not want a standing marshal account:
+
+```bash
+pnpm exec supabase db query --linked "delete from user_roles where user_id = '<marshal-uuid>'"
 ```
 
 - [ ] **Verify the offline round trip by hand.** With an event selected and the roster synced: DevTools → Network → Offline, check a runner in from the roster, confirm the pending-sync chip appears, go back online, confirm it drains and progress increments.

@@ -47,7 +47,15 @@ The Edge Function was built for marshals; the data layer never was. Because the 
 
 ### Current data
 
-One organization (Race Pace), one event (Apo Sky Ultra 2026), **zero registrations, payments, and check-ins**. `supabase/seed.sql` restores five orgs and five events. Note `db push` does **not** run `seed.sql` against a linked remote.
+*(Corrected 2026-08-06 after inspecting the hosted project directly — the handoff brief was out of date.)*
+
+Hosted project `whaqarofxdlzxrelbcrq` holds **one organization** (`…a1`, Race Pace), **two events** — `…e1` Apo Sky Ultra 2026 (trail) and `…e2` Davao Sunrise Run 2026 (road), **both under `…a1`** — one registration, one payment, and zero check-ins.
+
+There is **no second organization**, so anything testing cross-org isolation must create its own throwaway org rather than relying on seed ids.
+
+Hosted is also two migrations ahead of this branch — `20260806090000_event_discipline_category_detail` and `20260806140000_expand_event_discipline`, pushed from the runner-web worktree. Both are additive and touch nothing this design reads, but every migration added here must be timestamped after `20260806140000`.
+
+**The local Supabase stack is retired.** `apps/web` and the database test suites both run against hosted. `supabase db reset` must never be run — against a linked project it drops the remote database.
 
 ## 4. Authorization — two RPCs, no new table grants
 
@@ -236,14 +244,16 @@ With one event and zero registrations in the hosted DB, the empty state is what 
 
 ### Unit — `pnpm --filter web test`
 
-**Never a bare `pnpm exec vitest run` at the repo root**: it picks up 8 RLS/integration files under `supabase/tests/` that need a running local stack and fails for reasons unrelated to this work.
+**Never a bare `pnpm exec vitest run` at the repo root**: it sweeps in the `supabase/tests/` suites, most of which were written for the retired local stack and now fail for reasons unrelated to this work.
 
 - `offlineDecision` — the full §5.3 table: paid match, pending match, no match, already checked in, already queued, wrong event.
 - Queue reducer — enqueue, duplicate-scan dedupe, replay success, replay rejection → `failed`, manual retry, progress derivation from roster + queue.
 - `feedKey` wedge reducer — machine burst with `Enter`; machine burst with no suffix committing on silence; human typing rejected; a burst interleaved with human typing; a burst arriving while the search field is focused, asserting the snapshot restores.
 - Dashboard — aggregation mapping and peso formatting at the render edge.
 
-### RPC authorization — `supabase/tests/` (local stack required)
+### RPC authorization — `supabase/tests/`, run against hosted
+
+These build a throwaway org, event, category and users in the hosted project, assert, then delete them in `afterAll`. Every FK cascades, so removing the fixture users and org removes everything they created. The real org and its events are never touched.
 
 - A marshal receives exactly their own org's roster.
 - An admin of a *different* org receives nothing.
@@ -257,7 +267,7 @@ With one event and zero registrations in the hosted DB, the empty state is what 
 - Offline exercised via devtools Network → Offline, including: queue while offline, restore connection, confirm replay; and a forced rejection landing in `failed`.
 - Camera on a real device or via Chrome camera emulation.
 - Wedge with a real scanner if available, otherwise synthetic key bursts.
-- Load `supabase/seed.sql` for a Dashboard with real numbers.
+- The Dashboard's numbers come from whatever hosted holds — currently one registration and one payment. Do not reach for `db reset` to get richer data; insert rows deliberately and remove them.
 
 ## 10. Commit sequence
 
