@@ -5,6 +5,7 @@ import { longDate } from "@/lib/format";
 import { isRegistrationClosed } from "@/lib/eventStatus";
 import { TopoPattern } from "@/components/TopoPattern";
 import { ParallaxMedia } from "@/components/ParallaxMedia";
+import { RainbowButton } from "@/components/ui/rainbow-button";
 import { EventBody } from "@/components/EventBody";
 
 /**
@@ -84,12 +85,12 @@ export function SingleEventLanding({ event, categories }: { event: EventRow; cat
           ) : null}
 
           <div className="mt-9">
-            <a
-              href="#distances"
-              className="inline-flex rounded-pill bg-primary px-8 py-4 text-[16px] font-semibold text-primary-foreground transition-colors hover:bg-primary-focus"
-            >
-              {closed ? "See race details" : "Choose your distance"}
-            </a>
+            {/* asChild keeps this an <a>: it is an in-page jump to #distances,
+                so it must stay a link for middle-click, keyboard and the
+                anchor's own scroll behaviour. */}
+            <RainbowButton asChild className="h-auto rounded-pill px-8 py-4 text-[16px] font-semibold">
+              <a href="#distances">{closed ? "See race details" : "Choose your distance"}</a>
+            </RainbowButton>
           </div>
         </div>
       </section>

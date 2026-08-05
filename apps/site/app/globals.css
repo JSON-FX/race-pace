@@ -2,6 +2,26 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Rainbow CTA gradient stops. HSL channel triples, consumed as
+ * `hsl(var(--rainbow-1))` by components/ui/rainbow-button.tsx.
+ *
+ * Named --rainbow-* rather than the upstream --color-* on purpose: --color-* is
+ * Tailwind v4's theme namespace, which @theme inline below already uses for the
+ * project's design tokens. A --color-1 here would read as a Race Pace token and
+ * could generate a stray `bg-1` utility. These are decoration, not tokens, so
+ * they stay out of that namespace and out of @theme.
+ *
+ * The hues orbit trail-green rather than the upstream red/purple/blue/cyan/lime
+ * so the CTA still reads as Race Pace — same animated sweep, but it belongs to
+ * the brand instead of looking dropped in from a component gallery. */
+:root {
+  --rainbow-1: 90 100% 63%;   /* lime        */
+  --rainbow-2: 150 85% 45%;   /* trail green — the brand accent, #159A55 */
+  --rainbow-3: 168 90% 45%;   /* emerald     */
+  --rainbow-4: 190 95% 55%;   /* teal        */
+  --rainbow-5: 210 100% 63%;  /* sky         */
+}
+
 :root {
   --background: 255 255 255;
   --foreground: 29 29 31;
@@ -128,6 +148,54 @@
   --radius-lg: var(--radius);
   --radius-xl: var(--radius-card);
   --radius-pill: var(--radius-pill);
+  /* Drives `animate-rainbow` on components/ui/rainbow-button.tsx. Tailwind v4
+   * has no tailwind.config.js — the `theme.extend.animation` block from the
+   * upstream integration guide is expressed here instead, and the matching
+   * @keyframes live below. Per-instance speed: style={{ "--speed": "3s" }}. */
+  --animate-rainbow: rainbow var(--speed, 2s) infinite linear;
+}
+
+@keyframes rainbow {
+  0% { background-position: 0%; }
+  100% { background-position: 200%; }
+}
+
+/* The rainbow CTA's three stacked background layers, for
+ * components/ui/rainbow-button.tsx.
+ *
+ * Written here rather than as Tailwind arbitrary values because the upstream
+ * snippet hardcodes #121213 — a near-black face that fights the trail-green
+ * theme. Driving the surface from `--primary` instead keeps the CTA on brand
+ * AND makes dark mode automatic (--primary flips to 47 181 106 in .dark), which
+ * a hardcoded hex could never do. The rgb(... / 0.6) slash syntax also does not
+ * survive Tailwind's arbitrary-value parser cleanly, so plain CSS is both
+ * safer and more readable.
+ *
+ * Layer order matters: the first two paint the button face over padding-box,
+ * the third paints the animated rainbow over border-box — that gradient
+ * showing through the transparent border IS the rainbow edge. */
+.rainbow-surface {
+  background-image:
+    linear-gradient(rgb(var(--primary)), rgb(var(--primary))),
+    linear-gradient(rgb(var(--primary)) 50%, rgb(var(--primary) / 0.6) 80%, rgb(var(--primary) / 0)),
+    linear-gradient(
+      90deg,
+      hsl(var(--rainbow-1)),
+      hsl(var(--rainbow-5)),
+      hsl(var(--rainbow-3)),
+      hsl(var(--rainbow-4)),
+      hsl(var(--rainbow-2))
+    );
+}
+
+/* An infinite 2s loop is precisely what this setting exists to stop, and a CTA
+ * is the last thing that should keep moving for someone who asked it not to.
+ * The button keeps its rainbow border — only the travel stops. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-rainbow,
+  .animate-rainbow::before {
+    animation: none;
+  }
 }
 
 @layer base {

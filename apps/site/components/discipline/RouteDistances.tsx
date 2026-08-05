@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { RainbowButton } from "@/components/ui/rainbow-button";
 import { formatPeso } from "@race-pace/shared";
 import type { CategoryRow } from "@/lib/events";
 import { cn } from "@/lib/utils";
@@ -74,12 +75,9 @@ function DistanceCard({ category, closed }: { category: CategoryRow; closed: boo
           {formatPeso(category.base_price)}
         </span>
         {enterable ? (
-          <Link
-            href={`/register/${category.id}`}
-            className="inline-flex rounded-pill bg-primary px-5 py-2.5 text-[14px] font-semibold text-primary-foreground transition-colors hover:bg-primary-focus"
-          >
-            Join
-          </Link>
+          <RainbowButton asChild className="h-auto rounded-pill px-5 py-2.5 text-[14px] font-semibold">
+            <Link href={`/register/${category.id}`}>Join</Link>
+          </RainbowButton>
         ) : (
           <span className="inline-flex rounded-pill bg-muted px-5 py-2.5 text-[14px] font-semibold text-muted-foreground">
             {closed ? "Closed" : "Sold out"}

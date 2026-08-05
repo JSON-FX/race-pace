@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { RainbowButton } from "@/components/ui/rainbow-button";
 import { formatPeso } from "@race-pace/shared";
 import type { EventRow, CategoryRow } from "@/lib/events";
 import { TopoPattern } from "@/components/TopoPattern";
@@ -158,13 +159,14 @@ function CheckpointRow({ category, closed }: { category: CategoryRow; closed: bo
 
       <div className="col-start-2 sm:col-start-4">
         {enterable ? (
-          <Link
-            href={`/register/${category.id}`}
-            aria-label={`Join ${category.label} — ${formatPeso(category.base_price)}`}
-            className="inline-flex w-full items-center justify-center rounded-pill bg-primary px-6 py-2.5 text-[14.5px] font-semibold text-primary-foreground transition-colors hover:bg-primary-focus sm:w-auto"
-          >
-            Join
-          </Link>
+          <RainbowButton asChild className="h-auto w-full rounded-pill px-6 py-2.5 text-[14.5px] font-semibold sm:w-auto">
+            <Link
+              href={`/register/${category.id}`}
+              aria-label={`Join ${category.label} — ${formatPeso(category.base_price)}`}
+            >
+              Join
+            </Link>
+          </RainbowButton>
         ) : (
           <span className="inline-flex w-full items-center justify-center rounded-pill bg-white/10 px-6 py-3 text-[14.5px] font-semibold text-white/60 sm:w-auto">
             {closed ? "Registration closed" : "Sold out"}
