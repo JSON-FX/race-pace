@@ -5,6 +5,7 @@ import type { EventRow, CategoryRow } from "@/lib/events";
 import { longDate } from "@/lib/format";
 import { isRegistrationClosed } from "@/lib/eventStatus";
 import { TopoPattern } from "@/components/TopoPattern";
+import { ParallaxMedia } from "@/components/ParallaxMedia";
 
 /**
  * The launch composition: when there is exactly one registerable race, the
@@ -30,11 +31,13 @@ export function SingleEventLanding({ event, categories }: { event: EventRow; cat
       {/* Poster hero — owns the viewport. Name, date, place, and the call to
           action are all visible without scrolling. */}
       <section className="relative isolate flex min-h-[92vh] flex-col justify-end overflow-hidden">
-        {event.hero_image_url ? (
-          <Image src={event.hero_image_url} alt="" fill priority sizes="100vw" className="object-cover" />
-        ) : (
-          <TopoPattern className="absolute inset-0 h-full w-full" />
-        )}
+        <ParallaxMedia>
+          {event.hero_image_url ? (
+            <Image src={event.hero_image_url} alt="" fill priority sizes="100vw" className="object-cover" />
+          ) : (
+            <TopoPattern className="absolute inset-0 h-full w-full" />
+          )}
+        </ParallaxMedia>
         {/* Two layers: a flat scrim darkens the WHOLE photo so a headline can
             never cross a bright patch, then the gradient adds extra weight low
             down where the text actually sits. A gradient alone fading to

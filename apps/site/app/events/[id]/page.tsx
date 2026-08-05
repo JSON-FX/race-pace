@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { fetchEvent, fetchCategories } from "@/lib/events";
 import { SiteHeader } from "@/components/SiteHeader";
 import { TopoPattern } from "@/components/TopoPattern";
+import { ParallaxMedia } from "@/components/ParallaxMedia";
 import { longDate } from "@/lib/format";
 import { isRegistrationClosed } from "@/lib/eventStatus";
 
@@ -56,11 +57,13 @@ export default async function EventPage({ params }: Params) {
       <SiteHeader />
       <main>
         <section className="relative isolate flex min-h-[58vh] items-end overflow-hidden">
-          {event.hero_image_url ? (
-            <Image src={event.hero_image_url} alt="" fill priority sizes="100vw" className="object-cover" />
-          ) : (
-            <TopoPattern className="absolute inset-0 h-full w-full" />
-          )}
+          <ParallaxMedia>
+            {event.hero_image_url ? (
+              <Image src={event.hero_image_url} alt="" fill priority sizes="100vw" className="object-cover" />
+            ) : (
+              <TopoPattern className="absolute inset-0 h-full w-full" />
+            )}
+          </ParallaxMedia>
           {/* Two layers: a flat scrim darkens the WHOLE photo so a headline can
               never cross a bright patch, then the gradient adds extra weight low
               down where the text actually sits. A gradient alone fading to

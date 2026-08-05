@@ -7,6 +7,7 @@ import { EventCard } from "@/components/EventCard";
 import { SiteHeader } from "@/components/SiteHeader";
 import { TopoPattern } from "@/components/TopoPattern";
 import { SingleEventLanding } from "@/components/SingleEventLanding";
+import { ParallaxMedia } from "@/components/ParallaxMedia";
 import { longDate } from "@/lib/format";
 import { isRegistrationClosed } from "@/lib/eventStatus";
 import { homeMode } from "@/lib/home";
@@ -71,11 +72,13 @@ export default async function Home() {
       <main>
         {hero ? (
           <section className="relative isolate flex min-h-[78vh] items-end overflow-hidden">
-            {hero.hero_image_url ? (
-              <Image src={hero.hero_image_url} alt="" fill priority sizes="100vw" className="object-cover" />
-            ) : (
-              <TopoPattern className="absolute inset-0 h-full w-full" />
-            )}
+            <ParallaxMedia>
+              {hero.hero_image_url ? (
+                <Image src={hero.hero_image_url} alt="" fill priority sizes="100vw" className="object-cover" />
+              ) : (
+                <TopoPattern className="absolute inset-0 h-full w-full" />
+              )}
+            </ParallaxMedia>
             {/* Two layers: a flat scrim darkens the WHOLE photo so a headline can
                 never cross a bright patch, then the gradient adds extra weight low
                 down where the text actually sits. A gradient alone fading to
