@@ -35,7 +35,12 @@ export function SingleEventLanding({ event, categories }: { event: EventRow; cat
         ) : (
           <TopoPattern className="absolute inset-0 h-full w-full" />
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-black/10" />
+        {/* Two layers: a flat scrim darkens the WHOLE photo so a headline can
+            never cross a bright patch, then the gradient adds extra weight low
+            down where the text actually sits. A gradient alone fading to
+            transparent leaves the top bright and the type fights the image. */}
+        <div className="absolute inset-0 bg-black/45" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/92 via-black/60 to-black/25" />
 
         <div className="relative mx-auto flex w-full max-w-6xl flex-col px-6 pb-16 pt-32">
           {event.org_name ? (

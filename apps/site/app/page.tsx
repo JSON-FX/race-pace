@@ -76,7 +76,12 @@ export default async function Home() {
             ) : (
               <TopoPattern className="absolute inset-0 h-full w-full" />
             )}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
+            {/* Two layers: a flat scrim darkens the WHOLE photo so a headline can
+                never cross a bright patch, then the gradient adds extra weight low
+                down where the text actually sits. A gradient alone fading to
+                transparent leaves the top bright and the type fights the image. */}
+            <div className="absolute inset-0 bg-black/45" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/92 via-black/60 to-black/25" />
             <div className="relative mx-auto w-full max-w-6xl px-6 pb-20">
               {hero.org_name ? (
                 <p className="text-[12px] font-semibold uppercase tracking-[2px] text-white/75">

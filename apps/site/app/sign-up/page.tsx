@@ -2,6 +2,7 @@
 
 import { Suspense, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,6 +41,11 @@ function SignUpForm() {
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-6 py-12">
+      {/* Clicking the mark returns to the catalog — an auth page with no way
+          out is a dead end for anyone who landed here by accident. */}
+      <Link href="/" aria-label="Race Pace home" className="mb-9 self-center">
+        <Image src="/topnav-logo.png" alt="Race Pace" width={132} height={70} priority />
+      </Link>
       <h1 className="text-[34px] font-semibold tracking-[-0.6px] text-foreground">Create account</h1>
       <p className="mt-2 text-[15px] text-muted-foreground">One account for every race on Race Pace.</p>
 
