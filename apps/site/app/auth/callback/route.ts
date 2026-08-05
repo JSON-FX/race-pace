@@ -15,8 +15,25 @@ function decodeNext(raw: string | undefined): string | null {
   }
 }
 
+/** Redirect with a RELATIVE Location header, and clear the destination cookie.
+ *
+ *  Deliberately not NextResponse.redirect(`${request.nextUrl.origin}…`):
+ *  behind a reverse proxy, `origin` is the server's own bind address, not the
+ *  host the runner typed. In the Docker dev stack that sent people to
+ *  `https://0.0.0.0:3000/` after a successful Google sign-in, and on Vercel it
+ *  would resolve to the internal deployment host. A relative Location is
+ *  resolved by the BROWSER against its current URL, so it is automatically
+ *  right on racepace.lan, *.vercel.app and racepace.com.ph without any
+ *  environment configuration. This is what Next's own middleware emits for
+ *  same-origin redirects, which is why the middleware guard never had the bug. */
+function redirectRelative(path: string): NextResponse {
+  const res = new NextResponse(null, { status: 307, headers: { location: path } });
+  res.cookies.delete(OAUTH_NEXT_COOKIE);
+  return res;
+}
+
 export async function GET(request: NextRequest) {
-  const { searchParams, origin } = request.nextUrl;
+  const { searchParams } = request.nextUrl;
   const code = searchParams.get("code");
 
   // The destination arrives in a cookie, not the URL: `redirectTo` has to
@@ -31,14 +48,8 @@ export async function GET(request: NextRequest) {
   if (code) {
     const supabase = await createClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error) {
-      const res = NextResponse.redirect(`${origin}${safeNext}`);
-      res.cookies.delete(OAUTH_NEXT_COOKIE);
-      return res;
-    }
+    if (!error) return redirectRelative(safeNext);
   }
 
-  const res = NextResponse.redirect(`${origin}/sign-in?error=oauth`);
-  res.cookies.delete(OAUTH_NEXT_COOKIE);
-  return res;
+  return redirectRelative("/sign-in?error=oauth");
 }

@@ -24,7 +24,21 @@ describe("OAuth callback", () => {
     const res = await GET(req("https://racepace.lan/auth/callback?code=abc", `${OAUTH_NEXT_COOKIE}=%2Fraces`));
 
     expect(exchangeCodeForSession).toHaveBeenCalledWith("abc");
-    expect(res.headers.get("location")).toBe("https://racepace.lan/races");
+    expect(res.headers.get("location")).toBe("/races");
+  });
+
+  it("emits a RELATIVE Location, never one built from the server's own origin", async () => {
+    // Behind a reverse proxy `request.nextUrl.origin` is the container's bind
+    // address. Building the redirect from it sent runners to
+    // `https://0.0.0.0:3000/` after a successful Google sign-in, and on Vercel
+    // would resolve to the internal deployment host. Note the request URL here
+    // is racepace.lan while the test asserts a bare path: the browser resolves
+    // it, so the answer is right on every host without configuration.
+    const res = await GET(req("https://racepace.lan/auth/callback?code=abc", `${OAUTH_NEXT_COOKIE}=%2Fraces`));
+
+    const location = res.headers.get("location")!;
+    expect(location.startsWith("/")).toBe(true);
+    expect(location).not.toMatch(/^https?:\/\//);
   });
 
   it("clears the destination cookie so a later visit can't be misrouted by a stale one", async () => {
@@ -45,7 +59,7 @@ describe("OAuth callback", () => {
       req("https://racepace.lan/auth/callback?code=abc", `${OAUTH_NEXT_COOKIE}=https%3A%2F%2Fevil.example%2Fsteal`),
     );
 
-    expect(res.headers.get("location")).toBe("https://racepace.lan/");
+    expect(res.headers.get("location")).toBe("/");
   });
 
   it("refuses a protocol-relative destination in the cookie", async () => {
@@ -54,7 +68,7 @@ describe("OAuth callback", () => {
       req("https://racepace.lan/auth/callback?code=abc", `${OAUTH_NEXT_COOKIE}=%2F%2Fevil.example`),
     );
 
-    expect(res.headers.get("location")).toBe("https://racepace.lan/");
+    expect(res.headers.get("location")).toBe("/");
   });
 
   it("survives a malformed cookie instead of throwing", async () => {
@@ -62,13 +76,13 @@ describe("OAuth callback", () => {
     // it, which would 500 the one route a runner cannot skip.
     const res = await GET(req("https://racepace.lan/auth/callback?code=abc", `${OAUTH_NEXT_COOKIE}=%`));
 
-    expect(res.headers.get("location")).toBe("https://racepace.lan/");
+    expect(res.headers.get("location")).toBe("/");
   });
 
   it("still honours ?next= when no cookie is present", async () => {
     const res = await GET(req("https://racepace.lan/auth/callback?code=abc&next=%2Fraces"));
 
-    expect(res.headers.get("location")).toBe("https://racepace.lan/races");
+    expect(res.headers.get("location")).toBe("/races");
   });
 
   it("bounces to sign-in when the code exchange fails", async () => {
@@ -76,13 +90,13 @@ describe("OAuth callback", () => {
 
     const res = await GET(req("https://racepace.lan/auth/callback?code=abc", `${OAUTH_NEXT_COOKIE}=%2Fraces`));
 
-    expect(res.headers.get("location")).toBe("https://racepace.lan/sign-in?error=oauth");
+    expect(res.headers.get("location")).toBe("/sign-in?error=oauth");
   });
 
   it("bounces to sign-in when no code is present", async () => {
     const res = await GET(req("https://racepace.lan/auth/callback"));
 
     expect(exchangeCodeForSession).not.toHaveBeenCalled();
-    expect(res.headers.get("location")).toBe("https://racepace.lan/sign-in?error=oauth");
+    expect(res.headers.get("location")).toBe("/sign-in?error=oauth");
   });
 });
