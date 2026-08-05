@@ -23,6 +23,7 @@
 - **Server-side auth uses `getUser()`, never `getSession()`.** `getSession()` returns unverified cookie contents. This rule applies to every Server Component, Route Handler, and middleware path.
 - **Payment is never trusted from a redirect.** `/pay/callback` always confirms through `payment-verify`, which re-fetches the session from PayMongo server-side.
 - **Commit after every task.** Each task ends green — typecheck and tests pass before the commit.
+- **shadcn MCP.** The server resolves `components.json` from its working directory — the worktree root, which has none. So `get_project_registries` returns empty and `search_items_in_registries` finds nothing, while `view_items_in_registries` works regardless. Prefer `view_items_in_registries` to read a component's current source before adding it, rather than writing shadcn from memory. To restore search after Task 2, either re-register the MCP scoped to `apps/site`, or copy `apps/site/components.json` to the worktree root purely for registry resolution — `shadcn add` is still run from inside `apps/site` either way.
 - **The primary brand accent is trail-green `#159A55`** (`#2FB56A` in dark). Blue survives only as the `info` status color.
 
 ## File Structure
@@ -1262,6 +1263,18 @@ grep -rn "var(--" apps/site/components/ui/
 
 Rewrite every hit that is not already `var(--color-*)`. For example `bg-[var(--primary)]` becomes `bg-[var(--color-primary)]`; a bare `border-input` utility is fine because `@theme inline` defines `--color-input`. Skipping this produces components that render with invisible or default colors and no CSS error.
 
+- [ ] **Step 1b: [USER] Enable the Google provider**
+
+Google sign-in built in this task fails at runtime until the provider exists. In Google Cloud Console → APIs & Services → Credentials, create an **OAuth 2.0 Client ID** (Web application) with this authorized redirect URI:
+
+```
+https://whaqarofxdlzxrelbcrq.supabase.co/auth/v1/callback
+```
+
+Then paste the client ID and secret into Supabase Dashboard → Authentication → Providers → Google, and enable it.
+
+Note this is the **new** project's callback — the old `ytwdrsmclwghwktpupqd` URI will not work. Email/password sign-in works without this, so the rest of the task is not blocked; only the Google button is.
+
 - [ ] **Step 2: Write `lib/auth.ts`**
 
 ```ts
@@ -2020,14 +2033,15 @@ Create `apps/site/components/SiteHeader.tsx`:
 ```tsx
 import Link from "next/link";
 import Image from "next/image";
-import logo from "@/public/topnav-logo.png";
 
 export function SiteHeader() {
   return (
     <header className="no-print sticky top-0 z-40 border-b border-divider bg-background/85 backdrop-blur">
       <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-6">
         <Link href="/" aria-label="Race Pace home">
-          <Image src={logo} alt="Race Pace" height={28} priority />
+          {/* Served from public/ by path, not a static import — width and height
+              are explicit so there is no layout shift. Source is 700x372. */}
+          <Image src="/topnav-logo.png" alt="Race Pace" width={60} height={32} priority />
         </Link>
         <nav className="flex items-center gap-6 text-[14px] font-medium">
           <Link href="/events" className="text-foreground hover:text-primary">Races</Link>
@@ -2371,7 +2385,7 @@ Pure logic and data access for the wizard, split out so Task 8 is purely UI. The
   - `clearDraft(categoryId: string): void`
 - Produces, from `@/lib/errors`: `checkoutErrorMessage(code: string): string`, `parseFunctionError(error: unknown): Promise<string>`.
 - Produces, from `@/lib/profile`: `type Profile`, `getProfile(userId: string): Promise<Profile | null>`, `upsertProfile(row: Partial<Profile> & { id: string }): Promise<{ error?: string }>`.
-- Produces, from `@/lib/registration`: `type RegistrationRow`, `type RegistrationPayment`, `mapReg(r: any): RegistrationRow`, `startCheckout(input: RegistrationInput): Promise<{ registration_id: string; checkout_url: string }>`, `verifyPayment(rid: string): Promise<{ status: string }>`, `createMethodCheckout(rid: string, method: string): Promise<string | null>`, `fetchRegistration(rid: string): Promise<RegistrationRow | null>`, `useRegistration(rid: string, opts?: { poll?: boolean })`, `fetchMyRegistrations(): Promise<RegistrationRow[]>`, `useMyRegistrations()`, `cancelRegistration(rid: string): Promise<void>`.
+- Produces, from `@/lib/registration`: `type RegistrationRow`, `type RegistrationPayment`, `mapReg(r: any): RegistrationRow`, `startCheckout(input: RegistrationInput): Promise<{ registration_id: string; checkout_url: string }>`, `verifyPayment(rid: string): Promise<{ status: string }>`, `createMethodCheckout(rid: string, method: string): Promise<string | null>`, `fetchRegistration(rid: string): Promise<RegistrationRow | null>`, `useRegistration(rid: string, opts?: { poll?: boolean; enabled?: boolean })` — skipped when `rid` is empty, `fetchMyRegistrations(): Promise<RegistrationRow[]>`, `useMyRegistrations()`, `cancelRegistration(rid: string): Promise<void>`.
 
 - [ ] **Step 1: Write the failing draft test**
 
@@ -2755,10 +2769,14 @@ export async function fetchRegistration(rid: string): Promise<RegistrationRow | 
   return data ? mapReg(data) : null;
 }
 
-export function useRegistration(rid: string, opts?: { poll?: boolean }) {
+/** `enabled` matters on /pay/callback, where the rid is recovered inside an
+ *  effect and is briefly "". Querying `.eq("id", "")` against a uuid column is
+ *  a Postgres error, so the query must not run until the rid is known. */
+export function useRegistration(rid: string, opts?: { poll?: boolean; enabled?: boolean }) {
   return useQuery({
     queryKey: ["registration", rid],
     queryFn: () => fetchRegistration(rid),
+    enabled: (opts?.enabled ?? true) && !!rid,
     refetchInterval: opts?.poll
       ? (query) => (query.state.data?.status === "paid" ? false : 3000)
       : false,
@@ -2944,6 +2962,12 @@ describe("showSaveBack", () => {
   it("handles a null profile for a brand-new account", () => {
     expect(showSaveBack(null, { shirt_size: "M" })).toBe(true);
   });
+
+  // gender lives in draft.details, not draft.kit — the wizard passes a merged
+  // object, so this key must be honoured too.
+  it("offers save-back for gender", () => {
+    expect(showSaveBack(empty, { gender: "Male" })).toBe(true);
+  });
 });
 ```
 
@@ -3005,7 +3029,7 @@ export function showSaveBack(profile: Profile | null, kit: Record<string, string
 pnpm --filter site test -- wizard
 ```
 
-Expected: PASS — 13 tests.
+Expected: PASS — 14 tests.
 
 - [ ] **Step 6: Write `components/PillSelect.tsx`**
 
@@ -3423,10 +3447,12 @@ export function RegisterWizard({ userId, category, event, addons, formFields }: 
       }
       // A required profile-key field must be present; the server enforces this
       // too, so skipping it here just produces a worse error later.
+      // `||` not `??`: a key present-but-empty in `details` must still fall
+      // through to `kit`, and `??` only falls through on null/undefined.
       const missing = formFields
         .filter((f) => isProfileKey(f.key) && f.required)
         .map((f) => f.key)
-        .filter((k) => !(draft.details[k] ?? draft.kit[k] ?? "").trim());
+        .filter((k) => !(draft.details[k] || draft.kit[k] || "").trim());
       if (missing.length) {
         setErrors(Object.fromEntries(missing.map((k) => [k, "This is required."])));
         return;
@@ -3566,7 +3592,9 @@ export function RegisterWizard({ userId, category, event, addons, formFields }: 
             </>
           ) : null}
 
-          {showSaveBack(profile, draft.kit) ? (
+          {/* Merged: gender lives in `details`, shirt/blood in `kit`, and all
+              three are what submit() writes back to the passport. */}
+          {showSaveBack(profile, { ...draft.details, ...draft.kit }) ? (
             <div className="mt-6 flex items-center gap-3 rounded-lg border border-border p-4">
               <Checkbox id="save_back" checked={draft.saveBack} onCheckedChange={(c) => patch({ saveBack: c === true })} />
               <Label htmlFor="save_back" className="text-[14px]">Save these details to my profile</Label>
@@ -3732,3 +3760,1656 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 ```
 
 ---
+
+### Task 9: Payment and callback
+
+Web redirects fully off-site to PayMongo and back, so unlike mobile there is no in-memory state to preserve — `/pay/callback` is the resume point.
+
+**Files:**
+- Create: `apps/site/lib/payment.ts`, `apps/site/app/pay/[registrationId]/page.tsx`, `apps/site/app/pay/[registrationId]/PayPanel.tsx`, `apps/site/app/pay/callback/page.tsx`, `apps/site/app/pay/callback/CallbackPanel.tsx`
+- Test: `apps/site/lib/__tests__/payment.test.ts`
+
+**Interfaces:**
+- Consumes: `useRegistration`, `verifyPayment`, `createMethodCheckout`, `RegistrationRow` (Task 7); `TicketStub` (Task 8); `formatPeso` from `@race-pace/shared`.
+- Produces, from `@/lib/payment`: `PAY_METHODS: { key: string; label: string }[]`, `breakdown(total: number, basePrice: number | null): { entry: number; addons: number }`, `POLL_MS: 3000`, `TIMEOUT_MS: 90_000`.
+
+- [ ] **Step 1: Write the failing test**
+
+Create `apps/site/lib/__tests__/payment.test.ts`:
+
+```ts
+import { describe, it, expect } from "vitest";
+import { breakdown, PAY_METHODS } from "../payment";
+
+describe("breakdown", () => {
+  it("splits a total into entry fee and add-ons", () => {
+    expect(breakdown(310000, 250000)).toEqual({ entry: 250000, addons: 60000 });
+  });
+
+  it("reports zero add-ons when the total equals the base price", () => {
+    expect(breakdown(250000, 250000)).toEqual({ entry: 250000, addons: 0 });
+  });
+
+  // basePrice is null when the category embed is missing; the whole total is
+  // then the entry fee rather than a negative add-on line.
+  it("treats the whole total as entry fee when base price is unknown", () => {
+    expect(breakdown(250000, null)).toEqual({ entry: 250000, addons: 0 });
+  });
+
+  // A category price cut after registration must never render as negative.
+  it("never reports a negative add-on total", () => {
+    expect(breakdown(200000, 250000).addons).toBe(0);
+  });
+});
+
+describe("PAY_METHODS", () => {
+  it("offers the three methods the payment-session function accepts", () => {
+    expect(PAY_METHODS.map((m) => m.key)).toEqual(["card", "gcash", "maya"]);
+  });
+});
+```
+
+- [ ] **Step 2: Run the test to verify it fails**
+
+```bash
+pnpm --filter site test -- payment
+```
+
+Expected: FAIL — cannot resolve `../payment`.
+
+- [ ] **Step 3: Write `lib/payment.ts`**
+
+```ts
+/** Keys must match METHOD_MAP in supabase/functions/payment-session/index.ts —
+ *  it rejects anything else. Maya is "paymaya" to PayMongo; the function maps it. */
+export const PAY_METHODS = [
+  { key: "card", label: "Card" },
+  { key: "gcash", label: "GCash" },
+  { key: "maya", label: "Maya" },
+];
+
+export const POLL_MS = 3000;
+export const TIMEOUT_MS = 90_000;
+
+export function breakdown(total: number, basePrice: number | null): { entry: number; addons: number } {
+  const entry = basePrice ?? total;
+  return { entry, addons: Math.max(0, total - entry) };
+}
+```
+
+- [ ] **Step 4: Run the test to verify it passes**
+
+```bash
+pnpm --filter site test -- payment
+```
+
+Expected: PASS — 5 tests.
+
+- [ ] **Step 5: Write the pay panel**
+
+Create `apps/site/app/pay/[registrationId]/PayPanel.tsx`:
+
+```tsx
+"use client";
+
+import { useState } from "react";
+import { Lock } from "lucide-react";
+import { formatPeso } from "@race-pace/shared";
+import { useRegistration, createMethodCheckout } from "@/lib/registration";
+import { PAY_METHODS, breakdown } from "@/lib/payment";
+import { TicketStub } from "@/components/TicketStub";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+
+export function PayPanel({ registrationId }: { registrationId: string }) {
+  const reg = useRegistration(registrationId);
+  const [method, setMethod] = useState("gcash");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (reg.isLoading) return <p className="py-20 text-center text-muted-foreground">Loading…</p>;
+  if (!reg.data) return <p className="py-20 text-center text-muted-foreground">We couldn&apos;t find that registration.</p>;
+
+  const total = reg.data.total_amount;
+  const { entry, addons } = breakdown(total, reg.data.basePrice);
+  const inclusions = reg.data.inclusions ?? [];
+
+  async function pay() {
+    setBusy(true);
+    setError(null);
+    // Remember which registration is in flight, so /pay/callback can recover
+    // it if PayMongo drops the rid from the return URL.
+    sessionStorage.setItem("rp:paying", registrationId);
+
+    const scoped = await createMethodCheckout(registrationId, method);
+    const url = scoped ?? reg.data!.checkoutUrl;
+    if (!url) {
+      setBusy(false);
+      setError("No checkout link is available. Go back and try registering again.");
+      return;
+    }
+    // Full-page redirect off-site; /pay/callback resumes when PayMongo returns.
+    window.location.assign(url);
+  }
+
+  return (
+    <div className="mx-auto w-full max-w-2xl px-6 py-10">
+      <h1 className="text-[28px] font-semibold tracking-[-0.6px] text-foreground">Payment</h1>
+
+      <div className="mt-6">
+        <TicketStub
+          eventName={reg.data.eventName}
+          categoryLabel={reg.data.categoryLabel}
+          amountLabel="Total due"
+          amount={total}
+        />
+      </div>
+
+      <dl className="mt-5 divide-y divide-divider overflow-hidden rounded-xl border border-border">
+        <div className="flex justify-between px-5 py-3.5">
+          <dt className="text-[14px] text-muted-foreground">Entry fee</dt>
+          <dd className="text-[14px] font-semibold tabular-nums text-foreground">{formatPeso(entry)}</dd>
+        </div>
+        {addons > 0 ? (
+          <div className="flex justify-between px-5 py-3.5">
+            <dt className="text-[14px] text-muted-foreground">Add-ons</dt>
+            <dd className="text-[14px] font-semibold tabular-nums text-foreground">+{formatPeso(addons)}</dd>
+          </div>
+        ) : null}
+        <div className="flex justify-between px-5 py-3.5">
+          <dt className="text-[14px] text-muted-foreground">Booking fee</dt>
+          <dd className="text-[14px] font-semibold text-primary">Free</dd>
+        </div>
+      </dl>
+
+      {inclusions.length > 0 ? (
+        <section className="mt-8">
+          <h2 className="text-[15px] font-semibold text-foreground">What&apos;s included</h2>
+          <ul className="mt-3 flex flex-col gap-2">
+            {inclusions.map((item, i) => (
+              <li key={i} className="flex items-center gap-2.5 text-[14px] text-foreground">
+                <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                {item}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      <h2 className="mt-8 text-[11px] font-semibold uppercase tracking-[0.6px] text-muted-foreground">Pay with</h2>
+      <div className="mt-3 flex flex-col gap-3">
+        {PAY_METHODS.map((m) => (
+          <button
+            key={m.key}
+            type="button"
+            aria-pressed={method === m.key}
+            onClick={() => setMethod(m.key)}
+            className={cn(
+              "flex items-center justify-between rounded-lg border-[1.5px] p-4 text-left transition-colors",
+              method === m.key ? "border-primary bg-secondary" : "border-border hover:border-primary",
+            )}
+          >
+            <span className="text-[15px] font-semibold text-foreground">{m.label}</span>
+            <span className={cn("h-5 w-5 rounded-full border-[1.5px]", method === m.key ? "border-primary bg-primary" : "border-border")} />
+          </button>
+        ))}
+      </div>
+
+      {error ? <p className="mt-5 text-[14px] text-destructive">{error}</p> : null}
+
+      <Button type="button" disabled={busy} onClick={pay} className="mt-8 h-auto w-full rounded-pill py-4 text-[16px] font-semibold">
+        {busy ? "Opening…" : `Pay ${formatPeso(total)}`}
+      </Button>
+      <p className="mt-3 flex items-center justify-center gap-1.5 text-[13px] text-muted-foreground">
+        <Lock size={13} /> Encrypted and secured by PayMongo
+      </p>
+    </div>
+  );
+}
+```
+
+- [ ] **Step 6: Write the pay page**
+
+Create `apps/site/app/pay/[registrationId]/page.tsx`:
+
+```tsx
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { SiteHeader } from "@/components/SiteHeader";
+import { PayPanel } from "./PayPanel";
+
+export const dynamic = "force-dynamic";
+
+export default async function PayPage({ params }: { params: Promise<{ registrationId: string }> }) {
+  const { registrationId } = await params;
+  const db = await createClient();
+  const { data: { user } } = await db.auth.getUser();
+  if (!user) redirect(`/sign-in?next=${encodeURIComponent(`/pay/${registrationId}`)}`);
+
+  // An already-paid registration has nothing to pay — send them to the ticket.
+  const { data: reg } = await db.from("registrations").select("status").eq("id", registrationId).maybeSingle();
+  if (reg?.status === "paid") redirect(`/ticket/${registrationId}`);
+
+  return (
+    <>
+      <SiteHeader />
+      <main><PayPanel registrationId={registrationId} /></main>
+    </>
+  );
+}
+```
+
+- [ ] **Step 7: Write the callback panel**
+
+Create `apps/site/app/pay/callback/CallbackPanel.tsx`:
+
+```tsx
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { verifyPayment, useRegistration } from "@/lib/registration";
+import { POLL_MS, TIMEOUT_MS } from "@/lib/payment";
+import { Button } from "@/components/ui/button";
+
+export function CallbackPanel() {
+  const router = useRouter();
+  const params = useSearchParams();
+  const [rid, setRid] = useState<string | null>(null);
+  const [timedOut, setTimedOut] = useState(false);
+  const cancelled = params.get("status") === "cancel";
+
+  // PayMongo returns with our rid, but recover from sessionStorage if it is
+  // missing — the runner has already paid at that point and must not be stranded.
+  useEffect(() => {
+    const fromQuery = params.get("rid");
+    setRid(fromQuery ?? sessionStorage.getItem("rp:paying"));
+  }, [params]);
+
+  const reg = useRegistration(rid ?? "", { poll: !!rid && !cancelled });
+  const verified = useRef(false);
+
+  // Confirm server-side. The redirect itself is never trusted — payment-verify
+  // re-fetches the session from PayMongo.
+  useEffect(() => {
+    if (!rid || cancelled || verified.current) return;
+    verified.current = true;
+    verifyPayment(rid).then(() => reg.refetch());
+  }, [rid, cancelled, reg]);
+
+  useEffect(() => {
+    if (!rid || cancelled) return;
+    const t = setTimeout(() => setTimedOut(true), TIMEOUT_MS);
+    return () => clearTimeout(t);
+  }, [rid, cancelled]);
+
+  useEffect(() => {
+    if (reg.data?.status === "paid" && rid) {
+      sessionStorage.removeItem("rp:paying");
+      router.replace(`/ticket/${rid}`);
+    }
+  }, [reg.data?.status, rid, router]);
+
+  if (cancelled && rid) {
+    return (
+      <Panel title="Payment cancelled" body="No payment was taken. Your slot is still held — you can try again.">
+        <Button asChild className="h-auto rounded-pill px-8 py-4 text-[16px] font-semibold">
+          <Link href={`/pay/${rid}`}>Back to payment</Link>
+        </Button>
+      </Panel>
+    );
+  }
+
+  if (!rid) {
+    return (
+      <Panel title="We lost track of that payment" body="If you completed a payment, it will still be confirmed. Check My Races in a moment.">
+        <Button asChild className="h-auto rounded-pill px-8 py-4 text-[16px] font-semibold">
+          <Link href="/races">Go to My Races</Link>
+        </Button>
+      </Panel>
+    );
+  }
+
+  return (
+    <Panel
+      title="Confirming your payment…"
+      body={
+        timedOut
+          ? "Still processing. If you completed payment, it will confirm shortly — you can also check again."
+          : "This usually takes a few seconds."
+      }
+    >
+      <Button
+        type="button"
+        onClick={() => verifyPayment(rid).then(() => reg.refetch())}
+        className="h-auto rounded-pill px-8 py-4 text-[16px] font-semibold"
+      >
+        Check again
+      </Button>
+    </Panel>
+  );
+}
+
+function Panel({ title, body, children }: { title: string; body: string; children: React.ReactNode }) {
+  return (
+    <div className="mx-auto flex min-h-[60vh] w-full max-w-md flex-col items-center justify-center px-6 text-center">
+      <h1 className="text-[26px] font-semibold tracking-[-0.5px] text-foreground">{title}</h1>
+      <p className="mt-3 text-[15px] leading-relaxed text-muted-foreground">{body}</p>
+      <div className="mt-8">{children}</div>
+    </div>
+  );
+}
+```
+
+- [ ] **Step 8: Write the callback page**
+
+`useSearchParams` requires a Suspense boundary in an App Router page.
+
+Create `apps/site/app/pay/callback/page.tsx`:
+
+```tsx
+import { Suspense } from "react";
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { SiteHeader } from "@/components/SiteHeader";
+import { CallbackPanel } from "./CallbackPanel";
+
+export const dynamic = "force-dynamic";
+
+export default async function PayCallbackPage() {
+  const db = await createClient();
+  const { data: { user } } = await db.auth.getUser();
+  if (!user) redirect("/sign-in?next=%2Fraces");
+
+  return (
+    <>
+      <SiteHeader />
+      <main>
+        <Suspense fallback={<p className="py-20 text-center text-muted-foreground">Loading…</p>}>
+          <CallbackPanel />
+        </Suspense>
+      </main>
+    </>
+  );
+}
+```
+
+- [ ] **Step 9: Full verification**
+
+```bash
+pnpm --filter site typecheck && pnpm --filter site test && pnpm --filter site build
+```
+
+Expected: all pass.
+
+- [ ] **Step 10: Commit**
+
+```bash
+git add apps/site
+git commit -m "feat(site): payment method selection and PayMongo callback
+
+Full-page redirect off-site and back, so /pay/callback is the resume
+point rather than in-memory state. Payment is always confirmed through
+payment-verify, which re-fetches the session server-side — the redirect
+is never trusted. The rid is stashed in sessionStorage so a return
+without it does not strand a runner who has already paid.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 10: Ticket page
+
+**Files:**
+- Create: `apps/site/components/TicketCard.tsx`, `apps/site/app/ticket/[registrationId]/page.tsx`, `apps/site/app/ticket/[registrationId]/TicketPanel.tsx`
+- Test: `apps/site/components/__tests__/ticket-card.test.tsx`
+
+**Interfaces:**
+- Consumes: `useRegistration`, `RegistrationRow` (Task 7); `getProfile` (Task 7); `longDate` (Task 5).
+- Produces: `TicketCard({ token, eventName, categoryLabel, eventDate, reference, runnerName, bibName, distanceKm })`.
+
+- [ ] **Step 1: Write the failing test**
+
+Create `apps/site/components/__tests__/ticket-card.test.tsx`:
+
+```tsx
+import { describe, it, expect } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { TicketCard } from "../TicketCard";
+
+const props = {
+  token: "signed.ticket.token",
+  eventName: "Apo Sky Ultra 2026",
+  categoryLabel: "100K",
+  eventDate: "2026-11-14",
+  reference: "A1B2C3D4",
+  runnerName: "Juan Dela Cruz",
+  bibName: "JUAN",
+  distanceKm: 100,
+};
+
+describe("TicketCard", () => {
+  it("shows the event, category, and date", () => {
+    render(<TicketCard {...props} />);
+    expect(screen.getByText("Apo Sky Ultra 2026")).toBeInTheDocument();
+    expect(screen.getByText(/100K/)).toBeInTheDocument();
+    expect(screen.getByText("14 November 2026")).toBeInTheDocument();
+  });
+
+  it("renders a scannable QR carrying the signed token", () => {
+    const { container } = render(<TicketCard {...props} />);
+    expect(container.querySelector("svg")).toBeInTheDocument();
+  });
+
+  it("shows the reference code and runner details", () => {
+    render(<TicketCard {...props} />);
+    expect(screen.getByText("A1B2C3D4")).toBeInTheDocument();
+    expect(screen.getByText("Juan Dela Cruz")).toBeInTheDocument();
+    expect(screen.getByText("JUAN")).toBeInTheDocument();
+  });
+
+  it("falls back to the reference when there is no bib name", () => {
+    render(<TicketCard {...props} bibName={null} />);
+    expect(screen.getAllByText("A1B2C3D4").length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("renders without a distance", () => {
+    render(<TicketCard {...props} distanceKm={null} />);
+    expect(screen.getByText("Apo Sky Ultra 2026")).toBeInTheDocument();
+  });
+});
+```
+
+- [ ] **Step 2: Run the test to verify it fails**
+
+```bash
+pnpm --filter site test ticket-card
+```
+
+Expected: FAIL — cannot resolve `../TicketCard`.
+
+- [ ] **Step 3: Write `components/TicketCard.tsx`**
+
+```tsx
+"use client";
+
+import { QRCodeSVG } from "qrcode.react";
+import { longDate } from "@/lib/format";
+
+export function TicketCard({
+  token, eventName, categoryLabel, eventDate, reference, runnerName, bibName, distanceKm,
+}: {
+  token: string;
+  eventName: string;
+  categoryLabel: string;
+  eventDate: string | null;
+  reference: string;
+  runnerName: string | null;
+  bibName: string | null;
+  distanceKm: number | null;
+}) {
+  return (
+    <div className="overflow-hidden rounded-2xl border border-border bg-card">
+      <div className="bg-forest p-6">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.5px] text-white/60">
+          Race pass · {categoryLabel}
+        </p>
+        <h1 className="mt-2 text-[22px] font-bold tracking-[-0.3px] text-white">{eventName}</h1>
+        {eventDate ? <p className="mt-1.5 text-[13px] text-white/75">{longDate(eventDate)}</p> : null}
+      </div>
+
+      <div className="flex flex-col items-center border-t border-dashed border-border p-7">
+        {/* White quiet zone is required — scanners fail against a dark surface. */}
+        <div className="rounded-xl border border-border bg-white p-3.5">
+          <QRCodeSVG value={token} size={168} level="M" />
+        </div>
+        <p className="mt-3.5 font-mono text-[13px] tracking-[1px] text-muted-foreground">{reference}</p>
+        <p className="mt-1.5 text-center text-[13px] text-foreground">Show this QR at check-in.</p>
+      </div>
+
+      <dl className="grid grid-cols-2 gap-px border-t border-border bg-border">
+        <Cell label="Runner" value={runnerName || "—"} />
+        <Cell label="Bib" value={bibName || reference} />
+        <Cell label="Category" value={categoryLabel} />
+        <Cell label="Distance" value={distanceKm ? `${distanceKm} KM` : "—"} />
+      </dl>
+    </div>
+  );
+}
+
+function Cell({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="bg-card p-4">
+      <dt className="text-[10px] font-semibold uppercase tracking-[0.5px] text-muted-foreground">{label}</dt>
+      <dd className="mt-1 truncate text-[14px] font-semibold text-foreground">{value}</dd>
+    </div>
+  );
+}
+```
+
+- [ ] **Step 4: Run the test to verify it passes**
+
+```bash
+pnpm --filter site test ticket-card
+```
+
+Expected: PASS — 5 tests.
+
+- [ ] **Step 5: Write the ticket panel**
+
+Create `apps/site/app/ticket/[registrationId]/TicketPanel.tsx`:
+
+```tsx
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { Printer } from "lucide-react";
+import { useRegistration } from "@/lib/registration";
+import { getProfile } from "@/lib/profile";
+import { TicketCard } from "@/components/TicketCard";
+import { Button } from "@/components/ui/button";
+
+export function TicketPanel({ registrationId, userId }: { registrationId: string; userId: string }) {
+  const reg = useRegistration(registrationId);
+  const [profile, setProfile] = useState<{ full_name: string | null; bib_name: string | null } | null>(null);
+
+  useEffect(() => { getProfile(userId).then((p) => p && setProfile(p)); }, [userId]);
+
+  const reference = registrationId.slice(0, 8).toUpperCase();
+
+  if (reg.isLoading) return <p className="py-20 text-center text-muted-foreground">Loading…</p>;
+  if (!reg.data) return <p className="py-20 text-center text-muted-foreground">We couldn&apos;t find that registration.</p>;
+
+  if (!reg.data.ticket_token) {
+    return (
+      <div className="mx-auto w-full max-w-md px-6 py-20 text-center">
+        <h1 className="text-[24px] font-semibold text-foreground">No ticket yet</h1>
+        <p className="mt-3 text-[15px] text-muted-foreground">Complete payment to get your race pass.</p>
+        <Button asChild className="mt-8 h-auto rounded-pill px-8 py-4 text-[16px] font-semibold">
+          <Link href={`/pay/${registrationId}`}>Complete payment</Link>
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mx-auto w-full max-w-md px-6 py-10">
+      {reg.data.statusNote ? (
+        <p className="no-print mb-6 rounded-xl border border-amber bg-amber-tint px-4 py-3 text-[14px] text-foreground">
+          {reg.data.statusNote}
+        </p>
+      ) : null}
+
+      <TicketCard
+        token={reg.data.ticket_token}
+        eventName={reg.data.eventName}
+        categoryLabel={reg.data.categoryLabel}
+        eventDate={reg.data.eventDate}
+        reference={reference}
+        runnerName={profile?.full_name ?? null}
+        bibName={profile?.bib_name ?? null}
+        distanceKm={reg.data.categoryDistance}
+      />
+
+      <div className="no-print mt-6 flex flex-col gap-3">
+        <Button type="button" onClick={() => window.print()} className="h-auto gap-2 rounded-pill py-4 text-[16px] font-semibold">
+          <Printer size={17} /> Save as PDF / Print
+        </Button>
+        <p className="text-center text-[13px] text-muted-foreground">
+          We&apos;ve also emailed this ticket to you. Save it offline — trailheads rarely have signal.
+        </p>
+        <Button asChild variant="outline" className="h-auto rounded-pill py-4 text-[15px] font-semibold">
+          <Link href="/races">Back to My Races</Link>
+        </Button>
+      </div>
+    </div>
+  );
+}
+```
+
+- [ ] **Step 6: Write the ticket page**
+
+Create `apps/site/app/ticket/[registrationId]/page.tsx`:
+
+```tsx
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { SiteHeader } from "@/components/SiteHeader";
+import { TicketPanel } from "./TicketPanel";
+
+export const dynamic = "force-dynamic";
+
+export default async function TicketPage({ params }: { params: Promise<{ registrationId: string }> }) {
+  const { registrationId } = await params;
+  const db = await createClient();
+  const { data: { user } } = await db.auth.getUser();
+  if (!user) redirect(`/sign-in?next=${encodeURIComponent(`/ticket/${registrationId}`)}`);
+
+  return (
+    <>
+      <SiteHeader />
+      <main><TicketPanel registrationId={registrationId} userId={user.id} /></main>
+    </>
+  );
+}
+```
+
+- [ ] **Step 7: Verify printing manually**
+
+```bash
+pnpm --filter site dev
+```
+
+Open a paid registration's ticket, press Cmd+P. Expected: the header, the action buttons, and the status note are hidden (`.no-print` from Task 2's stylesheet); the ticket card and QR fill one clean page.
+
+- [ ] **Step 8: Full verification**
+
+```bash
+pnpm --filter site typecheck && pnpm --filter site test && pnpm --filter site build
+```
+
+Expected: all pass.
+
+- [ ] **Step 9: Commit**
+
+```bash
+git add apps/site
+git commit -m "feat(site): ticket page with QR and print stylesheet
+
+QR renders from the same signed ticket_token the mobile app and check-in
+use. No PDF library: the print stylesheet plus window.print() produces a
+real PDF through the OS dialog on desktop, iOS, and Android, and avoids a
+second rendering path to keep in sync with the ticket design.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 11: `ticket-qr` Edge Function
+
+A public PNG endpoint so the ticket email can embed the QR as a real image — Gmail and most clients strip `data:` URIs.
+
+**Files:**
+- Create: `supabase/functions/ticket-qr/index.ts`
+- Modify: `supabase/config.toml`
+
+**Interfaces:**
+- Consumes: `preflight`, `corsHeaders` from `_shared/cors.ts` (Task 1).
+- Produces: `GET /functions/v1/ticket-qr?token=<ticket_token>` → `image/png`.
+
+**Security note.** This endpoint is unauthenticated by design. It renders a QR of a token the caller already holds, so it discloses nothing new; and `check-in` independently gates on `status = 'paid'` plus staff authorization for the event's org, so possession of a token alone does nothing.
+
+- [ ] **Step 1: Add the QR dependency to the Deno import map**
+
+Edit `supabase/functions/deno.json`:
+
+```json
+{
+  "imports": {
+    "zod": "npm:zod@3.23.8",
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@2",
+    "qrcode": "npm:qrcode@1.5.4"
+  }
+}
+```
+
+`qrcode`'s `toBuffer` encodes PNG in pure JS via `pngjs` — no native canvas, which would not survive the Edge runtime.
+
+- [ ] **Step 2: Write the function**
+
+Create `supabase/functions/ticket-qr/index.ts`:
+
+```ts
+import QRCode from "qrcode";
+import { preflight, corsHeaders } from "../_shared/cors.ts";
+
+// Renders a ticket token as a PNG QR so the confirmation email can embed it
+// with a plain <img src>. Unauthenticated by design: it only re-encodes a token
+// the caller already has. Authorization for check-in lives in the check-in
+// function, which requires status='paid' and a staff role for the event's org.
+Deno.serve(async (req) => {
+  const pre = preflight(req);
+  if (pre) return pre;
+  const cors = corsHeaders(req.headers.get("Origin"));
+
+  const token = new URL(req.url).searchParams.get("token");
+  if (!token) {
+    return new Response(JSON.stringify({ error: "token_required" }), {
+      status: 400,
+      headers: { "content-type": "application/json", ...cors },
+    });
+  }
+
+  try {
+    const png: Uint8Array = await QRCode.toBuffer(token, {
+      type: "png",
+      width: 512,
+      margin: 2,
+      errorCorrectionLevel: "M",
+    });
+
+    return new Response(png, {
+      status: 200,
+      headers: {
+        "content-type": "image/png",
+        // A token's QR never changes, and email clients re-fetch aggressively.
+        "cache-control": "public, max-age=31536000, immutable",
+        ...cors,
+      },
+    });
+  } catch (e) {
+    console.error("[ticket-qr] render failed", e);
+    return new Response(JSON.stringify({ error: "render_failed" }), {
+      status: 500,
+      headers: { "content-type": "application/json", ...cors },
+    });
+  }
+});
+```
+
+- [ ] **Step 3: Allow unauthenticated access**
+
+Append to `supabase/config.toml`, alongside the existing `verify_jwt = false` blocks:
+
+```toml
+[functions.ticket-qr]
+verify_jwt = false
+```
+
+Without this the platform rejects the request before the handler runs, and the email's `<img>` renders broken.
+
+- [ ] **Step 4: Deploy and verify it returns a real PNG**
+
+```bash
+pnpm exec supabase functions deploy ticket-qr
+```
+
+Then:
+
+```bash
+curl -s -o /tmp/qr.png -w "%{http_code} %{content_type}\n" "https://whaqarofxdlzxrelbcrq.supabase.co/functions/v1/ticket-qr?token=test-token-abc"
+```
+
+Expected: `200 image/png`. Confirm the bytes are a valid PNG:
+
+```bash
+file /tmp/qr.png
+```
+
+Expected: `PNG image data, 512 x 512`.
+
+Then confirm the missing-token path:
+
+```bash
+curl -s -w "\n%{http_code}\n" "https://whaqarofxdlzxrelbcrq.supabase.co/functions/v1/ticket-qr"
+```
+
+Expected: `{"error":"token_required"}` and `400`.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add supabase/functions/ticket-qr supabase/functions/deno.json supabase/config.toml
+git commit -m "feat(functions): ticket-qr PNG endpoint for the ticket email
+
+Gmail strips data: URIs, so the confirmation email needs a real image URL.
+Unauthenticated by design — it re-encodes a token the caller already holds,
+and check-in still gates on status=paid plus a staff role.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 12: Ticket confirmation email
+
+Sent from `confirmPayment()` — the single choke point both `payment-verify` and `payments-webhook` funnel through — so the email fires exactly once per payment regardless of which path confirms it. Mobile registrations gain ticket emails as a side effect.
+
+**Files:**
+- Create: `supabase/functions/_shared/email.ts`, `supabase/functions/_shared/email.test.ts`, `supabase/functions/send-ticket-email/index.ts`
+- Modify: `supabase/functions/_shared/confirm.ts`, `supabase/config.toml`
+
+**Interfaces:**
+- Consumes: `serviceClient` from `_shared/supabase.ts`.
+- Produces, from `_shared/email.ts`:
+  - `renderTicketEmail(input: TicketEmailInput): { subject: string; html: string }`
+  - `type TicketEmailInput = { eventName: string; categoryLabel: string; eventDate: string | null; venue: string | null; reference: string; ticketUrl: string; qrUrl: string; total: number }`
+  - `sendEmail(to: string, subject: string, html: string): Promise<{ ok: boolean; error?: string }>`
+
+`renderTicketEmail` is pure so it is testable under Vitest without a `Deno` global or a network call; only `sendEmail` touches `Deno.env` and Resend.
+
+- [ ] **Step 1: Write the failing test**
+
+Create `supabase/functions/_shared/email.test.ts`:
+
+```ts
+import { describe, it, expect } from "vitest";
+import { renderTicketEmail } from "./email";
+
+const input = {
+  eventName: "Apo Sky Ultra 2026",
+  categoryLabel: "100K",
+  eventDate: "2026-11-14",
+  venue: "Kapatagan Base Camp",
+  reference: "A1B2C3D4",
+  ticketUrl: "https://race-pace.vercel.app/ticket/r1",
+  qrUrl: "https://x.supabase.co/functions/v1/ticket-qr?token=abc",
+  total: 250000,
+};
+
+describe("renderTicketEmail", () => {
+  it("names the event and category in the subject", () => {
+    const { subject } = renderTicketEmail(input);
+    expect(subject).toContain("Apo Sky Ultra 2026");
+    expect(subject).toContain("100K");
+  });
+
+  it("embeds the QR as a real image URL, not a data URI", () => {
+    const { html } = renderTicketEmail(input);
+    expect(html).toContain(`src="${input.qrUrl}"`);
+    expect(html).not.toContain("data:image");
+  });
+
+  it("links to the ticket page", () => {
+    expect(renderTicketEmail(input).html).toContain(input.ticketUrl);
+  });
+
+  it("shows the reference, venue, and formatted total", () => {
+    const { html } = renderTicketEmail(input);
+    expect(html).toContain("A1B2C3D4");
+    expect(html).toContain("Kapatagan Base Camp");
+    expect(html).toContain("2,500.00");
+  });
+
+  it("renders without a date or venue", () => {
+    const { html } = renderTicketEmail({ ...input, eventDate: null, venue: null });
+    expect(html).toContain("Apo Sky Ultra 2026");
+  });
+
+  // An organizer-supplied event name reaches this template; unescaped it would
+  // let stored HTML through into the runner's inbox.
+  it("escapes HTML in the event name", () => {
+    const { html } = renderTicketEmail({ ...input, eventName: '<script>alert(1)</script>' });
+    expect(html).not.toContain("<script>");
+    expect(html).toContain("&lt;script&gt;");
+  });
+});
+```
+
+- [ ] **Step 2: Run the test to verify it fails**
+
+```bash
+pnpm exec vitest run supabase/functions/_shared/email.test.ts
+```
+
+Expected: FAIL — cannot resolve `./email`.
+
+- [ ] **Step 3: Write `_shared/email.ts`**
+
+```ts
+export type TicketEmailInput = {
+  eventName: string;
+  categoryLabel: string;
+  eventDate: string | null;
+  venue: string | null;
+  reference: string;
+  ticketUrl: string;
+  qrUrl: string;
+  /** Integer centavos. */
+  total: number;
+};
+
+/** Event names and venues are organizer-supplied and land in a runner's inbox —
+ *  escape before interpolating. */
+function esc(s: string): string {
+  return s
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+function peso(centavos: number): string {
+  return "₱" + (centavos / 100).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function longDate(iso: string): string {
+  return new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-GB", {
+    day: "numeric", month: "long", year: "numeric", timeZone: "UTC",
+  });
+}
+
+export function renderTicketEmail(input: TicketEmailInput): { subject: string; html: string } {
+  const subject = `Your ${input.categoryLabel} race pass — ${input.eventName}`;
+  const meta = [input.eventDate ? longDate(input.eventDate) : null, input.venue].filter(Boolean).join(" · ");
+
+  // Table-based layout with inline styles: email clients strip <style> blocks
+  // and have no flexbox or grid support worth relying on.
+  const html = `<!doctype html>
+<html><body style="margin:0;padding:0;background:#f5f5f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f7;padding:32px 16px;">
+    <tr><td align="center">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border-radius:16px;overflow:hidden;">
+        <tr><td style="background:#0f2a20;padding:28px 28px 24px;">
+          <p style="margin:0;font-size:11px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;color:#7FE0A6;">Race pass · ${esc(input.categoryLabel)}</p>
+          <h1 style="margin:8px 0 0;font-size:24px;line-height:1.2;color:#ffffff;">${esc(input.eventName)}</h1>
+          ${meta ? `<p style="margin:8px 0 0;font-size:14px;color:rgba(255,255,255,0.75);">${esc(meta)}</p>` : ""}
+        </td></tr>
+        <tr><td align="center" style="padding:32px 28px;">
+          <img src="${esc(input.qrUrl)}" width="200" height="200" alt="Your ticket QR code" style="display:block;border:0;background:#ffffff;" />
+          <p style="margin:16px 0 0;font-family:monospace;font-size:14px;letter-spacing:1px;color:#7a7a7a;">${esc(input.reference)}</p>
+          <p style="margin:8px 0 0;font-size:14px;color:#1d1d1f;">Show this QR at check-in.</p>
+        </td></tr>
+        <tr><td style="padding:0 28px 8px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #e0e0e0;">
+            <tr><td style="padding:14px 0;font-size:14px;color:#7a7a7a;">Total paid</td>
+                <td align="right" style="padding:14px 0;font-size:14px;font-weight:600;color:#1d1d1f;">${peso(input.total)}</td></tr>
+          </table>
+        </td></tr>
+        <tr><td align="center" style="padding:8px 28px 32px;">
+          <a href="${esc(input.ticketUrl)}" style="display:inline-block;background:#159A55;color:#ffffff;text-decoration:none;font-size:16px;font-weight:600;padding:14px 32px;border-radius:9999px;">View your ticket</a>
+          <p style="margin:20px 0 0;font-size:13px;line-height:1.5;color:#7a7a7a;">Save this email offline — trailheads rarely have signal.</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+
+  return { subject, html };
+}
+
+/** Resend's HTTP API — no SMTP client in Deno. Returns a result rather than
+ *  throwing: a failed email must never fail a confirmed payment. */
+export async function sendEmail(to: string, subject: string, html: string): Promise<{ ok: boolean; error?: string }> {
+  const apiKey = Deno.env.get("RESEND_API_KEY");
+  if (!apiKey) return { ok: false, error: "resend_not_configured" };
+
+  const from = Deno.env.get("EMAIL_FROM") ?? "Race Pace <tickets@racepace.ph>";
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { "authorization": `Bearer ${apiKey}`, "content-type": "application/json" },
+      body: JSON.stringify({ from, to: [to], subject, html }),
+    });
+    if (!res.ok) return { ok: false, error: `resend_${res.status}: ${await res.text()}` };
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
+```
+
+- [ ] **Step 4: Run the test to verify it passes**
+
+```bash
+pnpm exec vitest run supabase/functions/_shared/email.test.ts
+```
+
+Expected: PASS — 6 tests.
+
+- [ ] **Step 5: Write the `send-ticket-email` function**
+
+Create `supabase/functions/send-ticket-email/index.ts`:
+
+```ts
+import { serviceClient } from "../_shared/supabase.ts";
+import { renderTicketEmail, sendEmail } from "../_shared/email.ts";
+
+function json(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+}
+
+// Invoked server-to-server from confirmPayment() with the service-role key —
+// never from a browser, so no CORS handling here. Loads everything it needs
+// from the registration id alone.
+Deno.serve(async (req) => {
+  try {
+    const { registration_id: registrationId } = await req.json().catch(() => ({}));
+    if (!registrationId) return json({ error: "registration_id_required" }, 400);
+
+    const db = serviceClient();
+    const { data: reg } = await db
+      .from("registrations")
+      .select("id,user_id,status,total_amount,ticket_token,events(name,event_date,venue),categories(label)")
+      .eq("id", registrationId)
+      .single();
+
+    if (!reg) return json({ error: "not_found" }, 404);
+    if (reg.status !== "paid" || !reg.ticket_token) return json({ error: "not_paid" }, 409);
+
+    const { data: userRes } = await db.auth.admin.getUserById(reg.user_id);
+    const to = userRes?.user?.email;
+    if (!to) return json({ error: "no_email" }, 422);
+
+    const siteUrl = Deno.env.get("PUBLIC_SITE_URL") ?? "https://race-pace.vercel.app";
+    const functionsUrl = Deno.env.get("PUBLIC_FUNCTIONS_URL") ?? "";
+    const event = reg.events as { name: string; event_date: string | null; venue: string | null } | null;
+    const category = reg.categories as { label: string } | null;
+
+    const { subject, html } = renderTicketEmail({
+      eventName: event?.name ?? "Your race",
+      categoryLabel: category?.label ?? "",
+      eventDate: event?.event_date ?? null,
+      venue: event?.venue ?? null,
+      reference: reg.id.slice(0, 8).toUpperCase(),
+      ticketUrl: `${siteUrl}/ticket/${reg.id}`,
+      qrUrl: `${functionsUrl}/ticket-qr?token=${encodeURIComponent(reg.ticket_token)}`,
+      total: reg.total_amount,
+    });
+
+    const result = await sendEmail(to, subject, html);
+    if (!result.ok) {
+      console.error("[send-ticket-email] send failed", { registrationId, error: result.error });
+      return json({ error: "send_failed", details: result.error }, 502);
+    }
+    return json({ ok: true });
+  } catch (e) {
+    console.error("[send-ticket-email] unexpected", e);
+    return json({ error: "server_error", details: String(e) }, 500);
+  }
+});
+```
+
+- [ ] **Step 6: Hook it into `confirmPayment`**
+
+In `supabase/functions/_shared/confirm.ts`, replace the final return block:
+
+```ts
+  return { ok: true, registration_id: reg.id, already: result === "already" || result === "not_pending" };
+}
+```
+
+with:
+
+```ts
+  const already = result === "already" || result === "not_pending";
+
+  // Fire the ticket email only on a genuine first confirmation, and only as
+  // best-effort — a mail failure must never fail a captured payment. This is
+  // the single choke point both payment-verify and payments-webhook reach, so
+  // exactly one email is sent no matter which path confirms.
+  if (!already) {
+    try {
+      await db.functions.invoke("send-ticket-email", { body: { registration_id: reg.id } });
+    } catch (e) {
+      console.error("[confirm] ticket email failed", { registrationId: reg.id, error: String(e) });
+    }
+  }
+
+  return { ok: true, registration_id: reg.id, already };
+}
+```
+
+- [ ] **Step 7: Allow unauthenticated invocation**
+
+`confirmPayment` invokes it with the service-role key, but the platform's JWT gate runs first and rejects a service-role JWT for a function expecting a user token. Append to `supabase/config.toml`:
+
+```toml
+[functions.send-ticket-email]
+verify_jwt = false
+```
+
+- [ ] **Step 8: [USER] Create the Resend account and set the secrets**
+
+Sign up at resend.com, verify a sending domain, and create an API key. Then:
+
+```bash
+pnpm exec supabase secrets set RESEND_API_KEY="re_..." EMAIL_FROM="Race Pace <tickets@yourdomain>" PUBLIC_SITE_URL="https://race-pace.vercel.app"
+```
+
+If the domain is not verified yet, Resend only delivers to the account owner's own address — enough to test the flow end to end.
+
+- [ ] **Step 9: Deploy and verify**
+
+```bash
+pnpm exec supabase functions deploy send-ticket-email && pnpm exec supabase functions deploy payment-verify payments-webhook
+```
+
+Both confirmation paths must be redeployed, because `confirm.ts` changed and each bundles its own copy of `_shared`.
+
+Then complete a real test payment (card `4343 4343 4343 4345`) and confirm the email arrives with a rendering QR. Check the logs either way:
+
+```bash
+pnpm exec supabase functions logs send-ticket-email
+```
+
+- [ ] **Step 10: Run the full suite and commit**
+
+```bash
+pnpm exec vitest run
+```
+
+Expected: PASS.
+
+```bash
+git add supabase/functions/_shared/email.ts supabase/functions/_shared/email.test.ts supabase/functions/_shared/confirm.ts supabase/functions/send-ticket-email supabase/config.toml
+git commit -m "feat(functions): email the ticket on payment confirmation
+
+Fired from confirmPayment(), the single choke point both payment-verify
+and payments-webhook funnel through, so exactly one email is sent per
+payment regardless of which path confirms it — and mobile registrations
+get ticket emails for free. Sending is best-effort: a mail failure must
+never fail a captured payment.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 13: My Races and profile
+
+**Files:**
+- Create: `apps/site/components/StatusBadge.tsx`, `apps/site/app/races/page.tsx`, `apps/site/app/races/RacesList.tsx`, `apps/site/app/profile/page.tsx`, `apps/site/app/profile/ProfileForm.tsx`
+- Test: `apps/site/components/__tests__/status-badge.test.tsx`
+
+**Interfaces:**
+- Consumes: `useMyRegistrations`, `cancelRegistration`, `RegistrationRow` (Task 7); `getProfile`, `upsertProfile`, `Profile` (Task 7); `SHIRT_SIZES`, `BLOOD_TYPES`, `GENDERS`, `formatPeso` from `@race-pace/shared`; `PillSelect` (Task 8).
+- Produces: `StatusBadge({ status }: { status: string })`.
+
+- [ ] **Step 1: Write the failing test**
+
+Create `apps/site/components/__tests__/status-badge.test.tsx`:
+
+```tsx
+import { describe, it, expect } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { StatusBadge } from "../StatusBadge";
+
+describe("StatusBadge", () => {
+  it("labels each registration status in plain language", () => {
+    const cases: [string, string][] = [
+      ["paid", "Confirmed"],
+      ["pending", "Awaiting payment"],
+      ["refunded", "Refunded"],
+      ["cancelled", "Cancelled"],
+    ];
+    for (const [status, label] of cases) {
+      const { unmount } = render(<StatusBadge status={status} />);
+      expect(screen.getByText(label)).toBeInTheDocument();
+      unmount();
+    }
+  });
+
+  it("falls back to the raw status for an unknown value", () => {
+    render(<StatusBadge status="disputed" />);
+    expect(screen.getByText("disputed")).toBeInTheDocument();
+  });
+});
+```
+
+- [ ] **Step 2: Run the test to verify it fails**
+
+```bash
+pnpm --filter site test status-badge
+```
+
+Expected: FAIL — cannot resolve `../StatusBadge`.
+
+- [ ] **Step 3: Write `components/StatusBadge.tsx`**
+
+```tsx
+import { cn } from "@/lib/utils";
+
+const STATUSES: Record<string, { label: string; className: string }> = {
+  paid: { label: "Confirmed", className: "bg-paid-tint text-paid" },
+  pending: { label: "Awaiting payment", className: "bg-amber-tint text-amber" },
+  refunded: { label: "Refunded", className: "bg-muted text-muted-foreground" },
+  cancelled: { label: "Cancelled", className: "bg-destructive-tint text-destructive" },
+};
+
+export function StatusBadge({ status }: { status: string }) {
+  const s = STATUSES[status];
+  return (
+    <span className={cn("rounded-pill px-2.5 py-1 text-[12px] font-semibold", s?.className ?? "bg-muted text-muted-foreground")}>
+      {s?.label ?? status}
+    </span>
+  );
+}
+```
+
+- [ ] **Step 4: Run the test to verify it passes**
+
+```bash
+pnpm --filter site test status-badge
+```
+
+Expected: PASS — 2 tests.
+
+- [ ] **Step 5: Write the races list**
+
+Create `apps/site/app/races/RacesList.tsx`:
+
+```tsx
+"use client";
+
+import Link from "next/link";
+import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { formatPeso } from "@race-pace/shared";
+import { useMyRegistrations, cancelRegistration } from "@/lib/registration";
+import { StatusBadge } from "@/components/StatusBadge";
+import { Button } from "@/components/ui/button";
+import { longDate } from "@/lib/format";
+
+export function RacesList() {
+  const { data, isLoading } = useMyRegistrations();
+  const queryClient = useQueryClient();
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  if (isLoading) return <p className="py-20 text-center text-muted-foreground">Loading…</p>;
+
+  if (!data?.length) {
+    return (
+      <div className="py-20 text-center">
+        <p className="text-[17px] text-muted-foreground">You haven&apos;t entered a race yet.</p>
+        <Button asChild className="mt-6 h-auto rounded-pill px-8 py-4 text-[16px] font-semibold">
+          <Link href="/events">Browse races</Link>
+        </Button>
+      </div>
+    );
+  }
+
+  async function discard(id: string) {
+    setBusyId(id);
+    setError(null);
+    try {
+      await cancelRegistration(id);
+      await queryClient.invalidateQueries({ queryKey: ["my-registrations"] });
+    } catch {
+      // RLS blocks deleting anything that is not the owner's own pending row.
+      setError("That registration can no longer be discarded. Refresh and try again.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      {error ? <p className="text-[14px] text-destructive">{error}</p> : null}
+      {data.map((r) => (
+        <article key={r.id} className="rounded-xl border border-border bg-card p-6">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-[19px] font-semibold tracking-[-0.3px] text-foreground">{r.eventName}</h2>
+              <p className="mt-1 text-[14px] text-muted-foreground">
+                {[r.categoryLabel, r.eventDate ? longDate(r.eventDate) : null].filter(Boolean).join(" · ")}
+              </p>
+            </div>
+            <StatusBadge status={r.status} />
+          </div>
+
+          <p className="mt-4 text-[15px] font-semibold tabular-nums text-foreground">{formatPeso(r.total_amount)}</p>
+
+          <div className="mt-5 flex flex-wrap gap-3">
+            {r.status === "paid" ? (
+              <Button asChild className="h-auto rounded-pill px-6 py-3 text-[15px] font-semibold">
+                <Link href={`/ticket/${r.id}`}>View ticket</Link>
+              </Button>
+            ) : null}
+            {r.status === "pending" ? (
+              <>
+                <Button asChild className="h-auto rounded-pill px-6 py-3 text-[15px] font-semibold">
+                  <Link href={`/pay/${r.id}`}>Complete payment</Link>
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={busyId === r.id}
+                  onClick={() => discard(r.id)}
+                  className="h-auto rounded-pill px-6 py-3 text-[15px] font-semibold"
+                >
+                  {busyId === r.id ? "Discarding…" : "Discard"}
+                </Button>
+              </>
+            ) : null}
+          </div>
+        </article>
+      ))}
+    </div>
+  );
+}
+```
+
+- [ ] **Step 6: Write the races page**
+
+Create `apps/site/app/races/page.tsx`:
+
+```tsx
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { SiteHeader } from "@/components/SiteHeader";
+import { RacesList } from "./RacesList";
+
+export const dynamic = "force-dynamic";
+export const metadata = { title: "My Races" };
+
+export default async function RacesPage() {
+  const db = await createClient();
+  const { data: { user } } = await db.auth.getUser();
+  if (!user) redirect("/sign-in?next=%2Fraces");
+
+  return (
+    <>
+      <SiteHeader />
+      <main className="mx-auto w-full max-w-3xl px-6 py-12">
+        <h1 className="text-[34px] font-semibold tracking-[-0.8px] text-foreground">My Races</h1>
+        <div className="mt-8"><RacesList /></div>
+      </main>
+    </>
+  );
+}
+```
+
+- [ ] **Step 7: Write the profile form**
+
+Create `apps/site/app/profile/ProfileForm.tsx`:
+
+```tsx
+"use client";
+
+import { useEffect, useState } from "react";
+import { SHIRT_SIZES, BLOOD_TYPES, GENDERS } from "@race-pace/shared";
+import { getProfile, upsertProfile, type Profile } from "@/lib/profile";
+import { signOut } from "@/lib/auth";
+import { PillSelect } from "@/components/PillSelect";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+
+export function ProfileForm({ userId }: { userId: string }) {
+  const [profile, setProfile] = useState<Partial<Profile>>({});
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    getProfile(userId).then((p) => { if (p) setProfile(p); }).finally(() => setLoading(false));
+  }, [userId]);
+
+  const set = (k: keyof Profile, v: string) => {
+    setProfile((p) => ({ ...p, [k]: v }));
+    setSaved(false);
+  };
+
+  async function save() {
+    setBusy(true);
+    setError(null);
+    const { error } = await upsertProfile({
+      id: userId,
+      full_name: profile.full_name || null,
+      bib_name: profile.bib_name || null,
+      date_of_birth: profile.date_of_birth || null,
+      gender: profile.gender || null,
+      shirt_size: profile.shirt_size || null,
+      blood_type: profile.blood_type || null,
+      emergency_contact: profile.emergency_contact || null,
+    });
+    setBusy(false);
+    if (error) setError(error);
+    else setSaved(true);
+  }
+
+  if (loading) return <p className="py-20 text-center text-muted-foreground">Loading…</p>;
+
+  return (
+    <div className="flex flex-col">
+      <p className="text-[15px] text-muted-foreground">
+        These details prefill every race you enter, so you only type them once.
+      </p>
+
+      <div className="mt-8 flex flex-col gap-2">
+        <Label htmlFor="full_name">Full name</Label>
+        <Input id="full_name" value={profile.full_name ?? ""} onChange={(e) => set("full_name", e.target.value)} />
+      </div>
+      <div className="mt-6 flex flex-col gap-2">
+        <Label htmlFor="bib_name">Bib name</Label>
+        <Input id="bib_name" value={profile.bib_name ?? ""} onChange={(e) => set("bib_name", e.target.value)} />
+        <p className="text-[13px] text-muted-foreground">Printed on your race bib.</p>
+      </div>
+      <div className="mt-6 flex flex-col gap-2">
+        <Label htmlFor="date_of_birth">Date of birth</Label>
+        <Input id="date_of_birth" type="date" value={profile.date_of_birth ?? ""} onChange={(e) => set("date_of_birth", e.target.value)} />
+      </div>
+      <div className="mt-6 flex flex-col gap-2">
+        <Label htmlFor="emergency_contact">Emergency contact</Label>
+        <Input id="emergency_contact" value={profile.emergency_contact ?? ""} onChange={(e) => set("emergency_contact", e.target.value)} placeholder="Name and mobile number" />
+      </div>
+
+      <PillSelect label="GENDER" value={profile.gender ?? ""} options={GENDERS} onChange={(v) => set("gender", v)} />
+      <PillSelect label="SHIRT SIZE" value={profile.shirt_size ?? ""} options={SHIRT_SIZES} onChange={(v) => set("shirt_size", v)} />
+      <PillSelect label="BLOOD TYPE" value={profile.blood_type ?? ""} options={BLOOD_TYPES} onChange={(v) => set("blood_type", v)} />
+
+      {error ? <p className="mt-6 text-[14px] text-destructive">{error}</p> : null}
+      {saved ? <p className="mt-6 text-[14px] text-primary">Saved.</p> : null}
+
+      <Button type="button" disabled={busy} onClick={save} className="mt-8 h-auto rounded-pill py-4 text-[16px] font-semibold">
+        {busy ? "Saving…" : "Save"}
+      </Button>
+
+      <Button
+        type="button"
+        variant="outline"
+        onClick={() => signOut().then(() => window.location.assign("/"))}
+        className="mt-3 h-auto rounded-pill py-4 text-[15px] font-semibold"
+      >
+        Sign out
+      </Button>
+    </div>
+  );
+}
+```
+
+- [ ] **Step 8: Write the profile page**
+
+Create `apps/site/app/profile/page.tsx`:
+
+```tsx
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { SiteHeader } from "@/components/SiteHeader";
+import { ProfileForm } from "./ProfileForm";
+
+export const dynamic = "force-dynamic";
+export const metadata = { title: "Profile" };
+
+export default async function ProfilePage() {
+  const db = await createClient();
+  const { data: { user } } = await db.auth.getUser();
+  if (!user) redirect("/sign-in?next=%2Fprofile");
+
+  return (
+    <>
+      <SiteHeader />
+      <main className="mx-auto w-full max-w-md px-6 py-12">
+        <h1 className="text-[34px] font-semibold tracking-[-0.8px] text-foreground">Profile</h1>
+        <div className="mt-6"><ProfileForm userId={user.id} /></div>
+      </main>
+    </>
+  );
+}
+```
+
+- [ ] **Step 9: Full verification and commit**
+
+```bash
+pnpm --filter site typecheck && pnpm --filter site test && pnpm --filter site build
+```
+
+Expected: all pass.
+
+```bash
+git add apps/site
+git commit -m "feat(site): my races and race passport profile
+
+Pending registrations surface a Complete payment CTA and a discard action
+gated by the registrations_delete_own_pending RLS policy — a zero-row
+delete surfaces as an error rather than a silent success.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 14: Deploy both Vercel projects and smoke test
+
+**Files:**
+- Create: `apps/web/vercel.json`
+- Modify: none
+
+**Interfaces:**
+- Consumes: everything.
+- Produces: two live Vercel deployments and a verified end-to-end money path.
+
+- [ ] **Step 1: Add the admin console's SPA rewrite**
+
+Create `apps/web/vercel.json`:
+
+```json
+{ "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }] }
+```
+
+Without this, `react-router-dom` routes 404 on a hard refresh — the static host has no file at `/events`.
+
+- [ ] **Step 2: [USER] Create the public site's Vercel project**
+
+Import the repository, then set:
+
+- **Project name:** `race-pace`
+- **Root directory:** `apps/site`
+- **Framework preset:** Next.js
+- **Environment variables:**
+  - `NEXT_PUBLIC_SUPABASE_URL` = `https://whaqarofxdlzxrelbcrq.supabase.co`
+  - `NEXT_PUBLIC_SUPABASE_ANON_KEY` = the new project's anon key
+  - `NEXT_PUBLIC_SITE_URL` = `https://race-pace.vercel.app`
+
+`NEXT_PUBLIC_SITE_URL` builds the PayMongo `return_url`. If it is wrong, the payment still confirms via webhook but the runner lands on a dead origin immediately after paying.
+
+- [ ] **Step 3: [USER] Create the admin console's Vercel project**
+
+- **Project name:** `race-pace-admin`
+- **Root directory:** `apps/web`
+- **Framework preset:** Vite
+- **Environment variables:**
+  - `VITE_SUPABASE_URL` = `https://whaqarofxdlzxrelbcrq.supabase.co`
+  - `VITE_SUPABASE_ANON_KEY` = the new project's anon key
+
+Vite embeds these at build time — changing either later needs a redeploy, not just an env edit.
+
+- [ ] **Step 4: Update `SITE_ORIGINS` with the real origins**
+
+```bash
+pnpm exec supabase secrets set SITE_ORIGINS="https://race-pace.vercel.app,https://race-pace-admin.vercel.app,*.vercel.app,http://localhost:3000,http://localhost:5173,https://admin.racepace.lan"
+```
+
+Then redeploy every CORS-bearing function, since the secret is read at request time but the deployed bundle must already contain the helper:
+
+```bash
+pnpm exec supabase functions deploy registrations-checkout payment-session payment-verify org-members admin-refund check-in ticket-qr
+```
+
+- [ ] **Step 5: [USER] Add the redirect allowlist and set `PUBLIC_SITE_URL`**
+
+In Supabase Dashboard → Authentication → URL Configuration:
+- **Site URL:** `https://race-pace.vercel.app`
+- **Redirect URLs:** `https://race-pace.vercel.app/**` and `https://*-race-pace.vercel.app/**` (preview deploys)
+
+Then align the email's link base with production:
+
+```bash
+pnpm exec supabase secrets set PUBLIC_SITE_URL="https://race-pace.vercel.app"
+```
+
+- [ ] **Step 6: Verify CORS actually works from the deployed origin**
+
+```bash
+curl -s -i -X OPTIONS "https://whaqarofxdlzxrelbcrq.supabase.co/functions/v1/registrations-checkout" \
+  -H "Origin: https://race-pace.vercel.app" \
+  -H "Access-Control-Request-Method: POST" \
+  -H "Access-Control-Request-Headers: authorization, content-type" | head -20
+```
+
+Expected: `HTTP/2 204`, with `access-control-allow-origin: https://race-pace.vercel.app` and `vary: Origin`.
+
+Then confirm a disallowed origin is refused:
+
+```bash
+curl -s -i -X OPTIONS "https://whaqarofxdlzxrelbcrq.supabase.co/functions/v1/registrations-checkout" \
+  -H "Origin: https://evil.example" \
+  -H "Access-Control-Request-Method: POST" | grep -i "access-control-allow-origin"
+```
+
+Expected: no output — the header is absent, so the browser blocks the call.
+
+- [ ] **Step 7: Smoke test the admin console**
+
+Open `https://race-pace-admin.vercel.app`, sign in as the admin user from Task 0 Step 11. Verify:
+- Events lists the seeded events.
+- A hard refresh on `/events` loads rather than 404ing (proves Step 1's rewrite).
+- The Team page loads without a console CORS error (proves `org-members` CORS).
+
+- [ ] **Step 8: Smoke test the full money path**
+
+On `https://race-pace.vercel.app`:
+
+1. Sign up with a fresh email, or sign in with Google.
+2. Browse to an event, pick a distance, and register through all three wizard steps.
+3. **Mid-wizard, refresh the page.** Expected: it resumes on the same step with answers intact — the idempotency-key guarantee from Task 7.
+4. Pay with PayMongo test card `4343 4343 4343 4345` (any future expiry, any CVC).
+5. Expected: redirect to `/pay/callback`, then automatically to `/ticket/<id>` with a rendered QR.
+6. Check the inbox for the ticket email with a visible QR image.
+7. Press Cmd+P on the ticket. Expected: one clean page, no nav or buttons.
+
+- [ ] **Step 9: Verify the registration reached the admin console**
+
+In `https://race-pace-admin.vercel.app` → Registrations, confirm the new row appears with status `paid` and the correct amount. **This is the acceptance criterion for spec §1.2** — a registration created on the web is visible to the organizer with no sync layer.
+
+Cross-check the database directly:
+
+```bash
+pnpm exec supabase db query --linked "select r.id, r.status, r.total_amount, p.status as payment_status, p.provider from registrations r left join payments p on p.registration_id = r.id order by r.created_at desc limit 3;"
+```
+
+Expected: the newest row has `status = 'paid'`, `payment_status = 'paid'`, `provider = 'paymongo'`.
+
+- [ ] **Step 10: Verify the Open Graph card**
+
+```bash
+curl -s "https://race-pace.vercel.app/events/00000000-0000-0000-0000-0000000000e1" | grep -o '<meta property="og:[^>]*>'
+```
+
+Expected: `og:title` with the event name, `og:description` with distances and date, and `og:image` if the event has a hero image. Then paste the URL into a Facebook post composer (without posting) and confirm the preview renders — this is the §1.3 acceptance criterion.
+
+- [ ] **Step 11: Commit**
+
+```bash
+git add apps/web/vercel.json
+git commit -m "chore(web): SPA rewrite for Vercel
+
+react-router-dom routes 404 on hard refresh without it — the static host
+has no file at /events.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
+```
+
+---
+
+## Acceptance criteria
+
+The work is done when all of these hold, each verified by the step named:
+
+| # | Criterion | Verified by |
+|---|---|---|
+| 1 | A runner registers, pays, and gets a QR ticket entirely in a browser | Task 14 Step 8 |
+| 2 | That registration is visible in the admin console with no sync layer | Task 14 Step 9 |
+| 3 | Event links produce a real Open Graph preview card | Task 14 Step 10 |
+| 4 | One Supabase identity works on web and mobile, via email or Google | Task 4 Step 10, Task 0 Step 11 |
+| 5 | The ticket is emailed and printable | Task 12 Step 9, Task 10 Step 7 |
+| 6 | A mid-wizard refresh resumes without creating a duplicate registration | Task 7 Step 6, Task 8 Step 13, Task 14 Step 8.3 |
+| 7 | Payment is confirmed server-side, never from the redirect | Task 9 (`/pay/callback` → `payment-verify`) |
+| 8 | A disallowed origin cannot call the Edge Functions | Task 14 Step 6 |
+| 9 | The admin console works from its Vercel origin | Task 14 Step 7 |
+| 10 | All three apps run on the new Supabase project | Task 0 Steps 5, 11 |
