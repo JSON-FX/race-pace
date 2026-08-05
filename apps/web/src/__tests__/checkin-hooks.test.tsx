@@ -122,3 +122,84 @@ it("a duplicate replay is treated as success, not failure", async () => {
   expect(result.current.store.failed).toHaveLength(0);
   expect(result.current.store.roster[0]!.checked_in_at).not.toBeNull();
 });
+
+it("drains the queue automatically when the browser fires an online event", async () => {
+  rpc.mockResolvedValue({ data: ROSTER, error: null });
+  Object.defineProperty(navigator, "onLine", { configurable: true, value: false });
+
+  const { result } = renderHook(() => useCheckInSession("e1"), { wrapper: wrap() });
+  await waitFor(() => expect(result.current.store.roster).toHaveLength(2));
+
+  await act(async () => { await result.current.submitToken("tok1"); });
+  expect(result.current.store.queue).toHaveLength(1);
+
+  (globalThis.fetch as any).mockResolvedValue({
+    status: 200, json: () => Promise.resolve({ ok: true, registration_id: "r1" }),
+  });
+
+  await act(async () => {
+    Object.defineProperty(navigator, "onLine", { configurable: true, value: true });
+    window.dispatchEvent(new Event("online"));
+    await Promise.resolve();
+  });
+
+  await waitFor(() => expect(result.current.store.queue).toHaveLength(0));
+  expect(result.current.store.roster.find((r) => r.registration_id === "r1")?.checked_in_at).not.toBeNull();
+});
+
+// This is the case that actually discriminates the bug: the scan enters the queue on
+// a re-render where `online` does not change (it was already true, and stays true) and
+// `eventId` does not change — only the queue itself grew, via submitToken's own
+// catch-and-enqueue branch after a failed send. A drain effect with deps
+// [online, retryAll] is *skipped entirely* on that re-render (same as any React effect
+// whose dependency list didn't change) — it is never even invoked to look at the ref.
+// Only reading the live queue length as a dependency makes the effect re-run.
+// The mock is pre-armed so the auto-retry's own request — not a test-driven swap —
+// is what proves the effect fired: mockRejectedValueOnce is consumed by submitToken's
+// own send, so any second request (the auto-drain's) hits the success mock beneath it.
+it("drains a scan that was queued without an online/offline transition", async () => {
+  rpc.mockResolvedValue({ data: ROSTER, error: null });
+  Object.defineProperty(navigator, "onLine", { configurable: true, value: true });
+  (globalThis.fetch as any).mockRejectedValueOnce(new Error("network hiccup"));
+  (globalThis.fetch as any).mockResolvedValue({
+    status: 200, json: () => Promise.resolve({ ok: true, registration_id: "r1" }),
+  });
+
+  const { result } = renderHook(() => useCheckInSession("e1"), { wrapper: wrap() });
+  await waitFor(() => expect(result.current.store.roster).toHaveLength(2));
+
+  // submitToken's own send consumes the queued rejection and enqueues on catch.
+  // No online/offline event, no manual retryAll() call from here on — only the
+  // queue-length dependency changing is what can drive the second, successful send.
+  await act(async () => { await result.current.submitToken("tok1"); });
+
+  await waitFor(() => expect(result.current.store.queue).toHaveLength(0));
+  expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+  expect(result.current.store.roster.find((r) => r.registration_id === "r1")?.checked_in_at).not.toBeNull();
+});
+
+it("retryOne moves a failed scan back through the queue and clears it on success", async () => {
+  rpc.mockResolvedValue({ data: ROSTER, error: null });
+  Object.defineProperty(navigator, "onLine", { configurable: true, value: false });
+
+  const { result } = renderHook(() => useCheckInSession("e1"), { wrapper: wrap() });
+  await waitFor(() => expect(result.current.store.roster).toHaveLength(2));
+  await act(async () => { await result.current.submitToken("tok1"); });
+
+  (globalThis.fetch as any).mockResolvedValue({ status: 409, json: () => Promise.resolve({ error: "not_paid" }) });
+  Object.defineProperty(navigator, "onLine", { configurable: true, value: true });
+  await act(async () => { await result.current.retryAll(); });
+
+  expect(result.current.store.failed).toHaveLength(1);
+  const clientId = result.current.store.failed[0]!.clientId;
+
+  (globalThis.fetch as any).mockResolvedValue({
+    status: 200, json: () => Promise.resolve({ ok: true, registration_id: "r1" }),
+  });
+
+  await act(async () => { await result.current.retryOne(clientId); });
+
+  expect(result.current.store.failed).toHaveLength(0);
+  expect(result.current.store.queue).toHaveLength(0);
+  expect(result.current.store.roster.find((r) => r.registration_id === "r1")?.checked_in_at).not.toBeNull();
+});

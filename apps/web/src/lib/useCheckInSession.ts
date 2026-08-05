@@ -69,14 +69,24 @@ export function useCheckInSession(eventId: string | null) {
     }
   }, [commit]);
 
+  // Guards against the auto-drain effect below re-entering retryAll while a
+  // drain is already in flight: each replayOne commits a shrinking queue,
+  // which changes store.queue.length and re-fires the effect mid-loop.
+  const draining = useRef(false);
   const retryAll = useCallback(async () => {
-    for (const q of [...storeRef.current.queue]) await replayOne(q.clientId);
+    if (draining.current) return;
+    draining.current = true;
+    try {
+      for (const q of [...storeRef.current.queue]) await replayOne(q.clientId);
+    } finally {
+      draining.current = false;
+    }
   }, [replayOne]);
 
   // Drain automatically when connectivity returns.
   useEffect(() => {
-    if (online && storeRef.current.queue.length > 0) void retryAll();
-  }, [online, retryAll]);
+    if (online && store.queue.length > 0) void retryAll();
+  }, [online, store.queue.length, retryAll]);
 
   const submitToken = useCallback(async (token: string) => {
     const current = storeRef.current;
