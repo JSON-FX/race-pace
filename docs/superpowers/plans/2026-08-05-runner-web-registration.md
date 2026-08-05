@@ -141,13 +141,17 @@ Expected: all 31 migrations listed as pending, then applied in filename order wi
 
 If it reports the remote database is not empty or migration history conflicts, **stop and report** — do not pass `--force`. An unexpectedly non-empty project means the wrong ref is linked.
 
+**Observed 2026-08-05:** `20260724130000_org_images.sql` failed once with `ERROR: deadlock detected (SQLSTATE 40P01)` while creating a policy on `storage.objects` — Supabase's own storage service holds a lock there concurrently. This is transient. **Simply re-run `db push`**; it resumes from the failed migration and completes. A `pgdelta` / `pgdelta-target-ca.crt` warning at the end is cosmetic — the migrations still applied.
+
 - [ ] **Step 5: Verify the schema and storage buckets landed**
 
 ```bash
 pnpm exec supabase db query --linked "select table_name from information_schema.tables where table_schema='public' order by table_name;"
 ```
 
-Expected: includes `organizations`, `profiles`, `events`, `categories`, `addons`, `form_fields`, `registrations`, `registration_addons`, `payments`, `user_roles`, `org_members`, `notifications`, `device_tokens`, `checkins`, `psgc_regions`, `psgc_provinces`, `psgc_cities`.
+Expected: **19 relations** — `addons`, `admin_event_reg_counts_v`, `admin_payments_v`, `admin_registrations_v`, `categories`, `checkins`, `device_tokens`, `events`, `form_fields`, `notifications`, `organizations`, `payments`, `profiles`, `psgc_cities`, `psgc_provinces`, `psgc_regions`, `registration_addons`, `registrations`, `user_roles`.
+
+The three `admin_*_v` entries are views from `20260804120000_admin_list_views.sql` — their presence is what the admin console's server-driven tables depend on. Note there is **no `org_members` table**: `20260724120000_org_members.sql` only adds a `claiming` value to the `app_role` enum, and team membership lives in `user_roles`.
 
 ```bash
 pnpm exec supabase db query --linked "select id, public from storage.buckets order by id;"
@@ -179,7 +183,7 @@ Expected: `orgs = 5`, `events = 5`, and a non-zero category count.
 pnpm exec supabase functions deploy
 ```
 
-Expected: all 11 functions deploy — `admin-refund`, `check-in`, `fake-checkout`, `org-members`, `payment-session`, `payment-verify`, `payments-webhook`, `registrations-checkout`, `send-push`, plus any added by later tasks.
+Expected: **9 functions** deploy — `admin-refund`, `check-in`, `fake-checkout`, `org-members`, `payment-session`, `payment-verify`, `payments-webhook`, `registrations-checkout`, `send-push`. (Tasks 11 and 12 add `ticket-qr` and `send-ticket-email`, bringing it to 11.)
 
 Confirm the `verify_jwt = false` settings from `supabase/config.toml` carried over for `fake-checkout`, `payments-webhook`, and `send-push`:
 
@@ -250,21 +254,42 @@ EXPO_PUBLIC_PAYMONGO_PUBLIC_KEY=pk_test_...
 
 **Never commit either file** — `.gitignore` already covers `.env` and `.env.*` except `.env.example`.
 
-- [ ] **Step 11: Create an admin user and verify the admin console**
+- [ ] **Step 11: Verify auth, RLS, and the admin views against the new project**
 
-The seed defines organizations but auth users are not seeded. Create one through the dashboard (Authentication → Users → Add user), then grant it admin on the Race Pace org:
+**No admin user needs creating** — `supabase/seed.sql` already inserts `admin@racepace.test` / `password123` into `auth.users` (using qualified `extensions.crypt`, which hosted requires) along with its `user_roles` row on org `…0a1`.
+
+Verify the data path directly rather than by clicking through the UI — it is faster, deterministic, and proves more:
 
 ```bash
-pnpm exec supabase db query --linked "insert into user_roles (user_id, org_id, role) values ('<new-user-uuid>', '00000000-0000-0000-0000-0000000000a1', 'admin');"
+URL=$(grep '^VITE_SUPABASE_URL=' apps/web/.env | cut -d= -f2-)
+ANON=$(grep '^VITE_SUPABASE_ANON_KEY=' apps/web/.env | cut -d= -f2-)
+
+TOKEN=$(curl -s -X POST "$URL/auth/v1/token?grant_type=password" \
+  -H "apikey: $ANON" -H "Content-Type: application/json" \
+  -d '{"email":"admin@racepace.test","password":"password123"}' \
+  | python3 -c "import json,sys; print(json.load(sys.stdin).get('access_token',''))")
+echo "token chars: ${#TOKEN}"
+
+curl -s "$URL/rest/v1/events?select=name,status&order=event_date" -H "apikey: $ANON" \
+  | python3 -c "import json,sys; d=json.load(sys.stdin); print(len(d),'events')"
+
+curl -s "$URL/rest/v1/admin_registrations_v?select=*&limit=3" \
+  -H "apikey: $ANON" -H "Authorization: Bearer $TOKEN" \
+  | python3 -c "import json,sys; d=json.load(sys.stdin); print('rows:',len(d)) if isinstance(d,list) else print('ERROR',d)"
 ```
 
-Then run the admin console and confirm it reads the new backend:
+Expected, and each line proves a distinct thing:
+- A non-empty token → **Auth works** and the seeded admin exists.
+- `5 events` → **anon RLS works** on the public catalog, which is exactly what `apps/site` depends on.
+- `rows: 0` → **the admin views exist and are readable** by an org admin. A permissions error here instead of an empty list means `20260804120000_admin_list_views.sql` did not apply.
+
+Optionally also run the console UI:
 
 ```bash
 pnpm --filter web dev
 ```
 
-Sign in as the new user. Expected: Events lists the 5 seeded events. This is the smoke test proving the migration did not break `apps/web`.
+**Gotcha:** if another dev server already holds `[::1]:5173`, Vite still reports `localhost:5173` while actually serving on `*:5173` (IPv4). `localhost` resolves to IPv6 first on macOS and you will silently load *the other app*. Reach the console at **`http://127.0.0.1:5173`**, and confirm the tab title is "Race Pace Admin" before trusting what you see.
 
 - [ ] **Step 12: Verify the existing test suite still passes**
 
