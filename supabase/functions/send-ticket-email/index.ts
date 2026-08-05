@@ -1,14 +1,24 @@
 import { serviceClient } from "../_shared/supabase.ts";
 import { renderTicketEmail, sendEmail } from "../_shared/email.ts";
+import { isAuthorizedBearer } from "../_shared/authz.ts";
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 }
 
-// Invoked server-to-server from confirmPayment() with the service-role key —
-// never from a browser, so no CORS handling here. Loads everything it needs
-// from the registration id alone.
+// Invoked server-to-server from confirmPayment() — never from a browser, so
+// no CORS handling here. `verify_jwt = false` in config.toml (the platform
+// gate would otherwise reject the service-role JWT confirm.ts sends before
+// this handler runs); TICKET_EMAIL_SECRET in the Authorization header is
+// what replaces it, mirroring send-push's PUSH_CRON_SECRET. Without this a
+// registration id — which appears in the /ticket/<rid> URL runners
+// screenshot and share — was enough for anyone to mail-bomb that runner.
 Deno.serve(async (req) => {
+  const expected = Deno.env.get("TICKET_EMAIL_SECRET");
+  if (!isAuthorizedBearer(req.headers.get("Authorization"), expected)) {
+    return json({ error: "unauthorized" }, 401);
+  }
+
   try {
     const { registration_id: registrationId } = await req.json().catch(() => ({}));
     if (!registrationId) return json({ error: "registration_id_required" }, 400);

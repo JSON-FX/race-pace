@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { GoogleButton } from "@/components/GoogleButton";
 import { signUpWithPassword } from "@/lib/auth";
+import { safeNextPath } from "@/lib/routes";
 
 // `useSearchParams` opts a page out of static prerendering unless it sits
 // under a Suspense boundary — https://nextjs.org/docs/messages/missing-suspense-with-csr-bailout
@@ -23,7 +24,7 @@ export default function SignUp() {
 function SignUpForm() {
   const router = useRouter();
   const params = useSearchParams();
-  const next = params.get("next") ?? "/";
+  const next = safeNextPath(params.get("next"));
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);

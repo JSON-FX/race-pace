@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isProtectedPath, signInRedirectPath } from "../routes";
+import { isProtectedPath, signInRedirectPath, safeNextPath } from "../routes";
 
 describe("isProtectedPath", () => {
   it("protects the authenticated flow", () => {
@@ -47,5 +47,38 @@ describe("signInRedirectPath", () => {
     expect(signInRedirectPath("/pay/callback", "?rid=r1&status=paid")).toBe(
       "/sign-in?next=%2Fpay%2Fcallback%3Frid%3Dr1%26status%3Dpaid",
     );
+  });
+});
+
+// Shared by sign-in, sign-up, and the OAuth callback so all three post-auth
+// redirect paths reject the same hostile inputs — a `//host` target is
+// protocol-relative and browsers navigate it as absolute, off this origin.
+describe("safeNextPath", () => {
+  it("passes through a legitimate relative path", () => {
+    expect(safeNextPath("/races")).toBe("/races");
+    expect(safeNextPath("/register/abc?step=2")).toBe("/register/abc?step=2");
+  });
+
+  it("falls back to / for an absent param", () => {
+    expect(safeNextPath(null)).toBe("/");
+    expect(safeNextPath(undefined)).toBe("/");
+    expect(safeNextPath("")).toBe("/");
+  });
+
+  it("rejects protocol-relative targets", () => {
+    expect(safeNextPath("//evil.example/sign-in")).toBe("/");
+  });
+
+  it("rejects absolute URLs", () => {
+    expect(safeNextPath("https://evil.example")).toBe("/");
+  });
+
+  it("rejects javascript: URLs", () => {
+    expect(safeNextPath("javascript:alert(1)")).toBe("/");
+  });
+
+  it("rejects backslash-based host smuggling", () => {
+    expect(safeNextPath("\\\\evil.example")).toBe("/");
+    expect(safeNextPath("/\\evil.example")).toBe("/");
   });
 });

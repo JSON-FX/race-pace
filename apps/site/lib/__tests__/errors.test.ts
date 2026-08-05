@@ -15,10 +15,15 @@ describe("checkoutErrorMessage", () => {
       "sold_out", "not_pending", "waiver_required", "invalid_custom_data",
       "invalid_input", "unauthorized", "category_not_found",
       "registration_not_found", "registration_failed", "server_error",
+      "registration_closed",
     ]) {
       expect(checkoutErrorMessage(code)).not.toBe("");
       expect(checkoutErrorMessage(code)).not.toContain("_");
     }
+  });
+
+  it("explains a cancelled/closed event can't be registered for", () => {
+    expect(checkoutErrorMessage("registration_closed")).toBe("Registration for this race is no longer open.");
   });
 
   it("falls back to readable copy for an unknown code", () => {

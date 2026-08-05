@@ -2,6 +2,7 @@ import { FunctionsHttpError } from "@supabase/supabase-js";
 
 const MESSAGES: Record<string, string> = {
   sold_out: "This distance just sold out. Try another distance for this race.",
+  registration_closed: "Registration for this race is no longer open.",
   not_pending: "You've already paid for this registration. Check My Races for your ticket.",
   waiver_required: "Please accept the event waiver before registering.",
   invalid_custom_data: "Some answers need fixing. Check the highlighted fields.",

@@ -2,6 +2,7 @@ import { serviceClient } from "../_shared/supabase.ts";
 import { getPaymentProvider } from "../_shared/payments.ts";
 import { customDataSchema, formFieldSchema, isProfileKey, registrationInputSchema } from "../_shared/validation.ts";
 import { preflight, corsHeaders } from "../_shared/cors.ts";
+import { isRegistrationClosed } from "../_shared/eventStatus.ts";
 
 Deno.serve(async (req) => {
   const pre = preflight(req);
@@ -29,6 +30,15 @@ Deno.serve(async (req) => {
 
     const { data: category } = await db.from("categories").select("*").eq("id", input.category_id).single();
     if (!category || category.event_id !== input.event_id) return json({ error: "category_not_found" }, 404);
+
+    // Authoritative: the page-level `isRegistrationClosed` check is a UX
+    // nicety only, not a boundary — a cancelled/closed/completed event must
+    // never accept a new registration or checkout, even via a direct call
+    // with a stale category id already in hand.
+    const { data: event } = await db.from("events").select("status").eq("id", category.event_id).single();
+    if (!event) return json({ error: "category_not_found" }, 404);
+    if (isRegistrationClosed(event.status)) return json({ error: "registration_closed" }, 409);
+
     if (category.slots_taken >= category.slots_total) return json({ error: "sold_out" }, 409);
 
     const { data: fieldRows } = await db.from("form_fields").select("*").eq("event_id", input.event_id).eq("is_active", true);

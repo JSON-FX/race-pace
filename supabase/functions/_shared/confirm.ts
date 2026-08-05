@@ -52,7 +52,16 @@ export async function confirmPayment(
   // exactly one email is sent no matter which path confirms.
   if (!already) {
     try {
-      await db.functions.invoke("send-ticket-email", { body: { registration_id: reg.id } });
+      // send-ticket-email now gates on TICKET_EMAIL_SECRET in the
+      // Authorization header instead of trusting any caller (the
+      // registration id leaks into the shared /ticket/<rid> URL, so it can't
+      // be the only credential). A missing secret here just means the mail
+      // gets rejected — caught below, same as any other send failure.
+      const ticketEmailSecret = Deno.env.get("TICKET_EMAIL_SECRET") ?? "";
+      await db.functions.invoke("send-ticket-email", {
+        body: { registration_id: reg.id },
+        headers: { Authorization: `Bearer ${ticketEmailSecret}` },
+      });
     } catch (e) {
       console.error("[confirm] ticket email failed", { registrationId: reg.id, error: String(e) });
     }
