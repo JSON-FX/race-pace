@@ -116,3 +116,47 @@ export function formatDateRange(
   if (!endIso || endIso === startIso) return formatOne(startIso);
   return `${formatOne(startIso)} – ${formatOne(endIso)}`;
 }
+
+/** What KIND of event this is — the organizer's own vocabulary. Terrain and
+ *  distance are different axes: a trail marathon and a road marathon both
+ *  exist, and distances live in category labels, not here. Order is the order
+ *  the admin console offers them in. */
+export const EVENT_DISCIPLINES = [
+  "trail", "ultra", "cross_country", "obstacle",
+  "road", "marathon", "half_marathon", "fun_run",
+] as const;
+export type EventDiscipline = (typeof EVENT_DISCIPLINES)[number];
+
+export const DISCIPLINE_LABELS: Record<EventDiscipline, string> = {
+  trail: "Trail run",
+  ultra: "Ultramarathon",
+  cross_country: "Cross country",
+  obstacle: "Obstacle race",
+  road: "Road race",
+  marathon: "Marathon",
+  half_marathon: "Half marathon",
+  fun_run: "Fun run",
+};
+
+/** Eight disciplines, TWO page layouts.
+ *  - `profile` — the climb is the story. Elevation profile as the signature.
+ *  - `route`   — the course and the crowd are the story. Route ribbon instead.
+ *  A flat 5K has no meaningful elevation profile to draw, which is the whole
+ *  reason this mapping exists. Keeping it here means the public site and the
+ *  admin console can never disagree about which design an event gets. */
+export const DISCIPLINE_LAYOUT: Record<EventDiscipline, "profile" | "route"> = {
+  trail: "profile",
+  ultra: "profile",
+  cross_country: "profile",
+  obstacle: "profile",
+  road: "route",
+  marathon: "route",
+  half_marathon: "route",
+  fun_run: "route",
+};
+
+/** Tolerant of an unknown value: a discipline added to the DB enum but not yet
+ *  to this file falls back to `profile` rather than crashing the page. */
+export function disciplineLayout(discipline: string | null | undefined): "profile" | "route" {
+  return DISCIPLINE_LAYOUT[discipline as EventDiscipline] ?? "profile";
+}
