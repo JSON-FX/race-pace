@@ -1,12 +1,8 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "./supabase";
+import type { RosterRow, EdgeResult } from "./checkinQueue";
 
 export type CheckInBanner = { tone: "success" | "warn" | "error" | "muted"; title: string; detail?: string };
-
-export type CheckInReg = {
-  id: string; status: string; ticket_token: string | null;
-  event_id: string; runner: string; bib: string | null; category: string;
-};
 
 export function bannerFor(res: { status: number; body: any }, runner?: string, category?: string): CheckInBanner {
   const detail = [runner, category].filter(Boolean).join(" · ") || undefined;
@@ -39,72 +35,46 @@ export function decodeTicketEventId(token: string): string | null {
   }
 }
 
-export function useCheckInEvents(orgId: string | null) {
-  return useQuery({
-    queryKey: ["checkin-events", orgId],
-    enabled: !!orgId,
+export type CheckInEvent = { id: string; name: string; event_date: string | null; end_date: string | null };
+
+/** No org argument: checkin_events() derives scope from the caller's JWT, which
+ *  matters because useMyRoles().orgId is null for a pure marshal. */
+export function useCheckInEvents() {
+  return useQuery<CheckInEvent[]>({
+    queryKey: ["checkin-events"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("events")
-        .select("id,name,event_date,end_date").eq("org_id", orgId!).order("event_date");
+      const { data, error } = await supabase.rpc("checkin_events");
       if (error) throw error;
-      return data ?? [];
+      return (data ?? []) as CheckInEvent[];
     },
   });
 }
 
 export function useCheckInRoster(eventId: string | null) {
-  return useQuery<CheckInReg[]>({
+  return useQuery<RosterRow[]>({
     queryKey: ["checkin-roster", eventId],
     enabled: !!eventId,
     queryFn: async () => {
-      const { data, error } = await supabase.from("registrations")
-        .select("id,status,ticket_token,event_id,profiles(full_name,bib_name),categories(label)")
-        .eq("event_id", eventId!)
-        .in("status", ["paid", "pending"]);
+      const { data, error } = await supabase.rpc("checkin_roster", { p_event_id: eventId! });
       if (error) throw error;
-      return (data ?? []).map((r: any) => ({
-        id: r.id, status: r.status, ticket_token: r.ticket_token, event_id: r.event_id,
-        runner: r.profiles?.full_name ?? "Unknown runner",
-        bib: r.profiles?.bib_name ?? null,
-        category: r.categories?.label ?? "",
-      }));
+      return (data ?? []) as RosterRow[];
     },
   });
 }
 
-export function useCheckInCount(eventId: string | null) {
-  return useQuery({
-    queryKey: ["checkin-count", eventId],
-    enabled: !!eventId,
-    queryFn: async () => {
-      const [done, total] = await Promise.all([
-        supabase.from("checkins").select("id", { count: "exact", head: true }).eq("event_id", eventId!),
-        supabase.from("registrations").select("id", { count: "exact", head: true }).eq("event_id", eventId!).eq("status", "paid"),
-      ]);
-      return { done: done.count ?? 0, total: total.count ?? 0 };
+/** POSTs a ticket to the check-in Edge Function. The single place this request
+ *  is built — the offline replay path calls it too. */
+export async function postCheckIn(ticketToken: string): Promise<EdgeResult> {
+  const { data: sess } = await supabase.auth.getSession();
+  const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/check-in`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: import.meta.env.VITE_SUPABASE_ANON_KEY as string,
+      Authorization: `Bearer ${sess.session?.access_token ?? ""}`,
     },
+    body: JSON.stringify({ ticket_token: ticketToken }),
   });
-}
-
-export function useSubmitCheckIn() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (ticketToken: string) => {
-      const { data: sess } = await supabase.auth.getSession();
-      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/check-in`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          apikey: import.meta.env.VITE_SUPABASE_ANON_KEY as string,
-          Authorization: `Bearer ${sess.session?.access_token ?? ""}`,
-        },
-        body: JSON.stringify({ ticket_token: ticketToken }),
-      });
-      const body = await res.json().catch(() => ({}));
-      return { status: res.status, body };
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["checkin-count"] });
-    },
-  });
+  const body = await res.json().catch(() => ({}));
+  return { status: res.status, body };
 }

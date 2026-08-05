@@ -1,0 +1,139 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { bannerFor, postCheckIn, useCheckInRoster, type CheckInBanner } from "./checkin";
+import {
+  EMPTY_STORE, loadStore, saveStore, offlineDecision, enqueue, markReplayed,
+  markFailed, retryFailed, progress, type CheckInStore, type EdgeResult,
+} from "./checkinQueue";
+
+/** Wires roster + offline queue + Edge Function + connectivity into one surface.
+ *  The store is the single source of truth for progress, so it stays correct offline. */
+export function useCheckInSession(eventId: string | null) {
+  const [store, setStore] = useState<CheckInStore>(EMPTY_STORE);
+  const [banner, setBanner] = useState<CheckInBanner | null>(null);
+  const [online, setOnline] = useState(() => navigator.onLine);
+  const [storageError, setStorageError] = useState<string | null>(null);
+  const storeRef = useRef(store);
+
+  const roster = useCheckInRoster(eventId);
+
+  /** Every mutation goes through here so persistence can never be forgotten. */
+  const commit = useCallback((next: CheckInStore) => {
+    storeRef.current = next;
+    setStore(next);
+    if (eventId) {
+      const res = saveStore(eventId, next);
+      setStorageError(res.ok ? null : res.error ?? null);
+    }
+  }, [eventId]);
+
+  // Swap to the selected event's persisted store.
+  useEffect(() => {
+    const next = eventId ? loadStore(eventId) : EMPTY_STORE;
+    storeRef.current = next;
+    setStore(next);
+    setBanner(null);
+  }, [eventId]);
+
+  // Fold a fresh roster in without discarding the queue or failed list.
+  useEffect(() => {
+    if (!eventId || !roster.data) return;
+    commit({ ...storeRef.current, roster: roster.data, rosterFetchedAt: new Date().toISOString() });
+  }, [eventId, roster.data, commit]);
+
+  useEffect(() => {
+    const up = () => setOnline(true);
+    const down = () => setOnline(false);
+    window.addEventListener("online", up);
+    window.addEventListener("offline", down);
+    return () => {
+      window.removeEventListener("online", up);
+      window.removeEventListener("offline", down);
+    };
+  }, []);
+
+  const replayOne = useCallback(async (clientId: string) => {
+    const entry = storeRef.current.queue.find((q) => q.clientId === clientId);
+    if (!entry) return;
+    let res: EdgeResult;
+    try {
+      res = await postCheckIn(entry.ticketToken);
+    } catch {
+      return;                                   // still offline — leave it queued
+    }
+    // The unique(registration_id) constraint makes a duplicate a success, not an error.
+    if (res.status === 200 && res.body?.ok) {
+      commit(markReplayed(storeRef.current, clientId, new Date().toISOString()));
+    } else {
+      const b = bannerFor(res, entry.runner, entry.category);
+      commit(markFailed(storeRef.current, clientId, b.title, res.status, new Date().toISOString()));
+    }
+  }, [commit]);
+
+  const retryAll = useCallback(async () => {
+    for (const q of [...storeRef.current.queue]) await replayOne(q.clientId);
+  }, [replayOne]);
+
+  // Drain automatically when connectivity returns.
+  useEffect(() => {
+    if (online && storeRef.current.queue.length > 0) void retryAll();
+  }, [online, retryAll]);
+
+  const submitToken = useCallback(async (token: string) => {
+    const current = storeRef.current;
+    const decision = offlineDecision(token, current);
+
+    if (!navigator.onLine) {
+      const row = current.roster.find((r) => r.ticket_token === token);
+      if (decision.status === 200 && decision.body?.ok && !decision.body?.already && row) {
+        commit(enqueue(current, row, token, crypto.randomUUID(), new Date().toISOString()));
+      }
+      setBanner(bannerFor(decision, row?.runner, row?.category));
+      return;
+    }
+
+    // Online: still refuse locally-known bad tickets so the marshal gets an instant answer.
+    if (decision.status !== 200) {
+      const row = current.roster.find((r) => r.ticket_token === token);
+      setBanner(bannerFor(decision, row?.runner, row?.category));
+      return;
+    }
+
+    const row = current.roster.find((r) => r.ticket_token === token);
+    try {
+      const res = await postCheckIn(token);
+      if (res.status === 200 && res.body?.ok) {
+        const stamped = row
+          ? { ...storeRef.current, roster: storeRef.current.roster.map((r) =>
+              r.registration_id === row.registration_id
+                ? { ...r, checked_in_at: r.checked_in_at ?? new Date().toISOString() } : r) }
+          : storeRef.current;
+        commit(stamped);
+      }
+      setBanner(bannerFor(res, row?.runner, row?.category));
+    } catch {
+      // The network died between the check and the post — queue rather than lose it.
+      if (row) commit(enqueue(storeRef.current, row, token, crypto.randomUUID(), new Date().toISOString()));
+      setBanner(bannerFor(decision, row?.runner, row?.category));
+    }
+  }, [commit]);
+
+  const retryOne = useCallback(async (clientId: string) => {
+    commit(retryFailed(storeRef.current, clientId));
+    await replayOne(clientId);
+  }, [commit, replayOne]);
+
+  return {
+    store,
+    banner,
+    online,
+    storageError,
+    progress: useMemo(() => progress(store), [store]),
+    rosterFetchedAt: store.rosterFetchedAt,
+    rosterSyncing: roster.isFetching,
+    rosterError: roster.error ? (roster.error as Error).message : null,
+    syncRoster: () => void roster.refetch(),
+    submitToken,
+    retryOne,
+    retryAll,
+  };
+}
