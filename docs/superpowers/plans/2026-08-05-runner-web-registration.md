@@ -555,7 +555,7 @@ pnpm exec vitest run supabase/functions packages
 
 Scoped deliberately. A bare `pnpm exec vitest run` also picks up `supabase/tests/*.test.ts`, which are RLS/integration tests requiring a **running local Supabase stack** (`supabase start` plus `supabase status -o env > .env.local`). Those 8 files fail with "Missing local keys" against a hosted-only setup, which is expected and not a regression.
 
-Expected: PASS — 5 files, 39 tests (30 pre-existing plus the 9 new CORS tests). No regressions in `_shared` or `packages/shared`.
+Expected: PASS — 6 files, 39 tests (5 files / 30 tests pre-existing, plus the new `cors.test.ts` with 9). No regressions in `_shared` or `packages/shared`.
 
 - [ ] **Step 9: Commit**
 
