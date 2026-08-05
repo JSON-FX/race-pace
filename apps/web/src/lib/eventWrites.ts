@@ -1,13 +1,18 @@
 import { supabase } from "./supabase";
+import type { EventDiscipline } from "@race-pace/shared";
+import type { ScheduleItem } from "./validation";
 
-export type CategoryDraft = { id?: string; tempId?: string; code: string; label: string; distance_km: number | null; base_price: number; slots_total: number };
+export type CategoryDraft = {
+  id?: string; tempId?: string; code: string; label: string; distance_km: number | null; base_price: number; slots_total: number;
+  elevation_gain_m: number | null; cutoff_hours: number | null; blurb: string | null;
+};
 export type AddonDraft = { id?: string; tempId?: string; name: string; price: number };
 export type EventDraft = {
   id?: string; org_id: string; name: string;
   city_psgc_code: string | null; region_name: string | null; province_name: string | null; city_name: string | null; venue: string | null;
-  event_date: string | null; end_date: string | null; flag_off: string | null; status: string;
+  event_date: string | null; end_date: string | null; flag_off: string | null; status: string; discipline: EventDiscipline;
   elevation_gain_m: number | null; cutoff_hours: number | null; description: string | null;
-  hero_image_url: string | null; gallery: string[];
+  hero_image_url: string | null; gallery: string[]; schedule: ScheduleItem[];
 };
 
 type WithId = { id?: string };
@@ -23,9 +28,9 @@ export function reconcileChildren<T extends WithId>(original: WithId[], current:
 const EVENT_COLS = (e: EventDraft) => ({
   org_id: e.org_id, name: e.name,
   city_psgc_code: e.city_psgc_code, region_name: e.region_name, province_name: e.province_name, city_name: e.city_name, venue: e.venue,
-  event_date: e.event_date, end_date: e.end_date, flag_off: e.flag_off, status: e.status,
+  event_date: e.event_date, end_date: e.end_date, flag_off: e.flag_off, status: e.status, discipline: e.discipline,
   elevation_gain_m: e.elevation_gain_m, cutoff_hours: e.cutoff_hours,
-  description: e.description, hero_image_url: e.hero_image_url, gallery: e.gallery,
+  description: e.description, hero_image_url: e.hero_image_url, gallery: e.gallery, schedule: e.schedule,
 });
 
 export async function saveEvent(args: {
@@ -47,11 +52,11 @@ export async function saveEvent(args: {
   const childErrors: string[] = [];
   const cat = reconcileChildren(args.categories.original, args.categories.current);
   for (const c of cat.toInsert) {
-    const r = await supabase.from("categories").insert({ org_id: event.org_id, event_id: eventId, code: c.code, label: c.label, distance_km: c.distance_km, base_price: c.base_price, slots_total: c.slots_total });
+    const r = await supabase.from("categories").insert({ org_id: event.org_id, event_id: eventId, code: c.code, label: c.label, distance_km: c.distance_km, base_price: c.base_price, slots_total: c.slots_total, elevation_gain_m: c.elevation_gain_m, cutoff_hours: c.cutoff_hours, blurb: c.blurb });
     if (r.error) childErrors.push(`Category "${c.label}": ${r.error.message}`);
   }
   for (const c of cat.toUpdate) {
-    const r = await supabase.from("categories").update({ code: c.code, label: c.label, distance_km: c.distance_km, base_price: c.base_price, slots_total: c.slots_total }).eq("id", c.id);
+    const r = await supabase.from("categories").update({ code: c.code, label: c.label, distance_km: c.distance_km, base_price: c.base_price, slots_total: c.slots_total, elevation_gain_m: c.elevation_gain_m, cutoff_hours: c.cutoff_hours, blurb: c.blurb }).eq("id", c.id);
     if (r.error) childErrors.push(`Category "${c.label}": ${r.error.message}`);
   }
   for (const id of cat.toDelete) {

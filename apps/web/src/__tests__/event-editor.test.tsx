@@ -1,5 +1,7 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
+import { EVENT_DISCIPLINES, DISCIPLINE_LABELS } from "@race-pace/shared";
 import { EventEditor } from "../routes/EventEditor";
 import type { EditorData } from "../lib/events";
 
@@ -49,7 +51,7 @@ it("allows saving a cancelled event instead of dead-ending on the status validat
         id: "e1", org_id: "a1", name: "Apo Sky Ultra",
         city_psgc_code: null, region_name: null, province_name: null, city_name: null, venue: null,
         event_date: null, end_date: null, flag_off: null, status: "cancelled",
-        elevation_gain_m: null, cutoff_hours: null, description: null, hero_image_url: null, gallery: [],
+        discipline: "trail", elevation_gain_m: null, cutoff_hours: null, description: null, hero_image_url: null, gallery: [], schedule: [],
       },
       categories: [],
       addons: [],
@@ -87,9 +89,9 @@ it("carries hero_image_url + gallery through to save", async () => {
       event: {
         id: "e1", org_id: "a1", name: "Apo",
         city_psgc_code: null, region_name: null, province_name: null, city_name: null, venue: null,
-        event_date: null, end_date: null, flag_off: null, status: "open",
+        event_date: null, end_date: null, flag_off: null, status: "open", discipline: "trail",
         elevation_gain_m: null, cutoff_hours: null, description: null,
-        hero_image_url: "https://cdn/hero.png", gallery: ["https://cdn/g1.png"],
+        hero_image_url: "https://cdn/hero.png", gallery: ["https://cdn/g1.png"], schedule: [],
       },
       categories: [],
       addons: [],
@@ -116,7 +118,7 @@ it("carries PSGC address + venue + date range through to save", async () => {
         id: "e1", org_id: "a1", name: "Apo",
         city_psgc_code: "112603", region_name: "Davao Region", province_name: "Davao del Sur", city_name: "City of Digos", venue: "Camp Sabros",
         event_date: "2026-11-14", end_date: "2026-11-16", flag_off: "04:00", status: "open",
-        elevation_gain_m: null, cutoff_hours: null, description: null, hero_image_url: null, gallery: [],
+        discipline: "trail", elevation_gain_m: null, cutoff_hours: null, description: null, hero_image_url: null, gallery: [], schedule: [],
       },
       categories: [],
       addons: [],
@@ -147,7 +149,7 @@ it("blocks save when the end date is before the start date", async () => {
         id: "e1", org_id: "a1", name: "Apo",
         city_psgc_code: null, region_name: null, province_name: null, city_name: null, venue: null,
         event_date: "2026-11-14", end_date: null, flag_off: null, status: "open",
-        elevation_gain_m: null, cutoff_hours: null, description: null, hero_image_url: null, gallery: [],
+        discipline: "trail", elevation_gain_m: null, cutoff_hours: null, description: null, hero_image_url: null, gallery: [], schedule: [],
       },
       categories: [],
       addons: [],
@@ -159,4 +161,64 @@ it("blocks save when the end date is before the start date", async () => {
   fireEvent.click(screen.getByText("Save event"));
   expect(await screen.findByText("End date can't be before the start date.")).toBeInTheDocument();
   expect(mockSave).not.toHaveBeenCalled();
+});
+
+it("offers all eight shared disciplines with their shared labels, and a chosen discipline round-trips through save", async () => {
+  const user = userEvent.setup();
+  render(<MemoryRouter><EventEditor /></MemoryRouter>);
+
+  await user.click(screen.getByLabelText("Discipline"));
+  for (const d of EVENT_DISCIPLINES) {
+    expect(await screen.findByRole("option", { name: DISCIPLINE_LABELS[d] })).toBeInTheDocument();
+  }
+  await user.click(screen.getByRole("option", { name: "Ultramarathon" }));
+
+  fireEvent.change(screen.getByLabelText("Event name"), { target: { value: "Apo Sky Ultra" } });
+  fireEvent.click(screen.getByText("Save event"));
+  await waitFor(() => expect(mockSave).toHaveBeenCalled());
+  expect(mockSave.mock.calls[0]![0].event).toMatchObject({ discipline: "ultra" });
+});
+
+it("adds, edits, reorders, and removes schedule rows, saving the final order", async () => {
+  mockUseParams.mockReturnValue({ id: "e1" });
+  mockUseEventForEditor.mockReturnValue({
+    data: {
+      event: {
+        id: "e1", org_id: "a1", name: "Apo",
+        city_psgc_code: null, region_name: null, province_name: null, city_name: null, venue: null,
+        event_date: null, end_date: null, flag_off: null, status: "open",
+        discipline: "trail", elevation_gain_m: null, cutoff_hours: null, description: null, hero_image_url: null, gallery: [], schedule: [],
+      },
+      categories: [],
+      addons: [],
+    },
+    isLoading: false,
+  });
+  render(<MemoryRouter><EventEditor /></MemoryRouter>);
+
+  // The event details / images / schedule / categories / add-ons sections each
+  // render their own "+ Add" control — the schedule editor's is the first one
+  // in DOM order (EventImagesEditor, ScheduleEditor, CategoryEditor, AddonEditor).
+  const scheduleAdd = (await screen.findAllByText("+ Add"))[0]!;
+  fireEvent.click(scheduleAdd);
+  fireEvent.change(screen.getByLabelText("Schedule time"), { target: { value: "07:00" } });
+  fireEvent.change(screen.getByLabelText("Schedule label"), { target: { value: "Cut-off, 10K" } });
+
+  // add a second row that should end up first once we move it up
+  fireEvent.click(screen.getAllByText("+ Add")[0]!);
+  const times = screen.getAllByLabelText("Schedule time");
+  const labels = screen.getAllByLabelText("Schedule label");
+  fireEvent.change(times[1]!, { target: { value: "04:30" } });
+  fireEvent.change(labels[1]!, { target: { value: "Gun start, 21K and 10K" } });
+  fireEvent.click(screen.getAllByLabelText("Move row up")[1]!);
+
+  fireEvent.click(screen.getByText("Save event"));
+  await waitFor(() => expect(mockSave).toHaveBeenCalled());
+  expect(mockSave.mock.calls[0]![0].event.schedule).toEqual([
+    { time: "04:30", label: "Gun start, 21K and 10K" },
+    { time: "07:00", label: "Cut-off, 10K" },
+  ]);
+
+  fireEvent.click(screen.getAllByLabelText("Remove schedule row")[0]!);
+  expect(screen.getAllByLabelText("Schedule time")).toHaveLength(1);
 });

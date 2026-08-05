@@ -2,12 +2,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { EVENT_DISCIPLINES, DISCIPLINE_LABELS, disciplineLayout } from "@race-pace/shared";
 import { useMyRoles } from "../lib/roles";
 import { useEventForEditor } from "../lib/events";
 import { saveEvent, type CategoryDraft, type AddonDraft, type EventDraft } from "../lib/eventWrites";
 import { eventInputSchema, categoryInputSchema, addonInputSchema, EVENT_STATUSES } from "../lib/validation";
 import { CategoryEditor } from "../components/CategoryEditor";
 import { AddonEditor } from "../components/AddonEditor";
+import { ScheduleEditor } from "../components/ScheduleEditor";
 import { EventImagesEditor } from "../components/EventImagesEditor";
 import { PsgcAddressField } from "../components/PsgcAddressField";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
@@ -18,7 +20,7 @@ import { Button } from "../components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 
 const fieldLabel = "mb-1.5 block text-[11px] font-semibold tracking-wide text-muted-foreground";
-const blank: EventDraft = { org_id: "", name: "", city_psgc_code: null, region_name: null, province_name: null, city_name: null, venue: null, event_date: null, end_date: null, flag_off: null, status: "draft", elevation_gain_m: null, cutoff_hours: null, description: null, hero_image_url: null, gallery: [] };
+const blank: EventDraft = { org_id: "", name: "", city_psgc_code: null, region_name: null, province_name: null, city_name: null, venue: null, event_date: null, end_date: null, flag_off: null, status: "draft", discipline: "trail", elevation_gain_m: null, cutoff_hours: null, description: null, hero_image_url: null, gallery: [], schedule: [] };
 
 export function EventEditor() {
   const { id } = useParams();
@@ -44,7 +46,7 @@ export function EventEditor() {
       seededFor.current = id;
       const d = loaded.data;
       setEvent({ ...d.event });
-      setCats(d.categories.map((c) => ({ id: c.id, code: c.code, label: c.label, distance_km: c.distance_km, base_price: c.base_price, slots_total: c.slots_total })));
+      setCats(d.categories.map((c) => ({ id: c.id, code: c.code, label: c.label, distance_km: c.distance_km, base_price: c.base_price, slots_total: c.slots_total, elevation_gain_m: c.elevation_gain_m, cutoff_hours: c.cutoff_hours, blurb: c.blurb })));
       setAddons(d.addons.map((a) => ({ id: a.id, name: a.name, price: a.price })));
       setOrigCats(d.categories.map((c) => ({ id: c.id })));
       setOrigAddons(d.addons.map((a) => ({ id: a.id })));
@@ -60,9 +62,9 @@ export function EventEditor() {
     // intentionally outside EVENT_STATUSES, and the dropdown already restricts input
     // to valid values — validating it here would permanently block Save on a
     // cancelled event with a misleading "fix the event fields" message.
-    if (!eventInputSchema.omit({ status: true }).safeParse({ ...event }).success) return "Fix the event fields (name is required, valid date/time).";
+    if (!eventInputSchema.omit({ status: true }).safeParse({ ...event }).success) return "Fix the event fields (name is required, valid date/time, schedule times as HH:MM).";
     if (event.end_date && event.event_date && event.end_date < event.event_date) return "End date can't be before the start date.";
-    for (const c of cats) if (!categoryInputSchema.safeParse(c).success) return "Fix the category rows (code, label, non-negative price/slots).";
+    for (const c of cats) if (!categoryInputSchema.safeParse(c).success) return "Fix the category rows (code, label, non-negative price/slots, gain 0-30000m, cut-off 0-240h).";
     for (const a of addons) if (!addonInputSchema.safeParse(a).success) return "Fix the add-on rows (name, non-negative price).";
     return null;
   }, [event, cats, addons]);
@@ -123,6 +125,22 @@ export function EventEditor() {
               <Label className={fieldLabel}>VENUE</Label>
               <Input aria-label="Venue" value={event.venue ?? ""} onChange={(e) => set({ venue: e.target.value || null })} />
             </div>
+            <div>
+              <Label className={fieldLabel}>DISCIPLINE — CHOOSES THE PUBLIC PAGE LAYOUT</Label>
+              <Select value={event.discipline} onValueChange={(v) => set({ discipline: v as EventDraft["discipline"] })}>
+                <SelectTrigger aria-label="Discipline" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {EVENT_DISCIPLINES.map((d) => <SelectItem key={d} value={d}>{DISCIPLINE_LABELS[d]}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                {disciplineLayout(event.discipline) === "profile"
+                  ? "This shows an elevation profile on the public page."
+                  : "This shows a route ribbon on the public page (no elevation profile)."}
+              </p>
+            </div>
             <div className="grid grid-cols-4 gap-3">
               <div>
                 <Label className={fieldLabel}>DATE</Label>
@@ -166,6 +184,7 @@ export function EventEditor() {
         </Card>
         <div className="flex flex-col gap-4">
           <EventImagesEditor orgId={orgId} heroUrl={event.hero_image_url} gallery={event.gallery} onChange={(v) => set(v)} />
+          <ScheduleEditor rows={event.schedule} onChange={(schedule) => set({ schedule })} />
           <CategoryEditor rows={cats} onChange={setCats} />
           <AddonEditor rows={addons} onChange={setAddons} />
         </div>
