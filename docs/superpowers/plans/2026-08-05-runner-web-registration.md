@@ -1450,6 +1450,11 @@ describe("SignIn", () => {
     await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
     expect(await screen.findByText("Invalid login credentials")).toBeInTheDocument();
+    // The "does not navigate" half must be asserted, or a regression that
+    // called setError AND router.replace unconditionally would still pass.
+    // This needs a STABLE router mock — vitest.setup.ts returns a fresh
+    // object per useRouter() call, so override it locally in this file.
+    expect(replace).not.toHaveBeenCalled();
   });
 
   it("offers Google as an alternative", () => {
