@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isRegistrationClosed } from "../registration";
+import { isRegistrationClosed } from "../eventStatus";
 
 describe("isRegistrationClosed", () => {
   it("keeps almost_full open — it is still registerable, just tight on slots", () => {

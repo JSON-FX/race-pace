@@ -8,7 +8,7 @@ import { fetchEvent, fetchCategories } from "@/lib/events";
 import { SiteHeader } from "@/components/SiteHeader";
 import { TopoPattern } from "@/components/TopoPattern";
 import { longDate } from "@/lib/format";
-import { isRegistrationClosed } from "@/lib/registration";
+import { isRegistrationClosed } from "@/lib/eventStatus";
 
 export const dynamic = "force-dynamic";
 
@@ -47,7 +47,7 @@ export default async function EventPage({ params }: Params) {
   const categories = await fetchCategories(db, id);
   const date = event.event_date ? formatDateRange(event.event_date, event.end_date, longDate) : null;
   const location = formatAddress({ city_name: event.city_name, province_name: event.province_name });
-  // almost_full is still registerable — see lib/registration.ts, mirrors
+  // almost_full is still registerable — see lib/eventStatus.ts, mirrors
   // apps/mobile/app/event/[id].tsx's `registerable` rule.
   const closed = isRegistrationClosed(event.status);
 
