@@ -1,6 +1,11 @@
-/** Dates from Postgres `date` columns arrive as "YYYY-MM-DD". Appending
- *  T00:00:00Z and formatting in UTC keeps the calendar day stable — parsing
- *  bare "2026-11-14" as local time renders the previous day in UTC+8. */
+/** Dates from Postgres `date` columns arrive as "YYYY-MM-DD". A bare
+ *  date-only ISO string already parses as UTC midnight per spec, so
+ *  appending T00:00:00Z here is a no-op for parsing (it's the same instant
+ *  either way) — it just makes that UTC interpretation explicit to the
+ *  reader. The real fix for day-shift bugs is `timeZone: "UTC"` in the
+ *  formatter options below: without it, toLocaleDateString renders in the
+ *  host's local zone, and under a negative UTC offset that can push the
+ *  displayed date back a day. */
 function utcDate(iso: string): Date {
   return new Date(`${iso}T00:00:00Z`);
 }

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { FieldType } from "@race-pace/shared";
 
 export type EventRow = {
   id: string; org_id: string; name: string; place: string | null; region: string | null;
@@ -27,11 +28,14 @@ export type AddonRow = { id: string; name: string; price: number };
 
 export type FormFieldRow = {
   id: string; key: string; label: string;
-  type: "text" | "number" | "select" | "checkbox" | "date" | "file";
+  type: FieldType;
   required: boolean; options: string[] | null; sort_order: number;
 };
 
-// Column lists mirror apps/mobile/lib/events.ts. Keep them in step.
+// Column lists mirror apps/mobile/lib/events.ts, plus `inclusions` on
+// EVENT_COLS / EventRow (a real array column mobile does not yet select —
+// the pay page here needs it). Don't assume field-for-field parity; check
+// apps/mobile/lib/events.ts directly if reconciling the two.
 const EVENT_COLS =
   "id,org_id,name,place,region,event_date,end_date,elevation_gain_m,cutoff_hours,flag_off,status,hero_image_url,description,gallery,original_date,status_note,city_psgc_code,region_name,province_name,city_name,venue,inclusions,categories(slots_taken,distance_km)";
 const CAT_COLS = "id,event_id,org_id,code,label,distance_km,base_price,slots_total,slots_taken";
