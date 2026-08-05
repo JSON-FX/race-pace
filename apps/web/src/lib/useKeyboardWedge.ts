@@ -26,7 +26,16 @@ export function useKeyboardWedge(onScan: (token: string) => void, enabled: boole
 
     const restore = () => {
       if (snapshot && snapshot.el.isConnected && snapshot.el.value !== snapshot.value) {
-        snapshot.el.value = snapshot.value;
+        // React installs its own instance-level "value" setter to track the last
+        // value it rendered. Assigning `el.value = ...` directly goes through that
+        // tracker, so the `input` event we dispatch looks like a no-op to React and
+        // `onChange` never fires — the leaked characters would reappear on the next
+        // render. Writing through the prototype's setter bypasses the tracker so
+        // React sees a real change and updates its controlled state.
+        const proto = snapshot.el instanceof HTMLTextAreaElement
+          ? HTMLTextAreaElement.prototype
+          : HTMLInputElement.prototype;
+        Object.getOwnPropertyDescriptor(proto, "value")!.set!.call(snapshot.el, snapshot.value);
         snapshot.el.dispatchEvent(new Event("input", { bubbles: true }));
         if (snapshot.start !== null) snapshot.el.setSelectionRange(snapshot.start, snapshot.start);
       }
@@ -34,6 +43,13 @@ export function useKeyboardWedge(onScan: (token: string) => void, enabled: boole
     };
 
     const onKeyDown = (e: KeyboardEvent) => {
+      // OS key auto-repeat (holding a key down) satisfies all three detection
+      // signals — sub-30ms gaps, token-charset characters, enough of them — so it
+      // must never reach the reducer. Ignoring repeats entirely also leaves any
+      // in-progress burst state untouched, which is correct: a repeat is not part
+      // of a scanner burst either way.
+      if (e.repeat) return;
+
       // Snapshot before the reducer sees the key that starts a burst.
       if (state.buffer === "" && snapshot === null) {
         const el = editable(document.activeElement);

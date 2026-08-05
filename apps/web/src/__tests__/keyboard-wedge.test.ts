@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
-import { feedKey, commitIdle, WEDGE_INIT, type WedgeState } from "../lib/keyboardWedge";
-import { renderHook } from "@testing-library/react";
+import { feedKey, commitIdle, WEDGE_INIT, IDLE_COMMIT_MS, type WedgeState } from "../lib/keyboardWedge";
+import { render, renderHook } from "@testing-library/react";
+import { createElement, useState, type ChangeEvent } from "react";
 import { useKeyboardWedge } from "../lib/useKeyboardWedge";
 
 /** Feed a string at a fixed inter-key gap, returning the final result. */
@@ -86,6 +87,17 @@ describe("feedKey", () => {
     const { state } = type(TOKEN, 5);
     expect(feedKey(state, { key: "ArrowLeft", timeStamp: 2000 }).state).toEqual(WEDGE_INIT);
   });
+
+  it("a mid-burst gap in the 31-80ms window restarts the candidate rather than extending it", () => {
+    // 31-80ms is the gap band that is neither "fast" (<=30ms) nor "stale" (>80ms) —
+    // the non-stale !fast branch, which every other human-speed test (150ms gaps)
+    // skips past because those gaps exceed IDLE_COMMIT_MS and take the stale path.
+    const { state, nextAt } = type(TOKEN.slice(0, 4), 5);
+    const nextChar = TOKEN[4]!;
+    const r = feedKey(state, { key: nextChar, timeStamp: nextAt + 50 });
+    expect(r.state).toEqual({ buffer: nextChar, lastAt: nextAt + 50, fastCount: 0 });
+    expect(r.capture).toBe(false);
+  });
 });
 
 /** jsdom does not populate KeyboardEvent.timeStamp usefully, so set it explicitly. */
@@ -136,5 +148,116 @@ describe("useKeyboardWedge", () => {
     for (const key of TOKEN) { press(key, t); t += 5; }
     press("Enter", t);
     expect(onScan).not.toHaveBeenCalled();
+  });
+
+  function ControlledSearchBox({ onScan }: { onScan: (token: string) => void }) {
+    const [q, setQ] = useState("ana");
+    useKeyboardWedge(onScan, true);
+    return createElement("input", {
+      "aria-label": "search",
+      value: q,
+      onChange: (e: ChangeEvent<HTMLInputElement>) => setQ(e.target.value),
+    });
+  }
+
+  it("restores a React controlled input without leaving leaked characters in state", () => {
+    // jsdom's synthetic keydown never inserts characters, so a plain burst of
+    // `press()` calls leaves input.value untouched no matter what restore() does —
+    // that alone would make this test pass even against a broken restore. Two
+    // things are needed to actually exercise the bug:
+    //
+    // 1. The leak must be simulated the way a REAL leaked keystroke reaches React:
+    //    writing through the native <input> prototype setter (bypassing React's
+    //    instance-level value tracker) and then dispatching "input", so React's
+    //    ChangeEventPlugin sees a genuine divergence and calls onChange — exactly
+    //    like a real browser inserting a character outside React's control. A
+    //    plain `input.value = "..."` or fireEvent.change assignment instead goes
+    //    through React's OWN wrapped setter, which keeps the tracker in sync and
+    //    never reproduces the divergence at all.
+    // 2. The assertion must survive a forced re-render. A broken restore
+    //    (`el.value = snapshot.value` directly) still visibly changes the DOM
+    //    node, so `input.value` looks right immediately afterward even though
+    //    React's internal state was never told — the leaked value is still there
+    //    and reasserts itself the next time React reconciles this node.
+    const nativeValueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+
+    const onScan = vi.fn();
+    const { getByLabelText, rerender } = render(createElement(ControlledSearchBox, { onScan }));
+    const input = getByLabelText("search") as HTMLInputElement;
+    input.focus();
+
+    let t = 1000;
+    press(TOKEN[0]!, t); t += 5;
+    press(TOKEN[1]!, t); t += 5; // capture is still false for these two — see threshold test above
+
+    // Simulate the leak: real character insertion that React itself observes.
+    nativeValueSetter.call(input, "ana" + TOKEN.slice(0, 2));
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+
+    for (const key of TOKEN.slice(2)) { press(key, t); t += 5; }
+    press("Enter", t);
+
+    expect(onScan).toHaveBeenCalledWith(TOKEN);
+
+    // Force React to reconcile this node against its current internal state —
+    // a broken restore leaves state holding the leaked value, which reappears
+    // here even though the raw DOM node looked correct a moment ago.
+    rerender(createElement(ControlledSearchBox, { onScan }));
+    expect(input.value).toBe("ana");
+  });
+
+  it("ignores OS key auto-repeat so a held key never accumulates into a scan", () => {
+    // macOS's fastest key-repeat interval is 30ms, at or under MAX_GAP_MS, so a
+    // held token-charset key satisfies the gap and charset signals for free.
+    // Without filtering, holding "a" would eventually cross MIN_TOKEN_LEN and
+    // commitIdle would fire a bogus scan for "aaaaaaaaaaa".
+    vi.useFakeTimers();
+    try {
+      const onScan = vi.fn();
+      renderHook(() => useKeyboardWedge(onScan, true));
+      let t = 1000;
+      press("a", t); // initial keydown, not a repeat
+      t += 30;
+      for (let i = 0; i < 10; i++) {
+        const ev = new KeyboardEvent("keydown", { key: "a", bubbles: true, cancelable: true, repeat: true });
+        Object.defineProperty(ev, "timeStamp", { value: t });
+        document.dispatchEvent(ev);
+        t += 30;
+      }
+      vi.advanceTimersByTime(IDLE_COMMIT_MS);
+      expect(onScan).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("emits on the idle timer for scanners with no Enter suffix", () => {
+    // Exercises the hook's setTimeout/IDLE_COMMIT_MS branch, which the reducer-level
+    // commitIdle test cannot — that branch is the whole reason the no-suffix design
+    // exists, and it is the only async, timer-ordered code in the hook.
+    vi.useFakeTimers();
+    try {
+      const onScan = vi.fn();
+      renderHook(() => useKeyboardWedge(onScan, true));
+      let t = 1000;
+      for (const key of TOKEN) { press(key, t); t += 5; }
+      vi.advanceTimersByTime(IDLE_COMMIT_MS);
+      expect(onScan).toHaveBeenCalledWith(TOKEN);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("suppresses the keystroke via preventDefault only once the capture threshold is reached", () => {
+    const onScan = vi.fn();
+    renderHook(() => useKeyboardWedge(onScan, true));
+    let t = 1000;
+    const prevented: boolean[] = [];
+    for (const key of TOKEN.slice(0, 3)) {
+      const ev = press(key, t);
+      prevented.push(ev.defaultPrevented);
+      t += 5;
+    }
+    expect(prevented).toEqual([false, false, true]);
   });
 });
