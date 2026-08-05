@@ -2,19 +2,64 @@ import Link from "next/link";
 import Image from "next/image";
 import { formatDateRange, formatAddress } from "@race-pace/shared";
 import { createClient } from "@/lib/supabase/server";
-import { fetchMarketplaceEvents } from "@/lib/events";
+import { fetchMarketplaceEvents, fetchCategories } from "@/lib/events";
 import { EventCard } from "@/components/EventCard";
 import { SiteHeader } from "@/components/SiteHeader";
 import { TopoPattern } from "@/components/TopoPattern";
+import { SingleEventLanding } from "@/components/SingleEventLanding";
 import { longDate } from "@/lib/format";
+import { isRegistrationClosed } from "@/lib/eventStatus";
+import { homeMode } from "@/lib/home";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
   const db = await createClient();
   const events = await fetchMarketplaceEvents(db);
+  const mode = homeMode(events);
 
-  // Hero the nearest upcoming open event; everything else fills the grid.
+  if (mode === "single") {
+    const event = events.find((e) => !isRegistrationClosed(e.status))!;
+    const categories = await fetchCategories(db, event.id);
+    return (
+      <>
+        <SiteHeader />
+        <main>
+          <SingleEventLanding event={event} categories={categories} />
+        </main>
+      </>
+    );
+  }
+
+  if (mode === "empty") {
+    return (
+      <>
+        <SiteHeader />
+        <main>
+          <section className="mx-auto flex min-h-[50vh] w-full max-w-6xl flex-col justify-center px-6">
+            <p className="text-[12px] font-semibold uppercase tracking-[2px] text-primary">Race Pace</p>
+            <h1 className="mt-4 max-w-3xl font-display text-[clamp(2.5rem,7vw,4.5rem)] font-black leading-[0.98] tracking-[-1.5px] text-foreground">
+              No races are open for entry right now.
+            </h1>
+            <p className="mt-5 max-w-xl text-[17px] leading-relaxed text-muted-foreground">
+              The next one hasn&apos;t gone live yet. Check back soon, or see what&apos;s run before.
+            </p>
+            {events.length > 0 ? (
+              <Link
+                href="/events"
+                className="mt-8 inline-flex w-fit rounded-pill border border-border px-7 py-3.5 text-[15px] font-semibold text-foreground transition-colors hover:border-primary/40"
+              >
+                See past races
+              </Link>
+            ) : null}
+          </section>
+        </main>
+      </>
+    );
+  }
+
+  // mode === "multi" — hero the nearest upcoming open event, everything
+  // else fills the grid. Unchanged from the original directory composition.
   const today = new Date().toISOString().slice(0, 10);
   const upcoming = events.filter((e) => e.status === "open" && (e.event_date ?? "") >= today);
   const hero = upcoming[0] ?? null;
