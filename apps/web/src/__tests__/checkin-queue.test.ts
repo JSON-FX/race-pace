@@ -8,7 +8,7 @@ vi.mock("../lib/supabase", () => ({ supabase: {} }));
 
 import {
   EMPTY_STORE, storageKey, loadStore, saveStore, offlineDecision,
-  enqueue, markReplayed, markFailed, retryFailed, progress,
+  enqueue, markReplayed, markFailed, retryFailed, progress, unsentCount, SELECTED_EVENT_KEY,
   type CheckInStore, type RosterRow,
 } from "../lib/checkinQueue";
 import { bannerFor } from "../lib/checkin";
@@ -132,5 +132,34 @@ describe("storage", () => {
     localStorage.setItem = original;
     expect(res.ok).toBe(false);
     expect(res.error).toMatch(/storage/i);
+  });
+});
+
+describe("unsentCount", () => {
+  beforeEach(() => localStorage.clear());
+
+  it("is zero when nothing is persisted", () => {
+    expect(unsentCount()).toBe(0);
+  });
+
+  it("sums queue + failed across every event's store, ignoring the selected-event pointer", () => {
+    const withQueue = enqueue(store(), row(), "tok1", "c1", "2026-08-06T01:00:00Z");
+    let withFailed = enqueue(store(), row({ registration_id: "r2", ticket_token: "tok2" }), "tok2", "c2", "2026-08-06T01:00:00Z");
+    withFailed = markFailed(withFailed, "c2", "Not paid", 409, "2026-08-06T02:00:00Z");
+    withFailed = enqueue(withFailed, row({ registration_id: "r3", ticket_token: "tok3" }), "tok3", "c3", "2026-08-06T01:00:00Z");
+
+    saveStore("e1", withQueue);   // 1 queued
+    saveStore("e2", withFailed);  // 1 queued + 1 failed
+    localStorage.setItem(SELECTED_EVENT_KEY, "e2"); // not a store — must not be parsed as one
+
+    expect(unsentCount()).toBe(3);
+  });
+
+  it("skips a corrupt entry rather than throwing", () => {
+    const withQueue = enqueue(store(), row(), "tok1", "c1", "2026-08-06T01:00:00Z");
+    saveStore("e1", withQueue);
+    localStorage.setItem(storageKey("e2"), "{not json");
+
+    expect(unsentCount()).toBe(1);
   });
 });

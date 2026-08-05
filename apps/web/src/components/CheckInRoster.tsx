@@ -26,7 +26,13 @@ export function CheckInRoster({
     <div className="flex min-h-0 flex-col gap-3">
       <Input placeholder="Search by name or bib…" value={q} onChange={(e) => setQ(e.target.value)} />
       <ul className="min-h-0 flex-1 divide-y divide-border overflow-y-auto rounded-xl border border-border">
-        {filtered.length === 0 ? (
+        {roster.length === 0 ? (
+          // Pre-sync state, not a failed search — the offline path depends on the
+          // marshal noticing this rather than reading it as "no results for ''".
+          <li className="p-6 text-center text-sm text-muted-foreground">
+            Roster not downloaded yet — tap Sync roster.
+          </li>
+        ) : filtered.length === 0 ? (
           <li className="p-6 text-center text-sm text-muted-foreground">No runner matches “{q}”.</li>
         ) : filtered.map((r) => {
           const done = r.checked_in_at !== null || queuedIds.has(r.registration_id);

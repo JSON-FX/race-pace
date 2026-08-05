@@ -10,8 +10,7 @@ import { QrScanner } from "../components/QrScanner";
 import { CheckInBanner } from "../components/CheckInBanner";
 import { CheckInRoster } from "../components/CheckInRoster";
 import { CheckInQueueStatus } from "../components/CheckInQueueStatus";
-
-const EVENT_KEY = "race-pace.checkin.v1.selected-event";
+import { SELECTED_EVENT_KEY as EVENT_KEY } from "../lib/checkinQueue";
 
 function syncedLabel(at: string | null): string {
   if (!at) return "Roster not synced yet";
@@ -30,13 +29,17 @@ export function CheckIn() {
   useEffect(() => {
     const list = events.data;
     if (!list) return;
-    if (eventId && !list.some((e) => e.id === eventId)) { setEventId(null); localStorage.removeItem(EVENT_KEY); return; }
+    if (eventId && !list.some((e) => e.id === eventId)) {
+      setEventId(null);
+      localStorage.removeItem(EVENT_KEY);
+      setWrongEvent(null); // stale banner would otherwise outlive the session it was about
+      return;
+    }
     const only = list.length === 1 ? list[0] : undefined;
     if (!eventId && only) { setEventId(only.id); localStorage.setItem(EVENT_KEY, only.id); }
   }, [events.data, eventId]);
 
   const session = useCheckInSession(eventId);
-  const selected = events.data?.find((e) => e.id === eventId) ?? null;
 
   const submit = (token: string) => {
     setWrongEvent(null);
@@ -56,14 +59,10 @@ export function CheckIn() {
     [session.store.queue],
   );
 
-  // A marshal must not wander off with unsent check-ins sitting in this tab.
-  const unsent = session.store.queue.length + session.store.failed.length;
-  useEffect(() => {
-    if (unsent === 0) return;
-    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
-    window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, [unsent]);
+  // The "don't close the tab with unsent scans" warning is armed globally by
+  // AppShell (it checks localStorage directly at unload time), because a
+  // route-local effect here would stop working the moment a marshal navigates
+  // away and unmounts this component — see task-6 review finding 1.
 
   const banner = wrongEvent ? wrongEventBanner(wrongEvent) : session.banner;
 
@@ -78,7 +77,7 @@ export function CheckIn() {
         )}
         <Select
           value={eventId ?? ""}
-          onValueChange={(v) => { setEventId(v); localStorage.setItem(EVENT_KEY, v); }}
+          onValueChange={(v) => { setEventId(v); localStorage.setItem(EVENT_KEY, v); setWrongEvent(null); }}
         >
           <SelectTrigger className="w-[260px]"><SelectValue placeholder="Choose an event" /></SelectTrigger>
           <SelectContent>

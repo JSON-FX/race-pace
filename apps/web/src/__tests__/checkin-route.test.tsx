@@ -43,11 +43,12 @@ const ROSTER = [
 
 function renderRoute() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
-  return render(
+  const utils = render(
     <QueryClientProvider client={qc}>
       <MemoryRouter><CheckIn /></MemoryRouter>
     </QueryClientProvider>,
   );
+  return { ...utils, qc };
 }
 
 beforeEach(() => {
@@ -138,4 +139,46 @@ it("lets a ticket for the selected event fall through to the normal path", async
 
   await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Ticket not recognised"));
   expect(screen.queryByText(/Wrong event/i)).not.toBeInTheDocument();
+});
+
+it("clears a stale wrong-event banner when the picker is switched to a different event", async () => {
+  const TWO_EVENTS = [
+    { id: "e1", name: "Apo Sky Ultra", event_date: "2026-09-01", end_date: null },
+    { id: "e2", name: "Davao Sunrise Run", event_date: "2026-10-01", end_date: null },
+  ];
+  rpc.mockImplementation((fn: string) =>
+    Promise.resolve({ data: fn === "checkin_events" ? TWO_EVENTS : ROSTER, error: null }));
+  localStorage.setItem("race-pace.checkin.v1.selected-event", "e1");
+
+  const user = userEvent.setup();
+  renderRoute();
+  await screen.findByText("Ana Cruz");
+
+  scanBurst(tokenFor("e2"));
+  await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Wrong event"));
+
+  await user.click(screen.getByRole("combobox"));
+  await user.click(await screen.findByRole("option", { name: "Davao Sunrise Run" }));
+
+  // Switching events must not leave the previous event's "Wrong event" banner
+  // hanging over the newly-selected event's session.
+  await waitFor(() => expect(screen.queryByText(/Wrong event/i)).not.toBeInTheDocument());
+});
+
+it("clears a stale wrong-event banner when the selected event drops out of the list", async () => {
+  localStorage.setItem("race-pace.checkin.v1.selected-event", "e1");
+  const { qc } = renderRoute(); // single-event fixture (e1) via beforeEach's rpc mock
+  await screen.findByText("Ana Cruz");
+
+  scanBurst(tokenFor("e2"));
+  await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Wrong event"));
+
+  // e1 disappears from the org's event list (e.g. the marshal was reassigned) —
+  // the stale-event-id effect resets the picker and must not leave the old
+  // banner pinned to a session that no longer exists.
+  rpc.mockImplementation((fn: string) =>
+    Promise.resolve({ data: fn === "checkin_events" ? [] : ROSTER, error: null }));
+  await qc.invalidateQueries({ queryKey: ["checkin-events"] });
+
+  await waitFor(() => expect(screen.queryByText(/Wrong event/i)).not.toBeInTheDocument());
 });

@@ -35,8 +35,14 @@ export type EdgeResult = { status: number; body: any };
 
 export const EMPTY_STORE: CheckInStore = { rosterFetchedAt: null, roster: [], queue: [], failed: [] };
 
+const STORAGE_PREFIX = "race-pace.checkin.v1.";
+
+/** Not a per-event store — the CheckIn route's "last selected event" pointer
+ *  lives under the same prefix and must be skipped when walking stores. */
+export const SELECTED_EVENT_KEY = `${STORAGE_PREFIX}selected-event`;
+
 export function storageKey(eventId: string): string {
-  return `race-pace.checkin.v1.${eventId}`;
+  return `${STORAGE_PREFIX}${eventId}`;
 }
 
 export function loadStore(eventId: string): CheckInStore {
@@ -134,4 +140,31 @@ export function progress(store: CheckInStore): { done: number; total: number } {
   const queued = new Set(store.queue.map((q) => q.registrationId));
   const done = paid.filter((r) => r.checked_in_at !== null || queued.has(r.registration_id)).length;
   return { done, total: paid.length };
+}
+
+/** Sums unsent items (queued + failed) across EVERY event's persisted store, not
+ *  just whichever event happens to be selected right now. Lets the "don't close
+ *  the tab" warning stay armed even after the check-in route has unmounted —
+ *  see AppShell's beforeunload handler, which calls this fresh at unload time
+ *  rather than tracking a React-side count that dies with the route. A corrupt
+ *  or unreadable entry must never crash the count; it's just skipped. */
+export function unsentCount(): number {
+  let total = 0;
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key || !key.startsWith(STORAGE_PREFIX) || key === SELECTED_EVENT_KEY) continue;
+      try {
+        const raw = localStorage.getItem(key);
+        if (!raw) continue;
+        const store = JSON.parse(raw) as Partial<CheckInStore>;
+        total += (store.queue?.length ?? 0) + (store.failed?.length ?? 0);
+      } catch {
+        // Corrupt entry for this one event — skip it, don't let it blow up the count.
+      }
+    }
+  } catch {
+    // localStorage unreadable — nothing we can safely count.
+  }
+  return total;
 }
