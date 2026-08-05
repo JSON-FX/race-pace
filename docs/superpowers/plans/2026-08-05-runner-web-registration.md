@@ -1690,9 +1690,11 @@ describe("date formatters", () => {
     expect(shortDate("2026-11-14")).toBe("14 Nov 2026");
   });
 
-  // Parsing "2026-11-14" as UTC and rendering in a UTC+8 locale must not
-  // shift the date. Philippine events would otherwise show the day before.
-  it("does not shift the day across timezones", () => {
+  // Guards the timeZone:"UTC" option. This only bites under a NEGATIVE UTC
+  // offset (e.g. Vercel's iad1 at UTC-5), where dropping the option renders
+  // "31 December 2025". The suite therefore pins TZ=America/New_York — under
+  // UTC or Asia/Manila this assertion passes either way and proves nothing.
+  it("does not shift the day under a negative UTC offset", () => {
     expect(longDate("2026-01-01")).toBe("1 January 2026");
   });
 });
@@ -1764,9 +1766,17 @@ Expected: FAIL — cannot resolve `../events` or `../format`.
 - [ ] **Step 3: Write `lib/format.ts`**
 
 ```ts
-/** Dates from Postgres `date` columns arrive as "YYYY-MM-DD". Appending
- *  T00:00:00Z and formatting in UTC keeps the calendar day stable — parsing
- *  bare "2026-11-14" as local time renders the previous day in UTC+8. */
+/** Dates from Postgres `date` columns arrive as "YYYY-MM-DD". Formatting them
+ *  with timeZone:"UTC" keeps the calendar day stable.
+ *
+ *  The load-bearing part is `timeZone: "UTC"` in the options below — NOT the
+ *  T00:00:00Z suffix, which is inert (a date-only ISO string already parses as
+ *  UTC per spec). Without the option, a runtime in a NEGATIVE UTC offset
+ *  renders the previous day: in America/New_York, "2026-01-01" formats as
+ *  "31 December 2025". Vercel's common default region is iad1 (UTC-5), so this
+ *  would silently corrupt every server-rendered event date. Positive offsets
+ *  such as Asia/Manila are unaffected, which is why the test suite must pin a
+ *  negative-offset TZ or it cannot catch a regression here. */
 function utcDate(iso: string): Date {
   return new Date(`${iso}T00:00:00Z`);
 }
@@ -1788,6 +1798,7 @@ export function shortDate(iso: string): string {
 
 ```ts
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { FieldType } from "@race-pace/shared";
 
 export type EventRow = {
   id: string; org_id: string; name: string; place: string | null; region: string | null;
@@ -1816,7 +1827,8 @@ export type AddonRow = { id: string; name: string; price: number };
 
 export type FormFieldRow = {
   id: string; key: string; label: string;
-  type: "text" | "number" | "select" | "checkbox" | "date" | "file";
+  // FieldType comes from @race-pace/shared — never redefine the union locally.
+  type: FieldType;
   required: boolean; options: string[] | null; sort_order: number;
 };
 
