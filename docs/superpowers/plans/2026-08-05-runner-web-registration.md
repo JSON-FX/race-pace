@@ -4340,9 +4340,14 @@ export function TicketCard({
       </div>
 
       <div className="flex flex-col items-center border-t border-dashed border-border p-7">
-        {/* White quiet zone is required — scanners fail against a dark surface. */}
+        {/* White surface is required — scanners fail against a dark one, and this
+            app ships a dark theme. `marginSize={4}` encodes the spec's 4-module
+            quiet zone into the SVG itself so it does not depend on the padding
+            below surviving a future spacing tweak. Do not remove it: a 188-char
+            ticket_token renders as a 65x65-module QR, where 4 modules is ~11px —
+            under the padding today, but nothing signals if that stops being true. */}
         <div className="rounded-xl border border-border bg-white p-3.5">
-          <QRCodeSVG value={token} size={168} level="M" />
+          <QRCodeSVG value={token} size={168} level="Q" marginSize={4} />
         </div>
         <p className="mt-3.5 font-mono text-[13px] tracking-[1px] text-muted-foreground">{reference}</p>
         <p className="mt-1.5 text-center text-[13px] text-foreground">Show this QR at check-in.</p>
