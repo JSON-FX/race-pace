@@ -22,6 +22,8 @@
 - **Validation comes from `@race-pace/shared`.** Never redefine `registrationInputSchema`, `customDataSchema`, `formFieldSchema`, `SHIRT_SIZES`, `BLOOD_TYPES`, or `GENDERS` locally — the Edge Function validates with the same code, and a local copy will drift.
 - **Server-side auth uses `getUser()`, never `getSession()`.** `getSession()` returns unverified cookie contents. This rule applies to every Server Component, Route Handler, and middleware path.
 - **Payment is never trusted from a redirect.** `/pay/callback` always confirms through `payment-verify`, which re-fetches the session from PayMongo server-side.
+- **`useSearchParams()` requires a `<Suspense>` boundary** in an App Router page, or `next build` fails static prerendering. The component that CALLS it must be inside the boundary — wrapping the caller itself achieves nothing. Pattern: a thin default export that renders `<Suspense fallback={…}><InnerForm /></Suspense>`, with `useSearchParams` inside `InnerForm`. Applies to `/sign-in`, `/sign-up`, and `/pay/callback`.
+- **`apps/site` pins `"vite": "^6.0.0"`** in devDependencies. Without a direct pin, pnpm resolves an experimental rolldown-based Vite 8 that cannot parse JSX during `vi.mock` hoisting — the failure is dormant until the app's first `.tsx` test. Next.js does not use Vite; this pin exists solely for Vitest, and matches `apps/web`.
 - **Commit after every task.** Each task ends green — typecheck and tests pass before the commit.
 - **shadcn MCP.** The server resolves `components.json` from its working directory — the worktree root, which has none. So `get_project_registries` returns empty and `search_items_in_registries` finds nothing, while `view_items_in_registries` works regardless. Prefer `view_items_in_registries` to read a component's current source before adding it, rather than writing shadcn from memory. To restore search after Task 2, either re-register the MCP scoped to `apps/site`, or copy `apps/site/components.json` to the worktree root purely for registry resolution — `shadcn add` is still run from inside `apps/site` either way.
 - **The primary brand accent is trail-green `#159A55`** (`#2FB56A` in dark). Blue survives only as the `info` status color.
@@ -639,6 +641,7 @@ Create `apps/site/package.json`:
     "jsdom": "^25.0.1",
     "tailwindcss": "^4",
     "typescript": "^6.0.3",
+    "vite": "^6.0.0",
     "vite-tsconfig-paths": "^5.1.4",
     "vitest": "^4.1.10"
   }
