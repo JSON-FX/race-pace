@@ -1,3 +1,19 @@
+# STACK_ID namespaces every Traefik router/service/middleware name below.
+#
+# Traefik discovers containers by label and has no concept of "which git
+# worktree emitted this". Two worktrees running their stacks at once used to
+# declare byte-identical names, so Traefik merged them into ONE service with
+# TWO servers and round-robined between branches — half of every request hit
+# the wrong codebase. In the admin console that meant alternating 404s on
+# modules the other branch didn't have yet, and a blank white page.
+#
+# Unique SERVICE names stop the merge; the explicit router `priority` decides
+# which stack owns the shared hostname when more than one still claims it
+# (Traefik's default priority is rule length, which ties for identical rules).
+#
+# Override per worktree — `STACK_ID=myfeature docker compose up -d`, or a
+# .env file next to this one — if you want two stacks up simultaneously.
+
 services:
   web:
     image: node:20-bookworm-slim
@@ -7,16 +23,22 @@ services:
     labels:
       - "traefik.enable=true"
       # http :80 -> https redirect
-      - "traefik.http.routers.racepace-admin-http.entrypoints=web"
-      - "traefik.http.routers.racepace-admin-http.rule=Host(`admin.racepace.lan`)"
-      - "traefik.http.routers.racepace-admin-http.middlewares=racepace-admin-redirect"
-      - "traefik.http.middlewares.racepace-admin-redirect.redirectscheme.scheme=https"
-      - "traefik.http.middlewares.racepace-admin-redirect.redirectscheme.permanent=true"
+      - "traefik.http.routers.racepace-admin-${STACK_ID:-fff722}-http.entrypoints=web"
+      - "traefik.http.routers.racepace-admin-${STACK_ID:-fff722}-http.rule=Host(`admin.racepace.lan`)"
+      - "traefik.http.routers.racepace-admin-${STACK_ID:-fff722}-http.priority=100"
+      - "traefik.http.routers.racepace-admin-${STACK_ID:-fff722}-http.middlewares=racepace-admin-${STACK_ID:-fff722}-redirect"
+      - "traefik.http.middlewares.racepace-admin-${STACK_ID:-fff722}-redirect.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.racepace-admin-${STACK_ID:-fff722}-redirect.redirectscheme.permanent=true"
       # https :443 (Traefik's default mkcert *.lan cert)
-      - "traefik.http.routers.racepace-admin.entrypoints=websecure"
-      - "traefik.http.routers.racepace-admin.rule=Host(`admin.racepace.lan`)"
-      - "traefik.http.routers.racepace-admin.tls=true"
-      - "traefik.http.services.racepace-admin.loadbalancer.server.port=5173"
+      - "traefik.http.routers.racepace-admin-${STACK_ID:-fff722}.entrypoints=websecure"
+      - "traefik.http.routers.racepace-admin-${STACK_ID:-fff722}.rule=Host(`admin.racepace.lan`)"
+      - "traefik.http.routers.racepace-admin-${STACK_ID:-fff722}.priority=100"
+      - "traefik.http.routers.racepace-admin-${STACK_ID:-fff722}.tls=true"
+      # The service name is the one that MUST be unique: identical service
+      # names across stacks are what Traefik merges into a single
+      # load-balanced pool of mismatched containers.
+      - "traefik.http.routers.racepace-admin-${STACK_ID:-fff722}.service=racepace-admin-${STACK_ID:-fff722}"
+      - "traefik.http.services.racepace-admin-${STACK_ID:-fff722}.loadbalancer.server.port=5173"
     volumes:
       - ./:/repo
       - repo_node_modules:/repo/node_modules
@@ -44,18 +66,21 @@ services:
     labels:
       - "traefik.enable=true"
       # http :80 -> https redirect
-      - "traefik.http.routers.racepace-site-http.entrypoints=web"
-      - "traefik.http.routers.racepace-site-http.rule=Host(`racepace.lan`)"
-      - "traefik.http.routers.racepace-site-http.middlewares=racepace-site-redirect"
-      - "traefik.http.middlewares.racepace-site-redirect.redirectscheme.scheme=https"
-      - "traefik.http.middlewares.racepace-site-redirect.redirectscheme.permanent=true"
+      - "traefik.http.routers.racepace-site-${STACK_ID:-fff722}-http.entrypoints=web"
+      - "traefik.http.routers.racepace-site-${STACK_ID:-fff722}-http.rule=Host(`racepace.lan`)"
+      - "traefik.http.routers.racepace-site-${STACK_ID:-fff722}-http.priority=100"
+      - "traefik.http.routers.racepace-site-${STACK_ID:-fff722}-http.middlewares=racepace-site-${STACK_ID:-fff722}-redirect"
+      - "traefik.http.middlewares.racepace-site-${STACK_ID:-fff722}-redirect.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.racepace-site-${STACK_ID:-fff722}-redirect.redirectscheme.permanent=true"
       # https :443 — `racepace.lan` is a LITERAL SAN on the shared mkcert cert.
       # A `*.lan` wildcard cannot cover a second-level name, so infra/certs/
       # projects.txt carries `=racepace.lan` explicitly.
-      - "traefik.http.routers.racepace-site.entrypoints=websecure"
-      - "traefik.http.routers.racepace-site.rule=Host(`racepace.lan`)"
-      - "traefik.http.routers.racepace-site.tls=true"
-      - "traefik.http.services.racepace-site.loadbalancer.server.port=3000"
+      - "traefik.http.routers.racepace-site-${STACK_ID:-fff722}.entrypoints=websecure"
+      - "traefik.http.routers.racepace-site-${STACK_ID:-fff722}.rule=Host(`racepace.lan`)"
+      - "traefik.http.routers.racepace-site-${STACK_ID:-fff722}.priority=100"
+      - "traefik.http.routers.racepace-site-${STACK_ID:-fff722}.tls=true"
+      - "traefik.http.routers.racepace-site-${STACK_ID:-fff722}.service=racepace-site-${STACK_ID:-fff722}"
+      - "traefik.http.services.racepace-site-${STACK_ID:-fff722}.loadbalancer.server.port=3000"
     volumes:
       - ./:/repo
       - repo_node_modules:/repo/node_modules
