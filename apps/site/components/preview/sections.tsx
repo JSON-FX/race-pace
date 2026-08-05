@@ -2,9 +2,10 @@
 
 import * as React from "react";
 import Image from "next/image";
+import dynamic from "next/dynamic";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { CalendarDays, MapPin, Flag, Timer, ChevronLeft, ChevronRight, Check, Navigation } from "lucide-react";
-import { formatPeso, formatDateRange } from "@race-pace/shared";
+import { formatPeso, formatDateRange, disciplineLayout } from "@race-pace/shared";
 import type { EventRow, AddonRow } from "@/lib/events";
 import { longDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -285,12 +286,11 @@ function CarouselButton({
 
 /* ── Course locator ─────────────────────────────────────────────────── */
 export function CourseLocator({ event, tone }: { event: EventRow; tone: Tone }) {
-  const reduced = useReducedMotion();
   const { start_lat: sLat, start_lng: sLng, finish_lat: fLat, finish_lng: fLng } = event;
   if (sLat == null || sLng == null) return null;
 
   // Same coordinates start and finish = a loop course, which is how both
-  // seeded races actually run. Point-to-point renders two labelled markers.
+  // seeded races actually run.
   const loop = fLat == null || fLng == null || (Math.abs(fLat - sLat) < 1e-6 && Math.abs(fLng - sLng) < 1e-6);
   const maps = `https://www.google.com/maps/search/?api=1&query=${sLat},${sLng}`;
 
@@ -304,7 +304,18 @@ export function CourseLocator({ event, tone }: { event: EventRow; tone: Tone }) 
               tone.dark ? "border-white/12 bg-[#08150F]" : "border-black/10 bg-[#F2F6F3]",
             )}
           >
-            <CourseSvg loop={loop} dark={tone.dark} reduced={!!reduced} />
+            {/* Terrain only where the vertical is the story — see CourseMap. */}
+            <LazyMount>
+              <CourseMap
+                lat={sLat}
+                lng={sLng}
+                finishLat={fLat ?? null}
+                finishLng={fLng ?? null}
+                terrain={disciplineLayout(event.discipline) === "profile"}
+                dark={tone.dark}
+                label={event.venue ?? event.name}
+              />
+            </LazyMount>
           </div>
         </Reveal>
 
@@ -341,108 +352,60 @@ export function CourseLocator({ event, tone }: { event: EventRow; tone: Tone }) 
 }
 
 /**
- * Stylized course locator, drawn as SVG.
+ * MapLibre is ~266 KB gzipped — far too much to put in the initial bundle for
+ * a section most visitors scroll past. Two guards:
  *
- * Deliberately NOT a tiled map: Leaflet/Mapbox would add a dependency, a
- * runtime request to a third-party tile host on every page view, and for
- * Mapbox an API key to manage. What a runner actually needs from this section
- * is "where is the start, and can I open it in my own maps app" — the real
- * coordinates power the Open in Maps button, which hands off to the app that
- * can already navigate. Say the word and I'll swap in real tiles.
+ *  1. next/dynamic with ssr:false — the library never enters the server render
+ *     or the first-load JS (it also touches `window` at import time, so SSR
+ *     would throw regardless).
+ *  2. LazyMount below — the chunk is not even requested until the section is
+ *     within 300px of the viewport.
  *
- * The route draws itself on entry via stroke-dashoffset, which animates on the
- * compositor and cannot cause layout shift.
+ * A runner who never scrolls to the map never pays for it.
  */
-function CourseSvg({ loop, dark, reduced }: { loop: boolean; dark: boolean; reduced: boolean }) {
-  const stroke = dark ? "rgba(255,255,255,0.09)" : "rgba(0,0,0,0.07)";
-  const path = loop
-    ? "M 200 118 C 118 108, 74 168, 108 214 C 140 258, 236 262, 272 220 C 310 176, 274 126, 200 118 Z"
-    : "M 74 226 C 132 176, 158 210, 208 162 C 250 122, 288 138, 326 96";
+const CourseMap = dynamic(() => import("./CourseMap").then((m) => m.CourseMap), {
+  ssr: false,
+  loading: () => <MapSkeleton />,
+});
 
+function MapSkeleton() {
   return (
-    <svg viewBox="0 0 400 300" className="h-full w-full" role="img" aria-label="Illustrative course locator">
-      {/* Contour backdrop — texture, not data; it must never read as terrain
-          the runner could navigate by. */}
-      <g aria-hidden="true">
-        {Array.from({ length: 9 }).map((_, i) => (
-          <ellipse
-            key={i}
-            cx={200}
-            cy={168}
-            rx={38 + i * 26}
-            ry={26 + i * 18}
-            fill="none"
-            stroke={stroke}
-            strokeWidth={1}
-          />
-        ))}
-      </g>
-
-      <motion.path
-        d={path}
-        fill="none"
-        stroke="#159A55"
-        strokeWidth={3.5}
-        strokeLinecap="round"
-        strokeDasharray={reduced ? undefined : 1400}
-        initial={reduced ? false : { strokeDashoffset: 1400 }}
-        whileInView={reduced ? undefined : { strokeDashoffset: 0 }}
-        viewport={{ once: true, margin: "-15%" }}
-        transition={{ duration: 1.5, ease: "easeInOut" }}
-      />
-
-      <Marker x={loop ? 200 : 74} y={loop ? 118 : 226} label={loop ? "Start / Finish" : "Start"} dark={dark} reduced={reduced} />
-      {loop ? null : <Marker x={326} y={96} label="Finish" dark={dark} reduced={reduced} delay={1.1} />}
-    </svg>
+    <div className="absolute inset-0 animate-pulse bg-current/[0.06]" aria-hidden="true" />
   );
 }
 
-function Marker({
-  x,
-  y,
-  label,
-  dark,
-  reduced,
-  delay = 0.35,
-}: {
-  x: number;
-  y: number;
-  label: string;
-  dark: boolean;
-  reduced: boolean;
-  delay?: number;
-}) {
+/** Renders `children` only once the wrapper nears the viewport. rootMargin
+ *  starts the fetch just before the map is needed, so it is usually painted by
+ *  the time it scrolls in. */
+function LazyMount({ children }: { children: React.ReactNode }) {
+  const ref = React.useRef<HTMLDivElement>(null);
+  const [show, setShow] = React.useState(false);
+
+  React.useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    // No IntersectionObserver (very old browser): render immediately rather
+    // than leaving a permanently empty frame.
+    if (typeof IntersectionObserver === "undefined") {
+      setShow(true);
+      return;
+    }
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) {
+          setShow(true);
+          io.disconnect();
+        }
+      },
+      { rootMargin: "300px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
   return (
-    <motion.g
-      initial={reduced ? false : { opacity: 0, scale: 0.6 }}
-      whileInView={reduced ? undefined : { opacity: 1, scale: 1 }}
-      viewport={{ once: true, margin: "-15%" }}
-      transition={{ delay, duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-      style={{ transformOrigin: `${x}px ${y}px` }}
-    >
-      {!reduced ? (
-        <motion.circle
-          cx={x}
-          cy={y}
-          r={10}
-          fill="#159A55"
-          initial={{ opacity: 0.5, scale: 1 }}
-          animate={{ opacity: [0.5, 0, 0.5], scale: [1, 2.4, 1] }}
-          transition={{ duration: 2.6, repeat: Infinity, ease: "easeOut", delay }}
-          style={{ transformOrigin: `${x}px ${y}px` }}
-        />
-      ) : null}
-      <circle cx={x} cy={y} r={8} fill="#159A55" stroke={dark ? "#06120C" : "#fff"} strokeWidth={3} />
-      <text
-        x={x}
-        y={y - 18}
-        textAnchor="middle"
-        fontSize={12}
-        fontWeight={700}
-        fill={dark ? "rgba(255,255,255,0.85)" : "rgba(0,0,0,0.75)"}
-      >
-        {label}
-      </text>
-    </motion.g>
+    <div ref={ref} className="absolute inset-0">
+      {show ? children : <MapSkeleton />}
+    </div>
   );
 }
