@@ -41,6 +41,76 @@ it("useCheckInRoster passes the event id", async () => {
   expect(rpc).toHaveBeenCalledWith("checkin_roster", { p_event_id: "e1" });
 });
 
+/** §7: "Roster synced N min ago" is a promise to the marshal that the offline path is
+ *  armed with data of a known age. Stamping `new Date()` whenever `roster.data`'s
+ *  identity changes makes a CACHE HIT — navigating Dashboard → Check-in, remounting the
+ *  route — read as "synced just now" over a roster that may be hours old. The timestamp
+ *  must come from React Query's dataUpdatedAt: the last SUCCESSFUL fetch. */
+it("rosterFetchedAt reports the last real fetch, not the moment of a cache hit", async () => {
+  const THREE_HOURS_AGO = Date.now() - 3 * 60 * 60 * 1000;
+  const qc = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: Infinity, staleTime: Infinity } },
+  });
+  // A roster fetched three hours ago, still warm in the cache. No fetch will happen.
+  qc.setQueryData(["checkin-roster", "e1"], ROSTER, { updatedAt: THREE_HOURS_AGO });
+  const wrapper = ({ children }: { children: ReactNode }) =>
+    <QueryClientProvider client={qc}>{children}</QueryClientProvider>;
+
+  const { result } = renderHook(() => useCheckInSession("e1"), { wrapper });
+  await waitFor(() => expect(result.current.store.roster).toHaveLength(2));
+
+  expect(rpc).not.toHaveBeenCalled();                       // proves this is a cache hit
+  expect(result.current.rosterFetchedAt).toBe(new Date(THREE_HOURS_AGO).toISOString());
+});
+
+it("submitToken online, on a token the roster has never seen, still asks the server", async () => {
+  // Registered on-site after the last roster sync. offlineDecision says not_found;
+  // while online that must not be a local refusal.
+  rpc.mockResolvedValue({ data: ROSTER, error: null });
+  (globalThis.fetch as any).mockResolvedValue({
+    status: 200, json: () => Promise.resolve({ ok: true, registration_id: "r99" }),
+  });
+
+  const { result } = renderHook(() => useCheckInSession("e1"), { wrapper: wrap() });
+  await waitFor(() => expect(result.current.store.roster).toHaveLength(2));
+
+  await act(async () => { await result.current.submitToken("tok-never-seen"); });
+
+  expect(globalThis.fetch).toHaveBeenCalled();
+  expect(result.current.banner?.tone).toBe("success");
+});
+
+it("submitToken online, on a locally-pending registration, still asks the server", async () => {
+  // Paid on-site after the roster was pulled. The server says paid; the stale local
+  // snapshot must not override it.
+  rpc.mockResolvedValue({ data: ROSTER, error: null });
+  (globalThis.fetch as any).mockResolvedValue({
+    status: 200, json: () => Promise.resolve({ ok: true, registration_id: "r2" }),
+  });
+
+  const { result } = renderHook(() => useCheckInSession("e1"), { wrapper: wrap() });
+  await waitFor(() => expect(result.current.store.roster).toHaveLength(2));
+
+  await act(async () => { await result.current.submitToken("tok2"); });   // status: "pending"
+
+  expect(globalThis.fetch).toHaveBeenCalled();
+  expect(result.current.banner?.title).toBe("Checked in");
+});
+
+it("submitToken online still renders the server's refusal when the server does refuse", async () => {
+  rpc.mockResolvedValue({ data: ROSTER, error: null });
+  (globalThis.fetch as any).mockResolvedValue({
+    status: 409, json: () => Promise.resolve({ error: "not_paid" }),
+  });
+
+  const { result } = renderHook(() => useCheckInSession("e1"), { wrapper: wrap() });
+  await waitFor(() => expect(result.current.store.roster).toHaveLength(2));
+
+  await act(async () => { await result.current.submitToken("tok2"); });
+
+  expect(result.current.banner?.title).toBe("Not paid");
+});
+
 it("submitToken online posts to the Edge Function and stamps the roster row", async () => {
   rpc.mockResolvedValue({ data: ROSTER, error: null });
   (globalThis.fetch as any).mockResolvedValue({

@@ -17,7 +17,8 @@ function builder(name: string) {
 }
 
 vi.mock("../lib/supabase", () => ({ supabase: { from: (n: string) => builder(n) } }));
-vi.mock("../lib/roles", () => ({ useMyRoles: () => ({ data: { orgId: "a1", isAdmin: true }, isLoading: false }) }));
+let rolesResult: any = { data: { orgId: "a1", isAdmin: true }, isLoading: false };
+vi.mock("../lib/roles", () => ({ useMyRoles: () => rolesResult }));
 
 import { Dashboard } from "../routes/Dashboard";
 
@@ -31,6 +32,25 @@ function renderDash() {
 beforeEach(() => {
   for (const k of Object.keys(tables)) delete tables[k];
   for (const k of Object.keys(errors)) delete errors[k];
+  rolesResult = { data: { orgId: "a1", isAdmin: true }, isLoading: false };
+});
+
+it("tells a super_admin no organization is selected instead of 'create your first event'", async () => {
+  // A super_admin has no admin/editor row, so useMyRoles().orgId is null and all four
+  // queries stay disabled. React Query v5 reports isLoading === false for a disabled
+  // query, so both guards above fall through — and `/` now sends super_admins straight
+  // here, making this the first screen they see.
+  rolesResult = { data: { orgId: null, isAdmin: true, isSuperAdmin: true }, isLoading: false };
+  renderDash();
+  expect(await screen.findByText(/no organization selected/i)).toBeInTheDocument();
+  expect(screen.queryByText(/create your first event/i)).not.toBeInTheDocument();
+});
+
+it("shows the loading skeleton, not the no-organization state, while roles are still resolving", async () => {
+  rolesResult = { data: undefined, isLoading: true };
+  const { container } = renderDash();
+  expect(screen.queryByText(/no organization selected/i)).not.toBeInTheDocument();
+  expect(container.querySelectorAll(".rounded-xl").length).toBeGreaterThan(0);
 });
 
 it("renders the empty state instead of four zeros when there are no events", async () => {

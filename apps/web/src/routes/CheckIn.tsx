@@ -111,6 +111,15 @@ export function CheckIn() {
             </div>
           ) : null}
 
+          {/* A silent roster-sync failure is the worst case here: the marshal taps
+              "Sync roster", the spinner stops, nothing changes, and they walk into
+              the start line believing the offline path is armed. Say it out loud. */}
+          {session.rosterError ? (
+            <div role="alert" className="rounded-lg border-2 border-destructive bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive">
+              Could not sync the roster — {session.rosterError}
+            </div>
+          ) : null}
+
           <CheckInQueueStatus
             queue={session.store.queue} failed={session.store.failed} online={session.online}
             onRetryAll={() => void session.retryAll()} onRetryOne={(id) => void session.retryOne(id)}

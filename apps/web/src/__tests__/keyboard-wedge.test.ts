@@ -83,6 +83,53 @@ describe("feedKey", () => {
     expect(res.state).toEqual(WEDGE_INIT);
   });
 
+  /** A HID scanner IS a keyboard: the browser emits a `Shift` keydown immediately
+   *  before every uppercase character. Ticket tokens are base64url, so uppercase is
+   *  everywhere — TOKEN has 'J', 'W', 'Q', 'i'… Every other test in this file feeds
+   *  uppercase directly with no preceding Shift, which is why a reducer that resets
+   *  on "Shift" passes all of them while the desk scanner is silently dead in the field. */
+  function typeWithModifier(modifier: string, text: string, gapMs = 5, start = 1000) {
+    let s = WEDGE_INIT;
+    let t = start;
+    for (const key of text) {
+      if (/[A-Z]/.test(key)) {
+        // The modifier keydown lands ~1ms before the character, and carries no character.
+        s = feedKey(s, { key: modifier, timeStamp: t - 1 }).state;
+      }
+      s = feedKey(s, { key, timeStamp: t }).state;
+      t += gapMs;
+    }
+    return { state: s, nextAt: t };
+  }
+
+  it("a Shift keydown before each uppercase character does not break the burst", () => {
+    const { state, nextAt } = typeWithModifier("Shift", TOKEN);
+    const res = feedKey(state, { key: "Enter", timeStamp: nextAt });
+    expect(res.emit).toBe(TOKEN);          // the FULL token, not the trailing run
+    expect(res.capture).toBe(true);
+  });
+
+  it("a CapsLock-toggling scanner still emits the full token", () => {
+    const { state, nextAt } = typeWithModifier("CapsLock", TOKEN);
+    expect(feedKey(state, { key: "Enter", timeStamp: nextAt }).emit).toBe(TOKEN);
+  });
+
+  it("leaves burst state completely untouched for every non-printing modifier", () => {
+    const { state } = type(TOKEN.slice(0, 5), 5);
+    for (const key of ["Shift", "CapsLock", "Control", "Alt", "Meta", "AltGraph", "Dead", "Unidentified"]) {
+      const res = feedKey(state, { key, timeStamp: 2000 });
+      expect(res.state).toEqual(state);
+      expect(res.capture).toBe(false);
+    }
+  });
+
+  it("a bare Control keydown (which sets ctrlKey on itself) does not wipe the burst", () => {
+    const { state } = type(TOKEN.slice(0, 5), 5);
+    expect(feedKey(state, { key: "Control", timeStamp: 2000, ctrlKey: true }).state).toEqual(state);
+    // …but a real shortcut still does.
+    expect(feedKey(state, { key: "a", timeStamp: 2000, ctrlKey: true }).state).toEqual(WEDGE_INIT);
+  });
+
   it("a navigation key resets the buffer", () => {
     const { state } = type(TOKEN, 5);
     expect(feedKey(state, { key: "ArrowLeft", timeStamp: 2000 }).state).toEqual(WEDGE_INIT);
@@ -125,6 +172,19 @@ describe("useKeyboardWedge", () => {
     expect(onScan).toHaveBeenCalledWith(TOKEN);
     expect(input.value).toBe("ana");
     document.body.removeChild(input);
+  });
+
+  it("emits through the real DOM path when Shift precedes every uppercase character", () => {
+    const onScan = vi.fn();
+    renderHook(() => useKeyboardWedge(onScan, true));
+    let t = 1000;
+    for (const key of TOKEN) {
+      if (/[A-Z]/.test(key)) press("Shift", t - 1);
+      press(key, t);
+      t += 5;
+    }
+    press("Enter", t);
+    expect(onScan).toHaveBeenCalledWith(TOKEN);
   });
 
   it("leaves genuine typing alone", () => {

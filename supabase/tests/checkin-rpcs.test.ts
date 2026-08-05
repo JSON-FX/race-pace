@@ -102,6 +102,17 @@ beforeAll(async () => {
     return r.data.id as string;
   };
 
+  // eventB needs a registration of its own, otherwise the super_admin cross-org read
+  // below returns [] and a silent denial is indistinguishable from a legitimate empty
+  // roster — the test would pass against a broken RPC.
+  const catB = await makeCategory(orgB, eventB);
+  const runnerB = await makeRunner("rb", "Dina Uy", "DIN");
+  const regB = await svc.from("registrations").insert({
+    org_id: orgB, event_id: eventB, category_id: catB, user_id: runnerB.id,
+    status: "paid", total_amount: 100000, ticket_token: `${TAG}_tokb`, custom_data: { shirt: "S" },
+  }).select("id").single();
+  if (regB.error) throw regB.error;
+
   const paidReg = await reg("r1", "Ana Cruz", "ANA", "paid", `${TAG}_tok1`);
   const pendingReg = await reg("r2", "Ben Reyes", "BEN", "pending", `${TAG}_tok2`);
   const checkedReg = await reg("r3", "Cely Lim", "CEL", "paid", `${TAG}_tok3`);
@@ -168,9 +179,13 @@ describe("checkin_roster", () => {
     expect((adminRes.data ?? []).length).toBeGreaterThan(0);
   });
 
-  it("lets a super_admin read another org's roster without error", async () => {
+  it("lets a super_admin read another org's roster", async () => {
     const res = await authed(ctx.superAdmin.token).rpc("checkin_roster", { p_event_id: ctx.eventB });
     expect(res.error).toBeNull();
+    // eventB has a registration, so [] here means the RPC silently denied the
+    // super_admin rather than "this event has nobody in it".
+    expect((res.data ?? []).length).toBeGreaterThan(0);
+    expect((res.data ?? [])[0]).toMatchObject({ runner: "Dina Uy", status: "paid" });
   });
 });
 

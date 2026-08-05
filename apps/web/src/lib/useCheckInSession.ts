@@ -35,10 +35,16 @@ export function useCheckInSession(eventId: string | null) {
   }, [eventId]);
 
   // Fold a fresh roster in without discarding the queue or failed list.
+  // The timestamp comes from React Query's dataUpdatedAt — the moment of the last
+  // SUCCESSFUL fetch — not `new Date()`. On a cache hit (remount, navigating back
+  // from the dashboard) `roster.data`'s identity changes but no fetch happened, and
+  // stamping "now" there would tell the marshal "synced just now" over a roster that
+  // could be hours old. That honesty guarantee is load-bearing offline — design §7.
   useEffect(() => {
     if (!eventId || !roster.data) return;
-    commit({ ...storeRef.current, roster: roster.data, rosterFetchedAt: new Date().toISOString() });
-  }, [eventId, roster.data, commit]);
+    const at = roster.dataUpdatedAt ? new Date(roster.dataUpdatedAt).toISOString() : null;
+    commit({ ...storeRef.current, roster: roster.data, rosterFetchedAt: at });
+  }, [eventId, roster.data, roster.dataUpdatedAt, commit]);
 
   useEffect(() => {
     const up = () => setOnline(true);
@@ -101,13 +107,12 @@ export function useCheckInSession(eventId: string | null) {
       return;
     }
 
-    // Online: still refuse locally-known bad tickets so the marshal gets an instant answer.
-    if (decision.status !== 200) {
-      const row = current.roster.find((r) => r.ticket_token === token);
-      setBanner(bannerFor(decision, row?.runner, row?.category));
-      return;
-    }
-
+    // Online: the SERVER is authoritative — never refuse locally. `offlineDecision`
+    // answers "not_found" for anyone who registered on-site after the last roster sync
+    // and "not_paid" for anyone who paid on-site after it, both of which the server
+    // would accept. Short-circuiting on it here would refuse valid runners at the start
+    // line while the network is perfectly fine. The only local pre-check that survives
+    // online is the wrong-event guard in CheckIn.tsx, which runs before this.
     const row = current.roster.find((r) => r.ticket_token === token);
     try {
       const res = await postCheckIn(token);

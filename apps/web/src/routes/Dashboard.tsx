@@ -6,7 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { EventStatusBadge, PaymentStatusBadge } from "../components/StatusBadge";
 import { useMyRoles } from "../lib/roles";
-import { useEventTotals, useOrgEvents, useOrgTotals, useRecentSignups } from "../lib/dashboard";
+import { useDashboardEvents, useEventTotals, useOrgTotals, useRecentSignups } from "../lib/dashboard";
 
 function Tile({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
@@ -24,7 +24,7 @@ export function Dashboard() {
   const roles = useMyRoles();
   const orgId = roles.data?.orgId ?? null;
   const totals = useOrgTotals(orgId);
-  const orgEvents = useOrgEvents(orgId);
+  const orgEvents = useDashboardEvents(orgId);
   const events = useEventTotals(orgId, orgEvents.data);
   const recent = useRecentSignups(orgId, orgEvents.data);
 
@@ -52,10 +52,31 @@ export function Dashboard() {
     );
   }
 
-  if (totals.isLoading || orgEvents.isLoading || events.isLoading || recent.isLoading) {
+  // roles.isLoading is part of this: orgId is null until the roles query resolves, and
+  // without it every admin would see a flash of the "no organization" branch below.
+  if (roles.isLoading || totals.isLoading || orgEvents.isLoading || events.isLoading || recent.isLoading) {
     return (
       <div className="grid gap-4 p-6 sm:grid-cols-2 xl:grid-cols-4">
         {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-[104px] rounded-xl" />)}
+      </div>
+    );
+  }
+
+  // A super_admin has no org row, so useMyRoles().orgId is null and all four queries stay
+  // `enabled: false`. React Query v5 reports isLoading === false for a disabled query, so
+  // without this branch the loading and error checks above both fall through and a
+  // super_admin lands on "No events yet — create your first event", which is a lie.
+  // Picking an organization belongs to the (out-of-scope) Organizations route.
+  if (!orgId) {
+    return (
+      <div className="p-6">
+        <Card><CardContent className="flex flex-col items-center gap-3 p-12 text-center">
+          <h2 className="text-lg font-bold">No organization selected</h2>
+          <p className="max-w-sm text-sm text-muted-foreground">
+            Your account isn't attached to an organization, so there is nothing to summarize here.
+            Open an organization to see its registrations, revenue and check-ins.
+          </p>
+        </CardContent></Card>
       </div>
     );
   }
@@ -89,7 +110,7 @@ export function Dashboard() {
         <Tile label="Registrations" value={String(t.reg_count)} sub={`${t.paid_count} paid · ${t.pending_count} pending`} />
         <Tile label="Gross revenue" value={formatPeso(t.gross_revenue)} sub="Paid registrations only" />
         <Tile label="Net to organization" value={formatPeso(t.net_to_org)} sub={`After ${formatPeso(t.platform_fee)} platform fee`} />
-        <Tile label="Awaiting payment" value={String(t.pending_count)} sub="Not yet checked in-able" />
+        <Tile label="Awaiting payment" value={String(t.pending_count)} sub="Cannot check in until paid" />
       </div>
 
       {t.reg_count === 0 ? (

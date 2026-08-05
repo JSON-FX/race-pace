@@ -16,11 +16,27 @@ export const MIN_TOKEN_LEN = 8;
 /** base64url plus the '.' separating the ticket body from its signature. */
 const TOKEN_CHAR = /^[A-Za-z0-9_.-]$/;
 
+/** A HID scanner IS a keyboard: the browser emits a `Shift` keydown before every
+ *  uppercase character, and ticket tokens are base64url — full of uppercase. These
+ *  keys carry no character and must leave the burst state completely untouched,
+ *  otherwise the buffer resets mid-token and the marshal sees "Invalid ticket" for
+ *  a perfectly valid ticket. Genuine navigation/control keys (Escape, Tab, arrows,
+ *  Backspace …) still fall through to the charset check and reset the buffer. */
+const IGNORED_KEYS = new Set([
+  "Shift", "CapsLock", "Control", "Alt", "Meta", "AltGraph",
+  "Dead", "Unidentified", "NumLock", "ScrollLock", "OS", "Hyper", "Super", "Fn", "FnLock",
+]);
+
 function isScan(s: WedgeState): boolean {
   return s.buffer.length >= MIN_TOKEN_LEN && s.fastCount >= 2;
 }
 
 export function feedKey(state: WedgeState, ev: WedgeEvent): WedgeResult {
+  // Checked BEFORE the modifier-combo guard: a bare `Control`/`Alt`/`Meta` keydown
+  // sets its own modifier flag, so it would otherwise be read as a shortcut and
+  // wipe an in-flight burst. `Ctrl+a` (key "a", ctrlKey true) still resets below.
+  if (IGNORED_KEYS.has(ev.key)) return { state, capture: false };
+
   if (ev.ctrlKey || ev.metaKey || ev.altKey) return { state: WEDGE_INIT, capture: false };
 
   // A gap longer than the idle window means the previous burst is over.

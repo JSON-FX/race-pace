@@ -10,6 +10,9 @@ export function QrScanner({ onScan, cooldownMs = 1500 }: { onScan: (token: strin
   const lastRef = useRef<{ token: string; at: number }>({ token: "", at: 0 });
   const [error, setError] = useState<string | null>(null);
   const [torch, setTorch] = useState(false);
+  // Only true once the camera is running AND actually has a flash. On every desk
+  // machine it stays false, and the button that would silently no-op is not rendered.
+  const [hasFlash, setHasFlash] = useState(false);
   const scannerRef = useRef<QrScannerLib | null>(null);
   const onScanRef = useRef(onScan);
   onScanRef.current = onScan;
@@ -29,8 +32,14 @@ export function QrScanner({ onScan, cooldownMs = 1500 }: { onScan: (token: strin
       { highlightScanRegion: true, highlightCodeOutline: true, maxScansPerSecond: 5 },
     );
     scannerRef.current = scanner;
-    scanner.start().catch(() => setError("Camera unavailable. Use the roster below to check runners in."));
-    return () => { scanner.stop(); scanner.destroy(); scannerRef.current = null; };
+    let live = true;
+    scanner.start()
+      .then(async () => {
+        const flash = await scanner.hasFlash().catch(() => false);
+        if (live) setHasFlash(flash);
+      })
+      .catch(() => setError("Camera unavailable. Use the roster below to check runners in."));
+    return () => { live = false; scanner.stop(); scanner.destroy(); scannerRef.current = null; };
   }, [cooldownMs]);
 
   if (error) {
@@ -45,17 +54,19 @@ export function QrScanner({ onScan, cooldownMs = 1500 }: { onScan: (token: strin
   return (
     <div className="relative overflow-hidden rounded-xl border border-border bg-black">
       <video ref={videoRef} className="aspect-[4/3] w-full object-cover" muted playsInline />
-      <Button
-        type="button" variant="secondary" size="sm" className="absolute bottom-3 right-3"
-        onClick={async () => {
-          const s = scannerRef.current;
-          if (!s || !(await s.hasFlash())) return;
-          await s.toggleFlash();
-          setTorch(s.isFlashOn());
-        }}
-      >
-        <Flashlight className="size-4" /> {torch ? "Torch off" : "Torch"}
-      </Button>
+      {hasFlash ? (
+        <Button
+          type="button" variant="secondary" size="sm" className="absolute bottom-3 right-3"
+          onClick={async () => {
+            const s = scannerRef.current;
+            if (!s) return;
+            await s.toggleFlash();
+            setTorch(s.isFlashOn());
+          }}
+        >
+          <Flashlight className="size-4" /> {torch ? "Torch off" : "Torch"}
+        </Button>
+      ) : null}
     </div>
   );
 }

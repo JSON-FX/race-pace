@@ -128,17 +128,71 @@ it("refuses a ticket scanned for a different event, without submitting it", asyn
   expect(stored.queue ?? []).toHaveLength(0);
 });
 
-it("lets a ticket for the selected event fall through to the normal path", async () => {
+it("lets a ticket for the selected event fall through to the server, even if the roster has never heard of it", async () => {
+  // The on-site-registration case: the runner signed up after the marshal's last
+  // roster sync, so `offlineDecision` says not_found. While ONLINE that must NOT be
+  // a local refusal — the server is authoritative and it would happily check them in.
+  // The wrong-event guard is the only local pre-check that survives being online.
+  (globalThis.fetch as any).mockResolvedValue({
+    status: 200, json: () => Promise.resolve({ ok: true, registration_id: "r99" }),
+  });
   renderRoute(); // single-event fixture auto-selects e1
   await screen.findByText("Ana Cruz");
 
-  // eid matches the selected event, so the guard must not intercept it — the
-  // registration itself doesn't exist locally, so it should reach the normal
-  // "not found" result rather than being reported as a wrong-event refusal.
   scanBurst(tokenFor("e1"));
 
-  await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Ticket not recognised"));
+  await waitFor(() => expect(globalThis.fetch).toHaveBeenCalled());
+  await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Checked in"));
   expect(screen.queryByText(/Wrong event/i)).not.toBeInTheDocument();
+  expect(screen.queryByText(/Ticket not recognised/i)).not.toBeInTheDocument();
+});
+
+it("renders the server's refusal for an unknown ticket rather than inventing one locally", async () => {
+  (globalThis.fetch as any).mockResolvedValue({
+    status: 404, json: () => Promise.resolve({ error: "not_found" }),
+  });
+  renderRoute();
+  await screen.findByText("Ana Cruz");
+
+  scanBurst(tokenFor("e1"));
+
+  await waitFor(() => expect(globalThis.fetch).toHaveBeenCalled());
+  await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Ticket not recognised"));
+});
+
+it("still POSTs a scan whose roster row is locally 'pending' — the runner may have paid on-site", async () => {
+  const PENDING_TOKEN = tokenFor("e1");
+  const PENDING_ROSTER = [
+    { registration_id: "r3", ticket_token: PENDING_TOKEN, runner: "Cely Lim", bib: "CEL", category: "10K", status: "pending", checked_in_at: null },
+  ];
+  rpc.mockImplementation((fn: string) =>
+    Promise.resolve({ data: fn === "checkin_events" ? EVENTS : PENDING_ROSTER, error: null }));
+  (globalThis.fetch as any).mockResolvedValue({
+    status: 200, json: () => Promise.resolve({ ok: true, registration_id: "r3" }),
+  });
+
+  renderRoute();
+  await screen.findByText("Cely Lim");
+
+  scanBurst(PENDING_TOKEN);
+
+  // The roster snapshot says "pending" only because it predates the on-site payment.
+  // Refusing locally while online would strand a runner who is paid on the server.
+  await waitFor(() => expect(globalThis.fetch).toHaveBeenCalled());
+  await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Checked in"));
+});
+
+it("surfaces a roster sync failure instead of leaving the marshal to assume it worked", async () => {
+  rpc.mockImplementation((fn: string) =>
+    fn === "checkin_events"
+      ? Promise.resolve({ data: EVENTS, error: null })
+      : Promise.resolve({ data: null, error: { message: "roster rpc exploded" } }));
+
+  renderRoute();
+
+  const alert = await screen.findByRole("alert");
+  expect(alert).toHaveTextContent(/could not sync the roster/i);
+  expect(alert).toHaveTextContent("roster rpc exploded");
 });
 
 it("clears a stale wrong-event banner when the picker is switched to a different event", async () => {

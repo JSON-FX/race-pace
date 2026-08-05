@@ -33,11 +33,13 @@ export function useOrgTotals(orgId: string | null) {
   });
 }
 
-/** Single source of truth for an org's event list. useEventTotals and useRecentSignups both
+/** The dashboard's own event list — deliberately distinct from `events.ts`'s useOrgEvents,
+ *  which returns the richer admin row shape the Events page needs under its own cache key.
+ *  Single source of truth for an org's event list. useEventTotals and useRecentSignups both
  *  take its result as a parameter instead of re-fetching, so the dashboard issues one
  *  "events" request, not two, and a failure here is visible on this query alone rather than
  *  hiding behind two other queries stuck permanently disabled. */
-export function useOrgEvents(orgId: string | null) {
+export function useDashboardEvents(orgId: string | null) {
   return useQuery<OrgEvent[]>({
     queryKey: ["dash-events", orgId],
     enabled: !!orgId,
@@ -50,7 +52,7 @@ export function useOrgEvents(orgId: string | null) {
   });
 }
 
-/** Events joined with their totals. `events` is the already-fetched result of useOrgEvents —
+/** Events joined with their totals. `events` is the already-fetched result of useDashboardEvents —
  *  passed in rather than re-queried, since the caller needs that list anyway. */
 export function useEventTotals(orgId: string | null, events: OrgEvent[] | undefined) {
   return useQuery<EventRow[]>({
