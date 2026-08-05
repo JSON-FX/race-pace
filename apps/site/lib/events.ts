@@ -1,5 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { FieldType } from "@race-pace/shared";
+import type { FieldType, EventDiscipline } from "@race-pace/shared";
+
+/** One row of the race-morning schedule (`events.schedule`, jsonb array). */
+export type ScheduleItem = { time: string; label: string };
 
 export type EventRow = {
   id: string; org_id: string; name: string; place: string | null; region: string | null;
@@ -11,6 +14,12 @@ export type EventRow = {
   city_name: string | null; venue: string | null; inclusions?: string[] | null;
   joined_count: number; distances: number[];
   org_name?: string; org_color?: string | null; org_logo_url?: string | null;
+  // NOT NULL in the DB (default 'trail' / '[]') — optional here only so the
+  // handful of test fixtures built before this task keep type-checking.
+  // Real rows always carry both; treat a missing value the same as the DB
+  // default via disciplineLayout()/`?? []`, never as an error.
+  discipline?: EventDiscipline | string | null;
+  schedule?: ScheduleItem[] | null;
 };
 
 export type OrgRow = {
@@ -22,6 +31,12 @@ export type OrgRow = {
 export type CategoryRow = {
   id: string; event_id: string; org_id: string; code: string; label: string;
   distance_km: number | null; base_price: number; slots_total: number; slots_taken: number;
+  // Per-distance detail, added 2026-08-06 — all nullable, organizers fill
+  // these in over time. Null means "not published"; the UI omits the fact
+  // rather than rendering 0/—/an empty node.
+  elevation_gain_m?: number | null;
+  cutoff_hours?: number | null;
+  blurb?: string | null;
 };
 
 export type AddonRow = { id: string; name: string; price: number };
@@ -37,8 +52,9 @@ export type FormFieldRow = {
 // the pay page here needs it). Don't assume field-for-field parity; check
 // apps/mobile/lib/events.ts directly if reconciling the two.
 const EVENT_COLS =
-  "id,org_id,name,place,region,event_date,end_date,elevation_gain_m,cutoff_hours,flag_off,status,hero_image_url,description,gallery,original_date,status_note,city_psgc_code,region_name,province_name,city_name,venue,inclusions,categories(slots_taken,distance_km)";
-const CAT_COLS = "id,event_id,org_id,code,label,distance_km,base_price,slots_total,slots_taken";
+  "id,org_id,name,place,region,event_date,end_date,elevation_gain_m,cutoff_hours,flag_off,status,hero_image_url,description,gallery,original_date,status_note,city_psgc_code,region_name,province_name,city_name,venue,inclusions,discipline,schedule,categories(slots_taken,distance_km)";
+const CAT_COLS =
+  "id,event_id,org_id,code,label,distance_km,base_price,slots_total,slots_taken,elevation_gain_m,cutoff_hours,blurb";
 
 export function mapEvent(r: any): EventRow {
   const categories = (r.categories ?? []) as { slots_taken: number; distance_km: number | null }[];

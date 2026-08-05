@@ -29,6 +29,10 @@
   --paid: 15 122 66;      --paid-tint: 234 243 238;
   --info: 0 102 204;      --info-tint: 232 240 251;
   --amber: 180 83 9;      --amber-tint: 251 239 227;
+  /* The one genuinely new hue, from the approved "Start Line" (route-layout)
+   * mockup: start-line energy for the road/fun-run branch only. Not a
+   * replacement for --primary — CTAs stay trail-green everywhere. */
+  --coral: 255 107 74;    --coral-tint: 255 234 227;
 
   --radius: 0.6875rem;
   --radius-card: 1rem;
@@ -62,6 +66,7 @@
   --paid: 53 192 110;   --paid-tint: 19 37 28;
   --info: 10 132 255;   --info-tint: 16 35 58;
   --amber: 224 163 69;  --amber-tint: 42 33 19;
+  --coral: 255 122 92;  --coral-tint: 58 30 24;
 }
 
 /*
@@ -106,11 +111,18 @@
   --color-info-tint: rgb(var(--info-tint));
   --color-amber: rgb(var(--amber));
   --color-amber-tint: rgb(var(--amber-tint));
+  --color-coral: rgb(var(--coral));
+  --color-coral-tint: rgb(var(--coral-tint));
   /* Display face for headlines only (masthead/eyebrow/stat figures); body
    * copy stays on the system stack below. Supplied at runtime by next/font
    * (see app/layout.tsx), which already appends its own fallback stack —
    * this just teaches Tailwind to emit the `font-display` utility. */
   --font-display: var(--font-display);
+  /* Narrow condensed face for eyebrows/labels, and a monospace face for
+   * tabular race data (distances, prices, cut-offs) — both from the approved
+   * mockups, both supplied by next/font in app/layout.tsx. */
+  --font-eyebrow: var(--font-eyebrow);
+  --font-mono-race: var(--font-mono-race);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -126,6 +138,25 @@
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Inter, system-ui, sans-serif;
     color: rgb(var(--foreground));
     background: rgb(var(--background));
+  }
+}
+
+/* Scroll-draw for the course-profile / route-ribbon signature graphics
+ * (components/discipline/*). ScrollReveal flips `data-shown` on the wrapper
+ * once it enters the viewport; the path animates its dash-offset to 0.
+ * Reduced motion: ScrollReveal sets `data-shown` immediately with no
+ * listeners, and the transition is disabled outright here so there is no
+ * motion frame to skip. */
+.scroll-draw-path {
+  stroke-dasharray: 2000;
+  stroke-dashoffset: 2000;
+}
+[data-shown] .scroll-draw-path {
+  stroke-dashoffset: 0;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .scroll-draw-path {
+    transition: stroke-dashoffset 1.6s cubic-bezier(0.16, 1, 0.3, 1);
   }
 }
 
