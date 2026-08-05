@@ -4635,7 +4635,7 @@ const input = {
   eventDate: "2026-11-14",
   venue: "Kapatagan Base Camp",
   reference: "A1B2C3D4",
-  ticketUrl: "https://race-pace.vercel.app/ticket/r1",
+  ticketUrl: "https://racepace.vercel.app/ticket/r1",
   qrUrl: "https://x.supabase.co/functions/v1/ticket-qr?token=abc",
   total: 250000,
 };
@@ -4822,7 +4822,7 @@ Deno.serve(async (req) => {
     const to = userRes?.user?.email;
     if (!to) return json({ error: "no_email" }, 422);
 
-    const siteUrl = Deno.env.get("PUBLIC_SITE_URL") ?? "https://race-pace.vercel.app";
+    const siteUrl = Deno.env.get("PUBLIC_SITE_URL") ?? "https://racepace.vercel.app";
     const functionsUrl = Deno.env.get("PUBLIC_FUNCTIONS_URL") ?? "";
     const event = reg.events as { name: string; event_date: string | null; venue: string | null } | null;
     const category = reg.categories as { label: string } | null;
@@ -4895,7 +4895,7 @@ verify_jwt = false
 Sign up at resend.com, verify a sending domain, and create an API key. Then:
 
 ```bash
-pnpm exec supabase secrets set RESEND_API_KEY="re_..." EMAIL_FROM="Race Pace <tickets@yourdomain>" PUBLIC_SITE_URL="https://race-pace.vercel.app"
+pnpm exec supabase secrets set RESEND_API_KEY="re_..." EMAIL_FROM="Race Pace <tickets@yourdomain>" PUBLIC_SITE_URL="https://racepace.vercel.app"
 ```
 
 If the domain is not verified yet, Resend only delivers to the account owner's own address — enough to test the flow end to end.
@@ -5325,7 +5325,7 @@ Import the repository, then set:
 - **Environment variables:**
   - `NEXT_PUBLIC_SUPABASE_URL` = `https://whaqarofxdlzxrelbcrq.supabase.co`
   - `NEXT_PUBLIC_SUPABASE_ANON_KEY` = the new project's anon key
-  - `NEXT_PUBLIC_SITE_URL` = `https://race-pace.vercel.app`
+  - `NEXT_PUBLIC_SITE_URL` = `https://racepace.vercel.app`
 
 `NEXT_PUBLIC_SITE_URL` builds the PayMongo `return_url`. If it is wrong, the payment still confirms via webhook but the runner lands on a dead origin immediately after paying.
 
@@ -5343,7 +5343,7 @@ Vite embeds these at build time — changing either later needs a redeploy, not 
 - [ ] **Step 4: Update `SITE_ORIGINS` with the real origins**
 
 ```bash
-pnpm exec supabase secrets set SITE_ORIGINS="https://race-pace.vercel.app,https://race-pace-admin.vercel.app,*.vercel.app,http://localhost:3000,http://localhost:5173,https://admin.racepace.lan"
+pnpm exec supabase secrets set SITE_ORIGINS="https://racepace.vercel.app,https://racepace-admin.vercel.app,*.vercel.app,http://localhost:3000,http://localhost:5173,https://admin.racepace.lan"
 ```
 
 Then redeploy every CORS-bearing function, since the secret is read at request time but the deployed bundle must already contain the helper:
@@ -5355,25 +5355,25 @@ pnpm exec supabase functions deploy registrations-checkout payment-session payme
 - [ ] **Step 5: [USER] Add the redirect allowlist and set `PUBLIC_SITE_URL`**
 
 In Supabase Dashboard → Authentication → URL Configuration:
-- **Site URL:** `https://race-pace.vercel.app`
-- **Redirect URLs:** `https://race-pace.vercel.app/**` and `https://*-race-pace.vercel.app/**` (preview deploys)
+- **Site URL:** `https://racepace.vercel.app`
+- **Redirect URLs:** `https://racepace.vercel.app/**` and `https://*-racepace.vercel.app/**` (preview deploys)
 
 Then align the email's link base with production:
 
 ```bash
-pnpm exec supabase secrets set PUBLIC_SITE_URL="https://race-pace.vercel.app"
+pnpm exec supabase secrets set PUBLIC_SITE_URL="https://racepace.vercel.app"
 ```
 
 - [ ] **Step 6: Verify CORS actually works from the deployed origin**
 
 ```bash
 curl -s -i -X OPTIONS "https://whaqarofxdlzxrelbcrq.supabase.co/functions/v1/registrations-checkout" \
-  -H "Origin: https://race-pace.vercel.app" \
+  -H "Origin: https://racepace.vercel.app" \
   -H "Access-Control-Request-Method: POST" \
   -H "Access-Control-Request-Headers: authorization, content-type" | head -20
 ```
 
-Expected: `HTTP/2 204`, with `access-control-allow-origin: https://race-pace.vercel.app` and `vary: Origin`.
+Expected: `HTTP/2 204`, with `access-control-allow-origin: https://racepace.vercel.app` and `vary: Origin`.
 
 Then confirm a disallowed origin is refused:
 
@@ -5387,14 +5387,14 @@ Expected: no output — the header is absent, so the browser blocks the call.
 
 - [ ] **Step 7: Smoke test the admin console**
 
-Open `https://race-pace-admin.vercel.app`, sign in as the admin user from Task 0 Step 11. Verify:
+Open `https://racepace-admin.vercel.app`, sign in as the admin user from Task 0 Step 11. Verify:
 - Events lists the seeded events.
 - A hard refresh on `/events` loads rather than 404ing (proves Step 1's rewrite).
 - The Team page loads without a console CORS error (proves `org-members` CORS).
 
 - [ ] **Step 8: Smoke test the full money path**
 
-On `https://race-pace.vercel.app`:
+On `https://racepace.vercel.app`:
 
 1. Sign up with a fresh email, or sign in with Google.
 2. Browse to an event, pick a distance, and register through all three wizard steps.
@@ -5406,7 +5406,7 @@ On `https://race-pace.vercel.app`:
 
 - [ ] **Step 9: Verify the registration reached the admin console**
 
-In `https://race-pace-admin.vercel.app` → Registrations, confirm the new row appears with status `paid` and the correct amount. **This is the acceptance criterion for spec §1.2** — a registration created on the web is visible to the organizer with no sync layer.
+In `https://racepace-admin.vercel.app` → Registrations, confirm the new row appears with status `paid` and the correct amount. **This is the acceptance criterion for spec §1.2** — a registration created on the web is visible to the organizer with no sync layer.
 
 Cross-check the database directly:
 
@@ -5419,7 +5419,7 @@ Expected: the newest row has `status = 'paid'`, `payment_status = 'paid'`, `prov
 - [ ] **Step 10: Verify the Open Graph card**
 
 ```bash
-curl -s "https://race-pace.vercel.app/events/00000000-0000-0000-0000-0000000000e1" | grep -o '<meta property="og:[^>]*>'
+curl -s "https://racepace.vercel.app/events/00000000-0000-0000-0000-0000000000e1" | grep -o '<meta property="og:[^>]*>'
 ```
 
 Expected: `og:title` with the event name, `og:description` with distances and date, and `og:image` if the event has a hero image. Then paste the URL into a Facebook post composer (without posting) and confirm the preview renders — this is the §1.3 acceptance criterion.

@@ -320,8 +320,8 @@ Edge Function errors are parsed out of `FunctionsHttpError`'s response body, mat
 
 | Project | Root directory | Framework | URL |
 |---|---|---|---|
-| `race-pace` | `apps/site` | Next.js | `https://race-pace.vercel.app` |
-| `race-pace-admin` | `apps/web` | Vite | `https://race-pace-admin.vercel.app` |
+| `race-pace` | `apps/site` | Next.js | `https://racepace.vercel.app` |
+| `race-pace-admin` | `apps/web` | Vite | `https://racepace-admin.vercel.app` |
 
 ### 9.1 Public site — `apps/site`
 
@@ -331,7 +331,7 @@ Vercel's Next.js preset, root directory `apps/site`, building through the pnpm w
 |---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | `https://whaqarofxdlzxrelbcrq.supabase.co` |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | The new project's anon key |
-| `NEXT_PUBLIC_SITE_URL` | `https://race-pace.vercel.app` |
+| `NEXT_PUBLIC_SITE_URL` | `https://racepace.vercel.app` |
 
 `NEXT_PUBLIC_SITE_URL` is what the pay flow uses to build its `return_url`. If it is wrong, PayMongo redirects the runner to a dead origin after paying — the payment still confirms via webhook, but the runner sees a broken page at the worst possible moment.
 
@@ -363,13 +363,13 @@ The one consequence that must not be missed: this is what makes CORS on `org-mem
 | Secret | Where | Value |
 |---|---|---|
 | `RESEND_API_KEY` | Supabase function secret | From Resend |
-| `SITE_ORIGINS` | Supabase function secret | `https://race-pace.vercel.app,https://race-pace-admin.vercel.app,*.vercel.app,http://localhost:3000,http://localhost:5173,https://admin.racepace.lan` |
+| `SITE_ORIGINS` | Supabase function secret | `https://racepace.vercel.app,https://racepace-admin.vercel.app,*.vercel.app,http://localhost:3000,http://localhost:5173,https://admin.racepace.lan` |
 
 The `*.vercel.app` wildcard covers preview deployments, which get a fresh subdomain per branch and can never be enumerated in advance. The two `localhost` entries and `admin.racepace.lan` keep local development working against the hosted backend.
 
 Also required:
 
-- Supabase Dashboard → Authentication → URL Configuration: both Vercel production URLs plus `https://*-race-pace.vercel.app` preview patterns added to the redirect allowlist.
+- Supabase Dashboard → Authentication → URL Configuration: both Vercel production URLs plus `https://*-racepace.vercel.app` preview patterns added to the redirect allowlist.
 - Google Cloud OAuth client configured per §3.1.
 - Resend sending domain verified.
 
