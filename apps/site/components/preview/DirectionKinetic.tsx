@@ -3,10 +3,18 @@
 import Image from "next/image";
 import Link from "next/link";
 import { disciplineLayout, formatPeso, formatDateRange } from "@race-pace/shared";
-import type { EventRow, CategoryRow } from "@/lib/events";
+import type { EventRow, CategoryRow, AddonRow } from "@/lib/events";
 import { longDate } from "@/lib/format";
 import { RainbowButton } from "@/components/ui/rainbow-button";
 import { Reveal, ParallaxLayer, CountUp, Marquee, ScrollProgress } from "./motion-primitives";
+import {
+  RaceEssentials,
+  RaceMorning,
+  WhatsIncluded,
+  AddonsSection,
+  GalleryCarousel,
+  CourseLocator,
+} from "./sections";
 
 /**
  * DIRECTION B — "Kinetic Bib".
@@ -25,13 +33,22 @@ import { Reveal, ParallaxLayer, CountUp, Marquee, ScrollProgress } from "./motio
  *  - route (road/fun-run): bright green flood, speed rules, bibs as crisp
  *    printed race numbers.
  */
-export function DirectionKinetic({ event, categories }: { event: EventRow; categories: CategoryRow[] }) {
+export function DirectionKinetic({
+  event,
+  categories,
+  addons = [],
+}: {
+  event: EventRow;
+  categories: CategoryRow[];
+  addons?: AddonRow[];
+}) {
   const layout = disciplineLayout(event.discipline);
   const trail = layout === "profile";
   const date = event.event_date ? formatDateRange(event.event_date, event.end_date, longDate) : null;
   const slotsLeft = categories.reduce((n, c) => n + Math.max(0, c.slots_total - c.slots_taken), 0);
 
   const shell = trail ? "bg-[#080A09] text-white" : "bg-[#F4F7F5] text-[#0A1410]";
+  const tone = { dark: trail };
 
   return (
     <div className={shell}>
@@ -130,6 +147,33 @@ export function DirectionKinetic({ event, categories }: { event: EventRow; categ
               <Bib key={c.id} category={c} index={i} trail={trail} />
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* Gallery sits high in this direction — Kinetic sells the feeling
+          first, so photographs of last year's race do more work here than
+          they would after the logistics. */}
+      <GalleryCarousel event={event} tone={tone} />
+      <RaceEssentials event={event} tone={tone} />
+      <CourseLocator event={event} tone={tone} />
+      <RaceMorning event={event} tone={tone} />
+      <WhatsIncluded event={event} tone={tone} />
+      <AddonsSection addons={addons} tone={tone} />
+
+      <section className={trail ? "border-t border-white/10" : "border-t border-black/10"}>
+        <div className="mx-auto w-full max-w-6xl px-5 py-20 text-center sm:px-8 sm:py-28">
+          <Reveal>
+            <h2 className="font-display text-[clamp(2rem,6vw,4rem)] font-black uppercase leading-[0.9] tracking-[-1.5px]">
+              Toe the line
+            </h2>
+          </Reveal>
+          <Reveal delay={0.08}>
+            <div className="mt-8 flex justify-center">
+              <RainbowButton asChild className="h-auto rounded-pill px-9 py-4 text-[16.5px] font-semibold">
+                <a href="#bibs">Grab a bib</a>
+              </RainbowButton>
+            </div>
+          </Reveal>
         </div>
       </section>
     </div>

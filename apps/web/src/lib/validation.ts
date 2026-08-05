@@ -46,6 +46,13 @@ export const eventInputSchema = z.object({
   discipline: z.enum(EVENT_DISCIPLINES),
   elevation_gain_m: intNonNeg.nullable(),
   cutoff_hours: intNonNeg.nullable(),
+  // Course locator. Ranges mirror the DB check constraints so a transposed
+  // lat/lng pair (a common paste error) is caught in the form rather than
+  // by a 400 from Postgres after Save.
+  start_lat: z.number().min(-90, "-90 to 90").max(90, "-90 to 90").nullable().default(null),
+  start_lng: z.number().min(-180, "-180 to 180").max(180, "-180 to 180").nullable().default(null),
+  finish_lat: z.number().min(-90, "-90 to 90").max(90, "-90 to 90").nullable().default(null),
+  finish_lng: z.number().min(-180, "-180 to 180").max(180, "-180 to 180").nullable().default(null),
   description: z.string().nullable(),
   hero_image_url: z.string().nullable(),
   gallery: z.array(z.string()).default([]),

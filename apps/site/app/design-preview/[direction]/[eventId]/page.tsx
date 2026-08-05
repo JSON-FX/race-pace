@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { fetchEvent, fetchCategories } from "@/lib/events";
+import { fetchEvent, fetchCategories, fetchAddons } from "@/lib/events";
 import { DirectionDossier } from "@/components/preview/DirectionDossier";
 import { DirectionKinetic } from "@/components/preview/DirectionKinetic";
 
@@ -24,11 +24,13 @@ export default async function DesignPreviewPage({
   const db = await createClient();
   const event = await fetchEvent(db, eventId);
   if (!event) notFound();
-  const categories = await fetchCategories(db, eventId);
+  // Independent reads — awaiting them in sequence would stack three round
+  // trips before the first byte renders.
+  const [categories, addons] = await Promise.all([fetchCategories(db, eventId), fetchAddons(db, eventId)]);
 
   return (
     <>
-      <Direction event={event} categories={categories} />
+      <Direction event={event} categories={categories} addons={addons} />
       {/* Persistent way back to the comparison index — a preview you can get
           lost inside is a preview nobody finishes reviewing. */}
       <Link

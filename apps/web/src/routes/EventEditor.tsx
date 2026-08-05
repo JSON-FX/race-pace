@@ -21,7 +21,7 @@ import { Button } from "../components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 
 const fieldLabel = "mb-1.5 block text-[11px] font-semibold tracking-wide text-muted-foreground";
-const blank: EventDraft = { org_id: "", name: "", city_psgc_code: null, region_name: null, province_name: null, city_name: null, venue: null, event_date: null, end_date: null, flag_off: null, status: "draft", discipline: "trail", elevation_gain_m: null, cutoff_hours: null, description: null, hero_image_url: null, gallery: [], schedule: [], inclusions: [] };
+const blank: EventDraft = { org_id: "", name: "", city_psgc_code: null, region_name: null, province_name: null, city_name: null, venue: null, event_date: null, end_date: null, flag_off: null, status: "draft", discipline: "trail", elevation_gain_m: null, cutoff_hours: null, start_lat: null, start_lng: null, finish_lat: null, finish_lng: null, description: null, hero_image_url: null, gallery: [], schedule: [], inclusions: [] };
 
 export function EventEditor() {
   const { id } = useParams();
@@ -179,6 +179,27 @@ export function EventEditor() {
                 <Label className={fieldLabel}>CUTOFF (HOURS)</Label>
                 <Input aria-label="Cutoff hours" type="number" value={event.cutoff_hours ?? ""} onChange={(e) => set({ cutoff_hours: num(e.target.value) })} />
               </div>
+            </div>
+            {/* Course locator. Optional — an event with no coordinates simply
+                omits the map on the public page. `step` allows the 6 decimals
+                the numeric(9,6) column stores; the browser's default step of 1
+                would reject 6.771900 as invalid. */}
+            <div>
+              <Label className={fieldLabel}>START (LAT, LNG)</Label>
+              <div className="grid grid-cols-2 gap-3">
+                <Input aria-label="Start latitude" type="number" step="any" placeholder="6.771900" value={event.start_lat ?? ""} onChange={(e) => set({ start_lat: num(e.target.value) })} />
+                <Input aria-label="Start longitude" type="number" step="any" placeholder="125.279400" value={event.start_lng ?? ""} onChange={(e) => set({ start_lng: num(e.target.value) })} />
+              </div>
+            </div>
+            <div>
+              <Label className={fieldLabel}>FINISH (LAT, LNG)</Label>
+              <div className="grid grid-cols-2 gap-3">
+                <Input aria-label="Finish latitude" type="number" step="any" placeholder="same as start for a loop" value={event.finish_lat ?? ""} onChange={(e) => set({ finish_lat: num(e.target.value) })} />
+                <Input aria-label="Finish longitude" type="number" step="any" value={event.finish_lng ?? ""} onChange={(e) => set({ finish_lng: num(e.target.value) })} />
+              </div>
+              <p className="mt-1.5 text-[11px] text-muted-foreground">
+                Right-click a spot in Google Maps and choose the coordinates to copy them. Leave blank to hide the map.
+              </p>
             </div>
             <div>
               <Label className={fieldLabel}>DESCRIPTION</Label>

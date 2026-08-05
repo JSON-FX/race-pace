@@ -21,7 +21,9 @@ insert into events (
   id, org_id, name, place, region, event_date, status, discipline,
   elevation_gain_m, cutoff_hours, description, flag_off, inclusions, schedule,
   hero_image_url, gallery,
-  city_psgc_code, region_name, province_name, city_name, venue
+  city_psgc_code, region_name, province_name, city_name, venue,
+  -- Course locator. Both races are loops, so finish = start.
+  start_lat, start_lng, finish_lat, finish_lng
 ) values
   -- ── TRAIL → elevation-profile layout ───────────────────────────────────
   ('00000000-0000-0000-0000-0000000000e1', '00000000-0000-0000-0000-0000000000a1',
@@ -39,7 +41,8 @@ insert into events (
    array['https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1600&q=70',
          'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?auto=format&fit=crop&w=1600&q=70',
          'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=1600&q=70'],
-   '112403000', 'Davao Region', 'Davao Del Sur', 'City of Digos', 'Kapatagan Base Camp'),
+   '112403000', 'Davao Region', 'Davao Del Sur', 'City of Digos', 'Kapatagan Base Camp',
+   6.771900, 125.279400, 6.771900, 125.279400),
 
   -- ── ROAD → route-ribbon layout ─────────────────────────────────────────
   ('00000000-0000-0000-0000-0000000000e2', '00000000-0000-0000-0000-0000000000a1',
@@ -56,7 +59,8 @@ insert into events (
    'https://images.unsplash.com/photo-1552674605-db6ffd4facb5?auto=format&fit=crop&w=2000&q=75',
    array['https://images.unsplash.com/photo-1461896836934-ffe607ba8211?auto=format&fit=crop&w=1600&q=70',
          'https://images.unsplash.com/photo-1571008887538-b36bb32f4571?auto=format&fit=crop&w=1600&q=70'],
-   '112402000', 'Davao Region', 'Davao Del Sur', 'City of Davao', 'People''s Park');
+   '112402000', 'Davao Region', 'Davao Del Sur', 'City of Davao', 'People''s Park',
+   7.072200, 125.613100, 7.072200, 125.613100);
 
 -- Per-distance gain / cut-off / blurb are the columns added in 20260806090000.
 -- The event-level figures stay the headline; these are what a runner actually

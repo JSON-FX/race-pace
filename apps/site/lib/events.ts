@@ -20,6 +20,10 @@ export type EventRow = {
   // default via disciplineLayout()/`?? []`, never as an error.
   discipline?: EventDiscipline | string | null;
   schedule?: ScheduleItem[] | null;
+  // Course locator. Nullable and paired (DB constraint): both halves of a pair
+  // are set or neither is. Numbers here — see mapEvent for why that needs work.
+  start_lat?: number | null; start_lng?: number | null;
+  finish_lat?: number | null; finish_lng?: number | null;
 };
 
 export type OrgRow = {
@@ -52,15 +56,28 @@ export type FormFieldRow = {
 // the pay page here needs it). Don't assume field-for-field parity; check
 // apps/mobile/lib/events.ts directly if reconciling the two.
 const EVENT_COLS =
-  "id,org_id,name,place,region,event_date,end_date,elevation_gain_m,cutoff_hours,flag_off,status,hero_image_url,description,gallery,original_date,status_note,city_psgc_code,region_name,province_name,city_name,venue,inclusions,discipline,schedule,categories(slots_taken,distance_km)";
+  "id,org_id,name,place,region,event_date,end_date,elevation_gain_m,cutoff_hours,flag_off,status,hero_image_url,description,gallery,original_date,status_note,city_psgc_code,region_name,province_name,city_name,venue,inclusions,discipline,schedule,start_lat,start_lng,finish_lat,finish_lng,categories(slots_taken,distance_km)";
 const CAT_COLS =
   "id,event_id,org_id,code,label,distance_km,base_price,slots_total,slots_taken,elevation_gain_m,cutoff_hours,blurb";
+
+/** Postgres `numeric` crosses JSON as a STRING, not a number — PostgREST does
+ *  that deliberately so arbitrary-precision decimals survive the trip. Left
+ *  alone, "6.771900" reaches the map projection and every arithmetic operation
+ *  on it silently produces a string concatenation or NaN. Coerce once, here,
+ *  at the boundary. */
+function num(v: unknown): number | null {
+  if (v == null) return null;
+  const n = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(n) ? n : null;
+}
 
 export function mapEvent(r: any): EventRow {
   const categories = (r.categories ?? []) as { slots_taken: number; distance_km: number | null }[];
   return {
     ...r,
     gallery: r.gallery ?? [],
+    start_lat: num(r.start_lat), start_lng: num(r.start_lng),
+    finish_lat: num(r.finish_lat), finish_lng: num(r.finish_lng),
     joined_count: categories.reduce((sum, c) => sum + c.slots_taken, 0),
     distances: categories.map((c) => c.distance_km).filter((d): d is number => d != null),
     org_name: r.organizations?.name,

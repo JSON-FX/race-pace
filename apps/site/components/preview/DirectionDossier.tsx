@@ -3,10 +3,18 @@
 import Image from "next/image";
 import Link from "next/link";
 import { disciplineLayout, formatPeso, formatDateRange } from "@race-pace/shared";
-import type { EventRow, CategoryRow } from "@/lib/events";
+import type { EventRow, CategoryRow, AddonRow } from "@/lib/events";
 import { longDate } from "@/lib/format";
 import { RainbowButton } from "@/components/ui/rainbow-button";
 import { Reveal, ParallaxLayer, CountUp, ScrollProgress } from "./motion-primitives";
+import {
+  RaceEssentials,
+  RaceMorning,
+  WhatsIncluded,
+  AddonsSection,
+  GalleryCarousel,
+  CourseLocator,
+} from "./sections";
 
 /**
  * DIRECTION A — "Expedition Dossier".
@@ -23,7 +31,15 @@ import { Reveal, ParallaxLayer, CountUp, ScrollProgress } from "./motion-primiti
  *  - route (road/fun-run): finish time and pace are the headline. Light,
  *    high-key, the course reads as something to be raced.
  */
-export function DirectionDossier({ event, categories }: { event: EventRow; categories: CategoryRow[] }) {
+export function DirectionDossier({
+  event,
+  categories,
+  addons = [],
+}: {
+  event: EventRow;
+  categories: CategoryRow[];
+  addons?: AddonRow[];
+}) {
   const layout = disciplineLayout(event.discipline);
   const trail = layout === "profile";
   const date = event.event_date ? formatDateRange(event.event_date, event.end_date, longDate) : null;
@@ -32,6 +48,7 @@ export function DirectionDossier({ event, categories }: { event: EventRow; categ
     null,
   );
   const slotsLeft = categories.reduce((n, c) => n + Math.max(0, c.slots_total - c.slots_taken), 0);
+  const tone = { dark: trail };
 
   return (
     <div className={trail ? "bg-[#06120C] text-white" : "bg-white text-[#0B1220]"}>
@@ -172,6 +189,35 @@ export function DirectionDossier({ event, categories }: { event: EventRow; categ
               <DistanceRow key={c.id} category={c} index={i} trail={trail} />
             ))}
           </ul>
+        </div>
+      </section>
+
+      {/* Order follows the questions a runner asks after "can I do this?":
+          what exactly is the day → where is it → what do I get → what else can
+          I add → what does it look like. Each section self-hides when empty. */}
+      <RaceEssentials event={event} tone={tone} />
+      <CourseLocator event={event} tone={tone} />
+      <RaceMorning event={event} tone={tone} />
+      <WhatsIncluded event={event} tone={tone} />
+      <AddonsSection addons={addons} tone={tone} />
+      <GalleryCarousel event={event} tone={tone} />
+
+      {/* Closing CTA: by here the runner has read everything, and sending them
+          back up to the hero to act would be the page's own fault. */}
+      <section className={trail ? "border-t border-white/10" : "border-t border-black/10"}>
+        <div className="mx-auto w-full max-w-6xl px-5 py-20 text-center sm:px-8 sm:py-28">
+          <Reveal>
+            <h2 className="font-display text-[clamp(1.9rem,5.5vw,3.6rem)] font-black uppercase leading-[0.95] tracking-[-1px]">
+              {trail ? "Still reading? Enter." : "See you at the start."}
+            </h2>
+          </Reveal>
+          <Reveal delay={0.08}>
+            <div className="mt-8 flex justify-center">
+              <RainbowButton asChild className="h-auto rounded-pill px-9 py-4 text-[16.5px] font-semibold">
+                <a href="#distances">Choose your distance</a>
+              </RainbowButton>
+            </div>
+          </Reveal>
         </div>
       </section>
     </div>
