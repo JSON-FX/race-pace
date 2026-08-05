@@ -15,6 +15,11 @@ export function signInRedirectPath(pathname: string, search: string): string {
   return `/sign-in?next=${encodeURIComponent(pathname + search)}`;
 }
 
+/** Cookie carrying the post-auth destination across the OAuth round-trip.
+ *  Lives here, not in lib/auth.ts, so the server-side callback Route Handler
+ *  can read it without importing the browser Supabase client. */
+export const OAUTH_NEXT_COOKIE = "rp_oauth_next";
+
 /** Guards every post-auth `?next=` redirect (sign-in, sign-up, OAuth callback).
  *  Only a same-site relative path is safe: `//host/...` is protocol-relative
  *  and browsers navigate it as absolute, so it — along with any other
