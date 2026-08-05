@@ -1,65 +1,98 @@
--- Organizations. a1 (Race Pace) kept for backend tests; a2..a5 populate the
--- marketplace to match the Race Pace design. Avatars/banners are generated in-app
--- from brand_color + initials, so no image URLs are needed.
+-- Two demo events under one organizer: one TRAIL, one ROAD.
+--
+-- Deliberately one of each discipline, because the public site branches on it:
+-- `trail` renders the elevation-profile layout, `fun_run` renders the
+-- route-ribbon layout. Two registerable events also exercise the home page's
+-- multi-event grid; drop to one and the home page switches to the immersive
+-- single-event landing (see homeMode() in apps/site/lib/home.ts).
+--
+-- Every column added in 20260806090000 / 20260806140000 is populated on
+-- purpose. Left null, both layouts render in their minimal state and you cannot
+-- see the designs — which IS the state a fresh organizer starts in, so being
+-- able to compare populated vs empty matters.
+
 insert into organizations (id, name, slug, brand_color, commission_rate, description) values
   ('00000000-0000-0000-0000-0000000000a1', 'Race Pace', 'race-pace', '#159A55', 0.10,
-   'Trail and ultra races across Davao and the Mt Apo highlands.'),
-  ('00000000-0000-0000-0000-0000000000a2', 'Apo Skyrunners Assoc.', 'apo-skyrunners', '#159A55', 0.10,
-   'Community of mountain runners staging Mindanao''s toughest sky ultras since 2016. Trail with respect, finish with pride.'),
-  ('00000000-0000-0000-0000-0000000000a3', 'Highland Endurance', 'highland-endurance', '#0F766E', 0.10,
-   'Endurance trail events across the Bukidnon highlands.'),
-  ('00000000-0000-0000-0000-0000000000a4', 'Riverside Runners', 'riverside-runners', '#B45309', 0.10,
-   'River and city trail races around Davao.'),
-  ('00000000-0000-0000-0000-0000000000a5', 'Kitanglad Highland Runners', 'kitanglad-highland-runners', '#7C3AED', 0.10,
-   'Skyraces and highland trails in the Kitanglad range.');
+   'Trail, road, and community races across Davao and the Mt Apo highlands.');
 
--- Events. e1 kept (+description); e2..e5 are the design's marketplace, incl. one
--- rescheduled (e3) and one cancelled (e4).
--- PSGC codes looked up post-`db reset` from psgc_cities (see migration ..140100):
---   e1/e4 City of Digos/Davao (Davao Del Sur, Davao Region); e2 City of Kidapawan
---   (Cotabato, SOCCSKSARGEN); e3 City of Malaybalay (Bukidnon, Northern Mindanao);
---   e5 Lantapan municipality (Bukidnon, Northern Mindanao).
-insert into events (id, org_id, name, place, region, event_date, status, elevation_gain_m, cutoff_hours, description, original_date, status_note, city_psgc_code, region_name, province_name, city_name, venue) values
+-- PSGC codes come from psgc_cities (migration ..140100).
+--   e1 City of Digos (Davao Del Sur) · e2 City of Davao (Davao Del Sur).
+insert into events (
+  id, org_id, name, place, region, event_date, status, discipline,
+  elevation_gain_m, cutoff_hours, description, flag_off, inclusions, schedule,
+  hero_image_url, gallery,
+  city_psgc_code, region_name, province_name, city_name, venue
+) values
+  -- ── TRAIL → elevation-profile layout ───────────────────────────────────
   ('00000000-0000-0000-0000-0000000000e1', '00000000-0000-0000-0000-0000000000a1',
-   'Apo Sky Ultra 2026', 'Mt Apo', 'Davao', '2026-11-14', 'open', 4200, 20,
-   'The flagship 100K around Mt Apo — technical ridgelines, mossy forest, and a summit sunrise.', null, null,
+   'Apo Sky Ultra 2026', 'Mt Apo', 'Davao', '2026-11-14', 'open', 'trail',
+   4200, 20,
+   'The flagship 100K around Mt Apo — technical ridgelines, mossy forest, and a summit sunrise. Four distances share the same trailhead and the same finish arch.',
+   '03:00',
+   array['Race kit, bib, and timing chip','Six aid stations with hot food','Medical sweep and marshal coverage','Finisher medal and summit certificate'],
+   '[{"time":"02:00","label":"Baggage drop and gear check open"},
+     {"time":"02:45","label":"Assembly — 100K and 50K"},
+     {"time":"03:00","label":"Gun start, 100K and 50K"},
+     {"time":"05:00","label":"Gun start, 21K and 10K"},
+     {"time":"23:00","label":"Final cut-off, 100K"}]'::jsonb,
+   'https://images.unsplash.com/photo-1551632811-561732d1e306?auto=format&fit=crop&w=2000&q=75',
+   array['https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1600&q=70',
+         'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?auto=format&fit=crop&w=1600&q=70',
+         'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=1600&q=70'],
    '112403000', 'Davao Region', 'Davao Del Sur', 'City of Digos', 'Kapatagan Base Camp'),
-  ('00000000-0000-0000-0000-0000000000e2', '00000000-0000-0000-0000-0000000000a2',
-   'Mt. Apo Sky Ultra', 'Kidapawan', 'Davao del Sur', '2026-10-18', 'open', 4300, 18,
-   'The flagship 100K around Mindanao''s highest peak — 4,300m of climbing through mossy forest and summit ridgelines.', null, null,
-   '124704000', 'SOCCSKSARGEN', 'Cotabato', 'City of Kidapawan', 'Ilomavis Trailhead'),
-  ('00000000-0000-0000-0000-0000000000e3', '00000000-0000-0000-0000-0000000000a3',
-   'Bukidnon Highland 50', 'Malaybalay', 'Bukidnon', '2026-09-27', 'open', 2600, 14,
-   'A fast 50K through pine ridges and cloud forest above Malaybalay. Your slot carries over to the new date.',
-   '2026-09-14', 'Your slot carries over to the new date. Registration remains open for the remaining places.',
-   '101312000', 'Northern Mindanao', 'Bukidnon', 'City of Malaybalay', 'Malaybalay City Coliseum'),
-  ('00000000-0000-0000-0000-0000000000e4', '00000000-0000-0000-0000-0000000000a4',
-   'Davao River Trail 21', 'Davao City', 'Davao', '2026-08-30', 'cancelled', 900, 8,
-   'A 21K along the Davao river trail.', null,
-   'Registrations are closed. Paid runners will be refunded automatically — check My Races for status.',
-   '112402000', 'Davao Region', 'Davao Del Sur', 'City of Davao', 'Davao Riverfront Park'),
-  ('00000000-0000-0000-0000-0000000000e5', '00000000-0000-0000-0000-0000000000a5',
-   'Kitanglad Skyrace', 'Lantapan', 'Bukidnon', '2026-11-22', 'almost_full', 3100, 16,
-   'A sky race up the Kitanglad range — the second-highest peaks in the Philippines.', null, null,
-   '101310000', 'Northern Mindanao', 'Bukidnon', 'Lantapan', 'Kitanglad Range Natural Park HQ');
 
--- Categories. e1 keeps c1..c4; e2 uses the design's four distances (c5..c8); e3 c9/ca; e4 cb; e5 cc/cd.
-insert into categories (id, org_id, event_id, code, label, distance_km, base_price, slots_total, slots_taken) values
-  ('00000000-0000-0000-0000-0000000000c1','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000e1','100k','100K Ultra',100,350000,100,0),
-  ('00000000-0000-0000-0000-0000000000c2','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000e1','50k','50K',50,250000,150,0),
-  ('00000000-0000-0000-0000-0000000000c3','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000e1','21k','21K',21,150000,200,0),
-  ('00000000-0000-0000-0000-0000000000c4','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000e1','10k','10K',10,100000,200,0),
-  ('00000000-0000-0000-0000-0000000000c5','00000000-0000-0000-0000-0000000000a2','00000000-0000-0000-0000-0000000000e2','100k','100K Ultra',100,450000,200,158),
-  ('00000000-0000-0000-0000-0000000000c6','00000000-0000-0000-0000-0000000000a2','00000000-0000-0000-0000-0000000000e2','50k','50K Trail',50,350000,150,62),
-  ('00000000-0000-0000-0000-0000000000c7','00000000-0000-0000-0000-0000000000a2','00000000-0000-0000-0000-0000000000e2','21k','21K Half',21,220000,200,80),
-  ('00000000-0000-0000-0000-0000000000c8','00000000-0000-0000-0000-0000000000a2','00000000-0000-0000-0000-0000000000e2','10k','10K Fun Run',10,120000,250,40),
-  ('00000000-0000-0000-0000-0000000000c9','00000000-0000-0000-0000-0000000000a3','00000000-0000-0000-0000-0000000000e3','50k','50K',50,320000,120,10),
-  ('00000000-0000-0000-0000-0000000000ca','00000000-0000-0000-0000-0000000000a3','00000000-0000-0000-0000-0000000000e3','21k','21K',21,180000,180,5),
-  ('00000000-0000-0000-0000-0000000000cb','00000000-0000-0000-0000-0000000000a4','00000000-0000-0000-0000-0000000000e4','21k','21K',21,120000,150,0),
-  ('00000000-0000-0000-0000-0000000000cc','00000000-0000-0000-0000-0000000000a5','00000000-0000-0000-0000-0000000000e5','100k','100K',100,420000,100,88),
-  ('00000000-0000-0000-0000-0000000000cd','00000000-0000-0000-0000-0000000000a5','00000000-0000-0000-0000-0000000000e5','42k','42K Sky',42,260000,120,96);
+  -- ── ROAD → route-ribbon layout ─────────────────────────────────────────
+  ('00000000-0000-0000-0000-0000000000e2', '00000000-0000-0000-0000-0000000000a1',
+   'Davao Sunrise Run 2026', 'Davao City', 'Davao', '2026-10-04', 'open', 'fun_run',
+   42, 3,
+   'One flat loop through closed city roads, finished before the heat. Water every 2.5 km, pacers on the 10K, and the last finisher gets the same medal as the first.',
+   '04:30',
+   array['Singlet, bib, and timing chip','Finisher medal for every distance','Water and bananas every 2.5 km','Baggage counter and free race photos'],
+   '[{"time":"03:30","label":"Baggage counter and warm-up open"},
+     {"time":"04:15","label":"Assembly — line up by distance"},
+     {"time":"04:30","label":"Gun start, 21K and 10K"},
+     {"time":"04:45","label":"Gun start, 5K and 3K"},
+     {"time":"07:30","label":"Awarding and raffle"}]'::jsonb,
+   'https://images.unsplash.com/photo-1552674605-db6ffd4facb5?auto=format&fit=crop&w=2000&q=75',
+   array['https://images.unsplash.com/photo-1461896836934-ffe607ba8211?auto=format&fit=crop&w=1600&q=70',
+         'https://images.unsplash.com/photo-1571008887538-b36bb32f4571?auto=format&fit=crop&w=1600&q=70'],
+   '112402000', 'Davao Region', 'Davao Del Sur', 'City of Davao', 'People''s Park');
 
--- e1 add-ons + custom form fields (kept for the register flow + backend tests).
+-- Per-distance gain / cut-off / blurb are the columns added in 20260806090000.
+-- The event-level figures stay the headline; these are what a runner actually
+-- decides on once a 100K and a 10K sit on the same page.
+--
+-- The ROAD event leaves cut-off null on purpose — fun runs rarely publish one,
+-- and the site omits any fact it has no value for rather than printing a zero.
+-- Its 10K also ships with slots_taken high enough to show the scarcity state
+-- without inventing it.
+insert into categories (
+  id, org_id, event_id, code, label, distance_km, base_price, slots_total, slots_taken,
+  elevation_gain_m, cutoff_hours, blurb
+) values
+  -- Apo Sky Ultra (trail)
+  ('00000000-0000-0000-0000-0000000000c1','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000e1','100k','100K Ultra',100,350000,100,0,
+   4200, 20.0, 'The full loop and the summit sunrise. Qualifier required.'),
+  ('00000000-0000-0000-0000-0000000000c2','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000e1','50k','50K',50,250000,150,0,
+   2400, 12.0, 'Ridgeline and mossy forest, turning back below the summit.'),
+  ('00000000-0000-0000-0000-0000000000c3','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000e1','21k','21K',21,150000,200,0,
+   1100, 6.0, 'A first trail half — steep in places, never technical.'),
+  ('00000000-0000-0000-0000-0000000000c4','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000e1','10k','10K',10,100000,200,0,
+   480, 3.0, 'Forest road and one climb. Good for a first time on trail.'),
+
+  -- Davao Sunrise Run (road)
+  ('00000000-0000-0000-0000-0000000000c5','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000e2','21k','21K',21,150000,300,0,
+   42, null, 'Half marathon. Road shoes, race belt, one gel.'),
+  ('00000000-0000-0000-0000-0000000000c6','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000e2','10k','10K',10,100000,400,358,
+   28, null, 'Chasing a personal best on a flat, closed course.'),
+  ('00000000-0000-0000-0000-0000000000c7','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000e2','5k','5K',5,80000,500,0,
+   12, null, 'The step up. Comfortable for anyone jogging twice a week.'),
+  ('00000000-0000-0000-0000-0000000000c8','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000e2','3k','3K',3,60000,600,0,
+   6, null, 'Kids, families, and anyone running their first event.');
+
+-- Add-ons and custom questions on the TRAIL event only, so the registration
+-- wizard exercises both branches: e1 has add-ons and event questions, e2 has
+-- neither and must render cleanly without them.
 insert into addons (id, org_id, event_id, name, price) values
   ('00000000-0000-0000-0000-0000000000d1','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000e1','Event Singlet',60000),
   ('00000000-0000-0000-0000-0000000000d2','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000e1','Finisher Package',120000);
