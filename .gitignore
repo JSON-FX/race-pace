@@ -25,6 +25,10 @@ apps/mobile/android/
 # Vite
 apps/web/dist/
 
+# Next.js
+.next/
+next-env.d.ts
+
 # Supabase
 supabase/.branches/
 supabase/.temp/
