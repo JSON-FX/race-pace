@@ -394,6 +394,9 @@ verify_jwt = false
 [functions.send-push]
 verify_jwt = false
 
+[functions.ticket-qr]
+verify_jwt = false
+
 [analytics]
 enabled = true
 port = 54527

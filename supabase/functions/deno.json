@@ -1,6 +1,7 @@
 {
   "imports": {
     "zod": "npm:zod@3.23.8",
-    "@supabase/supabase-js": "npm:@supabase/supabase-js@2"
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@2",
+    "qrcode": "npm:qrcode@1.5.4"
   }
 }
