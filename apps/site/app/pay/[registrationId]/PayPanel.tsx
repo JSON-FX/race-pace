@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Lock } from "lucide-react";
+import { Check, Lock } from "lucide-react";
 import { formatPeso } from "@race-pace/shared";
 import { isRegistrationClosed } from "@/lib/eventStatus";
 import { useRegistration, createMethodCheckout } from "@/lib/registration";
 import { PAY_METHODS, breakdown } from "@/lib/payment";
+import { MethodLogo } from "@/components/PaymentLogos";
 import { TicketStub } from "@/components/TicketStub";
 import { StepRail } from "@/components/StepRail";
 import { Button } from "@/components/ui/button";
@@ -143,13 +144,18 @@ export function PayPanel({ registrationId }: { registrationId: string }) {
               method === m.key ? "border-primary bg-secondary" : "border-border hover:border-primary",
             )}
           >
-            <span className="text-[15px] font-semibold text-foreground">{m.label}</span>
+            <span className="flex items-center gap-2.5">
+              <MethodLogo methodKey={m.key} />
+              <span className="text-[15px] font-semibold text-foreground">{m.label}</span>
+            </span>
             <span
               className={cn(
-                "h-5 w-5 rounded-full border-[1.5px]",
+                "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-[1.5px]",
                 method === m.key ? "border-primary bg-primary" : "border-border",
               )}
-            />
+            >
+              {method === m.key ? <Check size={12} className="text-primary-foreground" /> : null}
+            </span>
           </button>
         ))}
       </div>
