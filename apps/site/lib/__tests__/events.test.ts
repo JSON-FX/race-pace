@@ -47,4 +47,10 @@ describe("mapEvent", () => {
     const { organizations, ...withoutOrg } = raw;
     expect(mapEvent(withoutOrg).org_name).toBeUndefined();
   });
+
+  it("passes discipline and schedule straight through from the row", () => {
+    const e = mapEvent({ ...raw, discipline: "fun_run", schedule: [{ time: "04:30", label: "Gun start" }] });
+    expect(e.discipline).toBe("fun_run");
+    expect(e.schedule).toEqual([{ time: "04:30", label: "Gun start" }]);
+  });
 });
