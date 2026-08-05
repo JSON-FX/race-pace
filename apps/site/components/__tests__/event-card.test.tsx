@@ -46,4 +46,13 @@ describe("EventCard", () => {
     render(<EventCard event={{ ...event, event_date: null, city_name: null, province_name: null }} />);
     expect(screen.getByText("Apo Sky Ultra 2026")).toBeInTheDocument();
   });
+
+  it.each([
+    ["almost_full", "Almost full"],
+    ["closed", "Closed"],
+    ["completed", "Completed"],
+  ])("humanizes status %s as %s in the badge", (status, label) => {
+    render(<EventCard event={{ ...event, status }} />);
+    expect(screen.getByText(label)).toBeInTheDocument();
+  });
 });

@@ -8,6 +8,7 @@ import { fetchEvent, fetchCategories } from "@/lib/events";
 import { SiteHeader } from "@/components/SiteHeader";
 import { TopoPattern } from "@/components/TopoPattern";
 import { longDate } from "@/lib/format";
+import { isRegistrationClosed } from "@/lib/registration";
 
 export const dynamic = "force-dynamic";
 
@@ -46,7 +47,9 @@ export default async function EventPage({ params }: Params) {
   const categories = await fetchCategories(db, id);
   const date = event.event_date ? formatDateRange(event.event_date, event.end_date, longDate) : null;
   const location = formatAddress({ city_name: event.city_name, province_name: event.province_name });
-  const closed = event.status !== "open";
+  // almost_full is still registerable — see lib/registration.ts, mirrors
+  // apps/mobile/app/event/[id].tsx's `registerable` rule.
+  const closed = isRegistrationClosed(event.status);
 
   return (
     <>
@@ -108,7 +111,7 @@ export default async function EventPage({ params }: Params) {
                   <div>
                     <h3 className="font-display text-[21px] font-extrabold text-foreground">{c.label}</h3>
                     <p className="mt-1 text-[14px] text-muted-foreground">
-                      {soldOut ? "Sold out" : `${remaining} of ${c.slots_total} slots left`}
+                      {soldOut ? "Sold out" : `${remaining} slots left`}
                     </p>
                   </div>
                   <div className="flex items-center gap-5">
