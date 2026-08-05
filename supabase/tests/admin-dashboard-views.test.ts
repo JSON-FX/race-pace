@@ -56,7 +56,7 @@ beforeAll(async () => {
   const other = await makeUser("other");
   await svc.from("user_roles").insert({ user_id: other.id, role: "admin", org_id: orgB });
 
-  const mk = async (label: string, status: "paid" | "pending", amount: number) => {
+  const mk = async (label: string, status: "paid" | "pending" | "refunded", amount: number) => {
     const runner = await makeUser(label);
     await svc.from("profiles").insert({ id: runner.id, full_name: `R ${amount}` });
     const reg = await svc.from("registrations").insert({
@@ -71,6 +71,9 @@ beforeAll(async () => {
   await mk("p1", "paid", 100000);
   await mk("p2", "paid", 200000);
   await mk("p3", "pending", 50000);
+  // Proves pending_count excludes refunded rows: a refund is not "awaiting
+  // payment", even though its status is not 'paid' either.
+  await mk("p4", "refunded", 75000);
 
   ctx = { orgA, orgB, eventA, admin, other };
 }, 60_000);
@@ -85,8 +88,11 @@ describe("dashboard totals views", () => {
     const res = await authed(ctx.admin.token)
       .from("admin_org_totals_v").select("*").eq("org_id", ctx.orgA).single();
     expect(res.error).toBeNull();
+    // reg_count is 4 (includes the refunded p4 registration); paid_count and
+    // pending_count together are only 3 — the refunded row is proven to be
+    // excluded from BOTH, not just re-bucketed into pending.
     expect(res.data).toMatchObject({
-      reg_count: 3, paid_count: 2, pending_count: 1,
+      reg_count: 4, paid_count: 2, pending_count: 1,
       gross_revenue: 300000, net_to_org: 270000, platform_fee: 30000,
     });
   });
@@ -94,17 +100,20 @@ describe("dashboard totals views", () => {
   it("aggregates per event", async () => {
     const res = await authed(ctx.admin.token)
       .from("admin_event_totals_v").select("*").eq("event_id", ctx.eventA).single();
-    expect(res.data).toMatchObject({ reg_count: 3, gross_revenue: 300000 });
+    expect(res.error).toBeNull();
+    expect(res.data).toMatchObject({ reg_count: 4, gross_revenue: 300000 });
   });
 
   it("leaks neither rows nor counts to another org", async () => {
     const org = await authed(ctx.other.token)
       .from("admin_org_totals_v").select("*", { count: "exact" }).eq("org_id", ctx.orgA);
+    expect(org.error).toBeNull();
     expect(org.data ?? []).toHaveLength(0);
     expect(org.count ?? 0).toBe(0);
 
     const event = await authed(ctx.other.token)
       .from("admin_event_totals_v").select("*", { count: "exact" }).eq("event_id", ctx.eventA);
+    expect(event.error).toBeNull();
     expect(event.data ?? []).toHaveLength(0);
     expect(event.count ?? 0).toBe(0);
   });

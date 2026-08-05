@@ -11,6 +11,13 @@
 --
 -- admin_event_reg_counts_v stays as-is for the Events list; this adds revenue
 -- alongside the count rather than changing that view's shape.
+--
+-- pending_count counts only genuinely-unpaid rows (no payment row at all, or a
+-- payment still 'pending') — NOT every non-paid status. A refunded or failed
+-- payment is not "awaiting payment", and the Dashboard tile that consumes this
+-- column is labelled exactly that. paid_count + pending_count may therefore be
+-- less than reg_count once refunded/failed rows exist; that's correct, not a
+-- bug to fudge away.
 
 create or replace view admin_org_totals_v
 with (security_invoker = true) as
@@ -18,7 +25,7 @@ with (security_invoker = true) as
     r.org_id,
     count(*)::int                                                             as reg_count,
     count(*) filter (where p.status = 'paid')::int                            as paid_count,
-    count(*) filter (where p.status is distinct from 'paid')::int             as pending_count,
+    count(*) filter (where p.status is null or p.status = 'pending')::int     as pending_count,
     coalesce(sum(p.amount)       filter (where p.status = 'paid'), 0)::bigint as gross_revenue,
     coalesce(sum(p.net_to_org)   filter (where p.status = 'paid'), 0)::bigint as net_to_org,
     coalesce(sum(p.platform_fee) filter (where p.status = 'paid'), 0)::bigint as platform_fee
