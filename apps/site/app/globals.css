@@ -160,7 +160,7 @@
   100% { background-position: 200%; }
 }
 
-/* MapLibre course-map markers (components/preview/CourseMap.tsx). Plain CSS
+/* MapLibre course-map markers (components/event/CourseMap.tsx). Plain CSS
  * because the elements are created imperatively by the map library, where
  * Tailwind's class scanner never sees them. */
 .rp-marker {

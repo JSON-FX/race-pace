@@ -17,7 +17,8 @@ import {
 } from "./sections";
 
 /**
- * DIRECTION A — "Expedition Dossier".
+ * The public event page — "Expedition Dossier" (chosen 2026-08-06 from two
+ * directions previewed at /design-preview, since removed).
  *
  * Premise: a race is a set of hard numbers a runner is deciding whether they
  * can survive. So the page is built like a technical document — oversized
@@ -31,14 +32,18 @@ import {
  *  - route (road/fun-run): finish time and pace are the headline. Light,
  *    high-key, the course reads as something to be raced.
  */
-export function DirectionDossier({
+export function EventPageBody({
   event,
   categories,
   addons = [],
+  closed,
 }: {
   event: EventRow;
   categories: CategoryRow[];
   addons?: AddonRow[];
+  /** Registration is cancelled/closed/completed. Derived by the caller from
+   *  isRegistrationClosed() so the page and the server agree on one rule. */
+  closed: boolean;
 }) {
   const layout = disciplineLayout(event.discipline);
   const trail = layout === "profile";
@@ -146,7 +151,7 @@ export function DirectionDossier({
           <Reveal delay={0.24}>
             <div className="mt-10">
               <RainbowButton asChild className="h-auto w-full rounded-pill px-8 py-4 text-[16px] font-semibold sm:w-auto">
-                <a href="#distances">Choose your distance</a>
+                <a href="#distances">{closed ? "See race details" : "Choose your distance"}</a>
               </RainbowButton>
             </div>
           </Reveal>
@@ -154,6 +159,18 @@ export function DirectionDossier({
       </section>
 
       {/* ── Description ─────────────────────────────────────────────── */}
+      {event.status_note ? (
+        <section className={trail ? "border-t border-white/10" : "border-t border-black/10"}>
+          <div className="mx-auto w-full max-w-6xl px-5 pt-14 sm:px-8">
+            <Reveal>
+              <p className="rounded-xl border border-amber bg-amber-tint px-5 py-4 text-[15.5px] leading-relaxed text-[#7A4A00]">
+                {event.status_note}
+              </p>
+            </Reveal>
+          </div>
+        </section>
+      ) : null}
+
       {event.description ? (
         <section className={trail ? "border-t border-white/10" : "border-t border-black/10"}>
           <div className="mx-auto w-full max-w-6xl px-5 py-16 sm:px-8 sm:py-24">
@@ -186,7 +203,7 @@ export function DirectionDossier({
 
           <ul className="mt-10">
             {categories.map((c, i) => (
-              <DistanceRow key={c.id} category={c} index={i} trail={trail} />
+              <DistanceRow key={c.id} category={c} index={i} trail={trail} closed={closed} />
             ))}
           </ul>
         </div>
@@ -208,16 +225,18 @@ export function DirectionDossier({
         <div className="mx-auto w-full max-w-6xl px-5 py-20 text-center sm:px-8 sm:py-28">
           <Reveal>
             <h2 className="font-display text-[clamp(1.9rem,5.5vw,3.6rem)] font-black uppercase leading-[0.95] tracking-[-1px]">
-              {trail ? "Still reading? Enter." : "See you at the start."}
+              {closed ? "Registration is closed" : trail ? "Still reading? Enter." : "See you at the start."}
             </h2>
           </Reveal>
-          <Reveal delay={0.08}>
-            <div className="mt-8 flex justify-center">
-              <RainbowButton asChild className="h-auto rounded-pill px-9 py-4 text-[16.5px] font-semibold">
-                <a href="#distances">Choose your distance</a>
-              </RainbowButton>
-            </div>
-          </Reveal>
+          {closed ? null : (
+            <Reveal delay={0.08}>
+              <div className="mt-8 flex justify-center">
+                <RainbowButton asChild className="h-auto rounded-pill px-9 py-4 text-[16.5px] font-semibold">
+                  <a href="#distances">Choose your distance</a>
+                </RainbowButton>
+              </div>
+            </Reveal>
+          )}
         </div>
       </section>
     </div>
@@ -239,9 +258,22 @@ function Stat({ label, value, dark }: { label: string; value: React.ReactNode; d
   );
 }
 
-function DistanceRow({ category, index, trail }: { category: CategoryRow; index: number; trail: boolean }) {
+function DistanceRow({
+  category,
+  index,
+  trail,
+  closed,
+}: {
+  category: CategoryRow;
+  index: number;
+  trail: boolean;
+  closed: boolean;
+}) {
   const remaining = Math.max(0, category.slots_total - category.slots_taken);
   const soldOut = remaining === 0;
+  // Closed beats sold-out in the message: "Sold out" on a cancelled race tells
+  // a runner to look for next year's edition of something that isn't running.
+  const enterable = !soldOut && !closed;
   const scarce = !soldOut && remaining <= 15;
   const pct = Math.min(100, Math.round((category.slots_taken / Math.max(1, category.slots_total)) * 100));
 
@@ -290,13 +322,13 @@ function DistanceRow({ category, index, trail }: { category: CategoryRow; index:
         </div>
 
         <div className="col-span-2 sm:col-span-1">
-          {soldOut ? (
+          {!enterable ? (
             <span
               className={`inline-flex w-full items-center justify-center rounded-pill px-6 py-3 text-[14.5px] font-semibold ${
                 trail ? "bg-white/10 text-white/55" : "bg-black/5 text-black/45"
               }`}
             >
-              Sold out
+              {closed ? "Registration closed" : "Sold out"}
             </span>
           ) : (
             <RainbowButton asChild className="h-auto w-full rounded-pill px-6 py-3 text-[14.5px] font-semibold">

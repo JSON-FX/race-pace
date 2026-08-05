@@ -107,11 +107,12 @@ export function CountUp({
 }) {
   const reduced = useReducedMotion();
   const ref = React.useRef<HTMLSpanElement>(null);
-  const inView = useInView(ref, { once: true, margin: "-20% 0px" });
+  const started = React.useRef(false);
   const [shown, setShown] = React.useState(reduced ? value : 0);
 
-  React.useEffect(() => {
-    if (reduced || !inView) return;
+  const run = React.useCallback(() => {
+    if (started.current) return;
+    started.current = true;
     let raf = 0;
     const start = performance.now();
     const DURATION = 900;
@@ -123,13 +124,53 @@ export function CountUp({
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [inView, reduced, value]);
+  }, [value]);
+
+  React.useEffect(() => {
+    if (reduced) {
+      setShown(value);
+      return;
+    }
+
+    const el = ref.current;
+    if (!el) return;
+
+    // Start immediately when the element is ALREADY on screen at load. A
+    // scroll-triggered observer alone never fires for above-the-fold content,
+    // which left the hero stats reading "0 m gain · 0 slots left" until the
+    // runner happened to scroll — wrong information, not merely a missing
+    // animation, and the first thing seen on a phone.
+    const rect = el.getBoundingClientRect();
+    const visible = rect.top < window.innerHeight && rect.bottom > 0;
+    if (visible) {
+      run();
+      return;
+    }
+
+    if (typeof IntersectionObserver === "undefined") {
+      // No observer: show the real number rather than a permanent zero.
+      setShown(value);
+      return;
+    }
+
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          io.disconnect();
+          run();
+        }
+      },
+      { rootMargin: "0px 0px -10% 0px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [reduced, run, value]);
 
   // tabular-nums stops the width jitter that would otherwise reflow the row
   // on every frame — the classic reason count-ups feel cheap.
   return (
     <span ref={ref} className={cn("tabular-nums", className)}>
-      {format(reduced ? value : shown)}
+      {format(shown)}
     </span>
   );
 }

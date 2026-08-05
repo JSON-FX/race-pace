@@ -2,11 +2,11 @@ import Link from "next/link";
 import Image from "next/image";
 import { formatDateRange, formatAddress } from "@race-pace/shared";
 import { createClient } from "@/lib/supabase/server";
-import { fetchMarketplaceEvents, fetchCategories } from "@/lib/events";
+import { fetchMarketplaceEvents, fetchCategories, fetchAddons } from "@/lib/events";
 import { EventCard } from "@/components/EventCard";
 import { SiteHeader } from "@/components/SiteHeader";
 import { TopoPattern } from "@/components/TopoPattern";
-import { SingleEventLanding } from "@/components/SingleEventLanding";
+import { EventPageBody } from "@/components/event/EventPageBody";
 import { ParallaxMedia } from "@/components/ParallaxMedia";
 import { longDate } from "@/lib/format";
 import { isRegistrationClosed } from "@/lib/eventStatus";
@@ -21,12 +21,17 @@ export default async function Home() {
 
   if (mode === "single") {
     const event = events.find((e) => !isRegistrationClosed(e.status))!;
-    const categories = await fetchCategories(db, event.id);
+    const [categories, addons] = await Promise.all([
+      fetchCategories(db, event.id),
+      fetchAddons(db, event.id),
+    ]);
+    // With exactly one registerable race the home page IS the race page — the
+    // same component, so the two can never drift apart.
     return (
       <>
         <SiteHeader />
         <main>
-          <SingleEventLanding event={event} categories={categories} />
+          <EventPageBody event={event} categories={categories} addons={addons} closed={false} />
         </main>
       </>
     );
