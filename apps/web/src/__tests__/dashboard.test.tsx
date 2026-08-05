@@ -3,13 +3,15 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 
 const tables: Record<string, any[]> = {};
+const errors: Record<string, { message: string }> = {};
 
 function builder(name: string) {
+  const result = () => (errors[name] ? { data: null, error: errors[name] } : { data: tables[name] ?? [], error: null });
   const chain: any = {
     select: () => chain, eq: () => chain, order: () => chain, in: () => chain,
-    limit: () => Promise.resolve({ data: tables[name] ?? [], error: null }),
-    maybeSingle: () => Promise.resolve({ data: (tables[name] ?? [])[0] ?? null, error: null }),
-    then: (res: any) => Promise.resolve({ data: tables[name] ?? [], error: null }).then(res),
+    limit: () => Promise.resolve(result()),
+    maybeSingle: () => Promise.resolve(errors[name] ? { data: null, error: errors[name] } : { data: (tables[name] ?? [])[0] ?? null, error: null }),
+    then: (res: any) => Promise.resolve(result()).then(res),
   };
   return chain;
 }
@@ -28,6 +30,7 @@ function renderDash() {
 
 beforeEach(() => {
   for (const k of Object.keys(tables)) delete tables[k];
+  for (const k of Object.keys(errors)) delete errors[k];
 });
 
 it("renders the empty state instead of four zeros when there are no events", async () => {
@@ -60,4 +63,28 @@ it("formats centavos as pesos only at the render edge", async () => {
   expect(screen.getByText("2 paid · 1 pending")).toBeInTheDocument();
   expect(screen.getByText("Ana Cruz")).toBeInTheDocument();
   expect(screen.getAllByText("Apo Sky Ultra").length).toBeGreaterThan(0);
+});
+
+it("shows an error state and does not crash when org totals fails to load", async () => {
+  tables.events = [{ id: "e1", name: "Apo Sky Ultra", event_date: "2026-09-01", status: "published" }];
+  tables.admin_event_totals_v = [{ org_id: "a1", event_id: "e1", reg_count: 3, gross_revenue: 300000 }];
+  tables.admin_registrations_v = [{ id: "r1", event_id: "e1", full_name: "Ana Cruz", category_label: "10K", payment_status: "paid", created_at: "2026-08-06T01:00:00Z" }];
+  errors.admin_org_totals_v = { message: "boom" };
+
+  renderDash();
+  expect(await screen.findByText(/couldn't load the dashboard/i)).toBeInTheDocument();
+  // The non-null assertion this replaced would have thrown reading reg_count off undefined data.
+  expect(screen.queryByText(/registrations$/i)).not.toBeInTheDocument();
+});
+
+it("shows an error state without the create-first-event CTA when the events query fails", async () => {
+  tables.admin_org_totals_v = [{ org_id: "a1", reg_count: 3, paid_count: 2, pending_count: 1, gross_revenue: 300000, net_to_org: 270000, platform_fee: 30000 }];
+  tables.admin_event_totals_v = [];
+  tables.admin_registrations_v = [];
+  errors.events = { message: "boom" };
+
+  renderDash();
+  expect(await screen.findByText(/couldn't load the dashboard/i)).toBeInTheDocument();
+  // This is the lie under test: an org with events must never be told to create its "first" one.
+  expect(screen.queryByText(/create your first event/i)).not.toBeInTheDocument();
 });

@@ -6,7 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { EventStatusBadge, PaymentStatusBadge } from "../components/StatusBadge";
 import { useMyRoles } from "../lib/roles";
-import { useEventTotals, useOrgTotals, useRecentSignups } from "../lib/dashboard";
+import { useEventTotals, useOrgEvents, useOrgTotals, useRecentSignups } from "../lib/dashboard";
 
 function Tile({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
@@ -24,10 +24,35 @@ export function Dashboard() {
   const roles = useMyRoles();
   const orgId = roles.data?.orgId ?? null;
   const totals = useOrgTotals(orgId);
-  const events = useEventTotals(orgId);
-  const recent = useRecentSignups(orgId);
+  const orgEvents = useOrgEvents(orgId);
+  const events = useEventTotals(orgId, orgEvents.data);
+  const recent = useRecentSignups(orgId, orgEvents.data);
 
-  if (totals.isLoading || events.isLoading) {
+  const retryAll = () => {
+    totals.refetch();
+    orgEvents.refetch();
+    events.refetch();
+    recent.refetch();
+  };
+
+  // Checked before the empty-state and loading branches: a failed query must never be
+  // rendered as "zero registrations" (that lies to an org that actually has data) and must
+  // never fall through to the `!totals.data` read below (that would throw mid-render).
+  if (totals.isError || orgEvents.isError || events.isError || recent.isError) {
+    return (
+      <div className="p-6">
+        <Card><CardContent role="alert" className="flex flex-col items-center gap-3 p-12 text-center">
+          <h2 className="text-lg font-bold">Couldn't load the dashboard</h2>
+          <p className="max-w-sm text-sm text-muted-foreground">
+            Something went wrong fetching your organization's data. Try again.
+          </p>
+          <Button onClick={retryAll}>Retry</Button>
+        </CardContent></Card>
+      </div>
+    );
+  }
+
+  if (totals.isLoading || orgEvents.isLoading || events.isLoading || recent.isLoading) {
     return (
       <div className="grid gap-4 p-6 sm:grid-cols-2 xl:grid-cols-4">
         {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-[104px] rounded-xl" />)}
@@ -50,7 +75,11 @@ export function Dashboard() {
     );
   }
 
-  const t = totals.data!;
+  // The error and loading branches above already returned, so this is the success case —
+  // but query data types stay optional, so this is a defensive bail-out rather than a `!`
+  // assertion the type system can't actually back up.
+  const t = totals.data;
+  if (!t) return null;
 
   return (
     <div className="flex flex-col gap-6 p-6">
