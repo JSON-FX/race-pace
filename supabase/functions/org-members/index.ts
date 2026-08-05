@@ -1,9 +1,6 @@
 import { serviceClient } from "../_shared/supabase.ts";
 import { isAssignableRole, wouldLeaveNoAdmin } from "../_shared/team.ts";
-
-function json(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
-}
+import { preflight, corsHeaders } from "../_shared/cors.ts";
 
 type Db = ReturnType<typeof serviceClient>;
 
@@ -37,6 +34,12 @@ async function setOrgRole(db: Db, orgId: string, userId: string, role: string): 
 // (no txn), so it is best-effort under concurrent team edits — consistent with this
 // project's accepted non-atomic write pattern. It closes the single-request bypass.
 Deno.serve(async (req) => {
+  const pre = preflight(req);
+  if (pre) return pre;
+  const cors = corsHeaders(req.headers.get("Origin"));
+  const json = (body: unknown, status = 200): Response =>
+    new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", ...cors } });
+
   try {
     const jwt = (req.headers.get("Authorization") ?? "").replace("Bearer ", "");
     if (!jwt) return json({ error: "unauthorized" }, 401);

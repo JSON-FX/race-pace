@@ -1,9 +1,6 @@
 import { serviceClient } from "../_shared/supabase.ts";
 import { getPaymentProviderByName } from "../_shared/payments.ts";
-
-function json(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
-}
+import { preflight, corsHeaders } from "../_shared/cors.ts";
 
 // The register flow creates an all-methods checkout at registration time (before the runner picks
 // how to pay). When they choose a method on the pay screen and tap Pay, this recreates the PayMongo
@@ -12,6 +9,12 @@ function json(body: unknown, status = 200): Response {
 const METHOD_MAP: Record<string, string> = { card: "card", gcash: "gcash", maya: "paymaya" };
 
 Deno.serve(async (req) => {
+  const pre = preflight(req);
+  if (pre) return pre;
+  const cors = corsHeaders(req.headers.get("Origin"));
+  const json = (body: unknown, status = 200): Response =>
+    new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", ...cors } });
+
   try {
     const jwt = (req.headers.get("Authorization") ?? "").replace("Bearer ", "");
     if (!jwt) return json({ error: "unauthorized" }, 401);

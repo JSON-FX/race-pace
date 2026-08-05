@@ -1,14 +1,17 @@
 import { serviceClient } from "../_shared/supabase.ts";
 import { verifyTicketToken } from "../_shared/ticket.ts";
 import { canCheckIn, type RoleRow } from "../_shared/authz.ts";
-
-function json(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
-}
+import { preflight, corsHeaders } from "../_shared/cors.ts";
 
 // Staff-only. Verifies the scanned QR ticket, authorizes the scanner for the event's org,
 // records the check-in (one per registration). The DB trigger notifies the runner.
 Deno.serve(async (req) => {
+  const pre = preflight(req);
+  if (pre) return pre;
+  const cors = corsHeaders(req.headers.get("Origin"));
+  const json = (body: unknown, status = 200): Response =>
+    new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", ...cors } });
+
   try {
     const jwt = (req.headers.get("Authorization") ?? "").replace("Bearer ", "");
     if (!jwt) return json({ error: "unauthorized" }, 401);

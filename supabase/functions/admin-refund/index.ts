@@ -1,14 +1,17 @@
 import { serviceClient } from "../_shared/supabase.ts";
 import { refundRegistration } from "../_shared/refund.ts";
-
-function json(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
-}
+import { preflight, corsHeaders } from "../_shared/cors.ts";
 
 // Admin-initiated refund. Verifies the caller is an editor/admin of the
 // registration's org (super_admin allowed) — service-role bypasses RLS, so this
 // check IS the authorization boundary — then refunds server-side.
 Deno.serve(async (req) => {
+  const pre = preflight(req);
+  if (pre) return pre;
+  const cors = corsHeaders(req.headers.get("Origin"));
+  const json = (body: unknown, status = 200): Response =>
+    new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", ...cors } });
+
   try {
     const jwt = (req.headers.get("Authorization") ?? "").replace("Bearer ", "");
     if (!jwt) return json({ error: "unauthorized" }, 401);

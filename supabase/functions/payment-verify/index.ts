@@ -1,16 +1,19 @@
 import { serviceClient } from "../_shared/supabase.ts";
 import { confirmPayment } from "../_shared/confirm.ts";
 import { paymongoConfigured, pmGetCheckoutSession } from "../_shared/paymongo.ts";
-
-function json(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
-}
+import { preflight, corsHeaders } from "../_shared/cors.ts";
 
 // Confirms a PayMongo checkout server-side by re-fetching the session from PayMongo —
 // the browser redirect is NEVER trusted. Called by the app after it returns from the
 // hosted checkout (and by the "Check again" button). Requires the runner's JWT and only
 // acts on that runner's own registration.
 Deno.serve(async (req) => {
+  const pre = preflight(req);
+  if (pre) return pre;
+  const cors = corsHeaders(req.headers.get("Origin"));
+  const json = (body: unknown, status = 200): Response =>
+    new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", ...cors } });
+
   try {
     const jwt = (req.headers.get("Authorization") ?? "").replace("Bearer ", "");
     if (!jwt) return json({ error: "unauthorized" }, 401);
