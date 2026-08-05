@@ -55,6 +55,7 @@ async function makeRunner(label: string, name: string, bib: string) {
 type Ctx = {
   orgA: string; orgB: string; eventA: string; eventA2: string; eventB: string; catA: string;
   marshal: { token: string }; otherAdmin: { token: string }; plain: { token: string }; scoped: { token: string };
+  editor: { token: string }; admin: { token: string }; superAdmin: { token: string };
   paidReg: string; pendingReg: string; checkedReg: string;
 };
 let ctx: Ctx;
@@ -79,6 +80,18 @@ beforeAll(async () => {
   await svc.from("user_roles")
     .insert({ user_id: scoped.id, role: "marshal", org_id: orgA, event_scope: eventA });
 
+  // The allowed role set is marshal | editor | admin | super_admin — exercise
+  // every one of them, not just marshal, so dropping a role from the SQL (or
+  // adding one to canCheckIn() without updating the SQL) fails a test.
+  const editor = await makeUser("editor");
+  await svc.from("user_roles").insert({ user_id: editor.id, role: "editor", org_id: orgA });
+
+  const admin = await makeUser("admin");
+  await svc.from("user_roles").insert({ user_id: admin.id, role: "admin", org_id: orgA });
+
+  const superAdmin = await makeUser("superadmin");
+  await svc.from("user_roles").insert({ user_id: superAdmin.id, role: "super_admin", org_id: null });
+
   const reg = async (label: string, name: string, bib: string, status: string, token: string) => {
     const runner = await makeRunner(label, name, bib);
     const r = await svc.from("registrations").insert({
@@ -94,7 +107,11 @@ beforeAll(async () => {
   const checkedReg = await reg("r3", "Cely Lim", "CEL", "paid", `${TAG}_tok3`);
   await svc.from("checkins").insert({ org_id: orgA, registration_id: checkedReg, event_id: eventA });
 
-  ctx = { orgA, orgB, eventA, eventA2, eventB, catA, marshal, otherAdmin, plain, scoped, paidReg, pendingReg, checkedReg };
+  ctx = {
+    orgA, orgB, eventA, eventA2, eventB, catA,
+    marshal, otherAdmin, plain, scoped, editor, admin, superAdmin,
+    paidReg, pendingReg, checkedReg,
+  };
 }, 60_000);
 
 // Users first: that cascades registrations → payments/checkins, and user_roles.
@@ -134,9 +151,26 @@ describe("checkin_roster", () => {
 
   it("returns nothing to an admin of another org, or to a user with no role", async () => {
     const other = await authed(ctx.otherAdmin.token).rpc("checkin_roster", { p_event_id: ctx.eventA });
+    expect(other.error).toBeNull();
     expect(other.data ?? []).toHaveLength(0);
     const plain = await authed(ctx.plain.token).rpc("checkin_roster", { p_event_id: ctx.eventA });
+    expect(plain.error).toBeNull();
     expect(plain.data ?? []).toHaveLength(0);
+  });
+
+  it("gives an editor and an admin of the same org a non-empty roster", async () => {
+    const editorRes = await authed(ctx.editor.token).rpc("checkin_roster", { p_event_id: ctx.eventA });
+    expect(editorRes.error).toBeNull();
+    expect((editorRes.data ?? []).length).toBeGreaterThan(0);
+
+    const adminRes = await authed(ctx.admin.token).rpc("checkin_roster", { p_event_id: ctx.eventA });
+    expect(adminRes.error).toBeNull();
+    expect((adminRes.data ?? []).length).toBeGreaterThan(0);
+  });
+
+  it("lets a super_admin read another org's roster without error", async () => {
+    const res = await authed(ctx.superAdmin.token).rpc("checkin_roster", { p_event_id: ctx.eventB });
+    expect(res.error).toBeNull();
   });
 });
 
@@ -157,13 +191,22 @@ describe("checkin_events", () => {
 
     // …and the scoped marshal still cannot read the sibling event's roster.
     const sibling = await authed(ctx.scoped.token).rpc("checkin_roster", { p_event_id: ctx.eventA2 });
+    expect(sibling.error).toBeNull();
     expect(sibling.data ?? []).toHaveLength(0);
   });
 
   it("returns nothing to a user with no role", async () => {
     const res = await authed(ctx.plain.token).rpc("checkin_events");
+    expect(res.error).toBeNull();
     const ids = (res.data ?? []).map((e: any) => e.id);
     expect(ids).not.toContain(ctx.eventA);
     expect(ids).not.toContain(ctx.eventB);
+  });
+
+  it("lets a super_admin see events across orgs", async () => {
+    const res = await authed(ctx.superAdmin.token).rpc("checkin_events");
+    expect(res.error).toBeNull();
+    const ids = (res.data ?? []).map((e: any) => e.id);
+    expect(ids).toContain(ctx.eventB);
   });
 });

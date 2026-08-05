@@ -58,13 +58,15 @@ language sql stable security definer set search_path = public as $$
     r.status::text,
     ci.checked_in_at
   from registrations r
-  join events e            on e.id = r.event_id
   left join profiles pr    on pr.id = r.user_id
   left join categories c   on c.id = r.category_id
   left join checkins ci    on ci.registration_id = r.id
   where r.event_id = p_event_id
     and r.status in ('pending', 'paid')
-    and auth_can_check_in_event(e.org_id, e.id)
+    and exists (
+      select 1 from events e
+      where e.id = p_event_id and auth_can_check_in_event(e.org_id, e.id)
+    )
   order by coalesce(pr.full_name, '');
 $$;
 
