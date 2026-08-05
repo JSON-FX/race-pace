@@ -69,7 +69,7 @@ export default function SignIn() {
           <View className="flex-1 items-center justify-center">
             <Image
               source={LOGO}
-              style={{ width: "64%", aspectRatio: 3.31, maxHeight: 84 }}
+              style={{ width: "64%", aspectRatio: 1.5487, maxHeight: 124 }}
               resizeMode="contain"
               accessibilityLabel="Race Pace"
             />
