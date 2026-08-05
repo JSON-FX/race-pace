@@ -44,5 +44,19 @@ export async function confirmPayment(
     console.error("[confirm] confirm_payment_tx failed", { registrationId: reg.id, error });
     return { ok: false, error: "confirm_write_failed", status: 500 };
   }
-  return { ok: true, registration_id: reg.id, already: result === "already" || result === "not_pending" };
+  const already = result === "already" || result === "not_pending";
+
+  // Fire the ticket email only on a genuine first confirmation, and only as
+  // best-effort — a mail failure must never fail a captured payment. This is
+  // the single choke point both payment-verify and payments-webhook reach, so
+  // exactly one email is sent no matter which path confirms.
+  if (!already) {
+    try {
+      await db.functions.invoke("send-ticket-email", { body: { registration_id: reg.id } });
+    } catch (e) {
+      console.error("[confirm] ticket email failed", { registrationId: reg.id, error: String(e) });
+    }
+  }
+
+  return { ok: true, registration_id: reg.id, already };
 }
