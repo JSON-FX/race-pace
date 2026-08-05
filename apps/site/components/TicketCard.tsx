@@ -55,9 +55,14 @@ export function TicketCard({
       <div className="flex flex-col items-center px-7 pb-8 pt-6">
         {/* White quiet zone is required — scanners fail against a dark
             surface, and this card can render in dark mode. Fixed white,
-            never `bg-card`, so the QR stays scannable regardless of theme. */}
+            never `bg-card`, so the QR stays scannable regardless of theme.
+            marginSize={4} bakes the spec-minimum 4-module quiet zone into
+            the SVG itself (qrcode.react defaults this to 0) — do not remove
+            it as a "redundant" cleanup: the p-4 wrapper padding is a belt,
+            not the buckle, and a shorter token or smaller `size` later would
+            silently drop below spec without this. */}
         <div className="rounded-xl border border-border bg-white p-4">
-          <QRCodeSVG value={token} size={180} level="Q" />
+          <QRCodeSVG value={token} size={180} level="Q" marginSize={4} />
         </div>
         <p className="mt-4 font-mono text-[15px] font-semibold tracking-[2px] text-foreground">{reference}</p>
         <p className="mt-1 text-center text-[13px] text-muted-foreground">Show this QR at check-in</p>

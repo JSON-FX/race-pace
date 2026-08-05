@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { TicketCard } from "../TicketCard";
 
 const props = {
@@ -35,7 +35,13 @@ describe("TicketCard", () => {
 
   it("falls back to the reference when there is no bib name", () => {
     render(<TicketCard {...props} bibName={null} />);
-    expect(screen.getAllByText("A1B2C3D4").length).toBeGreaterThanOrEqual(1);
+    // Scoped to the Bib cell specifically — the reference code already
+    // renders once under the QR regardless of bibName, so a document-wide
+    // getAllByText(...).length >= 1 would pass even if the fallback were
+    // broken. Assert on the Bib cell's own value.
+    const bibCell = screen.getByText("Bib").closest("div");
+    expect(bibCell).not.toBeNull();
+    expect(within(bibCell as HTMLElement).getByText("A1B2C3D4")).toBeInTheDocument();
   });
 
   it("renders without a distance", () => {
