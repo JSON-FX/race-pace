@@ -2,6 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
+import { storageKey } from "../lib/checkinQueue";
 
 const rpc = vi.fn();
 vi.mock("../lib/supabase", () => ({
@@ -11,6 +12,28 @@ vi.mock("../lib/supabase", () => ({
 vi.mock("../components/QrScanner", () => ({ QrScanner: () => <div data-testid="qr-scanner" /> }));
 
 import { CheckIn } from "../routes/CheckIn";
+
+/** Builds a token `decodeTicketEventId` can actually decode, the same way
+ *  `checkin-result.test.ts` does — a base64url JSON body plus a dummy signature. */
+const tokenFor = (eid: string) =>
+  `${btoa(JSON.stringify({ rid: "r9", eid })).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")}.sig`;
+
+/** jsdom does not populate KeyboardEvent.timeStamp usefully; set it explicitly,
+ *  matching keyboard-wedge.test.ts's helper. */
+function press(key: string, timeStamp: number) {
+  const ev = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true });
+  Object.defineProperty(ev, "timeStamp", { value: timeStamp });
+  document.dispatchEvent(ev);
+}
+
+/** Drives the route's live useKeyboardWedge listener with a machine-speed burst
+ *  (sub-30ms gaps) terminated by Enter — the same shape a hardware scanner
+ *  produces — so submit() fires without a camera. */
+function scanBurst(token: string) {
+  let t = 1000;
+  for (const key of token) { press(key, t); t += 5; }
+  press("Enter", t);
+}
 
 const EVENTS = [{ id: "e1", name: "Apo Sky Ultra", event_date: "2026-09-01", end_date: null }];
 const ROSTER = [
@@ -78,4 +101,41 @@ it("warns when offline", async () => {
   Object.defineProperty(navigator, "onLine", { configurable: true, value: false });
   renderRoute();
   expect(await screen.findByText(/offline/i)).toBeInTheDocument();
+});
+
+it("refuses a ticket scanned for a different event, without submitting it", async () => {
+  const TWO_EVENTS = [
+    { id: "e1", name: "Apo Sky Ultra", event_date: "2026-09-01", end_date: null },
+    { id: "e2", name: "Davao Sunrise Run", event_date: "2026-10-01", end_date: null },
+  ];
+  rpc.mockImplementation((fn: string) =>
+    Promise.resolve({ data: fn === "checkin_events" ? TWO_EVENTS : ROSTER, error: null }));
+  // Two events means nothing auto-selects; pre-seed the persisted choice instead
+  // of driving the shadcn Select, which is incidental to what this test checks.
+  localStorage.setItem("race-pace.checkin.v1.selected-event", "e1");
+
+  renderRoute();
+  await screen.findByText("Ana Cruz"); // roster for e1 has loaded
+
+  scanBurst(tokenFor("e2"));
+
+  await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Wrong event"));
+  expect(screen.getByRole("status")).toHaveTextContent("Davao Sunrise Run");
+
+  expect(globalThis.fetch).not.toHaveBeenCalled();
+  const stored = JSON.parse(localStorage.getItem(storageKey("e1")) ?? "{}");
+  expect(stored.queue ?? []).toHaveLength(0);
+});
+
+it("lets a ticket for the selected event fall through to the normal path", async () => {
+  renderRoute(); // single-event fixture auto-selects e1
+  await screen.findByText("Ana Cruz");
+
+  // eid matches the selected event, so the guard must not intercept it — the
+  // registration itself doesn't exist locally, so it should reach the normal
+  // "not found" result rather than being reported as a wrong-event refusal.
+  scanBurst(tokenFor("e1"));
+
+  await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Ticket not recognised"));
+  expect(screen.queryByText(/Wrong event/i)).not.toBeInTheDocument();
 });
