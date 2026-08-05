@@ -1,7 +1,7 @@
 # Runner Web — Public Registration Site
 
 **Status:** Approved, ready for implementation plan
-**Scope:** New `apps/site` (Next.js 15, App Router) + **three Edge Function changes** in `supabase/` + **a migration of the backend to a new hosted Supabase project** (§3.2). **No schema changes.** `apps/mobile` and `apps/web` change only in configuration — one env line each.
+**Scope:** New `apps/site` (Next.js 15, App Router) + **three Edge Function changes** in `supabase/` + **a migration of the backend to a new hosted Supabase project** (§3.2) + **deploying the existing admin console to Vercel** (§9.2). **No schema changes.** `apps/mobile` and `apps/web` change only in configuration.
 **Branch:** `claude/event-registration-web-fff722`
 **Driver:** an event is close. The critical path is **register → pay → ticket**; everything else is scaffolding around it.
 
@@ -19,7 +19,8 @@ Race Pace has a runner-facing native app (`apps/mobile`) and an organizer-facing
 
 - **No marketplace parity with mobile.** Org landing pages, notifications, the Race Passport redesign, and the races feed's social surface are out. `/profile` is a minimal editable passport, not the mobile redesign.
 - **No schema changes.** The flow works entirely against existing tables, and no new migration file is authored. A `source` column distinguishing web from mobile registrations was considered and rejected — the rows already reach the admin console, and it puts a schema change on the critical path for a badge. (The existing 31 migrations *are* applied to the new project per §3.2; that is a deployment step, not a schema change.)
-- **No source changes to `apps/mobile` or `apps/web`.** Per §3.2 they get one env-configuration line each and a smoke test. No component, query, or logic changes.
+- **No source changes to `apps/mobile` or `apps/web`.** Per §3.2 they get one env-configuration line each and a smoke test; per §9.2 `apps/web` also gains a `vercel.json`. No component, query, or logic changes to either app.
+- **No admin console redesign or new admin features.** It is deployed as-is (§9.2).
 - **No shared `packages/ui`.** `apps/web` is Vite, `apps/mobile` is NativeWind, `apps/site` is Next — three build pipelines for maybe six components, and it would put a refactor of the working admin console in front of a near event. Only `packages/shared` (framework-agnostic types, validators, formatters) is shared.
 - **No changes to the money path's logic.** `registrations-checkout`, `payment-session`, `payment-verify`, `payments-webhook`, and `_shared/confirm.ts` keep their existing behaviour. They gain CORS headers and one best-effort email call.
 - **No PDF library.** See §6.4.
@@ -157,13 +158,23 @@ Implementation proceeds under (2) if (1) has not happened, and is not blocked by
 
 ### 5.1 CORS — `_shared/cors.ts` (blocking)
 
-A shared helper: origin allowlist read from a `SITE_ORIGINS` secret (comma-separated), an `OPTIONS` preflight responder, and a header-merging wrapper for JSON responses.
+A shared helper: origin allowlist read from a `SITE_ORIGINS` secret (comma-separated, supporting `*.vercel.app` wildcards for preview deploys), an `OPTIONS` preflight responder, and a header-merging wrapper for JSON responses.
 
-Applied to the three functions the browser calls directly:
+Applied to **every function a browser calls directly** — six, not three. The original three are the new site's:
 
 - `registrations-checkout`
 - `payment-session`
 - `payment-verify`
+
+The other three are the **admin console's**, discovered while scoping §9.2:
+
+- `org-members` — `apps/web/src/lib/team.ts:32`
+- `admin-refund` — `apps/web/src/lib/registrations.ts:106`
+- `check-in` — staged in `apps/web/src/lib/checkin.ts`
+
+These already run cross-origin from the admin console and have no CORS handling, and there is none at the gateway either (`supabase/config.toml` contains no CORS configuration). Moving the console to a Vercel origin (§9.2) makes correct preflight handling mandatory for them. Covering all six now costs three extra edits of the same shape.
+
+`payments-webhook` is deliberately **excluded** — PayMongo calls it server-to-server, where CORS does not apply.
 
 Rejected alternative: proxying Edge Function calls through Next.js Route Handlers to sidestep CORS. It adds a network hop and buries PayMongo's error bodies behind a second layer, degrading the error mapping in §7.
 
@@ -305,19 +316,60 @@ Edge Function errors are parsed out of `FunctionsHttpError`'s response body, mat
 
 ## 9. Deployment
 
-Vercel project rooted at `apps/site`, building through the pnpm workspace.
+**Two Vercel projects from this one monorepo**, both on `*.vercel.app` subdomains for now. Custom domains can be attached later without redeploying — only `SITE_ORIGINS` and the Supabase redirect allowlist need updating when that happens.
 
-| Variable | Where |
+| Project | Root directory | Framework | URL |
+|---|---|---|---|
+| `race-pace` | `apps/site` | Next.js | `https://race-pace.vercel.app` |
+| `race-pace-admin` | `apps/web` | Vite | `https://race-pace-admin.vercel.app` |
+
+### 9.1 Public site — `apps/site`
+
+Vercel's Next.js preset, root directory `apps/site`, building through the pnpm workspace so `@race-pace/shared` resolves.
+
+| Variable | Value |
 |---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | Vercel |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Vercel |
-| `NEXT_PUBLIC_SITE_URL` | Vercel |
-| `RESEND_API_KEY` | Supabase function secret |
-| `SITE_ORIGINS` | Supabase function secret |
+| `NEXT_PUBLIC_SUPABASE_URL` | `https://whaqarofxdlzxrelbcrq.supabase.co` |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | The new project's anon key |
+| `NEXT_PUBLIC_SITE_URL` | `https://race-pace.vercel.app` |
+
+`NEXT_PUBLIC_SITE_URL` is what the pay flow uses to build its `return_url`. If it is wrong, PayMongo redirects the runner to a dead origin after paying — the payment still confirms via webhook, but the runner sees a broken page at the worst possible moment.
+
+### 9.2 Admin console — `apps/web`
+
+**New in this design.** The console currently runs LAN-only at `https://admin.racepace.lan` via Docker + Traefik. It moves to Vercel so organizers can work from anywhere, including race day on mobile data.
+
+Vercel's Vite preset, root directory `apps/web`, output `dist`.
+
+A `vercel.json` is added to `apps/web` because the console uses `react-router-dom` client-side routing — without an SPA rewrite, a hard refresh on any route below `/` returns 404:
+
+```json
+{ "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }] }
+```
+
+| Variable | Value |
+|---|---|
+| `VITE_SUPABASE_URL` | `https://whaqarofxdlzxrelbcrq.supabase.co` |
+| `VITE_SUPABASE_ANON_KEY` | The new project's anon key |
+
+**Vite embeds env vars at build time**, not runtime. Changing either value requires a redeploy, not just an env-var edit — unlike the Next.js app, where server-side reads pick up changes on the next request.
+
+**Security posture — decided, not incidental.** The console becomes reachable from the public internet. This is acceptable because access is gated by Supabase Auth and every query is constrained by org-scoped RLS (`auth_can_admin_org`), so the browser bundle carries no privileged secret; the anon key is designed to be public. Vercel password protection was considered and rejected — it is a paid feature and introduces a shared password for organizers to distribute and rotate. The existing Docker + Traefik setup stays available for local development.
+
+The one consequence that must not be missed: this is what makes CORS on `org-members`, `admin-refund`, and `check-in` mandatory (§5.1).
+
+### 9.3 Shared configuration
+
+| Secret | Where | Value |
+|---|---|---|
+| `RESEND_API_KEY` | Supabase function secret | From Resend |
+| `SITE_ORIGINS` | Supabase function secret | `https://race-pace.vercel.app,https://race-pace-admin.vercel.app,*.vercel.app,http://localhost:3000,http://localhost:5173,https://admin.racepace.lan` |
+
+The `*.vercel.app` wildcard covers preview deployments, which get a fresh subdomain per branch and can never be enumerated in advance. The two `localhost` entries and `admin.racepace.lan` keep local development working against the hosted backend.
 
 Also required:
 
-- Supabase Dashboard → Authentication → URL Configuration: the Vercel production and preview URLs added to the redirect allowlist.
+- Supabase Dashboard → Authentication → URL Configuration: both Vercel production URLs plus `https://*-race-pace.vercel.app` preview patterns added to the redirect allowlist.
 - Google Cloud OAuth client configured per §3.1.
 - Resend sending domain verified.
 
@@ -349,4 +401,4 @@ The order the implementation plan should follow, chosen so the risky and blockin
 7. **Ticket page** (§6.4).
 8. **Email + QR endpoint** (§5.2, §5.3) — last, because it is the only piece with an external account dependency, and the ticket works without it.
 9. **My Races and profile.**
-10. **Deploy and smoke** (§8, §9).
+10. **Deploy both Vercel projects and smoke** (§8, §9). The admin console deploys alongside the public site — it depends only on Task 0's repoint and the widened CORS in step 1, so it can ship as soon as those land.

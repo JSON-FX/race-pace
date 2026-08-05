@@ -288,10 +288,14 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 
 Nothing in the browser can call Supabase Edge Functions until this lands — every request fails preflight. It ships first so every later task is testable.
 
+**Six functions, not three.** Three are the new site's; three are the **admin console's**, which already call Edge Functions cross-origin (`apps/web/src/lib/team.ts:32`, `apps/web/src/lib/registrations.ts:106`, `apps/web/src/lib/checkin.ts`) with no CORS handling anywhere and none at the gateway. Moving the console to Vercel (spec §9.2) makes this mandatory for them too.
+
+`payments-webhook` is deliberately excluded — PayMongo calls it server-to-server, where CORS does not apply.
+
 **Files:**
 - Create: `supabase/functions/_shared/cors.ts`
 - Test: `supabase/functions/_shared/cors.test.ts`
-- Modify: `supabase/functions/registrations-checkout/index.ts`, `supabase/functions/payment-session/index.ts`, `supabase/functions/payment-verify/index.ts`
+- Modify: `supabase/functions/registrations-checkout/index.ts`, `supabase/functions/payment-session/index.ts`, `supabase/functions/payment-verify/index.ts`, `supabase/functions/org-members/index.ts`, `supabase/functions/admin-refund/index.ts`, `supabase/functions/check-in/index.ts`
 
 **Interfaces:**
 - Consumes: nothing.
@@ -480,27 +484,30 @@ Deno.serve(async (req) => {
 
 Every existing `json(...)` call inside the handler — including the one in the closing `catch` — resolves to this new closure unchanged. No other edits to this file.
 
-- [ ] **Step 6: Apply the identical change to the other two functions**
+- [ ] **Step 6: Apply the identical change to the other five functions**
 
-Repeat Step 5 verbatim for:
+Repeat Step 5 verbatim for each of:
 - `supabase/functions/payment-session/index.ts`
 - `supabase/functions/payment-verify/index.ts`
+- `supabase/functions/org-members/index.ts`
+- `supabase/functions/admin-refund/index.ts`
+- `supabase/functions/check-in/index.ts`
 
-Both have the same module-level `json` helper and the same `Deno.serve(async (req) => { try {` opening.
+All five have been verified to carry the same module-level `json` helper and the same `Deno.serve(async (req) => {` / `  try {` opening, so the edit is mechanical and identical in each.
 
 - [ ] **Step 7: Verify no function still has a module-level `json`**
 
 ```bash
-grep -n "^function json" supabase/functions/registrations-checkout/index.ts supabase/functions/payment-session/index.ts supabase/functions/payment-verify/index.ts
+grep -n "^function json" supabase/functions/{registrations-checkout,payment-session,payment-verify,org-members,admin-refund,check-in}/index.ts
 ```
 
-Expected: no output (exit 1). Then confirm all three import the helper:
+Expected: no output (exit 1). Then confirm all six import the helper:
 
 ```bash
-grep -c "_shared/cors.ts" supabase/functions/registrations-checkout/index.ts supabase/functions/payment-session/index.ts supabase/functions/payment-verify/index.ts
+grep -c "_shared/cors.ts" supabase/functions/{registrations-checkout,payment-session,payment-verify,org-members,admin-refund,check-in}/index.ts
 ```
 
-Expected: `1` for each.
+Expected: `1` for each of the six.
 
 - [ ] **Step 8: Run the full existing test suite**
 
@@ -513,7 +520,7 @@ Expected: PASS — no regressions in `_shared` or `packages/shared`.
 - [ ] **Step 9: Commit**
 
 ```bash
-git add supabase/functions/_shared/cors.ts supabase/functions/_shared/cors.test.ts supabase/functions/registrations-checkout/index.ts supabase/functions/payment-session/index.ts supabase/functions/payment-verify/index.ts
+git add supabase/functions/_shared/cors.ts supabase/functions/_shared/cors.test.ts supabase/functions/{registrations-checkout,payment-session,payment-verify,org-members,admin-refund,check-in}/index.ts
 git commit -m "feat(functions): add CORS to browser-facing edge functions
 
 The mobile app never needed CORS; a browser on a Vercel origin fails
@@ -521,8 +528,21 @@ preflight on every call. Allowlist comes from a SITE_ORIGINS secret and
 supports *.vercel.app wildcards, since preview deploys get a fresh
 subdomain per branch.
 
+Covers the admin console's three functions too (org-members,
+admin-refund, check-in) — they already run cross-origin and become
+Vercel-hosted, so correct preflight handling is mandatory for them.
+payments-webhook is excluded: PayMongo calls it server-to-server.
+
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 ```
+
+- [ ] **Step 10: Redeploy the affected functions**
+
+```bash
+pnpm exec supabase functions deploy registrations-checkout payment-session payment-verify org-members admin-refund check-in
+```
+
+Expected: six successful deploys. CORS has no effect until the functions are redeployed — a later task failing its browser call almost always traces back to a skipped deploy here.
 
 ---
 
