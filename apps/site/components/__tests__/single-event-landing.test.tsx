@@ -22,13 +22,13 @@ const categories: CategoryRow[] = [
 describe("SingleEventLanding", () => {
   it("renders every distance with its formatted price and a link to /register/<id>", () => {
     render(<SingleEventLanding event={event} categories={categories} />);
-    const link = screen.getByRole("link", { name: /Enter — ₱2,500.00/ });
+    const link = screen.getByRole("link", { name: /Join .*₱2,500\.00/ });
     expect(link).toHaveAttribute("href", "/register/c-100");
   });
 
   it("does not present a sold-out category as enterable", () => {
     render(<SingleEventLanding event={event} categories={categories} />);
-    expect(screen.queryByRole("link", { name: /Enter — ₱1,500.00/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Join .*₱1,500\.00/ })).not.toBeInTheDocument();
     expect(screen.getAllByText("Sold out").length).toBeGreaterThan(0);
   });
 

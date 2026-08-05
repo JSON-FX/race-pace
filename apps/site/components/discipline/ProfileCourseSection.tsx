@@ -134,7 +134,7 @@ function CheckpointRow({ category, closed }: { category: CategoryRow; closed: bo
   facts.push(soldOut ? "Sold out" : `${remaining} ${remaining === 1 ? "slot" : "slots"} left`);
 
   return (
-    <div className="grid grid-cols-[auto_1fr] items-center gap-x-4 gap-y-3 border-t border-white/10 py-6 last:border-b sm:grid-cols-[56px_1fr_130px_140px] sm:gap-x-6">
+    <div className="grid grid-cols-[auto_1fr] items-center gap-x-4 gap-y-3 border-t border-white/10 py-6 last:border-b sm:grid-cols-[56px_1fr_130px_104px] sm:gap-x-6">
       <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-[#7FE0A6]/40 bg-primary/10">
         <span className="font-mono-race text-[13px] font-bold text-[#7FE0A6]">
           {category.distance_km ?? "—"}
@@ -160,9 +160,10 @@ function CheckpointRow({ category, closed }: { category: CategoryRow; closed: bo
         {enterable ? (
           <Link
             href={`/register/${category.id}`}
-            className="inline-flex w-full items-center justify-center rounded-pill bg-primary px-6 py-3 text-[14.5px] font-semibold text-primary-foreground transition-colors hover:bg-primary-focus sm:w-auto"
+            aria-label={`Join ${category.label} — ${formatPeso(category.base_price)}`}
+            className="inline-flex w-full items-center justify-center rounded-pill bg-primary px-6 py-2.5 text-[14.5px] font-semibold text-primary-foreground transition-colors hover:bg-primary-focus sm:w-auto"
           >
-            Enter — {formatPeso(category.base_price)}
+            Join
           </Link>
         ) : (
           <span className="inline-flex w-full items-center justify-center rounded-pill bg-white/10 px-6 py-3 text-[14.5px] font-semibold text-white/60 sm:w-auto">
