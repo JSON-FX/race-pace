@@ -3486,9 +3486,21 @@ export function RegisterWizard({ userId, category, event, addons, formFields }: 
   const setKit = (k: string, v: string) => setDraft((d) => ({ ...d, kit: { ...d.kit, [k]: v } }));
   const setValue = (k: string, v: unknown) => setDraft((d) => ({ ...d, values: { ...d.values, [k]: v } }));
 
+  // A required profile key must be validated by the step that RENDERS it.
+  // Validating a step-1 field during step 2 leaves its error with nowhere to
+  // appear: Continue silently does nothing and the runner is dead-ended with
+  // no feedback. Step 1 renders bib_name/date_of_birth/emergency_contact/gender;
+  // step 2 renders shirt_size/blood_type.
+  const STEP1_PROFILE_KEYS = ["bib_name", "date_of_birth", "emergency_contact", "gender"];
+  const STEP2_PROFILE_KEYS = ["shirt_size", "blood_type"];
+
+  const requiredProfileKeys = formFields.filter((f) => isProfileKey(f.key) && f.required).map((f) => f.key);
   // bib_name, date_of_birth and emergency_contact are always required on the
   // web — mobile can rely on the passport, a first-time web signup cannot.
-  const REQUIRED_DETAILS = ["bib_name", "date_of_birth", "emergency_contact"];
+  const REQUIRED_DETAILS = Array.from(new Set([
+    "bib_name", "date_of_birth", "emergency_contact",
+    ...requiredProfileKeys.filter((k) => STEP1_PROFILE_KEYS.includes(k)),
+  ]));
 
   function next() {
     setFormError(null);
@@ -3509,11 +3521,13 @@ export function RegisterWizard({ userId, category, event, addons, formFields }: 
       }
       // A required profile-key field must be present; the server enforces this
       // too, so skipping it here just produces a worse error later.
+      // Only the keys THIS step renders — step-1 keys were already validated
+      // above, and re-checking them here would surface an error on a field the
+      // runner cannot see.
       // `||` not `??`: a key present-but-empty in `details` must still fall
       // through to `kit`, and `??` only falls through on null/undefined.
-      const missing = formFields
-        .filter((f) => isProfileKey(f.key) && f.required)
-        .map((f) => f.key)
+      const missing = requiredProfileKeys
+        .filter((k) => STEP2_PROFILE_KEYS.includes(k))
         .filter((k) => !(draft.details[k] || draft.kit[k] || "").trim());
       if (missing.length) {
         setErrors(Object.fromEntries(missing.map((k) => [k, "This is required."])));
