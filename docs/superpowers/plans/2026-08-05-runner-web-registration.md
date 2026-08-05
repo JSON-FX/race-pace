@@ -979,3 +979,1376 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 ```
 
 ---
+
+### Task 3: Supabase clients, session middleware, route protection
+
+**Files:**
+- Create: `apps/site/lib/supabase/client.ts`, `apps/site/lib/supabase/server.ts`, `apps/site/lib/supabase/middleware.ts`, `apps/site/lib/routes.ts`, `apps/site/middleware.ts`
+- Test: `apps/site/lib/__tests__/routes.test.ts`
+
+**Interfaces:**
+- Consumes: `cn` (Task 2).
+- Produces:
+  - `createClient(): SupabaseClient` from `@/lib/supabase/client` — **browser**, synchronous.
+  - `createClient(): Promise<SupabaseClient>` from `@/lib/supabase/server` — **server**, async. Same export name in a different module, matching Supabase's own convention; the import path is what distinguishes them.
+  - `updateSession(request: NextRequest): Promise<NextResponse>` from `@/lib/supabase/middleware`.
+  - `PROTECTED_PREFIXES: string[]`, `isProtectedPath(pathname: string): boolean`, `signInRedirectPath(pathname: string, search: string): string` from `@/lib/routes`.
+
+The routing decision is extracted into `lib/routes.ts` as pure functions so it is unit-testable without a Next runtime — middleware itself cannot be meaningfully tested under jsdom.
+
+- [ ] **Step 1: Write the failing test**
+
+Create `apps/site/lib/__tests__/routes.test.ts`:
+
+```ts
+import { describe, it, expect } from "vitest";
+import { isProtectedPath, signInRedirectPath } from "../routes";
+
+describe("isProtectedPath", () => {
+  it("protects the authenticated flow", () => {
+    expect(isProtectedPath("/register/abc")).toBe(true);
+    expect(isProtectedPath("/pay/abc")).toBe(true);
+    expect(isProtectedPath("/ticket/abc")).toBe(true);
+    expect(isProtectedPath("/races")).toBe(true);
+    expect(isProtectedPath("/profile")).toBe(true);
+  });
+
+  it("leaves the public catalog open", () => {
+    expect(isProtectedPath("/")).toBe(false);
+    expect(isProtectedPath("/events")).toBe(false);
+    expect(isProtectedPath("/events/abc")).toBe(false);
+    expect(isProtectedPath("/sign-in")).toBe(false);
+    expect(isProtectedPath("/sign-up")).toBe(false);
+  });
+
+  // /pay/callback is protected like the rest of /pay — it verifies a payment
+  // for the signed-in runner and must not be reachable anonymously.
+  it("protects the pay callback", () => {
+    expect(isProtectedPath("/pay/callback")).toBe(true);
+  });
+
+  // A public route must not be protected just because a protected name
+  // appears later in the path.
+  it("matches on prefix only, not substring", () => {
+    expect(isProtectedPath("/events/register-info")).toBe(false);
+    expect(isProtectedPath("/about/profile")).toBe(false);
+  });
+
+  // "/racesomething" must not match the "/races" prefix.
+  it("requires a segment boundary", () => {
+    expect(isProtectedPath("/racesomething")).toBe(false);
+    expect(isProtectedPath("/profiles")).toBe(false);
+  });
+});
+
+describe("signInRedirectPath", () => {
+  it("round-trips the target path so the runner resumes where they landed", () => {
+    expect(signInRedirectPath("/register/abc", "")).toBe("/sign-in?next=%2Fregister%2Fabc");
+  });
+
+  it("preserves the query string in the encoded target", () => {
+    expect(signInRedirectPath("/pay/callback", "?rid=r1&status=paid")).toBe(
+      "/sign-in?next=%2Fpay%2Fcallback%3Frid%3Dr1%26status%3Dpaid",
+    );
+  });
+});
+```
+
+- [ ] **Step 2: Run the test to verify it fails**
+
+```bash
+pnpm --filter site test routes
+```
+
+Expected: FAIL — cannot resolve `../routes`.
+
+- [ ] **Step 3: Write `lib/routes.ts`**
+
+```ts
+/** Route prefixes that require a signed-in runner. Kept pure and separate from
+ *  middleware.ts so the decision is unit-testable without a Next runtime. */
+export const PROTECTED_PREFIXES = ["/register", "/pay", "/ticket", "/races", "/profile"];
+
+export function isProtectedPath(pathname: string): boolean {
+  return PROTECTED_PREFIXES.some(
+    // Segment boundary required: "/races" and "/races/..." match, "/racesomething" does not.
+    (p) => pathname === p || pathname.startsWith(p + "/"),
+  );
+}
+
+/** Bounce to sign-in carrying the full target (path + query) so the runner
+ *  resumes exactly where they landed — not the homepage. */
+export function signInRedirectPath(pathname: string, search: string): string {
+  return `/sign-in?next=${encodeURIComponent(pathname + search)}`;
+}
+```
+
+- [ ] **Step 4: Run the test to verify it passes**
+
+```bash
+pnpm --filter site test routes
+```
+
+Expected: PASS — 7 tests.
+
+- [ ] **Step 5: Write the browser client**
+
+Create `apps/site/lib/supabase/client.ts`:
+
+```ts
+import { createBrowserClient } from "@supabase/ssr";
+
+/** Browser-side Supabase client. Reads the session from cookies written by
+ *  middleware, so it stays in sync with server components. */
+export function createClient() {
+  return createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  );
+}
+```
+
+- [ ] **Step 6: Write the server client**
+
+Create `apps/site/lib/supabase/server.ts`:
+
+```ts
+import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
+
+/** Server-side Supabase client for Server Components and Route Handlers.
+ *  `cookies()` is async in Next 15 — this function must be awaited. */
+export async function createClient() {
+  const cookieStore = await cookies();
+
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options));
+          } catch {
+            // Server Components cannot set cookies. Middleware refreshes the
+            // session on every request, so this is safe to swallow.
+          }
+        },
+      },
+    },
+  );
+}
+```
+
+- [ ] **Step 7: Write the middleware session helper**
+
+Create `apps/site/lib/supabase/middleware.ts`:
+
+```ts
+import { createServerClient } from "@supabase/ssr";
+import { NextResponse, type NextRequest } from "next/server";
+import { isProtectedPath, signInRedirectPath } from "@/lib/routes";
+
+export async function updateSession(request: NextRequest) {
+  let supabaseResponse = NextResponse.next({ request });
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+          supabaseResponse = NextResponse.next({ request });
+          cookiesToSet.forEach(({ name, value, options }) =>
+            supabaseResponse.cookies.set(name, value, options),
+          );
+        },
+      },
+    },
+  );
+
+  // getUser() revalidates the token against the auth server. getSession() only
+  // decodes the cookie and must never gate authorization.
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user && isProtectedPath(request.nextUrl.pathname)) {
+    const url = request.nextUrl.clone();
+    const target = signInRedirectPath(request.nextUrl.pathname, request.nextUrl.search);
+    url.pathname = "/sign-in";
+    url.search = target.slice(target.indexOf("?"));
+    return NextResponse.redirect(url);
+  }
+
+  // Return `supabaseResponse` as-is. Constructing a fresh NextResponse here
+  // without copying its cookies silently desyncs the session and logs the
+  // runner out at random.
+  return supabaseResponse;
+}
+```
+
+- [ ] **Step 8: Write the root middleware**
+
+Create `apps/site/middleware.ts`:
+
+```ts
+import type { NextRequest } from "next/server";
+import { updateSession } from "@/lib/supabase/middleware";
+
+export async function middleware(request: NextRequest) {
+  return await updateSession(request);
+}
+
+export const config = {
+  matcher: [
+    // Everything except static assets and image files — those never need a
+    // session refresh and running middleware on them wastes an auth call.
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|mp4)$).*)",
+  ],
+};
+```
+
+- [ ] **Step 9: Verify it typechecks and builds**
+
+```bash
+pnpm --filter site typecheck && pnpm --filter site build
+```
+
+Expected: both succeed.
+
+- [ ] **Step 10: Commit**
+
+```bash
+git add apps/site/lib apps/site/middleware.ts
+git commit -m "feat(site): supabase ssr clients, session middleware, route guard
+
+Cookie-based session shared between server and client via @supabase/ssr.
+Authorization always uses getUser(), never getSession(). The protected-path
+decision lives in lib/routes.ts as pure functions so it is testable without
+a Next runtime.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 4: Authentication
+
+**Files:**
+- Create: `apps/site/lib/auth.ts`, `apps/site/app/sign-in/page.tsx`, `apps/site/app/sign-up/page.tsx`, `apps/site/app/auth/callback/route.ts`, `apps/site/components/GoogleButton.tsx`
+- Test: `apps/site/app/sign-in/__tests__/sign-in.test.tsx`
+
+**Interfaces:**
+- Consumes: `createClient` from `@/lib/supabase/client` and `@/lib/supabase/server` (Task 3).
+- Produces: `signInWithPassword(email: string, password: string): Promise<{ error?: string }>`, `signUpWithPassword(email: string, password: string): Promise<{ error?: string }>`, `signInWithGoogle(next: string): Promise<{ error?: string }>`, `signOut(): Promise<void>` from `@/lib/auth`.
+
+- [ ] **Step 1: Add the shadcn primitives this task needs**
+
+```bash
+cd apps/site && pnpm dlx shadcn@latest add button input label
+```
+
+Then **immediately** apply the token fix from Global Constraints:
+
+```bash
+grep -rn "var(--" apps/site/components/ui/
+```
+
+Rewrite every hit that is not already `var(--color-*)`. For example `bg-[var(--primary)]` becomes `bg-[var(--color-primary)]`; a bare `border-input` utility is fine because `@theme inline` defines `--color-input`. Skipping this produces components that render with invisible or default colors and no CSS error.
+
+- [ ] **Step 2: Write `lib/auth.ts`**
+
+```ts
+import { createClient } from "@/lib/supabase/client";
+
+export async function signInWithPassword(email: string, password: string): Promise<{ error?: string }> {
+  const supabase = createClient();
+  const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+  return error ? { error: error.message } : {};
+}
+
+export async function signUpWithPassword(email: string, password: string): Promise<{ error?: string }> {
+  const supabase = createClient();
+  const { error } = await supabase.auth.signUp({ email: email.trim(), password });
+  return error ? { error: error.message } : {};
+}
+
+/** OAuth round-trips through Supabase, which redirects back to our callback
+ *  Route Handler with a code to exchange. `next` rides along so the runner
+ *  lands back on the page they started from. */
+export async function signInWithGoogle(next: string): Promise<{ error?: string }> {
+  const supabase = createClient();
+  const callback = `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`;
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: { redirectTo: callback },
+  });
+  return error ? { error: error.message } : {};
+}
+
+export async function signOut(): Promise<void> {
+  const supabase = createClient();
+  await supabase.auth.signOut();
+}
+```
+
+- [ ] **Step 3: Write the OAuth callback Route Handler**
+
+Create `apps/site/app/auth/callback/route.ts`:
+
+```ts
+import { NextResponse, type NextRequest } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+
+export async function GET(request: NextRequest) {
+  const { searchParams, origin } = request.nextUrl;
+  const code = searchParams.get("code");
+  const next = searchParams.get("next") ?? "/";
+
+  // Only same-site relative targets — an absolute `next` would turn this into
+  // an open redirect that phishing can point anywhere.
+  const safeNext = next.startsWith("/") && !next.startsWith("//") ? next : "/";
+
+  if (code) {
+    const supabase = await createClient();
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    if (!error) return NextResponse.redirect(`${origin}${safeNext}`);
+  }
+
+  return NextResponse.redirect(`${origin}/sign-in?error=oauth`);
+}
+```
+
+- [ ] **Step 4: Write the Google button**
+
+Create `apps/site/components/GoogleButton.tsx`:
+
+```tsx
+"use client";
+
+import { Button } from "@/components/ui/button";
+import { signInWithGoogle } from "@/lib/auth";
+
+/** Google's brand button: white surface, four-color mark, dark label —
+ *  mirroring apps/mobile's sign-in screen. */
+export function GoogleButton({ next }: { next: string }) {
+  return (
+    <Button
+      type="button"
+      onClick={() => signInWithGoogle(next)}
+      className="h-auto w-full gap-2.5 rounded-pill bg-white py-4 text-[16px] font-semibold text-[#1F1F1F] shadow-sm hover:bg-white/90"
+    >
+      <svg width="19" height="19" viewBox="0 0 48 48" aria-hidden="true">
+        <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+        <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+        <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+        <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
+      </svg>
+      Continue with Google
+    </Button>
+  );
+}
+```
+
+- [ ] **Step 5: Write the failing test**
+
+Create `apps/site/app/sign-in/__tests__/sign-in.test.tsx`:
+
+```tsx
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import SignIn from "../page";
+
+const signInWithPassword = vi.fn();
+vi.mock("@/lib/auth", () => ({
+  signInWithPassword: (...args: unknown[]) => signInWithPassword(...args),
+  signInWithGoogle: vi.fn(),
+}));
+
+beforeEach(() => {
+  signInWithPassword.mockReset();
+  signInWithPassword.mockResolvedValue({});
+});
+
+describe("SignIn", () => {
+  it("submits the trimmed email and password", async () => {
+    render(<SignIn />);
+    await userEvent.type(screen.getByLabelText("Email"), "runner@example.com");
+    await userEvent.type(screen.getByLabelText("Password"), "hunter2hunter2");
+    await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+    expect(signInWithPassword).toHaveBeenCalledWith("runner@example.com", "hunter2hunter2");
+  });
+
+  it("shows the server's error message and does not navigate", async () => {
+    signInWithPassword.mockResolvedValue({ error: "Invalid login credentials" });
+    render(<SignIn />);
+    await userEvent.type(screen.getByLabelText("Email"), "runner@example.com");
+    await userEvent.type(screen.getByLabelText("Password"), "wrong");
+    await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+    expect(await screen.findByText("Invalid login credentials")).toBeInTheDocument();
+  });
+
+  it("offers Google as an alternative", () => {
+    render(<SignIn />);
+    expect(screen.getByRole("button", { name: /Continue with Google/ })).toBeInTheDocument();
+  });
+});
+```
+
+- [ ] **Step 6: Run the test to verify it fails**
+
+```bash
+pnpm --filter site test sign-in
+```
+
+Expected: FAIL — cannot resolve `../page`.
+
+- [ ] **Step 7: Write the sign-in page**
+
+Create `apps/site/app/sign-in/page.tsx`:
+
+```tsx
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { GoogleButton } from "@/components/GoogleButton";
+import { signInWithPassword } from "@/lib/auth";
+
+export default function SignIn() {
+  const router = useRouter();
+  const params = useSearchParams();
+  const next = params.get("next") ?? "/";
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    const { error } = await signInWithPassword(email, password);
+    setBusy(false);
+    if (error) setError(error);
+    else router.replace(next);
+  }
+
+  return (
+    <main className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-6 py-12">
+      <h1 className="text-[34px] font-semibold tracking-[-0.6px] text-foreground">Sign in</h1>
+      <p className="mt-2 text-[15px] text-muted-foreground">Enter races and carry your ticket to the start line.</p>
+
+      <form onSubmit={onSubmit} className="mt-8 flex flex-col gap-4">
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="email">Email</Label>
+          <Input id="email" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+        </div>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="password">Password</Label>
+          <Input id="password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+        </div>
+        {error ? <p className="text-[14px] text-destructive">{error}</p> : null}
+        <Button type="submit" disabled={busy} className="h-auto rounded-pill py-4 text-[16px] font-semibold">
+          {busy ? "Signing in…" : "Sign in"}
+        </Button>
+      </form>
+
+      <div className="my-5 flex items-center gap-3">
+        <span className="h-px flex-1 bg-divider" />
+        <span className="text-[13px] text-muted-foreground">or</span>
+        <span className="h-px flex-1 bg-divider" />
+      </div>
+
+      <GoogleButton next={next} />
+
+      <p className="mt-8 text-center text-[14px] text-muted-foreground">
+        New here?{" "}
+        <Link href={`/sign-up?next=${encodeURIComponent(next)}`} className="font-semibold text-primary">
+          Create an account
+        </Link>
+      </p>
+    </main>
+  );
+}
+```
+
+- [ ] **Step 8: Run the test to verify it passes**
+
+```bash
+pnpm --filter site test sign-in
+```
+
+Expected: PASS — 3 tests.
+
+- [ ] **Step 9: Write the sign-up page**
+
+Create `apps/site/app/sign-up/page.tsx`. Same structure as sign-in, with three differences: `signUpWithPassword`, a minimum-length hint on the password field, and a link back to sign-in.
+
+```tsx
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { GoogleButton } from "@/components/GoogleButton";
+import { signUpWithPassword } from "@/lib/auth";
+
+export default function SignUp() {
+  const router = useRouter();
+  const params = useSearchParams();
+  const next = params.get("next") ?? "/";
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    const { error } = await signUpWithPassword(email, password);
+    setBusy(false);
+    if (error) setError(error);
+    else router.replace(next);
+  }
+
+  return (
+    <main className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-6 py-12">
+      <h1 className="text-[34px] font-semibold tracking-[-0.6px] text-foreground">Create account</h1>
+      <p className="mt-2 text-[15px] text-muted-foreground">One account for every race on Race Pace.</p>
+
+      <form onSubmit={onSubmit} className="mt-8 flex flex-col gap-4">
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="email">Email</Label>
+          <Input id="email" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+        </div>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="password">Password</Label>
+          <Input id="password" type="password" autoComplete="new-password" minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} required />
+          <p className="text-[13px] text-muted-foreground">At least 6 characters.</p>
+        </div>
+        {error ? <p className="text-[14px] text-destructive">{error}</p> : null}
+        <Button type="submit" disabled={busy} className="h-auto rounded-pill py-4 text-[16px] font-semibold">
+          {busy ? "Creating…" : "Create account"}
+        </Button>
+      </form>
+
+      <div className="my-5 flex items-center gap-3">
+        <span className="h-px flex-1 bg-divider" />
+        <span className="text-[13px] text-muted-foreground">or</span>
+        <span className="h-px flex-1 bg-divider" />
+      </div>
+
+      <GoogleButton next={next} />
+
+      <p className="mt-8 text-center text-[14px] text-muted-foreground">
+        Already have an account?{" "}
+        <Link href={`/sign-in?next=${encodeURIComponent(next)}`} className="font-semibold text-primary">
+          Sign in
+        </Link>
+      </p>
+    </main>
+  );
+}
+```
+
+- [ ] **Step 10: Verify build and full test run**
+
+```bash
+pnpm --filter site typecheck && pnpm --filter site test && pnpm --filter site build
+```
+
+Expected: all pass.
+
+- [ ] **Step 11: Commit**
+
+```bash
+git add apps/site
+git commit -m "feat(site): email/password and Google authentication
+
+Sign-in, sign-up, and the OAuth callback Route Handler. The callback only
+honours same-site relative \`next\` targets — an absolute one would make it
+an open redirect.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 5: Catalog data layer
+
+Query functions take a `SupabaseClient` as their first argument, so the same function serves a Server Component (server client) and a client hook (browser client). Shapes mirror `apps/mobile/lib/events.ts` exactly, so a future query change is visibly needed in both places.
+
+**Files:**
+- Create: `apps/site/lib/format.ts`, `apps/site/lib/events.ts`
+- Test: `apps/site/lib/__tests__/events.test.ts`, `apps/site/lib/__tests__/format.test.ts`
+
+**Interfaces:**
+- Consumes: `createClient` from both Supabase modules (Task 3).
+- Produces, from `@/lib/events`:
+  - Types `EventRow`, `OrgRow`, `CategoryRow`, `AddonRow`, `FormFieldRow` — field-for-field identical to `apps/mobile/lib/events.ts`.
+  - `mapEvent(r: any): EventRow`
+  - `fetchMarketplaceEvents(db: SupabaseClient): Promise<EventRow[]>`
+  - `fetchEvent(db: SupabaseClient, eventId: string): Promise<EventRow | null>`
+  - `fetchCategories(db: SupabaseClient, eventId: string): Promise<CategoryRow[]>`
+  - `fetchCategory(db: SupabaseClient, categoryId: string): Promise<CategoryRow | null>`
+  - `fetchAddons(db: SupabaseClient, eventId: string): Promise<AddonRow[]>`
+  - `fetchFormFields(db: SupabaseClient, eventId: string): Promise<FormFieldRow[]>`
+- Produces, from `@/lib/format`: `longDate(iso: string): string`, `shortDate(iso: string): string`.
+
+- [ ] **Step 1: Write the failing tests**
+
+Create `apps/site/lib/__tests__/format.test.ts`:
+
+```ts
+import { describe, it, expect } from "vitest";
+import { longDate, shortDate } from "../format";
+
+describe("date formatters", () => {
+  it("formats a long date", () => {
+    expect(longDate("2026-11-14")).toBe("14 November 2026");
+  });
+
+  it("formats a short date", () => {
+    expect(shortDate("2026-11-14")).toBe("14 Nov 2026");
+  });
+
+  // Parsing "2026-11-14" as UTC and rendering in a UTC+8 locale must not
+  // shift the date. Philippine events would otherwise show the day before.
+  it("does not shift the day across timezones", () => {
+    expect(longDate("2026-01-01")).toBe("1 January 2026");
+  });
+});
+```
+
+Create `apps/site/lib/__tests__/events.test.ts`:
+
+```ts
+import { describe, it, expect } from "vitest";
+import { mapEvent } from "../events";
+
+const raw = {
+  id: "e1",
+  org_id: "a1",
+  name: "Apo Sky Ultra 2026",
+  event_date: "2026-11-14",
+  status: "open",
+  hero_image_url: null,
+  gallery: null,
+  categories: [
+    { slots_taken: 12, distance_km: 100 },
+    { slots_taken: 30, distance_km: 50 },
+    { slots_taken: 5, distance_km: null },
+  ],
+  organizations: { name: "Race Pace", brand_color: "#159A55", logo_url: null },
+};
+
+describe("mapEvent", () => {
+  it("sums slots_taken across categories into joined_count", () => {
+    expect(mapEvent(raw).joined_count).toBe(47);
+  });
+
+  it("collects distances and drops null ones", () => {
+    expect(mapEvent(raw).distances).toEqual([100, 50]);
+  });
+
+  it("lifts the embedded organization onto flat fields", () => {
+    const e = mapEvent(raw);
+    expect(e.org_name).toBe("Race Pace");
+    expect(e.org_color).toBe("#159A55");
+  });
+
+  it("defaults a null gallery to an empty array", () => {
+    expect(mapEvent(raw).gallery).toEqual([]);
+  });
+
+  it("survives an event with no categories", () => {
+    const e = mapEvent({ ...raw, categories: [] });
+    expect(e.joined_count).toBe(0);
+    expect(e.distances).toEqual([]);
+  });
+
+  // organizations is absent when the query does not embed it (fetchEventsByOrg).
+  it("survives a missing organizations embed", () => {
+    const { organizations, ...withoutOrg } = raw;
+    expect(mapEvent(withoutOrg).org_name).toBeUndefined();
+  });
+});
+```
+
+- [ ] **Step 2: Run the tests to verify they fail**
+
+```bash
+pnpm --filter site test -- events format
+```
+
+Expected: FAIL — cannot resolve `../events` or `../format`.
+
+- [ ] **Step 3: Write `lib/format.ts`**
+
+```ts
+/** Dates from Postgres `date` columns arrive as "YYYY-MM-DD". Appending
+ *  T00:00:00Z and formatting in UTC keeps the calendar day stable — parsing
+ *  bare "2026-11-14" as local time renders the previous day in UTC+8. */
+function utcDate(iso: string): Date {
+  return new Date(`${iso}T00:00:00Z`);
+}
+
+export function longDate(iso: string): string {
+  return utcDate(iso).toLocaleDateString("en-GB", {
+    day: "numeric", month: "long", year: "numeric", timeZone: "UTC",
+  });
+}
+
+export function shortDate(iso: string): string {
+  return utcDate(iso).toLocaleDateString("en-GB", {
+    day: "numeric", month: "short", year: "numeric", timeZone: "UTC",
+  });
+}
+```
+
+- [ ] **Step 4: Write `lib/events.ts`**
+
+```ts
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+export type EventRow = {
+  id: string; org_id: string; name: string; place: string | null; region: string | null;
+  event_date: string | null; end_date: string | null; elevation_gain_m: number | null;
+  cutoff_hours: number | null; flag_off?: string | null;
+  status: string; hero_image_url: string | null; description: string | null;
+  gallery: string[]; original_date: string | null; status_note: string | null;
+  city_psgc_code: string | null; region_name: string | null; province_name: string | null;
+  city_name: string | null; venue: string | null; inclusions?: string[] | null;
+  joined_count: number; distances: number[];
+  org_name?: string; org_color?: string | null; org_logo_url?: string | null;
+};
+
+export type OrgRow = {
+  id: string; name: string; slug: string;
+  logo_url: string | null; banner_url: string | null;
+  description: string | null; brand_color: string | null;
+};
+
+export type CategoryRow = {
+  id: string; event_id: string; org_id: string; code: string; label: string;
+  distance_km: number | null; base_price: number; slots_total: number; slots_taken: number;
+};
+
+export type AddonRow = { id: string; name: string; price: number };
+
+export type FormFieldRow = {
+  id: string; key: string; label: string;
+  type: "text" | "number" | "select" | "checkbox" | "date" | "file";
+  required: boolean; options: string[] | null; sort_order: number;
+};
+
+// Column lists mirror apps/mobile/lib/events.ts. Keep them in step.
+const EVENT_COLS =
+  "id,org_id,name,place,region,event_date,end_date,elevation_gain_m,cutoff_hours,flag_off,status,hero_image_url,description,gallery,original_date,status_note,city_psgc_code,region_name,province_name,city_name,venue,inclusions,categories(slots_taken,distance_km)";
+const CAT_COLS = "id,event_id,org_id,code,label,distance_km,base_price,slots_total,slots_taken";
+
+export function mapEvent(r: any): EventRow {
+  const categories = (r.categories ?? []) as { slots_taken: number; distance_km: number | null }[];
+  return {
+    ...r,
+    gallery: r.gallery ?? [],
+    joined_count: categories.reduce((sum, c) => sum + c.slots_taken, 0),
+    distances: categories.map((c) => c.distance_km).filter((d): d is number => d != null),
+    org_name: r.organizations?.name,
+    org_color: r.organizations?.brand_color,
+    org_logo_url: r.organizations?.logo_url,
+  };
+}
+
+/** Every org's non-draft events — RLS enforces the non-draft filter. */
+export async function fetchMarketplaceEvents(db: SupabaseClient): Promise<EventRow[]> {
+  const { data, error } = await db
+    .from("events")
+    .select(`${EVENT_COLS},organizations(name,brand_color,logo_url)`)
+    .order("event_date");
+  if (error) throw error;
+  return (data ?? []).map(mapEvent);
+}
+
+export async function fetchEvent(db: SupabaseClient, eventId: string): Promise<EventRow | null> {
+  const { data, error } = await db
+    .from("events")
+    .select(`${EVENT_COLS},organizations(name,brand_color,logo_url)`)
+    .eq("id", eventId)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? mapEvent(data) : null;
+}
+
+export async function fetchCategories(db: SupabaseClient, eventId: string): Promise<CategoryRow[]> {
+  const { data, error } = await db
+    .from("categories").select(CAT_COLS).eq("event_id", eventId)
+    .order("base_price", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as CategoryRow[];
+}
+
+export async function fetchCategory(db: SupabaseClient, categoryId: string): Promise<CategoryRow | null> {
+  const { data, error } = await db.from("categories").select(CAT_COLS).eq("id", categoryId).maybeSingle();
+  if (error) throw error;
+  return (data ?? null) as CategoryRow | null;
+}
+
+export async function fetchAddons(db: SupabaseClient, eventId: string): Promise<AddonRow[]> {
+  const { data, error } = await db.from("addons").select("id,name,price").eq("event_id", eventId).order("price");
+  if (error) throw error;
+  return (data ?? []) as AddonRow[];
+}
+
+export async function fetchFormFields(db: SupabaseClient, eventId: string): Promise<FormFieldRow[]> {
+  const { data, error } = await db
+    .from("form_fields").select("id,key,label,type,required,options,sort_order")
+    .eq("event_id", eventId).eq("is_active", true).order("sort_order");
+  if (error) throw error;
+  return (data ?? []) as FormFieldRow[];
+}
+```
+
+- [ ] **Step 5: Run the tests to verify they pass**
+
+```bash
+pnpm --filter site test -- events format
+```
+
+Expected: PASS — 9 tests.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add apps/site/lib
+git commit -m "feat(site): catalog data layer
+
+Query functions take a SupabaseClient so one implementation serves both
+server components and client hooks. Types and column lists mirror
+apps/mobile/lib/events.ts so a future query change is visibly needed in
+both places.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 6: Public catalog pages
+
+Server Components with the anon key. This is where the editorial direction lands — **invoke the `frontend-design` skill before writing the JSX below**, and treat the markup here as the structural contract (data, semantics, metadata) rather than the final visual design.
+
+**Files:**
+- Create: `apps/site/components/EventCard.tsx`, `apps/site/components/SiteHeader.tsx`, `apps/site/app/events/page.tsx`, `apps/site/app/events/[id]/page.tsx`
+- Modify: `apps/site/app/page.tsx` (replacing the Task 2 placeholder)
+- Test: `apps/site/components/__tests__/event-card.test.tsx`
+
+**Interfaces:**
+- Consumes: `EventRow`, `fetchMarketplaceEvents`, `fetchEvent`, `fetchCategories` (Task 5); `longDate`, `shortDate` (Task 5); `createClient` from `@/lib/supabase/server` (Task 3); `formatPeso`, `formatDateRange`, `formatAddress` from `@race-pace/shared`.
+- Produces: `EventCard({ event }: { event: EventRow })`, `SiteHeader()`.
+
+- [ ] **Step 1: Add the shadcn primitives this task needs**
+
+```bash
+cd apps/site && pnpm dlx shadcn@latest add card badge separator
+```
+
+Then apply the token fix — `grep -rn "var(--" apps/site/components/ui/` and rewrite any hit that is not `var(--color-*)`.
+
+- [ ] **Step 2: Write the failing test**
+
+Create `apps/site/components/__tests__/event-card.test.tsx`:
+
+```tsx
+import { describe, it, expect } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { EventCard } from "../EventCard";
+import type { EventRow } from "@/lib/events";
+
+const event: EventRow = {
+  id: "e1", org_id: "a1", name: "Apo Sky Ultra 2026", place: "Mt Apo", region: "Davao",
+  event_date: "2026-11-14", end_date: null, elevation_gain_m: 4200, cutoff_hours: 20,
+  status: "open", hero_image_url: null, description: "The flagship 100K.",
+  gallery: [], original_date: null, status_note: null,
+  city_psgc_code: null, region_name: "Davao Region", province_name: "Davao Del Sur",
+  city_name: "City of Digos", venue: "Kapatagan Base Camp",
+  joined_count: 47, distances: [100, 50], org_name: "Race Pace", org_color: "#159A55", org_logo_url: null,
+};
+
+describe("EventCard", () => {
+  it("shows the event name and organizer", () => {
+    render(<EventCard event={event} />);
+    expect(screen.getByText("Apo Sky Ultra 2026")).toBeInTheDocument();
+    expect(screen.getByText("Race Pace")).toBeInTheDocument();
+  });
+
+  it("shows every distance as a chip", () => {
+    render(<EventCard event={event} />);
+    expect(screen.getByText("100K")).toBeInTheDocument();
+    expect(screen.getByText("50K")).toBeInTheDocument();
+  });
+
+  it("shows the formatted date and location", () => {
+    render(<EventCard event={event} />);
+    expect(screen.getByText("14 Nov 2026")).toBeInTheDocument();
+    expect(screen.getByText("City of Digos, Davao Del Sur")).toBeInTheDocument();
+  });
+
+  it("links to the event page", () => {
+    render(<EventCard event={event} />);
+    expect(screen.getByRole("link")).toHaveAttribute("href", "/events/e1");
+  });
+
+  it("flags a cancelled event so it cannot be mistaken for open", () => {
+    render(<EventCard event={{ ...event, status: "cancelled" }} />);
+    expect(screen.getByText("Cancelled")).toBeInTheDocument();
+  });
+
+  it("renders an event with no date or location without crashing", () => {
+    render(<EventCard event={{ ...event, event_date: null, city_name: null, province_name: null }} />);
+    expect(screen.getByText("Apo Sky Ultra 2026")).toBeInTheDocument();
+  });
+});
+```
+
+- [ ] **Step 3: Run the test to verify it fails**
+
+```bash
+pnpm --filter site test event-card
+```
+
+Expected: FAIL — cannot resolve `../EventCard`.
+
+- [ ] **Step 4: Write `components/EventCard.tsx`**
+
+```tsx
+import Link from "next/link";
+import Image from "next/image";
+import { formatDateRange, formatAddress } from "@race-pace/shared";
+import { shortDate } from "@/lib/format";
+import type { EventRow } from "@/lib/events";
+import { cn } from "@/lib/utils";
+
+export function EventCard({ event }: { event: EventRow }) {
+  const date = event.event_date ? formatDateRange(event.event_date, event.end_date, shortDate) : null;
+  const location = formatAddress({ city_name: event.city_name, province_name: event.province_name });
+
+  return (
+    <Link
+      href={`/events/${event.id}`}
+      className="group block overflow-hidden rounded-xl border border-border bg-card transition-shadow hover:shadow-lg"
+    >
+      <div className="relative aspect-[16/10] overflow-hidden bg-muted">
+        {event.hero_image_url ? (
+          <Image
+            src={event.hero_image_url}
+            alt=""
+            fill
+            sizes="(max-width: 768px) 100vw, 33vw"
+            className="object-cover transition-transform duration-500 group-hover:scale-105"
+          />
+        ) : null}
+        {event.status !== "open" ? (
+          <span
+            className={cn(
+              "absolute left-3 top-3 rounded-pill px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide",
+              event.status === "cancelled"
+                ? "bg-destructive text-destructive-foreground"
+                : "bg-amber text-white",
+            )}
+          >
+            {event.status === "cancelled" ? "Cancelled" : event.status}
+          </span>
+        ) : null}
+      </div>
+
+      <div className="p-5">
+        {event.org_name ? (
+          <p className="text-[11px] font-semibold uppercase tracking-[1.2px] text-primary">{event.org_name}</p>
+        ) : null}
+        <h3 className="mt-1.5 text-[20px] font-semibold tracking-[-0.4px] text-foreground">{event.name}</h3>
+
+        <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[13px] text-muted-foreground">
+          {date ? <span>{date}</span> : null}
+          {location ? <span>{location}</span> : null}
+        </div>
+
+        {event.distances.length > 0 ? (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {event.distances.map((d) => (
+              <span key={d} className="rounded-pill bg-secondary px-2.5 py-1 text-[12px] font-semibold text-secondary-foreground">
+                {d}K
+              </span>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </Link>
+  );
+}
+```
+
+- [ ] **Step 5: Run the test to verify it passes**
+
+```bash
+pnpm --filter site test event-card
+```
+
+Expected: PASS — 6 tests.
+
+- [ ] **Step 6: Write the site header**
+
+Create `apps/site/components/SiteHeader.tsx`:
+
+```tsx
+import Link from "next/link";
+import Image from "next/image";
+import logo from "@/public/topnav-logo.png";
+
+export function SiteHeader() {
+  return (
+    <header className="no-print sticky top-0 z-40 border-b border-divider bg-background/85 backdrop-blur">
+      <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-6">
+        <Link href="/" aria-label="Race Pace home">
+          <Image src={logo} alt="Race Pace" height={28} priority />
+        </Link>
+        <nav className="flex items-center gap-6 text-[14px] font-medium">
+          <Link href="/events" className="text-foreground hover:text-primary">Races</Link>
+          <Link href="/races" className="text-foreground hover:text-primary">My Races</Link>
+          <Link href="/profile" className="text-foreground hover:text-primary">Profile</Link>
+        </nav>
+      </div>
+    </header>
+  );
+}
+```
+
+Copy the logo asset in:
+
+```bash
+mkdir -p apps/site/public && cp apps/web/src/assets/topnav-logo.png apps/site/public/topnav-logo.png
+```
+
+- [ ] **Step 7: Write the events index**
+
+Create `apps/site/app/events/page.tsx`:
+
+```tsx
+import type { Metadata } from "next";
+import { createClient } from "@/lib/supabase/server";
+import { fetchMarketplaceEvents } from "@/lib/events";
+import { EventCard } from "@/components/EventCard";
+import { SiteHeader } from "@/components/SiteHeader";
+
+export const metadata: Metadata = {
+  title: "Races",
+  description: "Every trail and ultra-trail race on Race Pace.",
+};
+
+// Slot counts must never be stale — a sold-out distance showing as available
+// is a race-week support incident.
+export const dynamic = "force-dynamic";
+
+export default async function EventsPage() {
+  const db = await createClient();
+  const events = await fetchMarketplaceEvents(db);
+
+  return (
+    <>
+      <SiteHeader />
+      <main className="mx-auto w-full max-w-6xl px-6 py-12">
+        <h1 className="text-[40px] font-semibold tracking-[-1px] text-foreground">Races</h1>
+        <p className="mt-2 max-w-xl text-[17px] leading-relaxed text-muted-foreground">
+          Trail and ultra-trail races across Mindanao. Pick a distance and claim your slot.
+        </p>
+
+        {events.length === 0 ? (
+          <p className="mt-12 text-muted-foreground">No races are open right now. Check back soon.</p>
+        ) : (
+          <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {events.map((e) => <EventCard key={e.id} event={e} />)}
+          </div>
+        )}
+      </main>
+    </>
+  );
+}
+```
+
+- [ ] **Step 8: Write the home page**
+
+Replace `apps/site/app/page.tsx`:
+
+```tsx
+import Link from "next/link";
+import Image from "next/image";
+import { formatDateRange, formatAddress } from "@race-pace/shared";
+import { createClient } from "@/lib/supabase/server";
+import { fetchMarketplaceEvents } from "@/lib/events";
+import { EventCard } from "@/components/EventCard";
+import { SiteHeader } from "@/components/SiteHeader";
+import { longDate } from "@/lib/format";
+
+export const dynamic = "force-dynamic";
+
+export default async function Home() {
+  const db = await createClient();
+  const events = await fetchMarketplaceEvents(db);
+
+  // Hero the nearest upcoming open event; everything else fills the grid.
+  const today = new Date().toISOString().slice(0, 10);
+  const upcoming = events.filter((e) => e.status === "open" && (e.event_date ?? "") >= today);
+  const hero = upcoming[0] ?? null;
+  const rest = events.filter((e) => e.id !== hero?.id);
+
+  return (
+    <>
+      <SiteHeader />
+      <main>
+        {hero ? (
+          <section className="relative isolate flex min-h-[70vh] items-end overflow-hidden">
+            {hero.hero_image_url ? (
+              <Image src={hero.hero_image_url} alt="" fill priority sizes="100vw" className="object-cover" />
+            ) : (
+              <div className="absolute inset-0 bg-forest" />
+            )}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/35 to-transparent" />
+            <div className="relative mx-auto w-full max-w-6xl px-6 pb-16">
+              {hero.org_name ? (
+                <p className="text-[12px] font-semibold uppercase tracking-[1.5px] text-white/75">{hero.org_name}</p>
+              ) : null}
+              <h1 className="mt-3 max-w-3xl text-[clamp(2.5rem,7vw,4.5rem)] font-semibold leading-[1.03] tracking-[-1.5px] text-white">
+                {hero.name}
+              </h1>
+              <p className="mt-4 text-[17px] text-white/85">
+                {[
+                  hero.event_date ? formatDateRange(hero.event_date, hero.end_date, longDate) : null,
+                  formatAddress({ city_name: hero.city_name, province_name: hero.province_name }) || null,
+                ].filter(Boolean).join(" · ")}
+              </p>
+              <Link
+                href={`/events/${hero.id}`}
+                className="mt-8 inline-flex rounded-pill bg-primary px-8 py-4 text-[16px] font-semibold text-primary-foreground hover:bg-primary-focus"
+              >
+                View race
+              </Link>
+            </div>
+          </section>
+        ) : null}
+
+        <section className="mx-auto w-full max-w-6xl px-6 py-16">
+          <h2 className="text-[28px] font-semibold tracking-[-0.6px] text-foreground">All races</h2>
+          {rest.length === 0 ? (
+            <p className="mt-6 text-muted-foreground">No other races are listed right now.</p>
+          ) : (
+            <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {rest.map((e) => <EventCard key={e.id} event={e} />)}
+            </div>
+          )}
+        </section>
+      </main>
+    </>
+  );
+}
+```
+
+- [ ] **Step 9: Write the event detail page with Open Graph metadata**
+
+Create `apps/site/app/events/[id]/page.tsx`:
+
+```tsx
+import type { Metadata } from "next";
+import Image from "next/image";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { formatPeso, formatDateRange, formatAddress } from "@race-pace/shared";
+import { createClient } from "@/lib/supabase/server";
+import { fetchEvent, fetchCategories } from "@/lib/events";
+import { SiteHeader } from "@/components/SiteHeader";
+import { longDate } from "@/lib/format";
+
+export const dynamic = "force-dynamic";
+
+type Params = { params: Promise<{ id: string }> };
+
+// This is the whole point of server rendering: an organizer pasting the link
+// into a Facebook group gets a real preview card.
+export async function generateMetadata({ params }: Params): Promise<Metadata> {
+  const { id } = await params;
+  const db = await createClient();
+  const event = await fetchEvent(db, id);
+  if (!event) return { title: "Race not found" };
+
+  const date = event.event_date ? formatDateRange(event.event_date, event.end_date, longDate) : "";
+  const distances = event.distances.length ? `${event.distances.map((d) => `${d}K`).join(" · ")}. ` : "";
+  const description = `${distances}${date}${event.city_name ? ` · ${event.city_name}` : ""}`.trim();
+
+  return {
+    title: event.name,
+    description: description || undefined,
+    openGraph: {
+      title: event.name,
+      description: description || undefined,
+      type: "website",
+      images: event.hero_image_url ? [{ url: event.hero_image_url }] : undefined,
+    },
+  };
+}
+
+export default async function EventPage({ params }: Params) {
+  const { id } = await params;
+  const db = await createClient();
+  const event = await fetchEvent(db, id);
+  if (!event) notFound();
+
+  const categories = await fetchCategories(db, id);
+  const date = event.event_date ? formatDateRange(event.event_date, event.end_date, longDate) : null;
+  const location = formatAddress({ city_name: event.city_name, province_name: event.province_name });
+  const closed = event.status !== "open";
+
+  return (
+    <>
+      <SiteHeader />
+      <main>
+        <section className="relative isolate flex min-h-[55vh] items-end overflow-hidden">
+          {event.hero_image_url ? (
+            <Image src={event.hero_image_url} alt="" fill priority sizes="100vw" className="object-cover" />
+          ) : (
+            <div className="absolute inset-0 bg-forest" />
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
+          <div className="relative mx-auto w-full max-w-5xl px-6 pb-12">
+            {event.org_name ? (
+              <p className="text-[12px] font-semibold uppercase tracking-[1.5px] text-white/75">{event.org_name}</p>
+            ) : null}
+            <h1 className="mt-3 text-[clamp(2rem,5.5vw,3.5rem)] font-semibold leading-[1.05] tracking-[-1.2px] text-white">
+              {event.name}
+            </h1>
+            <p className="mt-4 text-[16px] text-white/85">
+              {[date, location, event.venue].filter(Boolean).join(" · ")}
+            </p>
+          </div>
+        </section>
+
+        <div className="mx-auto w-full max-w-5xl px-6 py-14">
+          {event.status_note ? (
+            <p className="mb-10 rounded-xl border border-amber bg-amber-tint px-5 py-4 text-[15px] text-foreground">
+              {event.status_note}
+            </p>
+          ) : null}
+
+          {event.description ? (
+            <p className="max-w-2xl text-[19px] leading-relaxed text-foreground">{event.description}</p>
+          ) : null}
+
+          <dl className="mt-10 grid grid-cols-2 gap-6 border-y border-divider py-8 sm:grid-cols-4">
+            <Stat label="Elevation" value={event.elevation_gain_m ? `${event.elevation_gain_m.toLocaleString()} m` : "—"} />
+            <Stat label="Cut-off" value={event.cutoff_hours ? `${event.cutoff_hours} h` : "—"} />
+            <Stat label="Distances" value={event.distances.length ? event.distances.map((d) => `${d}K`).join(" · ") : "—"} />
+            <Stat label="Registered" value={String(event.joined_count)} />
+          </dl>
+
+          <h2 className="mt-14 text-[28px] font-semibold tracking-[-0.6px] text-foreground">Choose your distance</h2>
+          <div className="mt-6 flex flex-col gap-4">
+            {categories.map((c) => {
+              const soldOut = c.slots_taken >= c.slots_total;
+              const remaining = Math.max(0, c.slots_total - c.slots_taken);
+              return (
+                <div key={c.id} className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border bg-card p-6">
+                  <div>
+                    <h3 className="text-[20px] font-semibold text-foreground">{c.label}</h3>
+                    <p className="mt-1 text-[14px] text-muted-foreground">
+                      {soldOut ? "Sold out" : `${remaining} of ${c.slots_total} slots left`}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-5">
+                    <span className="text-[22px] font-semibold tabular-nums text-foreground">{formatPeso(c.base_price)}</span>
+                    {soldOut || closed ? (
+                      <span className="rounded-pill bg-muted px-6 py-3 text-[15px] font-semibold text-muted-foreground">
+                        {closed ? "Closed" : "Sold out"}
+                      </span>
+                    ) : (
+                      <Link
+                        href={`/register/${c.id}`}
+                        className="rounded-pill bg-primary px-7 py-3 text-[15px] font-semibold text-primary-foreground hover:bg-primary-focus"
+                      >
+                        Register
+                      </Link>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+            {categories.length === 0 ? (
+              <p className="text-muted-foreground">Distances haven&apos;t been published yet.</p>
+            ) : null}
+          </div>
+        </div>
+      </main>
+    </>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <dt className="text-[11px] font-semibold uppercase tracking-[1px] text-muted-foreground">{label}</dt>
+      <dd className="mt-1.5 text-[18px] font-semibold text-foreground">{value}</dd>
+    </div>
+  );
+}
+```
+
+- [ ] **Step 10: Verify against the live backend**
+
+```bash
+pnpm --filter site dev
+```
+
+Visit `http://localhost:3000`. Expected: the hero shows the nearest upcoming seeded event, the grid shows the rest, and `/events/<id>` lists distances with prices from Task 0's seed. Confirm the Open Graph tags render:
+
+```bash
+curl -s http://localhost:3000/events/00000000-0000-0000-0000-0000000000e1 | grep -o '<meta property="og:[^>]*>'
+```
+
+Expected: `og:title` carrying the event name, and `og:description`.
+
+- [ ] **Step 11: Full verification**
+
+```bash
+pnpm --filter site typecheck && pnpm --filter site test && pnpm --filter site build
+```
+
+Expected: all pass.
+
+- [ ] **Step 12: Commit**
+
+```bash
+git add apps/site
+git commit -m "feat(site): public catalog — home, events index, event detail
+
+Server Components on the anon key, force-dynamic so slot counts are never
+stale. generateMetadata gives event pages real Open Graph cards, which is
+the acquisition channel for a near-term race.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
+```
+
+---
