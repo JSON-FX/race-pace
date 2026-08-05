@@ -10,20 +10,20 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "./ThemeToggle";
-import { useMyRoles } from "../lib/roles";
+import { useMyRoles, type MyRoles } from "../lib/roles";
 import { useAuth } from "../lib/auth";
 import mark from "../assets/topnav-logo.png";
 
-type Item = { to: string; label: string; icon: LucideIcon };
+type Item = { to: string; label: string; icon: LucideIcon; needs?: (r: MyRoles) => boolean };
 
 const ORG_ITEMS: Item[] = [
-  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/events", label: "Events", icon: CalendarDays },
-  { to: "/registrations", label: "Registrations", icon: ClipboardList },
-  { to: "/payments", label: "Payments", icon: CreditCard },
-  { to: "/check-in", label: "Check-in", icon: QrCode },
-  { to: "/team", label: "Team", icon: Users },
-  { to: "/settings", label: "Settings", icon: SettingsIcon },
+  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, needs: (r) => r.isAdmin },
+  { to: "/events", label: "Events", icon: CalendarDays, needs: (r) => r.isAdmin },
+  { to: "/registrations", label: "Registrations", icon: ClipboardList, needs: (r) => r.isAdmin },
+  { to: "/payments", label: "Payments", icon: CreditCard, needs: (r) => r.isAdmin },
+  { to: "/check-in", label: "Check-in", icon: QrCode, needs: (r) => r.canCheckIn },
+  { to: "/team", label: "Team", icon: Users, needs: (r) => r.isOrgAdmin },
+  { to: "/settings", label: "Settings", icon: SettingsIcon, needs: (r) => r.isAdmin },
 ];
 const SUPER_ITEMS: Item[] = [
   { to: "/organizations", label: "Organizations", icon: Building2 },
@@ -54,7 +54,7 @@ export function Sidebar() {
   const email = session?.user.email ?? "";
   const local = email.split("@")[0] || "admin";
   const initials = local.slice(0, 2).toUpperCase();
-  const role = roles.data?.isSuperAdmin ? "Super admin" : "Admin";
+  const role = roles.data?.isSuperAdmin ? "Super admin" : roles.data?.isAdmin ? "Admin" : "Marshal";
 
   return (
     <UISidebar collapsible="icon">
@@ -73,7 +73,7 @@ export function Sidebar() {
           <SidebarGroupLabel className="text-[11px] font-semibold tracking-wide">ORGANIZATION</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {ORG_ITEMS.filter((it) => it.to !== "/team" || roles.data?.isOrgAdmin).map((it) => (
+              {ORG_ITEMS.filter((it) => !it.needs || (roles.data ? it.needs(roles.data) : false)).map((it) => (
                 <NavItem key={it.to} {...it} />
               ))}
             </SidebarMenu>
