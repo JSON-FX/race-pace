@@ -1,7 +1,7 @@
 # Runner Web — Public Registration Site
 
 **Status:** Approved, ready for implementation plan
-**Scope:** New `apps/site` (Next.js 15, App Router) + **three Edge Function changes** in `supabase/`. **No schema migration. No `apps/mobile` changes. No `apps/web` changes.**
+**Scope:** New `apps/site` (Next.js 15, App Router) + **three Edge Function changes** in `supabase/` + **a migration of the backend to a new hosted Supabase project** (§3.2). **No schema changes.** `apps/mobile` and `apps/web` change only in configuration — one env line each.
 **Branch:** `claude/event-registration-web-fff722`
 **Driver:** an event is close. The critical path is **register → pay → ticket**; everything else is scaffolding around it.
 
@@ -18,7 +18,8 @@ Race Pace has a runner-facing native app (`apps/mobile`) and an organizer-facing
 ## 2. Non-goals
 
 - **No marketplace parity with mobile.** Org landing pages, notifications, the Race Passport redesign, and the races feed's social surface are out. `/profile` is a minimal editable passport, not the mobile redesign.
-- **No schema migration.** The flow works entirely against existing tables. A `source` column distinguishing web from mobile registrations was considered and rejected — the rows already reach the admin console, and it puts a migration on the critical path for a badge.
+- **No schema changes.** The flow works entirely against existing tables, and no new migration file is authored. A `source` column distinguishing web from mobile registrations was considered and rejected — the rows already reach the admin console, and it puts a schema change on the critical path for a badge. (The existing 31 migrations *are* applied to the new project per §3.2; that is a deployment step, not a schema change.)
+- **No source changes to `apps/mobile` or `apps/web`.** Per §3.2 they get one env-configuration line each and a smoke test. No component, query, or logic changes.
 - **No shared `packages/ui`.** `apps/web` is Vite, `apps/mobile` is NativeWind, `apps/site` is Next — three build pipelines for maybe six components, and it would put a refactor of the working admin console in front of a near event. Only `packages/shared` (framework-agnostic types, validators, formatters) is shared.
 - **No changes to the money path's logic.** `registrations-checkout`, `payment-session`, `payment-verify`, `payments-webhook`, and `_shared/confirm.ts` keep their existing behaviour. They gain CORS headers and one best-effort email call.
 - **No PDF library.** See §6.4.
@@ -51,11 +52,40 @@ The original request mentioned setting up Firebase for OAuth. This design **uses
 
 Supabase Auth issues the JWT that both RLS policies and every Edge Function verify (`db.auth.getUser(jwt)`). A Firebase-issued token is not that JWT. Wiring Firebase in would require a token-exchange shim — a new failure mode on the critical path, for identical setup effort.
 
-The actual setup is a **Google Cloud OAuth 2.0 client**, with client ID and secret pasted into Supabase Dashboard → Authentication → Providers → Google. Authorized redirect URI:
+The actual setup is a **Google Cloud OAuth 2.0 client**, with client ID and secret pasted into Supabase Dashboard → Authentication → Providers → Google. Authorized redirect URI — note this points at the **new** project (§3.2), not the retired one:
 
 ```
-https://ytwdrsmclwghwktpupqd.supabase.co/auth/v1/callback
+https://whaqarofxdlzxrelbcrq.supabase.co/auth/v1/callback
 ```
+
+### 3.2 Backend migration — new hosted project
+
+**Added 2026-08-05, after the original design was approved.** A new hosted Supabase project has been created under a different Google account and becomes the single source of truth for **all three apps**.
+
+| | Old | New |
+|---|---|---|
+| Project ref | `ytwdrsmclwghwktpupqd` | `whaqarofxdlzxrelbcrq` |
+| State | Paused (§10) | Empty — schema not yet applied |
+
+This **widens the scope declared in §2**. `apps/mobile` and `apps/web` were listed as untouched; both now need their `.env` repointed. The code change is one line of configuration each — no source changes — but it means this branch alters the backend both other apps talk to, and they must be smoke-tested before merge.
+
+The migration is mechanical, because everything needed is already version-controlled:
+
+- `supabase/migrations/` — 31 migrations including the three `storage.buckets` inserts (`event-images`, `profile-images`, `org-images`), so `db push` recreates storage too.
+- `supabase/seed.sql` — 5 organizations and 5 events.
+- `supabase/functions/` — 11 functions, deployed with `functions deploy`.
+
+Three things do **not** carry over and must be recreated by hand:
+
+1. **Function secrets** — `TICKET_SIGNING_SECRET`, `PAYMONGO_SECRET_KEY`, `PAYMONGO_WEBHOOK_SECRET`, `PUBLIC_FUNCTIONS_URL`, plus this design's `RESEND_API_KEY` and `SITE_ORIGINS`.
+2. **The PayMongo webhook** — it points at the old project's `payments-webhook` URL and must be re-registered against the new one, yielding a **new** `PAYMONGO_WEBHOOK_SECRET`.
+3. **Auth configuration** — the Google provider, and the redirect allowlist.
+
+**`TICKET_SIGNING_SECRET` deliberately does not need to match the old project's value.** Tickets are minted per registration against whichever secret is live; since the new project starts with no registrations, a fresh secret is correct. Reusing the old one would be harmless but pointless.
+
+**The 20 seeded test events noted in prior work are *not* in `seed.sql`** — they were inserted directly into the old hosted database and are lost. `seed.sql` recreates 5 events, which is sufficient for development. Real event data for the upcoming race is entered through the admin console.
+
+The old project is left untouched rather than deleted, so it remains available as a reference until the new one is verified end to end.
 
 ## 4. Application structure
 
@@ -293,15 +323,23 @@ Also required:
 
 ## 10. Pre-launch blockers
 
-Two items outside this design's control, both to be confirmed **before** runners are pointed at the site:
+**Superseded 2026-08-05 by §3.2.** The original two blockers — the old project being paused, and a possibly-unapplied `db push` leaving `20260804120000_admin_list_views.sql` missing — are both resolved by migrating to a fresh project, since `db push` applies all 31 migrations from scratch.
 
-1. **Hosted Supabase was paused as of 2026-08-04.** Nothing goes live until the project is resumed. To be verified at implementation start, not on race week.
-2. **A hosted `db push` may still be pending**, which would leave `20260804120000_admin_list_views.sql` unapplied. Web registrations would reach the database but not render in the admin console's list views — breaking §1.2 while appearing to work end-to-end from the runner's side.
+The replacement blockers, all owned by the user because they need account access:
+
+1. **MCP authentication.** `.mcp.json` now points at `whaqarofxdlzxrelbcrq`, but the server needs an OAuth flow that cannot run in a non-interactive session. Until the user runs `/mcp` in an interactive terminal and authenticates, the Supabase MCP tools are unavailable and all database work goes through the CLI instead.
+2. **CLI link.** `supabase link --project-ref whaqarofxdlzxrelbcrq` needs the new project's database password.
+3. **PayMongo webhook re-registration** against the new project's `payments-webhook` URL, producing a new `PAYMONGO_WEBHOOK_SECRET` (§3.2).
+4. **Google OAuth client** pointed at the new callback (§3.1).
+5. **Resend account** with a verified sending domain.
+
+Items 3–5 are external-account work. Items 1–2 gate the implementation itself.
 
 ## 11. Sequencing
 
 The order the implementation plan should follow, chosen so the risky and blocking pieces land first:
 
+0. **Migrate the backend to the new hosted project** (§3.2) — link, `db push`, seed, deploy functions, set secrets, repoint all three apps. Nothing else can be verified against a live backend until this is done.
 1. **CORS** (§5.1) — blocks every browser call; nothing is testable before it.
 2. **Scaffold `apps/site`** — Next.js, Tailwind v4, tokens, Supabase SSR client, middleware, `components.json`.
 3. **Auth** — sign-in, sign-up, Google, `/auth/callback`, route protection.
