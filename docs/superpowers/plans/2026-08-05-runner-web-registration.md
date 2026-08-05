@@ -4329,8 +4329,11 @@ export function TicketCard({
   return (
     <div className="overflow-hidden rounded-2xl border border-border bg-card">
       <div className="bg-forest p-6">
+        {/* Category deliberately NOT repeated here — it already has its own
+            Cell below, and rendering it twice makes the test's
+            getByText(/100K/) throw "found multiple elements". */}
         <p className="text-[11px] font-semibold uppercase tracking-[0.5px] text-white/60">
-          Race pass · {categoryLabel}
+          Race pass
         </p>
         <h1 className="mt-2 text-[22px] font-bold tracking-[-0.3px] text-white">{eventName}</h1>
         {eventDate ? <p className="mt-1.5 text-[13px] text-white/75">{longDate(eventDate)}</p> : null}
