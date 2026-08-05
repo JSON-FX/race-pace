@@ -154,3 +154,20 @@
   .rp-scroll::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 8px; }
   .rp-scroll::-webkit-scrollbar-track { background: transparent; }
 }
+
+/* Draggable waypoint handles for the course draw editor
+   (components/CourseDrawEditor.tsx). Plain CSS because maplibre creates these
+   elements imperatively, where Tailwind's class scanner never sees them. */
+.rp-wp {
+  width: 13px;
+  height: 13px;
+  border-radius: 999px;
+  background: #fff;
+  border: 3px solid rgb(var(--primary));
+  box-shadow: 0 1px 6px rgb(0 0 0 / 0.4);
+  cursor: grab;
+}
+.rp-wp:active { cursor: grabbing; }
+/* Start and finish are the two points an organizer needs to find instantly. */
+.rp-wp-start { background: rgb(var(--primary)); border-color: #fff; width: 16px; height: 16px; }
+.rp-wp-end { background: #0A1410; border-color: #fff; width: 16px; height: 16px; }

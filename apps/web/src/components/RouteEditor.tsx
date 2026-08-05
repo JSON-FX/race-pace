@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
-import { Upload, Trash2, Route as RouteIcon } from "lucide-react";
+import { Upload, Trash2, Route as RouteIcon, PencilLine } from "lucide-react";
+import { CourseDrawEditor } from "./CourseDrawEditor";
 import { isValidRoute, MAX_ROUTE_POINTS, type RoutePoint } from "@race-pace/shared";
 import { parseGpx, GpxError } from "../lib/gpx";
 import { Button } from "./ui/button";
@@ -7,15 +8,22 @@ import { Label } from "./ui/label";
 
 const fieldLabel = "text-[11px] font-semibold tracking-wide text-muted-foreground";
 
-/** Course GPX import. The route drives the animated course map on the public
- *  event page; with no route the map falls back to start/finish markers. */
+/** Course route: draw it on a map, or import the organizer's GPX. Both write
+ *  the same [lng,lat,ele?] shape, so the public animated map, the validator
+ *  and the stats all treat a drawn course and an uploaded one identically. */
 export function RouteEditor({
   route,
   onChange,
+  startLat,
+  startLng,
 }: {
   route: RoutePoint[] | null;
   onChange: (route: RoutePoint[] | null) => void;
+  /** Where to open the draw map when there is no route yet. */
+  startLat: number | null;
+  startLng: number | null;
 }) {
+  const [drawing, setDrawing] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [summary, setSummary] = useState<string | null>(null);
@@ -48,9 +56,27 @@ export function RouteEditor({
 
   const points = isValidRoute(route) ? route.length : 0;
 
+  if (drawing) {
+    return (
+      <CourseDrawEditor
+        initialRoute={isValidRoute(route) ? route : null}
+        // Fall back to the middle of the Philippines when the event has no
+        // coordinates yet — better than opening on null island off Africa.
+        center={[startLng ?? 122.5, startLat ?? 12.0]}
+        onCancel={() => setDrawing(false)}
+        onSave={(drawn) => {
+          onChange(drawn);
+          setSummary(null);
+          setError(null);
+          setDrawing(false);
+        }}
+      />
+    );
+  }
+
   return (
     <div>
-      <Label className={fieldLabel}>COURSE ROUTE (GPX)</Label>
+      <Label className={fieldLabel}>COURSE ROUTE</Label>
 
       <input
         ref={input}
@@ -65,6 +91,11 @@ export function RouteEditor({
       />
 
       <div className="mt-1.5 flex flex-wrap items-center gap-2">
+        <Button type="button" variant="outline" size="sm" onClick={() => setDrawing(true)}>
+          <PencilLine size={14} className="mr-1.5" />
+          {points > 0 ? "Edit on map" : "Draw on map"}
+        </Button>
+
         <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => input.current?.click()}>
           <Upload size={14} className="mr-1.5" />
           {busy ? "Reading…" : points > 0 ? "Replace GPX" : "Upload GPX"}
@@ -97,7 +128,7 @@ export function RouteEditor({
       {error ? <p className="mt-1.5 text-[11px] text-destructive">{error}</p> : null}
       {!summary && !error ? (
         <p className="mt-1.5 text-[11px] text-muted-foreground">
-          Export the course from Strava, Garmin or Gaia as .gpx. Long files are simplified to{" "}
+          Draw it on the map, or upload a .gpx from Strava, Garmin or Gaia. Long files are simplified to{" "}
           {MAX_ROUTE_POINTS} points for the public map — distance and climb are measured before that.
         </p>
       ) : null}

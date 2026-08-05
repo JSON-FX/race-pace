@@ -202,7 +202,7 @@ export function EventEditor() {
                 Right-click a spot in Google Maps and choose the coordinates to copy them. Leave blank to hide the map.
               </p>
             </div>
-            <RouteEditor route={event.route} onChange={(route) => set({ route })} />
+            <RouteEditor route={event.route} onChange={(route) => set({ route })} startLat={event.start_lat} startLng={event.start_lng} />
             <div>
               <Label className={fieldLabel}>DESCRIPTION</Label>
               <Textarea aria-label="Description" className="h-[82px] resize-y" value={event.description ?? ""} onChange={(e) => set({ description: e.target.value || null })} />
