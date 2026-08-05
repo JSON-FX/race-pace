@@ -2294,7 +2294,10 @@ export default async function EventPage({ params }: Params) {
   const categories = await fetchCategories(db, id);
   const date = event.event_date ? formatDateRange(event.event_date, event.end_date, longDate) : null;
   const location = formatAddress({ city_name: event.city_name, province_name: event.province_name });
-  const closed = event.status !== "open";
+  // Mirrors apps/mobile/app/event/[id].tsx:33 — `almost_full` is still
+  // REGISTERABLE. `!== "open"` would block it, rejecting runners on a
+  // nearly-full race while EventCard still advertises it as available.
+  const closed = ["cancelled", "closed", "completed"].includes(event.status);
 
   return (
     <>
@@ -2348,7 +2351,7 @@ export default async function EventPage({ params }: Params) {
                   <div>
                     <h3 className="text-[20px] font-semibold text-foreground">{c.label}</h3>
                     <p className="mt-1 text-[14px] text-muted-foreground">
-                      {soldOut ? "Sold out" : `${remaining} of ${c.slots_total} slots left`}
+                      {soldOut ? "Sold out" : `${remaining} slots left`}
                     </p>
                   </div>
                   <div className="flex items-center gap-5">
