@@ -98,4 +98,32 @@ describe("RegisterWizard", () => {
     const keyAfter = JSON.parse(sessionStorage.getItem("rp:draft:c1")!).idempotencyKey;
     expect(keyAfter).toBe(keyBefore);
   });
+
+  // Regression: a required `gender` field is rendered on step 1, but the
+  // required-profile-key check used to run entirely on step 2 — where step 1's
+  // gender error has no field to attach to. Continue would silently no-op,
+  // dead-ending the runner with no visible error and no way forward but Back.
+  it("blocks advancing past step 1 with a visible error when required gender is empty", async () => {
+    const fieldsWithGender: FormFieldRow[] = [
+      ...fields,
+      { id: "f3", key: "gender", label: "Gender", type: "select", required: true, options: ["Male", "Female", "Non-binary", "Prefer not to say"], sort_order: 3 },
+    ];
+    render(
+      <RegisterWizard userId="u1" category={category} event={event} addons={addons} formFields={fieldsWithGender} />,
+    );
+
+    await userEvent.type(screen.getByLabelText(/Bib name/), "JUAN");
+    await userEvent.type(screen.getByLabelText(/Date of birth/), "1990-01-01");
+    await userEvent.type(screen.getByLabelText(/Emergency contact/), "Maria 09171234567");
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+    // Still on step 1, and the error is visible on the field the runner can see.
+    expect(screen.getByText("Your details")).toBeInTheDocument();
+    expect(await screen.findByText("This is required.")).toBeInTheDocument();
+
+    // Selecting a gender clears the error and lets the runner advance.
+    await userEvent.click(screen.getByRole("button", { name: "Male" }));
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(await screen.findByText("Kit & extras")).toBeInTheDocument();
+  });
 });
