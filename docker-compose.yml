@@ -22,10 +22,53 @@ services:
       - repo_node_modules:/repo/node_modules
       - web_node_modules:/repo/apps/web/node_modules
       - pnpm_store:/repo/.pnpm-store
+
+  # Public runner site (apps/site, Next.js) at https://racepace.lan
+  site:
+    image: node:20-bookworm-slim
+    working_dir: /repo
+    # Invoke the next binary directly rather than `pnpm --filter site dev -- …`:
+    # pnpm forwards the `--` as a literal argv entry, which Next then treats as
+    # a project directory ("no such directory: /repo/apps/site/--hostname").
+    command: sh -c "corepack enable && corepack prepare pnpm@9.7.0 --activate && pnpm install --frozen-lockfile=false && pnpm --filter site exec next dev -p 3000 -H 0.0.0.0"
+    networks: [dev-net]
+    environment:
+      # Overrides apps/site/.env.local: Next gives precedence to real env vars,
+      # so the container gets the .lan origin while local `pnpm dev` keeps
+      # localhost. This is what builds PayMongo's return_url — wrong value and
+      # the runner lands on a dead origin right after paying.
+      NEXT_PUBLIC_SITE_URL: "https://racepace.lan"
+      # Next dev's HMR websocket must dial the browser-visible host, not the
+      # container's internal port.
+      WATCHPACK_POLLING: "true"
+    labels:
+      - "traefik.enable=true"
+      # http :80 -> https redirect
+      - "traefik.http.routers.racepace-site-http.entrypoints=web"
+      - "traefik.http.routers.racepace-site-http.rule=Host(`racepace.lan`)"
+      - "traefik.http.routers.racepace-site-http.middlewares=racepace-site-redirect"
+      - "traefik.http.middlewares.racepace-site-redirect.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.racepace-site-redirect.redirectscheme.permanent=true"
+      # https :443 — `racepace.lan` is a LITERAL SAN on the shared mkcert cert.
+      # A `*.lan` wildcard cannot cover a second-level name, so infra/certs/
+      # projects.txt carries `=racepace.lan` explicitly.
+      - "traefik.http.routers.racepace-site.entrypoints=websecure"
+      - "traefik.http.routers.racepace-site.rule=Host(`racepace.lan`)"
+      - "traefik.http.routers.racepace-site.tls=true"
+      - "traefik.http.services.racepace-site.loadbalancer.server.port=3000"
+    volumes:
+      - ./:/repo
+      - repo_node_modules:/repo/node_modules
+      - site_node_modules:/repo/apps/site/node_modules
+      - site_next:/repo/apps/site/.next
+      - pnpm_store:/repo/.pnpm-store
+
 networks:
   dev-net:
     external: true
 volumes:
   repo_node_modules:
   web_node_modules:
+  site_node_modules:
+  site_next:
   pnpm_store:
