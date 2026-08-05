@@ -1480,7 +1480,7 @@ git commit -m "feat(web): keyboard-wedge scanner detection with focus snapshot r
 **Interfaces:**
 - Consumes: `checkin_events` / `checkin_roster` (Task 1); everything exported by `checkinQueue.ts` (Task 3)
 - Produces:
-  - `checkin.ts`: `type CheckInEvent = { id: string; name: string; event_date: string | null; end_date: string | null }`; `useCheckInEvents()` (**no argument now**); `useCheckInRoster(eventId: string | null)` returning `RosterRow[]`; `useSubmitCheckIn()` unchanged. `CheckInReg` and `useCheckInCount` are **deleted**.
+  - `checkin.ts`: `type CheckInEvent = { id: string; name: string; event_date: string | null; end_date: string | null }`; `useCheckInEvents()` (**no argument now**); `useCheckInRoster(eventId: string | null)` returning `RosterRow[]`; `postCheckIn(ticketToken: string): Promise<EdgeResult>`. `CheckInReg`, `useCheckInCount` and `useSubmitCheckIn` are **deleted**.
   - `useCheckInSession.ts`: `useCheckInSession(eventId: string | null)` returning
     `{ store: CheckInStore, banner: CheckInBanner | null, online: boolean, storageError: string | null, progress: {done,total}, rosterFetchedAt: string | null, rosterSyncing: boolean, rosterError: string | null, syncRoster: () => void, submitToken: (t: string) => Promise<void>, retryOne: (clientId: string) => Promise<void>, retryAll: () => Promise<void> }`
 
@@ -1659,45 +1659,14 @@ export function useCheckInRoster(eventId: string | null) {
 }
 ```
 
-Also drop the now-unused `useQueryClient` import and the `onSuccess` invalidation in `useSubmitCheckIn` — the session hook owns roster state now:
+**Replace `useSubmitCheckIn` with a plain async function.** It had no consumers anywhere in the app and no test, and the session hook needs to call the Edge Function outside React Query anyway (during offline replay). Keeping the hook would leave dead code *and* a second copy of the same fetch. One implementation, exported for the session hook to import:
 
 ```ts
-export function useSubmitCheckIn() {
-  return useMutation({
-    mutationFn: async (ticketToken: string) => {
-      const { data: sess } = await supabase.auth.getSession();
-      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/check-in`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          apikey: import.meta.env.VITE_SUPABASE_ANON_KEY as string,
-          Authorization: `Bearer ${sess.session?.access_token ?? ""}`,
-        },
-        body: JSON.stringify({ ticket_token: ticketToken }),
-      });
-      const body = await res.json().catch(() => ({}));
-      return { status: res.status, body };
-    },
-  });
-}
-```
+import type { EdgeResult } from "./checkinQueue";
 
-Check for other consumers before deleting: `grep -rn "useCheckInCount\|CheckInReg" apps/web/src` should return nothing after this edit.
-
-- [ ] **Step 4: Implement the session hook**
-
-Create `apps/web/src/lib/useCheckInSession.ts`:
-
-```ts
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { bannerFor, useCheckInRoster, type CheckInBanner } from "./checkin";
-import {
-  EMPTY_STORE, loadStore, saveStore, offlineDecision, enqueue, markReplayed,
-  markFailed, retryFailed, progress, type CheckInStore, type EdgeResult,
-} from "./checkinQueue";
-import { supabase } from "./supabase";
-
-async function postCheckIn(ticketToken: string): Promise<EdgeResult> {
+/** POSTs a ticket to the check-in Edge Function. The single place this request
+ *  is built — the offline replay path calls it too. */
+export async function postCheckIn(ticketToken: string): Promise<EdgeResult> {
   const { data: sess } = await supabase.auth.getSession();
   const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/check-in`, {
     method: "POST",
@@ -1711,6 +1680,23 @@ async function postCheckIn(ticketToken: string): Promise<EdgeResult> {
   const body = await res.json().catch(() => ({}));
   return { status: res.status, body };
 }
+```
+
+Drop the now-unused `useMutation` and `useQueryClient` imports.
+
+Confirm nothing is left dangling: `grep -rn "useCheckInCount\|CheckInReg\|useSubmitCheckIn" apps/web/src` must return nothing after this edit.
+
+- [ ] **Step 4: Implement the session hook**
+
+Create `apps/web/src/lib/useCheckInSession.ts`:
+
+```ts
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { bannerFor, postCheckIn, useCheckInRoster, type CheckInBanner } from "./checkin";
+import {
+  EMPTY_STORE, loadStore, saveStore, offlineDecision, enqueue, markReplayed,
+  markFailed, retryFailed, progress, type CheckInStore, type EdgeResult,
+} from "./checkinQueue";
 
 /** Wires roster + offline queue + Edge Function + connectivity into one surface.
  *  The store is the single source of truth for progress, so it stays correct offline. */
