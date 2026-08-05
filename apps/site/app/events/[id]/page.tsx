@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 import Image from "next/image";
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { formatPeso, formatDateRange, formatAddress } from "@race-pace/shared";
+import { formatDateRange, formatAddress } from "@race-pace/shared";
 import { createClient } from "@/lib/supabase/server";
 import { fetchEvent, fetchCategories } from "@/lib/events";
 import { SiteHeader } from "@/components/SiteHeader";
 import { TopoPattern } from "@/components/TopoPattern";
 import { ParallaxMedia } from "@/components/ParallaxMedia";
+import { EventBody } from "@/components/EventBody";
 import { longDate } from "@/lib/format";
 import { isRegistrationClosed } from "@/lib/eventStatus";
 
@@ -83,80 +83,8 @@ export default async function EventPage({ params }: Params) {
           </div>
         </section>
 
-        <div className="mx-auto w-full max-w-5xl px-6 py-16">
-          {event.status_note ? (
-            <p className="mb-10 rounded-xl border border-amber bg-amber-tint px-5 py-4 text-[15px] text-foreground">
-              {event.status_note}
-            </p>
-          ) : null}
-
-          {event.description ? (
-            <p className="max-w-2xl text-[19px] leading-relaxed text-foreground">{event.description}</p>
-          ) : null}
-
-          <dl className="mt-12 grid grid-cols-2 gap-x-6 gap-y-8 border-y border-divider py-9 sm:grid-cols-4">
-            <Stat label="Elevation" value={event.elevation_gain_m ? `${event.elevation_gain_m.toLocaleString()} m` : "—"} />
-            <Stat label="Cut-off" value={event.cutoff_hours ? `${event.cutoff_hours} h` : "—"} />
-            <Stat
-              label="Distances"
-              value={event.distances.length ? event.distances.map((d) => `${d}K`).join(" · ") : "—"}
-            />
-            <Stat label="Registered" value={String(event.joined_count)} />
-          </dl>
-
-          <h2 className="mt-16 font-display text-[32px] font-extrabold tracking-[-0.6px] text-foreground">
-            Choose your distance
-          </h2>
-          <div className="mt-7 flex flex-col gap-4">
-            {categories.map((c) => {
-              const soldOut = c.slots_taken >= c.slots_total;
-              const remaining = Math.max(0, c.slots_total - c.slots_taken);
-              return (
-                <div
-                  key={c.id}
-                  className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border bg-card p-6"
-                >
-                  <div>
-                    <h3 className="font-display text-[21px] font-extrabold text-foreground">{c.label}</h3>
-                    <p className="mt-1 text-[14px] text-muted-foreground">
-                      {soldOut ? "Sold out" : `${remaining} slots left`}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-5">
-                    <span className="text-[22px] font-semibold tabular-nums text-foreground">
-                      {formatPeso(c.base_price)}
-                    </span>
-                    {soldOut || closed ? (
-                      <span className="rounded-pill bg-muted px-6 py-3 text-[15px] font-semibold text-muted-foreground">
-                        {closed ? "Closed" : "Sold out"}
-                      </span>
-                    ) : (
-                      <Link
-                        href={`/register/${c.id}`}
-                        className="rounded-pill bg-primary px-7 py-3 text-[15px] font-semibold text-primary-foreground transition-colors hover:bg-primary-focus"
-                      >
-                        Register
-                      </Link>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-            {categories.length === 0 ? (
-              <p className="text-muted-foreground">Distances haven&apos;t been published yet.</p>
-            ) : null}
-          </div>
-        </div>
+        <EventBody event={event} categories={categories} closed={closed} />
       </main>
     </>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <dt className="text-[11px] font-semibold uppercase tracking-[1.2px] text-muted-foreground">{label}</dt>
-      <dd className="mt-1.5 font-display text-[20px] font-extrabold tabular-nums text-foreground">{value}</dd>
-    </div>
   );
 }
