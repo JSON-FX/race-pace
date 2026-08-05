@@ -107,11 +107,21 @@ claude /mcp
 
 Select `supabase`, then Authenticate. Without this the Supabase MCP tools are unavailable and every database step below must go through the CLI — which is the documented fallback, so this is a convenience, not a hard blocker.
 
-- [ ] **Step 3: [USER] Log in and link the CLI**
+- [ ] **Step 3: [USER] Log in as the NEW account and link the CLI**
+
+**Verified 2026-08-05: the CLI is currently authenticated as the *old* Google account.** `supabase projects list` returns `CopyTraderX-licenses`, `race-pace` (the retired `ytwdrsmclwghwktpupqd`, status `INACTIVE`), and `labaan-backend` — and **not** `whaqarofxdlzxrelbcrq`. The new project lives on a different Gmail account, so the stored token cannot see it and `link` will fail with "project not found" until this is redone.
 
 ```bash
 pnpm exec supabase login
 ```
+
+Complete the browser flow **as the new Gmail account**, then confirm the new project is visible before going further:
+
+```bash
+pnpm exec supabase projects list
+```
+
+Expected: `whaqarofxdlzxrelbcrq` appears. If it does not, the wrong account is still authenticated — do not continue.
 
 Then, from the worktree root:
 
@@ -259,10 +269,12 @@ Sign in as the new user. Expected: Events lists the 5 seeded events. This is the
 - [ ] **Step 12: Verify the existing test suite still passes**
 
 ```bash
-pnpm exec vitest run
+pnpm exec vitest run supabase/functions packages
 ```
 
-Expected: PASS. These are unit tests over `packages/shared` and `supabase/functions/_shared` with no network dependency, so they should be unaffected — this confirms nothing was disturbed.
+Scoped deliberately. A bare `pnpm exec vitest run` also picks up `supabase/tests/*.test.ts`, which are RLS/integration tests requiring a **running local Supabase stack** (`supabase start` plus `supabase status -o env > .env.local`). Those 8 files fail with "Missing local keys" against a hosted-only setup, which is expected and not a regression.
+
+Expected: PASS — 5 files, 30 tests. These are unit tests over `packages/shared` and `supabase/functions/_shared` with no network dependency, so the migration cannot affect them; this simply confirms nothing was disturbed.
 
 - [ ] **Step 13: Commit**
 
@@ -513,10 +525,12 @@ Expected: `1` for each of the six.
 - [ ] **Step 8: Run the full existing test suite**
 
 ```bash
-pnpm exec vitest run
+pnpm exec vitest run supabase/functions packages
 ```
 
-Expected: PASS — no regressions in `_shared` or `packages/shared`.
+Scoped deliberately. A bare `pnpm exec vitest run` also picks up `supabase/tests/*.test.ts`, which are RLS/integration tests requiring a **running local Supabase stack** (`supabase start` plus `supabase status -o env > .env.local`). Those 8 files fail with "Missing local keys" against a hosted-only setup, which is expected and not a regression.
+
+Expected: PASS — 5 files, 39 tests (30 pre-existing plus the 9 new CORS tests). No regressions in `_shared` or `packages/shared`.
 
 - [ ] **Step 9: Commit**
 
@@ -4878,8 +4892,10 @@ pnpm exec supabase functions logs send-ticket-email
 - [ ] **Step 10: Run the full suite and commit**
 
 ```bash
-pnpm exec vitest run
+pnpm exec vitest run supabase/functions packages
 ```
+
+Scoped deliberately. A bare `pnpm exec vitest run` also picks up `supabase/tests/*.test.ts`, which are RLS/integration tests requiring a **running local Supabase stack** (`supabase start` plus `supabase status -o env > .env.local`). Those 8 files fail with "Missing local keys" against a hosted-only setup, which is expected and not a regression.
 
 Expected: PASS.
 
