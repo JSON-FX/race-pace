@@ -1,11 +1,14 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { DataTable, type FilterDef } from "@/components/data-table";
+import { Mail, Hash, CheckCircle2, XCircle } from "lucide-react";
+import { DataTable, type FilterDef, type BulkAction } from "@/components/data-table";
 import { PaymentStatusBadge } from "@/components/StatusBadge";
 import { RegistrationDetail } from "@/components/RegistrationDetail";
-import { peso, fmtDate } from "@/lib/format";
+import { RunnerAvatar } from "@/components/RunnerAvatar";
+import { BulkCancelDialog } from "@/components/BulkCancelDialog";
+import { peso, fmtDateTime } from "@/lib/format";
 import { useTableParams } from "@/lib/use-table-params";
 import type { RegistrationRow } from "@/lib/queries/registrations";
 import type { SortState } from "@/lib/table-params";
@@ -42,6 +45,12 @@ export function RegistrationsTable({
   const selectedId = activeFilters.reg;
   const selected = selectedId ? rows.find((r) => r.id === selectedId) ?? null : null;
 
+  // Ids the admin has confirmed for a bulk cancel — null when the dialog is
+  // closed. Kept separate from DataTable's own selection state (which is
+  // internal to it) because the confirm step needs to survive the
+  // in-between render where the AlertDialog is open.
+  const [cancelIds, setCancelIds] = useState<string[] | null>(null);
+
   const filterDefs = useMemo<FilterDef[]>(() => [
     STATUS_FILTER,
     { key: "category", label: "Category", options: categories.map((c) => ({ value: c.id, label: c.label })) },
@@ -55,16 +64,30 @@ export function RegistrationsTable({
         <button
           type="button"
           onClick={() => setFilter("reg", row.original.id)}
+          aria-label={`View ${row.original.full_name ?? "registration"}`}
           className="text-left hover:underline"
         >
-          <div className="font-semibold">{row.original.full_name ?? "—"}</div>
-          {row.original.bib_name ? (
-            <div className="text-xs text-muted-foreground">{row.original.bib_name}</div>
-          ) : null}
+          <RunnerAvatar id={row.original.id} name={row.original.full_name} email={row.original.email} />
         </button>
       ),
     },
     { accessorKey: "category_label", header: "Category", cell: ({ row }) => row.original.category_label ?? "—" },
+    {
+      accessorKey: "bib_name",
+      header: "Bib",
+      cell: ({ row }) => (
+        row.original.bib_name
+          ? <span className="font-mono tabular">{row.original.bib_name}</span>
+          : <span className="text-muted-foreground">—</span>
+      ),
+    },
+    {
+      accessorKey: "created_at",
+      header: "Registered",
+      cell: ({ row }) => (
+        <span className="font-mono tabular text-muted-foreground">{fmtDateTime(row.original.created_at)}</span>
+      ),
+    },
     {
       accessorKey: "total_amount",
       header: "Amount",
@@ -72,15 +95,14 @@ export function RegistrationsTable({
     },
     {
       accessorKey: "payment_status",
-      header: "Payment",
+      header: "Status",
       cell: ({ row }) => <PaymentStatusBadge status={row.original.payment_status} />,
     },
     {
-      accessorKey: "created_at",
-      header: "Registered",
-      cell: ({ row }) => (
-        <span className="font-mono tabular text-muted-foreground">{fmtDate(row.original.created_at)}</span>
-      ),
+      id: "__chevron",
+      header: () => null,
+      enableSorting: false,
+      cell: () => <span aria-hidden="true" className="text-[12px] text-muted-foreground">›</span>,
     },
   // `setFilter` is stable across renders (see use-table-params.ts — every
   // setter is wrapped in useCallback), so depending on it here both keeps
@@ -89,12 +111,44 @@ export function RegistrationsTable({
   // this memo genuinely memoize instead of recomputing every render.
   ], [setFilter]);
 
+  const bulkActions: BulkAction[] = useMemo(() => [
+    {
+      label: "Send email",
+      icon: Mail,
+      disabled: true,
+      disabledReason: "Bulk email sending isn't wired up yet — no sender exists on the backend.",
+      onSelect: () => {},
+    },
+    {
+      label: "Assign bibs",
+      icon: Hash,
+      disabled: true,
+      disabledReason: "There's no bib-assignment RPC yet — this would be a no-op if it ran.",
+      onSelect: () => {},
+    },
+    {
+      label: "Mark checked-in",
+      icon: CheckCircle2,
+      disabled: true,
+      disabledReason: "Check-in ships in PR2, alongside the race-day roster.",
+      onSelect: () => {},
+    },
+    {
+      label: "Cancel",
+      icon: XCircle,
+      variant: "destructive",
+      onSelect: (ids) => setCancelIds(ids),
+    },
+  ], []);
+
   return (
     <>
       <DataTable
         columns={columns} data={rows} total={total} page={page} per={per} sort={sort}
         filterDefs={filterDefs} activeFilters={activeFilters} q={q}
-        searchPlaceholder="Search name or bib…"
+        searchPlaceholder="Search name, email, bib…"
+        bulkActions={bulkActions}
+        getRowId={(row) => row.id}
         // Registrations is scoped by ?event=<uuid>. "Clear all" wipes every
         // param except sort/per/this list — without "event" here, clicking
         // Clear all would silently move the admin to a different event.
@@ -113,6 +167,14 @@ export function RegistrationsTable({
           // other filter chip.
           onClose={() => setFilter("reg", "all")}
           onRefunded={() => setFilter("reg", "all")}
+        />
+      ) : null}
+
+      {cancelIds ? (
+        <BulkCancelDialog
+          ids={cancelIds}
+          onDone={() => setCancelIds(null)}
+          onClose={() => setCancelIds(null)}
         />
       ) : null}
     </>

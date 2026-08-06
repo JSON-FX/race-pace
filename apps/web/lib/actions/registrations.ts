@@ -30,3 +30,76 @@ export async function refundRegistrationAction(
   revalidatePath("/payments");
   return { ok: true };
 }
+
+export type BulkCancelResult = {
+  ok: boolean;
+  cancelled: number;
+  error?: string;
+};
+
+/** Bulk "Cancel" from the Registrations toolbar (visual parity V3). Each id
+ *  goes through `admin_cancel_registration` — a SECURITY DEFINER RPC (see
+ *  supabase/migrations/20260806201000_admin_cancel_registration_rpc.sql)
+ *  that re-checks `auth_can_admin_org` itself. UI gating (which roles the
+ *  page even shows this button to) is NOT authorization — an editor could
+ *  otherwise call this server action directly with someone else's org's
+ *  registration ids. This function is a thin relay; the RPC is the actual
+ *  gate and runs regardless of what the UI hid.
+ *
+ *  Runs the caller's own session (createClient() from lib/supabase/server,
+ *  never a service-role key) so RLS/the RPC's own check apply exactly as
+ *  they would for any other action this admin takes.
+ *
+ *  A registration that isn't cancellable (already paid — must be refunded,
+ *  not cancelled, so money isn't stranded; see the migration's doc comment)
+ *  is not an error for the OTHERS in the batch — it's reported back so the
+ *  caller can tell the admin "N of M cancelled", not silently drop it or
+ *  fail the whole batch over one ineligible row. */
+export async function cancelRegistrationsAction(ids: string[]): Promise<BulkCancelResult> {
+  if (ids.length === 0) return { ok: false, cancelled: 0, error: "Nothing selected." };
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, cancelled: 0, error: "You must be signed in." };
+
+  const results = await Promise.all(
+    ids.map(async (id) => {
+      const { data, error } = await supabase.rpc("admin_cancel_registration", { p_registration_id: id });
+      if (error) return { id, status: "error" as const, message: error.message };
+      return { id, status: (data as string) ?? "error" };
+    }),
+  );
+
+  const cancelled = results.filter((r) => r.status === "cancelled").length;
+  const unauthorized = results.some((r) => r.status === "unauthorized");
+  const notFound = results.filter((r) => r.status === "not_found").length;
+  const notCancellable = results.filter((r) => r.status === "not_cancellable").length;
+  const hardError = results.find((r) => r.status === "error") as { message?: string } | undefined;
+
+  if (unauthorized) {
+    return { ok: false, cancelled, error: "You don't have permission to cancel one or more of these registrations." };
+  }
+  if (hardError) {
+    return { ok: false, cancelled, error: hardError.message ?? "Cancel failed. Please try again." };
+  }
+  if (cancelled === 0) {
+    return {
+      ok: false,
+      cancelled: 0,
+      error: notCancellable > 0
+        ? "Paid registrations can't be cancelled directly — refund them instead."
+        : notFound > 0
+          ? "Those registrations no longer exist."
+          : "Nothing was cancelled.",
+    };
+  }
+
+  revalidatePath("/registrations");
+  return {
+    ok: true,
+    cancelled,
+    error: cancelled < ids.length
+      ? `${ids.length - cancelled} of ${ids.length} couldn't be cancelled (already paid or not found).`
+      : undefined,
+  };
+}

@@ -27,14 +27,20 @@ beforeEach(() => {
 const rows: RegistrationRow[] = [
   {
     id: "r1", user_id: "u1", category_id: "c1", category_label: "50K Ultra",
-    full_name: "Maria Josefa Santos", bib_name: "MJ", total_amount: 285000,
-    payment_status: "paid", payment_method: "gcash",
+    full_name: "Maria Josefa Santos", bib_name: "D-1042", email: "maria.santos@gmail.com",
+    total_amount: 285000, payment_status: "paid", payment_method: "gcash",
     created_at: "2026-08-03T09:14:00Z", custom_data: {},
+  },
+  {
+    id: "r2", user_id: "u2", category_id: "c1", category_label: "25K",
+    full_name: "Angelo Lim", bib_name: null, email: "angelo.lim@yahoo.com",
+    total_amount: 195000, payment_status: "pending", payment_method: null,
+    created_at: "2026-08-03T08:31:00Z", custom_data: {},
   },
 ];
 
 const props = {
-  rows, total: 1, page: 1, per: 25, sort: [], activeFilters: {}, q: "",
+  rows, total: 2, page: 1, per: 25, sort: [], activeFilters: {}, q: "",
   categories: [{ id: "c1", label: "50K Ultra" }],
 };
 
@@ -98,5 +104,42 @@ describe("RegistrationsTable", () => {
     render(<RegistrationsTable {...props} />);
     await user.click(screen.getByText("Maria Josefa Santos"));
     expect(tableParamsSpies.setFilter).toHaveBeenCalledWith("reg", "r1");
+  });
+
+  // Table cell composition (visual parity V3): the Runner cell is now an
+  // avatar + name-over-email "who" cell, not just a bare name.
+  it("renders the runner's email under their name", () => {
+    render(<RegistrationsTable {...props} />);
+    expect(screen.getByText("maria.santos@gmail.com")).toBeInTheDocument();
+    expect(screen.getByText("MJ")).toBeInTheDocument(); // avatar initials
+  });
+
+  // Bib column: font-mono value when assigned, em-dash fallback when not —
+  // r1 has a bib, r2 doesn't.
+  it("renders the Bib column with an em-dash fallback for an unassigned bib", () => {
+    render(<RegistrationsTable {...props} />);
+    expect(screen.getByText("D-1042")).toBeInTheDocument();
+    expect(screen.getByText("—")).toBeInTheDocument();
+  });
+
+  // "Send email"/"Assign bibs"/"Mark checked-in" have no real backend yet
+  // (see task-v3-report.md) — they must render disabled, not silently do
+  // nothing when clicked.
+  it("renders the backend-less bulk actions as disabled once rows are selected", async () => {
+    const user = userEvent.setup();
+    render(<RegistrationsTable {...props} />);
+    await user.click(screen.getAllByLabelText("Select row")[0]);
+    expect(screen.getByRole("button", { name: /Send email/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Assign bibs/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Mark checked-in/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^Cancel$/ })).not.toBeDisabled();
+  });
+
+  it("opens the bulk-cancel confirmation dialog with the selected ids, and does not cancel until confirmed", async () => {
+    const user = userEvent.setup();
+    render(<RegistrationsTable {...props} />);
+    await user.click(screen.getAllByLabelText("Select row")[0]);
+    await user.click(screen.getByRole("button", { name: /^Cancel$/ }));
+    expect(screen.getByText("Cancel 1 registration?")).toBeInTheDocument();
   });
 });

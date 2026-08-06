@@ -29,6 +29,14 @@ export type RegistrationRow = {
   category_label: string | null;
   full_name: string | null;
   bib_name: string | null;
+  /** From `admin_registration_emails` (see
+   *  supabase/migrations/20260806200000_admin_registration_emails_rpc.sql),
+   *  NOT `admin_registrations_v` — `auth.users.email` has no RLS policy
+   *  granting `authenticated` direct read, so it can't be joined into a
+   *  security_invoker view the way full_name/bib_name (both on `profiles`)
+   *  are. Null if the emails RPC call failed (degrades gracefully, same
+   *  posture as getRegistrationAggregates) or genuinely has no email. */
+  email: string | null;
   total_amount: number;
   payment_status: PaymentStatus | null;
   payment_method: string | null;
@@ -68,7 +76,31 @@ export async function listEventRegistrations(
 
   const { data, error, count } = await req;
   if (error) throw error;
-  return { rows: (data ?? []) as RegistrationRow[], total: count ?? 0 };
+  const rows = (data ?? []) as Omit<RegistrationRow, "email">[];
+
+  // Separate RPC, not a join — see RegistrationRow.email's doc comment for
+  // why. Scoped to this event (not per-id) so it's one query regardless of
+  // page size. Degrades to null emails on failure rather than failing the
+  // whole page — the table's real content (names, amounts, status) must
+  // still render even if this secondary lookup breaks.
+  let emailById = new Map<string, string | null>();
+  if (rows.length > 0) {
+    const { data: emails, error: emailError } = await supabase.rpc("admin_registration_emails", {
+      p_event_id: eventId,
+    });
+    if (emailError) {
+      console.error("admin_registration_emails failed", emailError);
+    } else {
+      emailById = new Map(
+        (emails ?? []).map((e: { registration_id: string; email: string | null }) => [e.registration_id, e.email]),
+      );
+    }
+  }
+
+  return {
+    rows: rows.map((r) => ({ ...r, email: emailById.get(r.id) ?? null })),
+    total: count ?? 0,
+  };
 }
 
 /** Events for the picker, with their registration counts. */

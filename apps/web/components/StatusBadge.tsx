@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 export type BadgeTone = "paid" | "pending" | "info" | "danger" | "neutral" | "highlight";
 
 const tone = cva(
-  "inline-block rounded-pill px-2.5 py-1 text-[11px] font-semibold",
+  "inline-flex items-center gap-[5px] rounded-pill px-2.5 py-1 text-[11px] font-semibold",
   {
     variants: {
       tone: {
@@ -20,8 +20,16 @@ const tone = cva(
   }
 );
 
+/** The mockup's `.bdg` dot badge: a 5px leading dot in `currentColor`, so it
+ *  always matches whatever tone color the badge itself resolves to without a
+ *  second color prop to keep in sync. */
 export function StatusBadge({ tone: t, children, className }: { tone: BadgeTone; children: React.ReactNode; className?: string }) {
-  return <span className={cn(tone({ tone: t }), className)}>{children}</span>;
+  return (
+    <span className={cn(tone({ tone: t }), className)}>
+      <span aria-hidden="true" className="size-[5px] shrink-0 rounded-full bg-current" />
+      {children}
+    </span>
+  );
 }
 
 const PAYMENT: Record<string, { label: string; tone: BadgeTone }> = {
