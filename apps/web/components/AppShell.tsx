@@ -10,7 +10,7 @@ export function AppShell({
     <SidebarProvider>
       <Sidebar roles={roles} email={email} />
       <SidebarInset className="bg-muted">
-        <TopBar />
+        <TopBar roles={roles} />
         <main className="rp-scroll flex-1 overflow-y-auto bg-muted">{children}</main>
       </SidebarInset>
     </SidebarProvider>
