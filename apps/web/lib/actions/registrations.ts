@@ -74,7 +74,17 @@ export async function cancelRegistrationsAction(ids: string[]): Promise<BulkCanc
   const unauthorized = results.some((r) => r.status === "unauthorized");
   const notFound = results.filter((r) => r.status === "not_found").length;
   const notCancellable = results.filter((r) => r.status === "not_cancellable").length;
+  const paymentInFlight = results.filter((r) => r.status === "payment_in_flight").length;
   const hardError = results.find((r) => r.status === "error") as { message?: string } | undefined;
+
+  // Revalidate whenever ANY row actually wrote, before any of the
+  // early-return branches below — not only on the fully-successful path.
+  // A mixed batch (e.g. 2 cancelled + 1 unauthorized) used to hit the
+  // `unauthorized` branch and return before this ran, so the 2 real writes
+  // never reached the cache: those rows kept rendering as "Pending" until
+  // some unrelated navigation happened to revalidate the page. The DB was
+  // already correct; only the admin's view of it was stale.
+  if (cancelled > 0) revalidatePath("/registrations");
 
   if (unauthorized) {
     return { ok: false, cancelled, error: "You don't have permission to cancel one or more of these registrations." };
@@ -86,20 +96,21 @@ export async function cancelRegistrationsAction(ids: string[]): Promise<BulkCanc
     return {
       ok: false,
       cancelled: 0,
-      error: notCancellable > 0
-        ? "Paid registrations can't be cancelled directly — refund them instead."
-        : notFound > 0
-          ? "Those registrations no longer exist."
-          : "Nothing was cancelled.",
+      error: paymentInFlight > 0
+        ? "Some registrations have a payment in progress — wait for it to complete or fail before cancelling."
+        : notCancellable > 0
+          ? "Paid registrations can't be cancelled directly — refund them instead."
+          : notFound > 0
+            ? "Those registrations no longer exist."
+            : "Nothing was cancelled.",
     };
   }
 
-  revalidatePath("/registrations");
   return {
     ok: true,
     cancelled,
     error: cancelled < ids.length
-      ? `${ids.length - cancelled} of ${ids.length} couldn't be cancelled (already paid or not found).`
+      ? `${ids.length - cancelled} of ${ids.length} couldn't be cancelled (paid, payment in progress, or not found).`
       : undefined,
   };
 }

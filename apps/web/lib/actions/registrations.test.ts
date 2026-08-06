@@ -81,6 +81,33 @@ describe("cancelRegistrationsAction", () => {
     expect(res.error).toMatch(/refund/i);
   });
 
+  // A registration with a live/in-flight checkout must not be cancelled out
+  // from under a payment that could still complete a moment later — see the
+  // migration's doc comment for the exact race (webhook's confirm_payment_tx
+  // would silently no-op after PayMongo already captured the money).
+  it("reports 'payment_in_flight' distinctly, not as a generic failure", async () => {
+    rpc.mockResolvedValue({ data: "payment_in_flight", error: null });
+    const res = await cancelRegistrationsAction(["r1"]);
+    expect(res.ok).toBe(false);
+    expect(res.cancelled).toBe(0);
+    expect(res.error).toMatch(/payment in progress/i);
+  });
+
+  // Regression: revalidatePath used to sit AFTER the `unauthorized` early
+  // return, so a mixed batch (one row cancels for real, another comes back
+  // unauthorized) never revalidated — the DB write was real, but the page
+  // kept rendering the cancelled row as "Pending" until an unrelated
+  // navigation happened to refresh it. Revalidation must fire whenever ANY
+  // row actually wrote, independent of what else was in the same batch.
+  it("revalidates even when the batch is mixed (one cancelled, one unauthorized)", async () => {
+    rpc.mockResolvedValueOnce({ data: "cancelled", error: null })
+       .mockResolvedValueOnce({ data: "unauthorized", error: null });
+    const res = await cancelRegistrationsAction(["r1", "r2"]);
+    expect(res.ok).toBe(false); // unauthorized still wins the overall verdict
+    expect(res.cancelled).toBe(1); // but the real write is reported
+    expect(revalidatePath).toHaveBeenCalledWith("/registrations");
+  });
+
   // A genuine transport/DB error from .rpc() (network blip, function
   // dropped, etc.) must be surfaced, never swallowed into a reported
   // success — same discipline as the RLS-empty-result rule for `.update()`.

@@ -10,19 +10,37 @@
 -- function that runs its own org-admin authorization check (auth_can_admin_org) rather
 -- than widening any RLS policy or view. This is scoped to exactly the columns an admin
 -- needs (registration id + email) for one event, nothing else from auth.users leaks.
+--
+-- `set search_path = ''` + fully schema-qualified, NOT `set search_path = public` as
+-- this function originally shipped with. Review found that `public` still leaves
+-- `pg_temp` implicit-first in the resolution order, and every unqualified reference
+-- here — `registrations`, `events`, `auth_can_admin_org` — resolves through it. A
+-- caller who can CREATE in `pg_temp` (any authenticated role always can; that schema
+-- is per-session and needs no grant) can shadow any of those names with their own
+-- pg_temp objects and this SECURITY DEFINER function will call THEIRS, not the real
+-- ones — reproduced end to end against this exact function in review: a `pg_temp`
+-- `user_roles` shadow made `auth_can_admin_org` (called unqualified, so through the
+-- same vulnerable path) approve a rival org. `''` removes `public` (and therefore
+-- `pg_temp`'s implicit position ahead of it) from the path entirely, so every name
+-- MUST be schema-qualified or it doesn't resolve at all — verified after this fix by
+-- re-attempting the same pg_temp shadow: it did not intercept the call.
+-- `20260806190000_admin_kpi_aggregates.sql`, committed the same day, already uses
+-- this hardened form — this function should have matched it from the start.
+-- auth_can_admin_org itself is unchanged (pre-existing, shared by many policies —
+-- hardening it is a separate follow-up, not folded into this migration).
 create or replace function public.admin_registration_emails(p_event_id uuid)
 returns table (registration_id uuid, email text)
 language sql
 stable
 security definer
-set search_path = public
+set search_path = ''
 as $$
   select r.id, u.email::text
-  from registrations r
-  join events e on e.id = r.event_id
+  from public.registrations r
+  join public.events e on e.id = r.event_id
   join auth.users u on u.id = r.user_id
   where r.event_id = p_event_id
-    and auth_can_admin_org(e.org_id);
+    and public.auth_can_admin_org(e.org_id);
 $$;
 
 revoke all on function public.admin_registration_emails(uuid) from public;

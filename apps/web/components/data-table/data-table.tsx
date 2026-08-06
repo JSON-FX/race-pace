@@ -17,6 +17,7 @@ import { ActiveFilters } from "./active-filters";
 import { BulkBar, type BulkAction } from "./bulk-bar";
 import { DataTablePagination } from "./pagination";
 import { SortableHeader } from "./column-header";
+import { declaredColumnWidth } from "./column-size";
 import { TableEmptyState } from "./empty-state";
 import type { FilterDef } from "./faceted-filter";
 import { cn } from "@/lib/utils";
@@ -228,8 +229,15 @@ export function DataTable<TData>({
                     {row.getVisibleCells().map((cell) => {
                       const body = flexRender(cell.column.columnDef.cell, cell.getContext());
                       const isPrimaryLink = !!rowHref && cell.column.id === firstDataColumnId;
+                      // Same declaredColumnWidth() SortableHeader uses — only
+                      // a caller-declared `size` (e.g. the `__select` column
+                      // below) sets a width; tanstack's default of 150 must
+                      // not leak onto every other column.
+                      const width = declaredColumnWidth(cell.column.columnDef.size);
                       return (
-                        <TableCell key={cell.id} className="py-3 text-[13px]">
+                        <TableCell key={cell.id}
+                          style={width !== undefined ? { width } : undefined}
+                          className="py-3 text-[13px]">
                           {/* Exactly one real <a> per row, in the first data
                               cell — not one per cell. An <a> cannot legally
                               contain a <td>, so it wraps the cell instead of

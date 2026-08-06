@@ -4,6 +4,7 @@ import { ArrowDown, ArrowUp, ChevronsUpDown } from "lucide-react";
 import type { Header } from "@tanstack/react-table";
 import { flexRender } from "@tanstack/react-table";
 import { TableHead } from "@/components/ui/table";
+import { declaredColumnWidth } from "./column-size";
 
 export function SortableHeader<TData>({ header, onSort }: {
   header: Header<TData, unknown>;
@@ -15,9 +16,12 @@ export function SortableHeader<TData>({ header, onSort }: {
     ? null
     : flexRender(header.column.columnDef.header, header.getContext());
 
+  const width = declaredColumnWidth(header.column.columnDef.size);
+
   return (
     <TableHead
       aria-sort={dir === "asc" ? "ascending" : dir === "desc" ? "descending" : canSort ? "none" : undefined}
+      style={width !== undefined ? { width } : undefined}
       className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
     >
       {canSort ? (

@@ -135,6 +135,23 @@ describe("RegistrationsTable", () => {
     expect(screen.getByRole("button", { name: /^Cancel$/ })).not.toBeDisabled();
   });
 
+  // Regression: a `disabled` <button> is pulled out of the tab order
+  // entirely, and the tooltip wrapper around it used to be a bare <span>
+  // with no tabIndex — also unreachable by keyboard. A keyboard/screen-reader
+  // user got three greyed buttons with no way to find out why. The wrapper
+  // must be a real focus stop that carries the explanation itself, not just
+  // something a mouse hover reveals.
+  it("makes the disabled bulk actions' explanation reachable by keyboard, not just mouse hover", async () => {
+    const user = userEvent.setup();
+    render(<RegistrationsTable {...props} />);
+    await user.click(screen.getAllByLabelText("Select row")[0]);
+    const sendEmailButton = screen.getByRole("button", { name: /Send email/ });
+    const wrapper = sendEmailButton.closest("span[tabindex]");
+    expect(wrapper).not.toBeNull();
+    expect(wrapper).toHaveAttribute("tabindex", "0");
+    expect(wrapper).toHaveAttribute("aria-label", expect.stringMatching(/bulk email sending/i));
+  });
+
   it("opens the bulk-cancel confirmation dialog with the selected ids, and does not cancel until confirmed", async () => {
     const user = userEvent.setup();
     render(<RegistrationsTable {...props} />);

@@ -85,6 +85,27 @@ describe("DataTable", () => {
     expect(onSelect).toHaveBeenCalledWith(["1"]);
   });
 
+  // Regression: the __select column declared `size: 38` but neither
+  // SortableHeader nor the body TableCell ever read a column's declared
+  // size, so the 38px select column from the spec was never actually
+  // rendered — the header cell and every checkbox cell were whatever width
+  // the browser gave an unconstrained <td>. Both must now carry an explicit
+  // width, and ordinary columns (no declared size) must NOT get an inline
+  // width at all — tanstack's default column size (150) is not a real
+  // per-column intent and must not leak onto e.g. the Name column.
+  it("renders the select column's declared 38px width on both the header and body cells", () => {
+    render(<DataTable {...base} bulkActions={[{ label: "Send email", onSelect: vi.fn() }]} getRowId={(r) => r.id} />);
+    const headerCell = screen.getByRole("columnheader", { name: "" }); // the select column has no header label
+    expect(headerCell).toHaveStyle({ width: "38px" });
+    const checkbox = screen.getAllByLabelText("Select row")[0];
+    const bodyCell = checkbox.closest("td");
+    expect(bodyCell).toHaveStyle({ width: "38px" });
+    // A column with no declared `size` (Name) must not pick up an inline
+    // width at all — not 150px (tanstack's internal default), not anything.
+    const nameCell = screen.getByText("Maria Santos").closest("td")!;
+    expect(nameCell.style.width).toBe("");
+  });
+
   // C2 regression: a bulk action must never receive an id that isn't in the
   // *current* data, even if the selection state hasn't been reset yet — the
   // reset effect (keyed on page/per/q/filters) is the fix, this intersection

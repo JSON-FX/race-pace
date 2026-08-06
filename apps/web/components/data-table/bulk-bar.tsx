@@ -35,10 +35,21 @@ export function BulkBar({ count, ids, actions, onClear }: {
           </Button>
         );
         if (!a.disabled || !a.disabledReason) return button;
+        // A `disabled` <button> is removed from the tab order entirely — a
+        // bare wrapping <span> (the previous version) doesn't fix that, it's
+        // not in the tab order either without an explicit tabIndex. That left
+        // keyboard/screen-reader users with three greyed buttons and no way
+        // to reach the explanation. tabIndex={0} makes the WRAPPER the focus
+        // stop Radix's Tooltip listens on (asChild merges its handlers onto
+        // it), so Tab reaches it and focus opens the tooltip the same way
+        // hover does; aria-label repeats the reason for AT that reads the
+        // accessible name rather than waiting on the tooltip's own timing.
         return (
           <TooltipProvider key={a.label}>
             <Tooltip>
-              <TooltipTrigger asChild><span>{button}</span></TooltipTrigger>
+              <TooltipTrigger asChild>
+                <span tabIndex={0} aria-label={a.disabledReason}>{button}</span>
+              </TooltipTrigger>
               <TooltipContent>{a.disabledReason}</TooltipContent>
             </Tooltip>
           </TooltipProvider>
