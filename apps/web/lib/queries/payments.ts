@@ -34,11 +34,23 @@ const SELECT =
 export async function listOrgPayments(
   orgId: string,
   params: TableParams,
+  opts: {
+    /** Default true. See the identical option on `listEventRegistrations`
+     *  (@/lib/queries/registrations) — the export route sets this false for
+     *  every batch after the first, since `count: "exact"` re-runs a real
+     *  `count(*)` server-side and the total doesn't change between batches
+     *  of the SAME request. */
+    includeCount?: boolean;
+  } = {},
 ): Promise<{ rows: PaymentRow[]; total: number }> {
+  const { includeCount = true } = opts;
   const supabase = await createClient();
   const from = (params.page - 1) * params.per;
 
-  let req = supabase.from("admin_payments_v").select(SELECT, { count: "exact" }).eq("org_id", orgId);
+  let req = supabase
+    .from("admin_payments_v")
+    .select(SELECT, includeCount ? { count: "exact" } : undefined)
+    .eq("org_id", orgId);
 
   const status = params.filters.status ?? "all";
   if (status !== "all") req = req.eq("status", status);
@@ -53,7 +65,14 @@ export async function listOrgPayments(
   }
 
   const s = params.sort[0] ?? { id: "created_at", desc: true };
-  req = req.order(s.id, { ascending: !s.desc }).range(from, from + params.per - 1);
+  // Secondary `.order("registration_id")` tiebreaker — same reasoning as
+  // `listEventRegistrations`'s `.order("id")`: rows sharing the primary sort
+  // value have no guaranteed order across two separate `.range()` calls
+  // otherwise, which the export route's batch seam would actually expose.
+  req = req
+    .order(s.id, { ascending: !s.desc })
+    .order("registration_id", { ascending: true })
+    .range(from, from + params.per - 1);
 
   const { data, error, count } = await req;
   if (error) throw error;

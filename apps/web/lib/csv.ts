@@ -49,21 +49,32 @@ export function csvRow(fields: string[]): string {
 }
 
 /**
- * Centavos -> a plain decimal string ("1500.00"), for a Money column.
+ * Centavos -> a plain decimal string ("1500.00", or "-600.00" for a negative
+ * amount), for a Money column.
  *
  * A raw decimal is more useful in a spreadsheet than `peso()`'s formatted
  * `₱1,500` string (from `@/lib/format`) — the latter is styled for on-screen
  * reading, and its thousands separator and currency glyph make the column
- * text rather than a number a spreadsheet can sum/chart. Emitted UNQUOTED
- * and un-guarded by `csvField`'s injection prefix: every amount in this
- * schema (`total_amount`, `amount`, `platform_fee`, `net_to_org`) is
- * non-negative, so the string always starts with a digit, never with one of
- * `FORMULA_LEAD_CHARS` — there is nothing here for a spreadsheet to
- * misinterpret as a formula. If a negative amount is ever introduced, revisit
- * this — a leading `-` on an otherwise-valid number is still parsed as a
- * number by every mainstream spreadsheet app (not a formula trigger), but a
- * future reader should not assume this file was written with that case in
- * mind for every possible column.
+ * text rather than a number a spreadsheet can sum/chart. Emitted UNQUOTED and
+ * un-guarded by `csvField`'s injection prefix.
+ *
+ * This is safe NOT because amounts in this schema are non-negative — they
+ * are not: `registrations.total_amount`, `payments.amount`, `platform_fee`
+ * and `net_to_org` are plain `integer` columns with no CHECK constraint
+ * (confirmed against `pg_constraint`; a negative value is storable and was
+ * exported unguarded as `-600.00` during review). It is safe because of what
+ * THIS FUNCTION emits, unconditionally: `${sign}${(abs / 100).toFixed(2)}`
+ * is always a well-formed numeric literal — `toFixed(2)` cannot produce
+ * anything other than digits and a decimal point, and the only place a `-`
+ * can appear is as a single leading sign character in front of digits. There
+ * is no operand for a spreadsheet's formula parser to act on and nothing for
+ * `csvField`'s guard to have needed to catch in the first place.
+ *
+ * That guarantee lives in the TYPE of this function, not in the data: it
+ * takes a `number`, not a string. A future change that widens it to accept a
+ * pre-formatted string or a value from outside this centavos-integer
+ * pipeline would remove the actual protection this comment describes, even
+ * though nothing about the schema would have changed to justify that.
  */
 export function centavosToDecimal(centavos: number): string {
   const sign = centavos < 0 ? "-" : "";

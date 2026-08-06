@@ -34,7 +34,8 @@ function toRow(r: Awaited<ReturnType<typeof listOrgPayments>>["rows"][number]): 
     csvField(r.full_name),
     // Money as plain decimals, consistent with the Registrations export —
     // see centavosToDecimal's doc comment (@/lib/csv) for why a raw number
-    // beats a formatted `₱` string in a spreadsheet.
+    // beats a formatted `₱` string in a spreadsheet, and why that stays safe
+    // even though these columns have no non-negative constraint.
     centavosToDecimal(r.amount),
     centavosToDecimal(r.platform_fee),
     centavosToDecimal(r.net_to_org),
@@ -72,23 +73,51 @@ export async function GET(request: Request) {
   const filename = `payments-${new Date().toISOString().slice(0, 10)}.csv`;
   const encoder = new TextEncoder();
 
-  const stream = new ReadableStream<Uint8Array>({
-    async start(controller) {
-      try {
-        controller.enqueue(encoder.encode(csvRow(HEADER)));
+  // State driving the pull()-based loop below — see the identical structure
+  // + comment in the Registrations export route for why the batch fetch
+  // lives in pull() rather than in start(): it's what makes backpressure
+  // real (the runtime doesn't call pull() again until the PREVIOUS chunk has
+  // been dequeued), instead of merely technically-streamed.
+  let phase: "header" | "rows" | "done" = "header";
+  let page = 1;
+  let total = 0;
 
-        // `page`/`per` from the incoming request are deliberately ignored —
-        // page through the FULL filtered set in fixed BATCH-sized chunks
-        // instead, per the "export the whole filtered set" requirement.
-        let page = 1;
-        for (;;) {
-          const batchParams: TableParams = { ...params, page, per: BATCH };
-          const { rows, total } = await listOrgPayments(orgId, batchParams);
-          for (const row of rows) controller.enqueue(encoder.encode(toRow(row)));
-          if (rows.length === 0 || page * BATCH >= total) break;
-          page += 1;
+  const stream = new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      try {
+        if (phase === "header") {
+          controller.enqueue(encoder.encode(csvRow(HEADER)));
+          phase = "rows";
+          return;
         }
-        controller.close();
+
+        if (phase === "done") {
+          controller.close();
+          return;
+        }
+
+        // `page`/`per` from the incoming request are deliberately never
+        // read here — the whole filtered set is paged through in fixed
+        // BATCH-sized chunks regardless of what the request asked for.
+        // includeCount: only on the first batch — the total can't change
+        // mid-request, so re-running PostgREST's count(*) on every later
+        // batch is pure waste.
+        const batchParams: TableParams = { ...params, page, per: BATCH };
+        const { rows, total: batchTotal } = await listOrgPayments(orgId, batchParams, {
+          includeCount: page === 1,
+        });
+        if (page === 1) total = batchTotal;
+
+        if (rows.length > 0) {
+          controller.enqueue(encoder.encode(rows.map((row) => toRow(row)).join("")));
+        }
+
+        if (rows.length === 0 || page * BATCH >= total) {
+          phase = "done";
+          controller.close();
+          return;
+        }
+        page += 1;
       } catch (err) {
         // Headers are already flushed by the time a query in the loop above
         // can fail — erroring the stream truncates the download rather than

@@ -3,11 +3,13 @@ import type { TableParams } from "@/lib/table-params";
 import type { MyRoles } from "@/lib/queries/roles";
 import type { RegistrationRow } from "@/lib/queries/registrations";
 
-const { getMyRolesMock, listEventRegistrationsMock, listOrgEventOptionsMock } = vi.hoisted(() => ({
-  getMyRolesMock: vi.fn(),
-  listEventRegistrationsMock: vi.fn(),
-  listOrgEventOptionsMock: vi.fn(),
-}));
+const { getMyRolesMock, listEventRegistrationsMock, listOrgEventOptionsMock, getEventRegistrationEmailsMock } =
+  vi.hoisted(() => ({
+    getMyRolesMock: vi.fn(),
+    listEventRegistrationsMock: vi.fn(),
+    listOrgEventOptionsMock: vi.fn(),
+    getEventRegistrationEmailsMock: vi.fn(),
+  }));
 
 // requireOrgId is pure (see lib/queries/roles.ts) — only getMyRoles needs
 // mocking, so import the real requireOrgId alongside the mocked getMyRoles
@@ -20,6 +22,7 @@ vi.mock("@/lib/queries/roles", async (importOriginal) => {
 vi.mock("@/lib/queries/registrations", () => ({
   listEventRegistrations: listEventRegistrationsMock,
   listOrgEventOptions: listOrgEventOptionsMock,
+  getEventRegistrationEmails: getEventRegistrationEmailsMock,
 }));
 
 import { GET } from "./route";
@@ -28,6 +31,11 @@ function roles(overrides: Partial<MyRoles> = {}): MyRoles {
   return { role: "admin", orgId: "org-1", isSuperAdmin: false, isAdmin: true, isOrgAdmin: false, ...overrides };
 }
 
+// email is never read off the row by the route anymore (it's looked up from
+// the hoisted getEventRegistrationEmails() map instead — see MINOR 2 in the
+// review), but the type still carries the field since listEventRegistrations
+// itself still returns it. Left populated here to catch a regression that
+// would embarrassingly read row.email again instead of the map.
 function row(overrides: Partial<RegistrationRow> = {}): RegistrationRow {
   return {
     id: "reg-1",
@@ -36,7 +44,7 @@ function row(overrides: Partial<RegistrationRow> = {}): RegistrationRow {
     category_label: "21K",
     full_name: "Ana Cruz",
     bib_name: "A1",
-    email: "ana@example.com",
+    email: "WRONG-should-not-be-read-from-the-row",
     total_amount: 150000,
     payment_status: "paid",
     payment_method: "card",
@@ -55,8 +63,10 @@ describe("GET /registrations/export", () => {
     getMyRolesMock.mockReset();
     listEventRegistrationsMock.mockReset();
     listOrgEventOptionsMock.mockReset();
+    getEventRegistrationEmailsMock.mockReset();
     listOrgEventOptionsMock.mockResolvedValue([{ id: "event-1", name: "Dahilayan Sky Ultra", count: 1 }]);
     listEventRegistrationsMock.mockResolvedValue({ rows: [row()], total: 1 });
+    getEventRegistrationEmailsMock.mockResolvedValue(new Map([["reg-1", "ana@example.com"]]));
   });
 
   it("returns 403, not an empty CSV or a redirect, when the caller has no org", async () => {
@@ -83,7 +93,7 @@ describe("GET /registrations/export", () => {
     expect(disposition).toContain(`registrations-${today}.csv`);
   });
 
-  it("emits a header row followed by the data row", async () => {
+  it("emits a header row followed by the data row, with email from the hoisted map", async () => {
     getMyRolesMock.mockResolvedValue(roles());
 
     const res = await GET(new Request("http://localhost/registrations/export"));
@@ -94,6 +104,50 @@ describe("GET /registrations/export", () => {
       "Registration ID,Runner,Email,Category,Bib,Registered At (UTC),Amount (PHP),Payment Status,Payment Method",
     );
     expect(lines[1]).toBe("reg-1,Ana Cruz,ana@example.com,21K,A1,2026-08-04T11:35:15.624Z,1500.00,paid,card");
+  });
+
+  it("fetches emails ONCE per request, not once per batch (the O(n²) fix)", async () => {
+    getMyRolesMock.mockResolvedValue(roles());
+    listEventRegistrationsMock
+      .mockResolvedValueOnce({ rows: new Array(1000).fill(row()), total: 1300 })
+      .mockResolvedValueOnce({ rows: new Array(300).fill(row()), total: 1300 });
+
+    const res = await GET(new Request("http://localhost/registrations/export"));
+    await readBody(res); // drains the stream, which is what actually drives pull() through both batches
+
+    expect(getEventRegistrationEmailsMock).toHaveBeenCalledTimes(1);
+    expect(getEventRegistrationEmailsMock).toHaveBeenCalledWith("event-1");
+    // Both batch calls actually happened (not a vacuously-true empty loop) —
+    // and the query builder itself must be told NOT to also do its own
+    // per-batch email lookup.
+    expect(listEventRegistrationsMock).toHaveBeenCalledTimes(2);
+    for (const call of listEventRegistrationsMock.mock.calls) {
+      const [, , opts] = call as [string, TableParams, { includeEmails?: boolean } | undefined];
+      expect(opts?.includeEmails).toBe(false);
+    }
+  });
+
+  it("requests count only on the first batch, not on every batch", async () => {
+    getMyRolesMock.mockResolvedValue(roles());
+    listEventRegistrationsMock
+      .mockResolvedValueOnce({ rows: new Array(1000).fill(row()), total: 1300 })
+      .mockResolvedValueOnce({ rows: new Array(300).fill(row()), total: 1300 });
+
+    const res = await GET(new Request("http://localhost/registrations/export"));
+    await readBody(res);
+
+    const [, , firstOpts] = listEventRegistrationsMock.mock.calls[0] as [
+      string,
+      TableParams,
+      { includeCount?: boolean },
+    ];
+    const [, , secondOpts] = listEventRegistrationsMock.mock.calls[1] as [
+      string,
+      TableParams,
+      { includeCount?: boolean },
+    ];
+    expect(firstOpts.includeCount).toBe(true);
+    expect(secondOpts.includeCount).toBe(false);
   });
 
   it("escapes a runner name containing a comma so it doesn't shift subsequent columns", async () => {
@@ -162,10 +216,52 @@ describe("GET /registrations/export", () => {
     expect(secondParams.page).toBe(2);
   });
 
+  // The batch-boundary loop was rewritten to live inside pull() for real
+  // backpressure (see MINOR 1 in the review) — re-verify its termination
+  // condition holds at the exact edges a subtly-wrong `>=`/`>` could get
+  // wrong: nothing at all, exactly one full batch, and one row over.
+  describe("batch-boundary termination, post pull() rewrite", () => {
+    it("total = 0: a single call, zero data rows, no infinite loop", async () => {
+      getMyRolesMock.mockResolvedValue(roles());
+      listEventRegistrationsMock.mockResolvedValue({ rows: [], total: 0 });
+
+      const res = await GET(new Request("http://localhost/registrations/export"));
+      const body = await readBody(res);
+
+      expect(listEventRegistrationsMock).toHaveBeenCalledTimes(1);
+      expect(body.trim().split("\r\n")).toHaveLength(1); // header only
+    });
+
+    it("total = exactly BATCH (1000): stops after the first full batch, no empty second call", async () => {
+      getMyRolesMock.mockResolvedValue(roles());
+      listEventRegistrationsMock.mockResolvedValue({ rows: new Array(1000).fill(row()), total: 1000 });
+
+      const res = await GET(new Request("http://localhost/registrations/export"));
+      const body = await readBody(res);
+
+      expect(listEventRegistrationsMock).toHaveBeenCalledTimes(1);
+      expect(body.trim().split("\r\n")).toHaveLength(1001); // header + 1000 rows
+    });
+
+    it("total = BATCH + 1 (1001): a second batch of exactly 1 row is fetched", async () => {
+      getMyRolesMock.mockResolvedValue(roles());
+      listEventRegistrationsMock
+        .mockResolvedValueOnce({ rows: new Array(1000).fill(row()), total: 1001 })
+        .mockResolvedValueOnce({ rows: new Array(1).fill(row()), total: 1001 });
+
+      const res = await GET(new Request("http://localhost/registrations/export"));
+      const body = await readBody(res);
+
+      expect(listEventRegistrationsMock).toHaveBeenCalledTimes(2);
+      expect(body.trim().split("\r\n")).toHaveLength(1002); // header + 1001 rows
+    });
+  });
+
   it("honours filters from the query string — same status/category the page would apply", async () => {
     getMyRolesMock.mockResolvedValue(roles());
 
-    await GET(new Request("http://localhost/registrations/export?status=paid&category=cat-9&q=cruz"));
+    const res = await GET(new Request("http://localhost/registrations/export?status=paid&category=cat-9&q=cruz"));
+    await readBody(res); // drains the stream — the batch fetch happens inside pull(), not eagerly
 
     const [, calledParams] = listEventRegistrationsMock.mock.calls[0] as [string, TableParams];
     expect(calledParams.filters.status).toBe("paid");
@@ -180,7 +276,8 @@ describe("GET /registrations/export", () => {
       { id: "event-2", name: "B", count: 1 },
     ]);
 
-    await GET(new Request("http://localhost/registrations/export?event=event-2"));
+    const res = await GET(new Request("http://localhost/registrations/export?event=event-2"));
+    await readBody(res);
 
     const [calledEventId] = listEventRegistrationsMock.mock.calls[0] as [string, TableParams];
     expect(calledEventId).toBe("event-2");
@@ -193,7 +290,8 @@ describe("GET /registrations/export", () => {
       { id: "event-old", name: "Old", count: 1 },
     ]);
 
-    await GET(new Request("http://localhost/registrations/export"));
+    const res = await GET(new Request("http://localhost/registrations/export"));
+    await readBody(res);
 
     const [calledEventId] = listEventRegistrationsMock.mock.calls[0] as [string, TableParams];
     expect(calledEventId).toBe("event-recent");
@@ -208,6 +306,7 @@ describe("GET /registrations/export", () => {
 
     expect(res.status).toBe(200);
     expect(listEventRegistrationsMock).not.toHaveBeenCalled();
+    expect(getEventRegistrationEmailsMock).not.toHaveBeenCalled();
     expect(body.trim().split("\r\n")).toHaveLength(1);
   });
 });

@@ -1,6 +1,6 @@
 import { parseTableParams, searchParamsToRecord, type TableParams } from "@/lib/table-params";
 import { getMyRoles, requireOrgId } from "@/lib/queries/roles";
-import { listEventRegistrations, listOrgEventOptions } from "@/lib/queries/registrations";
+import { listEventRegistrations, listOrgEventOptions, getEventRegistrationEmails } from "@/lib/queries/registrations";
 import { csvField, csvRow, centavosToDecimal } from "@/lib/csv";
 
 export const dynamic = "force-dynamic";
@@ -34,11 +34,14 @@ const HEADER = [
   "Payment Method",
 ];
 
-function toRow(r: Awaited<ReturnType<typeof listEventRegistrations>>["rows"][number]): string {
+function toRow(
+  r: Awaited<ReturnType<typeof listEventRegistrations>>["rows"][number],
+  emailById: Map<string, string | null>,
+): string {
   return csvRow([
     csvField(r.id),
     csvField(r.full_name),
-    csvField(r.email),
+    csvField(emailById.get(r.id) ?? null),
     csvField(r.category_label),
     csvField(r.bib_name),
     // ISO 8601, unambiguous — not the table's `MMM D, HH:mm` (see fmtDateTime
@@ -92,35 +95,71 @@ export async function GET(request: Request) {
   const filename = `registrations-${new Date().toISOString().slice(0, 10)}.csv`;
   const encoder = new TextEncoder();
 
-  const stream = new ReadableStream<Uint8Array>({
-    async start(controller) {
-      try {
-        controller.enqueue(encoder.encode(csvRow(HEADER)));
+  // State driving the pull()-based loop below. `page`/`per` from the
+  // incoming request are deliberately never read from here down — the whole
+  // filtered set is paged through in fixed BATCH-sized chunks regardless of
+  // what the request asked for, per the "export the whole filtered set, not
+  // the visible page" requirement.
+  let phase: "header" | "rows" | "done" = "header";
+  let page = 1;
+  let total = 0;
+  let emailById = new Map<string, string | null>();
 
-        if (!eventId) {
-          // No events in this org at all — the page renders its own empty
-          // state in this case; the export mirrors it with a header-only CSV
-          // rather than erroring.
+  const stream = new ReadableStream<Uint8Array>({
+    // A batch loop that ran entirely inside `start()` (the first version of
+    // this route) enqueues every batch as fast as the DB returns it,
+    // regardless of whether the client has read any of it yet — bytes for a
+    // 200k-row export would all sit in the stream's internal queue at once
+    // for a slow connection. Doing the work inside `pull()` instead means
+    // the runtime only calls this again once the PREVIOUS chunk has actually
+    // been dequeued (read by the consumer), so at most one batch's worth of
+    // CSV text is ever buffered ahead of the client — real backpressure,
+    // not just "technically streamed".
+    async pull(controller) {
+      try {
+        if (phase === "header") {
+          controller.enqueue(encoder.encode(csvRow(HEADER)));
+          if (!eventId) {
+            // No events in this org at all — the page renders its own empty
+            // state in this case; the export mirrors it with a header-only
+            // CSV rather than erroring.
+            phase = "done";
+            controller.close();
+            return;
+          }
+          // Fetched ONCE per request, not once per batch — see
+          // getEventRegistrationEmails' doc comment (@/lib/queries/
+          // registrations) for the O(n²) cost this replaces.
+          emailById = await getEventRegistrationEmails(eventId);
+          phase = "rows";
+          return;
+        }
+
+        if (phase === "done") {
           controller.close();
           return;
         }
 
-        // `page`/`per` from the incoming request are deliberately ignored
-        // from here down — ignore params.page/params.per entirely and page
-        // through the FULL filtered set in fixed BATCH-sized chunks instead,
-        // per the "export the whole filtered set, not the visible page"
-        // requirement. A naive single `listEventRegistrations(eventId,
-        // params)` call would silently truncate at PostgREST's cap the same
-        // way an un-paged `.range()` read would.
-        let page = 1;
-        for (;;) {
-          const batchParams: TableParams = { ...params, page, per: BATCH };
-          const { rows, total } = await listEventRegistrations(eventId, batchParams);
-          for (const row of rows) controller.enqueue(encoder.encode(toRow(row)));
-          if (rows.length === 0 || page * BATCH >= total) break;
-          page += 1;
+        const batchParams: TableParams = { ...params, page, per: BATCH };
+        // includeEmails: false — already fetched above, once. includeCount:
+        // only on the first batch — the total can't change mid-request, so
+        // re-running PostgREST's count(*) on every later batch is pure waste.
+        const { rows, total: batchTotal } = await listEventRegistrations(eventId!, batchParams, {
+          includeEmails: false,
+          includeCount: page === 1,
+        });
+        if (page === 1) total = batchTotal;
+
+        if (rows.length > 0) {
+          controller.enqueue(encoder.encode(rows.map((row) => toRow(row, emailById)).join("")));
         }
-        controller.close();
+
+        if (rows.length === 0 || page * BATCH >= total) {
+          phase = "done";
+          controller.close();
+          return;
+        }
+        page += 1;
       } catch (err) {
         // Headers (200 + CSV content-type) are already flushed by the time
         // any query in the loop above can fail, so there is no "fail with a

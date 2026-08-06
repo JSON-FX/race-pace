@@ -148,10 +148,66 @@ describe("GET /payments/export", () => {
     expect(secondParams.page).toBe(2);
   });
 
+  it("requests count only on the first batch, not on every batch", async () => {
+    getMyRolesMock.mockResolvedValue(roles());
+    listOrgPaymentsMock
+      .mockResolvedValueOnce({ rows: new Array(1000).fill(row()), total: 1300 })
+      .mockResolvedValueOnce({ rows: new Array(300).fill(row()), total: 1300 });
+
+    const res = await GET(new Request("http://localhost/payments/export"));
+    await readBody(res); // drains the stream — the batch fetch happens inside pull(), not eagerly
+
+    const [, , firstOpts] = listOrgPaymentsMock.mock.calls[0] as [string, TableParams, { includeCount?: boolean }];
+    const [, , secondOpts] = listOrgPaymentsMock.mock.calls[1] as [string, TableParams, { includeCount?: boolean }];
+    expect(firstOpts.includeCount).toBe(true);
+    expect(secondOpts.includeCount).toBe(false);
+  });
+
+  // The batch loop was rewritten to live inside pull() for real backpressure
+  // (see MINOR 1 in the review) — re-verify termination at the exact edges:
+  // nothing at all, exactly one full batch, and one row over.
+  describe("batch-boundary termination, post pull() rewrite", () => {
+    it("total = 0: a single call, zero data rows, no infinite loop", async () => {
+      getMyRolesMock.mockResolvedValue(roles());
+      listOrgPaymentsMock.mockResolvedValue({ rows: [], total: 0 });
+
+      const res = await GET(new Request("http://localhost/payments/export"));
+      const body = await readBody(res);
+
+      expect(listOrgPaymentsMock).toHaveBeenCalledTimes(1);
+      expect(body.trim().split("\r\n")).toHaveLength(1); // header only
+    });
+
+    it("total = exactly BATCH (1000): stops after the first full batch, no empty second call", async () => {
+      getMyRolesMock.mockResolvedValue(roles());
+      listOrgPaymentsMock.mockResolvedValue({ rows: new Array(1000).fill(row()), total: 1000 });
+
+      const res = await GET(new Request("http://localhost/payments/export"));
+      const body = await readBody(res);
+
+      expect(listOrgPaymentsMock).toHaveBeenCalledTimes(1);
+      expect(body.trim().split("\r\n")).toHaveLength(1001); // header + 1000 rows
+    });
+
+    it("total = BATCH + 1 (1001): a second batch of exactly 1 row is fetched", async () => {
+      getMyRolesMock.mockResolvedValue(roles());
+      listOrgPaymentsMock
+        .mockResolvedValueOnce({ rows: new Array(1000).fill(row()), total: 1001 })
+        .mockResolvedValueOnce({ rows: new Array(1).fill(row()), total: 1001 });
+
+      const res = await GET(new Request("http://localhost/payments/export"));
+      const body = await readBody(res);
+
+      expect(listOrgPaymentsMock).toHaveBeenCalledTimes(2);
+      expect(body.trim().split("\r\n")).toHaveLength(1002); // header + 1001 rows
+    });
+  });
+
   it("honours filters from the query string — same status/method the page would apply", async () => {
     getMyRolesMock.mockResolvedValue(roles());
 
-    await GET(new Request("http://localhost/payments/export?status=refunded&method=gcash&q=ana"));
+    const res = await GET(new Request("http://localhost/payments/export?status=refunded&method=gcash&q=ana"));
+    await readBody(res);
 
     const [orgId, calledParams] = listOrgPaymentsMock.mock.calls[0] as [string, TableParams];
     expect(orgId).toBe("org-1");

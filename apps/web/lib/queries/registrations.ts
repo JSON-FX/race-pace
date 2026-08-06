@@ -47,16 +47,55 @@ export type RegistrationRow = {
 const SELECT =
   "id,user_id,category_id,category_label,full_name,bib_name,total_amount,payment_status,payment_method,custom_data,created_at";
 
+/** The email side-lookup from `listEventRegistrations`, split out so a
+ *  caller paging through MANY batches (the CSV export route) can fetch it
+ *  ONCE per request instead of once per batch. `listEventRegistrations`
+ *  itself still calls this by default (see `includeEmails` below) so the
+ *  page's existing single-call behaviour, and the tests pinned to it in
+ *  registrations-emails.test.ts, are unchanged.
+ *
+ *  Separate RPC, not a join — see RegistrationRow.email's doc comment for
+ *  why. Scoped to the event, not per-id, so it's one query regardless of how
+ *  many rows the caller ultimately needs. Degrades to an empty map (not a
+ *  thrown error) on failure — a broken secondary lookup must not take down
+ *  the table's real content (names, amounts, status). */
+export async function getEventRegistrationEmails(eventId: string): Promise<Map<string, string | null>> {
+  const supabase = await createClient();
+  const { data: emails, error } = await supabase.rpc("admin_registration_emails", { p_event_id: eventId });
+  if (error) {
+    console.error("admin_registration_emails failed", error);
+    return new Map();
+  }
+  return new Map(
+    (emails ?? []).map((e: { registration_id: string; email: string | null }) => [e.registration_id, e.email]),
+  );
+}
+
 export async function listEventRegistrations(
   eventId: string,
   params: TableParams,
+  opts: {
+    /** Default true (the page's behaviour). The export route passes false
+     *  and merges emails itself from a SINGLE `getEventRegistrationEmails`
+     *  call made once per request — see that route's comment for why: this
+     *  function's own per-call RPC, run once per BATCH, was doing an O(n²)
+     *  amount of work for a large event (every batch re-fetching every
+     *  email for the whole event). */
+    includeEmails?: boolean;
+    /** Default true. PostgREST's `count: "exact"` runs a real `count(*)`
+     *  server-side on top of the page read — cheap once, wasteful re-run on
+     *  every batch of a paged export that already knows the total from its
+     *  first call. */
+    includeCount?: boolean;
+  } = {},
 ): Promise<{ rows: RegistrationRow[]; total: number }> {
+  const { includeEmails = true, includeCount = true } = opts;
   const supabase = await createClient();
   const from = (params.page - 1) * params.per;
 
   let req = supabase
     .from("admin_registrations_v")
-    .select(SELECT, { count: "exact" })
+    .select(SELECT, includeCount ? { count: "exact" } : undefined)
     .eq("event_id", eventId);
 
   const status = params.filters.status ?? "all";
@@ -72,29 +111,23 @@ export async function listEventRegistrations(
   }
 
   const s = params.sort[0] ?? { id: "created_at", desc: true };
-  req = req.order(s.id, { ascending: !s.desc }).range(from, from + params.per - 1);
+  // Secondary `.order("id")` tiebreaker: rows sharing the primary sort
+  // value (a bulk import, a seeded event — anything with identical
+  // `created_at`) otherwise have NO guaranteed relative order between two
+  // separate `.range()` queries. A single-page read never notices; the CSV
+  // export's batch-1/batch-2 seam absolutely would, as a row silently
+  // duplicated onto both batches or dropped from both. `id` is a uuid with
+  // no natural meaning, but it IS stable, so it's sufficient to make the
+  // ordering total rather than merely mostly-total.
+  req = req.order(s.id, { ascending: !s.desc }).order("id", { ascending: true }).range(from, from + params.per - 1);
 
   const { data, error, count } = await req;
   if (error) throw error;
   const rows = (data ?? []) as Omit<RegistrationRow, "email">[];
 
-  // Separate RPC, not a join — see RegistrationRow.email's doc comment for
-  // why. Scoped to this event (not per-id) so it's one query regardless of
-  // page size. Degrades to null emails on failure rather than failing the
-  // whole page — the table's real content (names, amounts, status) must
-  // still render even if this secondary lookup breaks.
   let emailById = new Map<string, string | null>();
-  if (rows.length > 0) {
-    const { data: emails, error: emailError } = await supabase.rpc("admin_registration_emails", {
-      p_event_id: eventId,
-    });
-    if (emailError) {
-      console.error("admin_registration_emails failed", emailError);
-    } else {
-      emailById = new Map(
-        (emails ?? []).map((e: { registration_id: string; email: string | null }) => [e.registration_id, e.email]),
-      );
-    }
+  if (includeEmails && rows.length > 0) {
+    emailById = await getEventRegistrationEmails(eventId);
   }
 
   return {
