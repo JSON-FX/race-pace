@@ -31,7 +31,7 @@ vi.mock("next/cache", () => ({ revalidatePath }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ from }) }));
 
 import { reconcileChildren } from "@/lib/reconcile-children";
-import { saveEventAction, cancelEventAction, rescheduleEventAction, type EventDraft } from "./events";
+import { saveEventAction, cancelEventAction, rescheduleEventAction, type EventDraft, type CategoryDraft } from "./events";
 
 function roles(overrides: Partial<{ isAdmin: boolean; isSuperAdmin: boolean; orgId: string | null }> = {}) {
   return { role: "admin", isSuperAdmin: false, isAdmin: true, isOrgAdmin: true, orgId: "a1", ...overrides };
@@ -47,12 +47,15 @@ function baseEvent(overrides: Partial<EventDraft> = {}): EventDraft {
   };
 }
 
-function savePayload(event: Partial<EventDraft> = {}) {
+function savePayload(event: Partial<EventDraft> = {}, children: {
+  categories?: { current: CategoryDraft[]; original: { id?: string }[] };
+  addons?: { current: { id?: string; tempId?: string; name: string; price: number }[]; original: { id?: string }[] };
+} = {}) {
   const fd = new FormData();
   fd.set("payload", JSON.stringify({
     event: baseEvent(event),
-    categories: { current: [], original: [] },
-    addons: { current: [], original: [] },
+    categories: children.categories ?? { current: [], original: [] },
+    addons: children.addons ?? { current: [], original: [] },
   }));
   return fd;
 }
@@ -100,9 +103,24 @@ describe("saveEventAction", () => {
     expect(from).not.toHaveBeenCalled();
   });
 
+  // events_start_coords_paired / events_finish_coords_paired
+  // (supabase/migrations/20260806160000_event_course_coordinates.sql):
+  // check ((start_lat is null) = (start_lng is null)). Client validation
+  // already blocks this, but the Server Action is a public endpoint that
+  // doesn't have to go through the client form.
+  it("blocks a half-entered coordinate pair before any write", async () => {
+    getMyRoles.mockResolvedValue(roles({}));
+    const res = await saveEventAction({}, savePayload({ start_lat: 6.7719, start_lng: null }));
+    expect(res.error).toMatch(/start latitude and longitude/);
+    expect(from).not.toHaveBeenCalled();
+  });
+
   it("inserts a new event, revalidates, and returns its id", async () => {
     getMyRoles.mockResolvedValue(roles({}));
-    from.mockReturnValue(chain({ data: { id: "e9" }, error: null }));
+    const insertChain = chain({ data: { id: "e9" }, error: null });
+    const catsChain = chain({ data: [], error: null });
+    const addonsChain = chain({ data: [], error: null });
+    from.mockReturnValueOnce(insertChain).mockReturnValueOnce(catsChain).mockReturnValueOnce(addonsChain);
     const res = await saveEventAction({}, savePayload());
     expect(res.eventId).toBe("e9");
     expect(res.error).toBeUndefined();
@@ -112,9 +130,69 @@ describe("saveEventAction", () => {
 
   it("reports failure, not success, when the update silently affects zero rows", async () => {
     getMyRoles.mockResolvedValue(roles({}));
-    from.mockReturnValue(chain({ data: [], error: null }));
+    const statusChain = chain({ data: { status: "draft" }, error: null });
+    const updateChain = chain({ data: [], error: null });
+    from.mockReturnValueOnce(statusChain).mockReturnValueOnce(updateChain);
     const res = await saveEventAction({}, savePayload({ id: "e1" }));
     expect(res.error).toBeTruthy();
+  });
+
+  // "cancelled" is outside eventInputSchema's status enum by design (it's
+  // set only via the Cancel modal / cancelEventAction, which also records
+  // status_note) — a forged Save payload must not be able to set it
+  // directly and skip that note.
+  it("refuses status: \"cancelled\" through Save when the event isn't already cancelled", async () => {
+    getMyRoles.mockResolvedValue(roles({}));
+    const statusChain = chain({ data: { status: "open" }, error: null });
+    from.mockReturnValueOnce(statusChain);
+    const res = await saveEventAction({}, savePayload({ id: "e1", status: "cancelled" }));
+    expect(res.error).toBeTruthy();
+    // Only the status lookup ran — no update was attempted.
+    expect(from).toHaveBeenCalledTimes(1);
+  });
+
+  it("allows status: \"cancelled\" to round-trip through Save when the event is ALREADY cancelled", async () => {
+    getMyRoles.mockResolvedValue(roles({}));
+    const statusChain = chain({ data: { status: "cancelled" }, error: null });
+    const updateChain = chain({ data: [{ id: "e1" }], error: null });
+    const catsChain = chain({ data: [], error: null });
+    const addonsChain = chain({ data: [], error: null });
+    from.mockReturnValueOnce(statusChain).mockReturnValueOnce(updateChain).mockReturnValueOnce(catsChain).mockReturnValueOnce(addonsChain);
+    const res = await saveEventAction({}, savePayload({ id: "e1", status: "cancelled" }));
+    expect(res.error).toBeUndefined();
+  });
+
+  // Category/add-on deletes must be scoped to the event actually being
+  // saved, not trusted from the client-supplied `original` array — RLS on
+  // categories/addons only checks the PARENT EVENT's org, not that the row
+  // belongs to THIS event, so a crafted/stale payload naming a category id
+  // from a different event in the same org would otherwise be a valid
+  // delete target.
+  it("derives the categories/addons diff from a fresh DB query, not the client-supplied `original` array", async () => {
+    getMyRoles.mockResolvedValue(roles({}));
+    const statusChain = chain({ data: { status: "draft" }, error: null });
+    const updateChain = chain({ data: [{ id: "e1" }], error: null });
+    // The server's authoritative view: event e1 actually has category "real-1".
+    const catsChain = chain({ data: [{ id: "real-1" }], error: null });
+    const addonsChain = chain({ data: [], error: null });
+    const deleteChain = chain({ data: null, error: null });
+    from.mockReturnValueOnce(statusChain).mockReturnValueOnce(updateChain).mockReturnValueOnce(catsChain).mockReturnValueOnce(addonsChain).mockReturnValueOnce(deleteChain);
+
+    // The payload lies: it claims the event's original categories were
+    // ["other-event-cat"] (belonging to some OTHER event in the same org)
+    // and the current list is empty — if trusted, this would compute
+    // "other-event-cat" as deleted. The real original ("real-1") isn't
+    // mentioned by the payload at all.
+    const res = await saveEventAction({}, savePayload({ id: "e1" }, {
+      categories: { current: [], original: [{ id: "other-event-cat" }] },
+    }));
+
+    expect(res.error).toBeUndefined();
+    // The delete that actually ran targeted "real-1" (the DB's real child),
+    // not "other-event-cat" (the payload's claim) — and was scoped to e1.
+    expect(deleteChain.delete).toHaveBeenCalled();
+    expect(deleteChain.eq).toHaveBeenCalledWith("id", "real-1");
+    expect(deleteChain.eq).toHaveBeenCalledWith("event_id", "e1");
   });
 });
 
@@ -136,16 +214,33 @@ describe("cancelEventAction", () => {
     expect(write.update).toHaveBeenCalledWith({ status: "cancelled", status_note: "weather" });
     expect(revalidatePath).toHaveBeenCalledWith("/events");
   });
+
+  it("logs the real Postgres error server-side on a failed lookup", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    getMyRoles.mockResolvedValue(roles({}));
+    from.mockReturnValueOnce(chain({ data: null, error: { message: "no rows" } }));
+    const res = await cancelEventAction("e1", "weather");
+    expect(res.error).toBeTruthy();
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("[events]"), expect.anything());
+    errorSpy.mockRestore();
+  });
 });
 
 describe("rescheduleEventAction", () => {
-  const lookupOk = () => chain({ data: { org_id: "a1" }, error: null });
+  // event_date/end_date now come from the freshly-fetched row, not the
+  // currentDate/currentEndDate arguments — those are accepted for a stable
+  // call shape (RescheduleModal passes them) but deliberately ignored, so a
+  // stale client can't feed a wrong "current" date into the end_date-shift
+  // math or overwrite original_date with a value that was never current.
+  const lookupOk = (eventDate: string | null, endDate: string | null) =>
+    chain({ data: { org_id: "a1", event_date: eventDate, end_date: endDate }, error: null });
 
   it("shifts end_date by the same delta as the new start date for a multi-day event", async () => {
     getMyRoles.mockResolvedValue(roles({}));
     const write = chain({ data: [{ id: "e1" }], error: null });
-    from.mockReturnValueOnce(lookupOk()).mockReturnValueOnce(write);
-    await rescheduleEventAction("e1", "2026-09-01", "2026-09-03", "2026-10-05", "moved");
+    from.mockReturnValueOnce(lookupOk("2026-09-01", "2026-09-03")).mockReturnValueOnce(write);
+    // Pass mismatched currentDate/currentEndDate args — they must be ignored.
+    await rescheduleEventAction("e1", "1999-01-01", "1999-01-01", "2026-10-05", "moved");
     expect(write.update).toHaveBeenCalledWith({
       original_date: "2026-09-01", event_date: "2026-10-05", end_date: "2026-10-07", status_note: "moved",
     });
@@ -154,7 +249,7 @@ describe("rescheduleEventAction", () => {
   it("leaves end_date null for a single-day event", async () => {
     getMyRoles.mockResolvedValue(roles({}));
     const write = chain({ data: [{ id: "e1" }], error: null });
-    from.mockReturnValueOnce(lookupOk()).mockReturnValueOnce(write);
+    from.mockReturnValueOnce(lookupOk("2026-09-01", null)).mockReturnValueOnce(write);
     await rescheduleEventAction("e1", "2026-09-01", null, "2026-10-05", "");
     expect(write.update).toHaveBeenCalledWith({
       original_date: "2026-09-01", event_date: "2026-10-05", end_date: null, status_note: null,
@@ -163,8 +258,19 @@ describe("rescheduleEventAction", () => {
 
   it("refuses a non-admin/editor caller without writing", async () => {
     getMyRoles.mockResolvedValue(roles({ isAdmin: false }));
-    from.mockReturnValueOnce(lookupOk());
+    from.mockReturnValueOnce(lookupOk("2026-09-01", null));
     const res = await rescheduleEventAction("e1", "2026-09-01", null, "2026-10-05", "");
     expect(res.error).toBeTruthy();
+  });
+
+  it("logs the real Postgres error server-side on a failed update", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    getMyRoles.mockResolvedValue(roles({}));
+    const write = chain({ data: null, error: { message: "boom" } });
+    from.mockReturnValueOnce(lookupOk("2026-09-01", null)).mockReturnValueOnce(write);
+    const res = await rescheduleEventAction("e1", "2026-09-01", null, "2026-10-05", "");
+    expect(res.error).toBeTruthy();
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("[events]"), expect.anything());
+    errorSpy.mockRestore();
   });
 });

@@ -64,6 +64,28 @@ export const eventInputSchema = z.object({
   inclusions: z.array(inclusionItemSchema).default([]),
 });
 
+/**
+ * Mirrors events_start_coords_paired / events_finish_coords_paired
+ * (supabase/migrations/20260806160000_event_course_coordinates.sql:
+ * `check ((start_lat is null) = (start_lng is null))`, same for finish).
+ * Kept as a standalone function rather than a `.refine()` chained onto
+ * eventInputSchema: both call sites (event-editor-form.tsx and
+ * lib/actions/events.ts) need `eventInputSchema.omit({ status: true })`,
+ * and `.refine()`/`.superRefine()` return a ZodEffects, which drops
+ * `.omit()`. Without this check, an organizer who types a start latitude
+ * and tabs away before the longitude passes per-field client validation
+ * (each field is valid on its own), Save re-validates the same way and also
+ * passes, and only Postgres's CHECK constraint catches it — which
+ * saveEventAction then collapses to the generic "Something went wrong" with
+ * no indication of which field, and no way to fix it from the message
+ * alone.
+ */
+export function coordPairError(e: { start_lat: number | null; start_lng: number | null; finish_lat: number | null; finish_lng: number | null }): string | null {
+  if ((e.start_lat === null) !== (e.start_lng === null)) return "Enter both start latitude and longitude, or leave both blank.";
+  if ((e.finish_lat === null) !== (e.finish_lng === null)) return "Enter both finish latitude and longitude, or leave both blank.";
+  return null;
+}
+
 /** Drops blank rows from the two ordered list fields (schedule, inclusions)
  *  and trims their text, ahead of both validation and save. A row an
  *  organizer leaves empty is removed rather than either blocking Save with a

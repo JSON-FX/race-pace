@@ -8,7 +8,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { EVENT_DISCIPLINES, DISCIPLINE_LABELS, disciplineLayout } from "@race-pace/shared";
 import type { EditorData } from "@/lib/queries/event-editor";
 import { saveEventAction, type CategoryDraft, type AddonDraft, type EventDraft, type EditorState } from "@/lib/actions/events";
-import { eventInputSchema, categoryInputSchema, addonInputSchema, sanitizeListFields, EVENT_STATUSES } from "@/lib/validation";
+import { eventInputSchema, categoryInputSchema, addonInputSchema, sanitizeListFields, coordPairError, EVENT_STATUSES } from "@/lib/validation";
 import { CategoryEditor } from "@/components/CategoryEditor";
 import { AddonEditor } from "@/components/AddonEditor";
 import { ScheduleEditor } from "@/components/ScheduleEditor";
@@ -92,6 +92,8 @@ export function EventEditorForm({ initial, orgId }: { initial: EditorData | null
     // to valid values — validating it here would permanently block Save on a
     // cancelled event with a misleading "fix the event fields" message.
     if (!eventInputSchema.omit({ status: true }).safeParse(sanitizeListFields(event)).success) return "Fix the event fields (name is required, valid date/time, schedule times as HH:MM, inclusion lines under 140 characters).";
+    const coordError = coordPairError(event);
+    if (coordError) return coordError;
     if (event.end_date && event.event_date && event.end_date < event.event_date) return "End date can't be before the start date.";
     for (const c of cats) if (!categoryInputSchema.safeParse(c).success) return "Fix the category rows (code, label, non-negative price/slots, gain 0-30000m, cut-off 0-240h).";
     for (const a of addons) if (!addonInputSchema.safeParse(a).success) return "Fix the add-on rows (name, non-negative price).";

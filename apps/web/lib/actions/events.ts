@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getMyRoles, type MyRoles } from "@/lib/queries/roles";
 import type { EventDiscipline, RoutePoint } from "@race-pace/shared";
 import type { ScheduleItem } from "@/lib/validation";
-import { eventInputSchema, categoryInputSchema, addonInputSchema, sanitizeListFields } from "@/lib/validation";
+import { eventInputSchema, categoryInputSchema, addonInputSchema, sanitizeListFields, coordPairError, EVENT_STATUSES } from "@/lib/validation";
 import { reconcileChildren } from "@/lib/reconcile-children";
 
 const GENERIC_ERROR = "Something went wrong. Please try again.";
@@ -104,13 +104,15 @@ export async function saveEventAction(_prev: EditorState, formData: FormData): P
   // Re-validate server-side — the client already blocks Save on an invalid
   // draft, but a Server Action is a public HTTP endpoint and this FormData
   // payload can be forged by anything that can reach it, not just the form.
-  // Status is intentionally excluded, same as the client validator: "cancelled"
-  // (set only via the Cancel modal) is outside eventInputSchema's status enum,
-  // and re-checking it here would block Save on an already-cancelled event.
+  // Status is checked separately below (against currentStatus), not by
+  // eventInputSchema's own status enum, which excludes "cancelled" — see
+  // that block's comment.
   const sanitized = sanitizeListFields(payload.event);
   if (!eventInputSchema.omit({ status: true }).safeParse(sanitized).success) {
     return { error: "Fix the event fields (name is required, valid date/time, schedule times as HH:MM, inclusion lines under 140 characters)." };
   }
+  const coordError = coordPairError(sanitized);
+  if (coordError) return { error: coordError };
   if (sanitized.end_date && sanitized.event_date && sanitized.end_date < sanitized.event_date) {
     return { error: "End date can't be before the start date." };
   }
@@ -123,64 +125,112 @@ export async function saveEventAction(_prev: EditorState, formData: FormData): P
     if (!addonInputSchema.safeParse(a).success) return { error: "Fix the add-on rows (name, non-negative price)." };
   }
 
-  const event: EventDraft = { ...sanitized, id: payload.event.id };
   const supabase = await createClient();
+  const eventId = payload.event.id;
 
-  let eventId = event.id;
-  if (!eventId) {
+  // "cancelled" is outside eventInputSchema's status enum by design — it's
+  // set only via the Cancel modal (cancelEventAction), which also writes
+  // status_note. Without this check, a forged Save payload could set
+  // status: "cancelled" directly, silently skipping the cancellation note.
+  // A row that is ALREADY cancelled may still round-trip through Save
+  // unchanged (matches the client validator's "don't dead-end on the status
+  // validator" behavior for a cancelled event) — that's the one case
+  // "cancelled" is allowed here, and only because it was already true in
+  // the database, not because the client claimed it.
+  let currentStatus: string | null = null;
+  if (eventId) {
+    const cur = await supabase.from("events").select("status").eq("id", eventId).single();
+    if (cur.error) {
+      console.error("[events] event status lookup failed", { eventId, error: cur.error });
+      return { error: GENERIC_ERROR };
+    }
+    currentStatus = cur.data.status;
+  }
+  const statusOk = sanitized.status === "cancelled"
+    ? currentStatus === "cancelled"
+    : (EVENT_STATUSES as readonly string[]).includes(sanitized.status);
+  if (!statusOk) {
+    return { error: "Fix the event fields (invalid status)." };
+  }
+
+  const event: EventDraft = { ...sanitized, id: eventId };
+
+  let finalEventId = eventId;
+  if (!finalEventId) {
     const ins = await supabase.from("events").insert(EVENT_COLS(event)).select("id").single();
     if (ins.error) {
       console.error("[events] event insert failed", { orgId: event.org_id, error: ins.error });
       return { error: GENERIC_ERROR };
     }
-    eventId = ins.data!.id;
+    finalEventId = ins.data!.id;
   } else {
     // .select("id") + the empty-result check matter here: an UPDATE blocked
     // by RLS (rather than by the grant) does not raise an error — it
     // silently affects zero rows. assertCanWriteEvent above is what actually
     // prevents that in the normal case; this is the honest-response check
     // for when it's ever wrong (stale roles cache, org reassignment, etc.).
-    const upd = await supabase.from("events").update(EVENT_COLS(event)).eq("id", eventId).select("id");
+    const upd = await supabase.from("events").update(EVENT_COLS(event)).eq("id", finalEventId).select("id");
     if (upd.error) {
-      console.error("[events] event update failed", { eventId, error: upd.error });
+      console.error("[events] event update failed", { eventId: finalEventId, error: upd.error });
       return { error: GENERIC_ERROR };
     }
     if (!upd.data || upd.data.length === 0) return { error: GENERIC_ERROR };
   }
 
+  // The authoritative "what currently exists" list for the diff is a fresh
+  // query scoped to THIS event, never the client-supplied
+  // payload.categories.original / payload.addons.original. Those arrays are
+  // attacker-controlled JSON: RLS on categories/addons only checks the
+  // PARENT event's org (categories_delete_org_admin etc.), not that the
+  // category belongs to the event being saved — a stale tab, a
+  // double-submit racing router.refresh(), or a crafted request could
+  // otherwise carry another event's (in the same org) category ids into
+  // `original`, and reconcileChildren would compute those as "no longer
+  // present" and delete them out from under a DIFFERENT event.
+  const [catRows, addonRows] = await Promise.all([
+    supabase.from("categories").select("id").eq("event_id", finalEventId),
+    supabase.from("addons").select("id").eq("event_id", finalEventId),
+  ]);
+  if (catRows.error || addonRows.error) {
+    console.error("[events] child lookup failed", { eventId: finalEventId, catError: catRows.error, addonError: addonRows.error });
+    return { error: GENERIC_ERROR };
+  }
+
   const childErrors: string[] = [];
-  const cat = reconcileChildren(payload.categories.original, payload.categories.current);
+  const cat = reconcileChildren(catRows.data ?? [], payload.categories.current);
   for (const c of cat.toInsert) {
-    const r = await supabase.from("categories").insert({ org_id: event.org_id, event_id: eventId, code: c.code, label: c.label, distance_km: c.distance_km, base_price: c.base_price, slots_total: c.slots_total, elevation_gain_m: c.elevation_gain_m, cutoff_hours: c.cutoff_hours, blurb: c.blurb });
+    const r = await supabase.from("categories").insert({ org_id: event.org_id, event_id: finalEventId, code: c.code, label: c.label, distance_km: c.distance_km, base_price: c.base_price, slots_total: c.slots_total, elevation_gain_m: c.elevation_gain_m, cutoff_hours: c.cutoff_hours, blurb: c.blurb });
     if (r.error) childErrors.push(`Category "${c.label}": ${r.error.message}`);
   }
   for (const c of cat.toUpdate) {
-    const r = await supabase.from("categories").update({ code: c.code, label: c.label, distance_km: c.distance_km, base_price: c.base_price, slots_total: c.slots_total, elevation_gain_m: c.elevation_gain_m, cutoff_hours: c.cutoff_hours, blurb: c.blurb }).eq("id", c.id);
+    const r = await supabase.from("categories").update({ code: c.code, label: c.label, distance_km: c.distance_km, base_price: c.base_price, slots_total: c.slots_total, elevation_gain_m: c.elevation_gain_m, cutoff_hours: c.cutoff_hours, blurb: c.blurb }).eq("id", c.id).eq("event_id", finalEventId);
     if (r.error) childErrors.push(`Category "${c.label}": ${r.error.message}`);
   }
   for (const id of cat.toDelete) {
-    const r = await supabase.from("categories").delete().eq("id", id);
+    // .eq("event_id", finalEventId) is load-bearing, not redundant with RLS
+    // — see the comment above catRows/addonRows.
+    const r = await supabase.from("categories").delete().eq("id", id).eq("event_id", finalEventId);
     if (r.error) childErrors.push(`Couldn't remove a category — it has registrations.`);
   }
 
-  const add = reconcileChildren(payload.addons.original, payload.addons.current);
+  const add = reconcileChildren(addonRows.data ?? [], payload.addons.current);
   for (const a of add.toInsert) {
-    const r = await supabase.from("addons").insert({ org_id: event.org_id, event_id: eventId, name: a.name, price: a.price });
+    const r = await supabase.from("addons").insert({ org_id: event.org_id, event_id: finalEventId, name: a.name, price: a.price });
     if (r.error) childErrors.push(`Add-on "${a.name}": ${r.error.message}`);
   }
   for (const a of add.toUpdate) {
-    const r = await supabase.from("addons").update({ name: a.name, price: a.price }).eq("id", a.id);
+    const r = await supabase.from("addons").update({ name: a.name, price: a.price }).eq("id", a.id).eq("event_id", finalEventId);
     if (r.error) childErrors.push(`Add-on "${a.name}": ${r.error.message}`);
   }
   for (const id of add.toDelete) {
-    const r = await supabase.from("addons").delete().eq("id", id);
+    const r = await supabase.from("addons").delete().eq("id", id).eq("event_id", finalEventId);
     if (r.error) childErrors.push(`Couldn't remove an add-on.`);
   }
 
   revalidatePath("/events");
-  revalidatePath(`/events/${eventId}/edit`);
+  revalidatePath(`/events/${finalEventId}/edit`);
 
-  return { eventId, error: childErrors.length ? childErrors.join(" ") : undefined };
+  return { eventId: finalEventId, error: childErrors.length ? childErrors.join(" ") : undefined };
 }
 
 function daysBetween(a: string, b: string): number {
@@ -195,33 +245,50 @@ function addDays(iso: string, days: number): string {
 /**
  * Reschedule keeps the original 5-argument shape from lib/eventWrites.ts
  * (id, currentDate, currentEndDate, newDate, note) rather than the task
- * brief's abbreviated `(id, newDate)` — the end_date shift math needs
- * currentDate/currentEndDate, and RescheduleModal already calls it with all
- * five. Per the task instructions, the existing module wins where it
- * disagrees with the brief.
+ * brief's abbreviated `(id, newDate)` — RescheduleModal already calls it
+ * with all five, and the signature is a reasonable public shape. Per the
+ * task instructions, the existing module wins where it disagrees with the
+ * brief.
+ *
+ * The `currentDate`/`currentEndDate` ARGUMENTS are intentionally not used
+ * for the actual write below — they're client-supplied (RescheduleModal's
+ * local component state) and could be stale (a second tab, a slow page that
+ * missed a concurrent edit). The end_date-shift math and `original_date`
+ * are computed from `row.data.event_date`/`end_date`, fetched fresh in the
+ * same query as the org_id authorization check, so a stale client can't
+ * silently corrupt end_date's shift or overwrite original_date with a
+ * value that was never actually current.
  */
 export async function rescheduleEventAction(
   id: string,
-  currentDate: string | null,
-  currentEndDate: string | null,
+  _currentDate: string | null,
+  _currentEndDate: string | null,
   newDate: string,
   note: string,
 ): Promise<{ error?: string }> {
   const supabase = await createClient();
 
-  const row = await supabase.from("events").select("org_id").eq("id", id).single();
-  if (row.error) return { error: GENERIC_ERROR };
+  const row = await supabase.from("events").select("org_id, event_date, end_date").eq("id", id).single();
+  if (row.error) {
+    console.error("[events] reschedule lookup failed", { eventId: id, error: row.error });
+    return { error: GENERIC_ERROR };
+  }
 
   const roles = await getMyRoles();
   const denied = assertCanWriteEvent(roles, row.data.org_id);
   if (denied) return { error: denied };
 
+  const currentDate = row.data.event_date;
+  const currentEndDate = row.data.end_date;
   const newEndDate = currentEndDate && currentDate ? addDays(newDate, daysBetween(currentDate, currentEndDate)) : null;
   const upd = await supabase.from("events")
     .update({ original_date: currentDate, event_date: newDate, end_date: newEndDate, status_note: note || null })
     .eq("id", id)
     .select("id");
-  if (upd.error) return { error: GENERIC_ERROR };
+  if (upd.error) {
+    console.error("[events] reschedule update failed", { eventId: id, error: upd.error });
+    return { error: GENERIC_ERROR };
+  }
   if (!upd.data || upd.data.length === 0) return { error: GENERIC_ERROR };
 
   revalidatePath("/events");
@@ -233,14 +300,20 @@ export async function cancelEventAction(id: string, note: string): Promise<{ err
   const supabase = await createClient();
 
   const row = await supabase.from("events").select("org_id").eq("id", id).single();
-  if (row.error) return { error: GENERIC_ERROR };
+  if (row.error) {
+    console.error("[events] cancel lookup failed", { eventId: id, error: row.error });
+    return { error: GENERIC_ERROR };
+  }
 
   const roles = await getMyRoles();
   const denied = assertCanWriteEvent(roles, row.data.org_id);
   if (denied) return { error: denied };
 
   const upd = await supabase.from("events").update({ status: "cancelled", status_note: note || null }).eq("id", id).select("id");
-  if (upd.error) return { error: GENERIC_ERROR };
+  if (upd.error) {
+    console.error("[events] cancel update failed", { eventId: id, error: upd.error });
+    return { error: GENERIC_ERROR };
+  }
   if (!upd.data || upd.data.length === 0) return { error: GENERIC_ERROR };
 
   revalidatePath("/events");

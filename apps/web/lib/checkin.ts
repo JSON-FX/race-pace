@@ -1,5 +1,16 @@
+"use client";
+
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "./supabase";
+import { createClient } from "@/lib/supabase/client";
+
+// This module is not wired into any page yet — the Check-in page (PR2) owns
+// that. It's fixed here only so it compiles under Next (it was importing the
+// deleted lib/supabase.ts singleton and reading the Vite-only env-access
+// syntax, which silently evaluates to `undefined` under Next at runtime —
+// left alone, PR2 would have POSTed to "undefined/functions/v1/check-in"
+// with no apikey and no build-time error to catch it). createClient() is
+// called per-function, matching lib/imageUpload.ts's pattern, not cached at
+// module scope.
 
 export type CheckInBanner = { tone: "success" | "warn" | "error" | "muted"; title: string; detail?: string };
 
@@ -44,6 +55,7 @@ export function useCheckInEvents(orgId: string | null) {
     queryKey: ["checkin-events", orgId],
     enabled: !!orgId,
     queryFn: async () => {
+      const supabase = createClient();
       const { data, error } = await supabase.from("events")
         .select("id,name,event_date,end_date").eq("org_id", orgId!).order("event_date");
       if (error) throw error;
@@ -57,6 +69,7 @@ export function useCheckInRoster(eventId: string | null) {
     queryKey: ["checkin-roster", eventId],
     enabled: !!eventId,
     queryFn: async () => {
+      const supabase = createClient();
       const { data, error } = await supabase.from("registrations")
         .select("id,status,ticket_token,event_id,profiles(full_name,bib_name),categories(label)")
         .eq("event_id", eventId!)
@@ -77,6 +90,7 @@ export function useCheckInCount(eventId: string | null) {
     queryKey: ["checkin-count", eventId],
     enabled: !!eventId,
     queryFn: async () => {
+      const supabase = createClient();
       const [done, total] = await Promise.all([
         supabase.from("checkins").select("id", { count: "exact", head: true }).eq("event_id", eventId!),
         supabase.from("registrations").select("id", { count: "exact", head: true }).eq("event_id", eventId!).eq("status", "paid"),
@@ -90,12 +104,13 @@ export function useSubmitCheckIn() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (ticketToken: string) => {
+      const supabase = createClient();
       const { data: sess } = await supabase.auth.getSession();
-      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/check-in`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/check-in`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          apikey: import.meta.env.VITE_SUPABASE_ANON_KEY as string,
+          apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
           Authorization: `Bearer ${sess.session?.access_token ?? ""}`,
         },
         body: JSON.stringify({ ticket_token: ticketToken }),
