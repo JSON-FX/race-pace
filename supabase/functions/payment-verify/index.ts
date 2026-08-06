@@ -1,6 +1,6 @@
 import { serviceClient } from "../_shared/supabase.ts";
 import { confirmPayment } from "../_shared/confirm.ts";
-import { paymongoConfigured, pmGetCheckoutSession } from "../_shared/paymongo.ts";
+import { paymongoConfigured, pmGetCheckoutSession, pmMethodFromSession } from "../_shared/paymongo.ts";
 import { preflight, corsHeaders } from "../_shared/cors.ts";
 
 // Confirms a PayMongo checkout server-side by re-fetching the session from PayMongo —
@@ -49,7 +49,13 @@ Deno.serve(async (req) => {
     const session = await pmGetCheckoutSession(ref);
     if (!session.paid) return json({ status: "pending" });
 
-    const r = await confirmPayment(registrationId, "paymongo", { source: "payment-verify", session_id: ref });
+    // The instrument the runner used, not the provider. This previously passed
+    // the literal "paymongo", so the admin Payments method column was useless for
+    // every redirect-confirmed row — which is most of them. The webhook already
+    // read this correctly, meaning the recorded method depended on which path
+    // happened to confirm first. The session is already in hand; no extra fetch.
+    const method = pmMethodFromSession(session);
+    const r = await confirmPayment(registrationId, method, { source: "payment-verify", session_id: ref });
     if (!r.ok) return json({ error: r.error }, r.status);
     return json({ status: "paid", registration_id: r.registration_id });
   } catch (e) {
