@@ -1,4 +1,8 @@
-import { NavLink } from "react-router-dom";
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import Image from "next/image";
 import {
   LayoutDashboard, CalendarDays, ClipboardList, CreditCard,
   QrCode, Users, Settings as SettingsIcon, Building2, Percent, Banknote, type LucideIcon,
@@ -10,9 +14,8 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "./ThemeToggle";
-import { useMyRoles } from "../lib/roles";
-import { useAuth } from "../lib/auth";
-import mark from "../assets/topnav-logo.png";
+import { signOutAction } from "@/lib/actions/auth";
+import type { MyRoles } from "@/lib/queries/roles";
 
 type Item = { to: string; label: string; icon: LucideIcon };
 
@@ -32,35 +35,32 @@ const SUPER_ITEMS: Item[] = [
 ];
 
 function NavItem({ to, label, icon: Icon }: Item) {
+  const pathname = usePathname();
+  const isActive = pathname === to || pathname.startsWith(`${to}/`);
   return (
     <SidebarMenuItem>
-      <NavLink to={to}>
-        {({ isActive }) => (
-          <SidebarMenuButton asChild isActive={isActive} tooltip={label}>
-            <span>
-              <Icon className={isActive ? "text-sidebar-primary" : "text-muted-foreground"} />
-              <span className={isActive ? "font-semibold text-sidebar-accent-foreground" : "font-medium text-muted-foreground"}>{label}</span>
-            </span>
-          </SidebarMenuButton>
-        )}
-      </NavLink>
+      <SidebarMenuButton asChild isActive={isActive} tooltip={label}>
+        <Link href={to}>
+          <Icon className={isActive ? "text-sidebar-primary" : "text-muted-foreground"} />
+          <span className={isActive ? "font-semibold text-sidebar-accent-foreground" : "font-medium text-muted-foreground"}>
+            {label}
+          </span>
+        </Link>
+      </SidebarMenuButton>
     </SidebarMenuItem>
   );
 }
 
-export function Sidebar() {
-  const roles = useMyRoles();
-  const { session, signOut } = useAuth();
-  const email = session?.user.email ?? "";
+export function Sidebar({ roles, email }: { roles: MyRoles; email: string }) {
   const local = email.split("@")[0] || "admin";
   const initials = local.slice(0, 2).toUpperCase();
-  const role = roles.data?.isSuperAdmin ? "Super admin" : "Admin";
+  const role = roles.isSuperAdmin ? "Super admin" : "Admin";
 
   return (
     <UISidebar collapsible="icon">
       <SidebarHeader>
         <div className="flex items-center gap-2 px-2 py-1">
-          <img src={mark} alt="" className="size-[26px] shrink-0 object-contain" />
+          <Image src="/topnav-logo.png" alt="" width={26} height={26} className="shrink-0 object-contain" />
           <div className="group-data-[collapsible=icon]:hidden">
             <div className="text-base font-bold tracking-tight">Race Pace</div>
             <div className="text-[11px] text-muted-foreground">Admin console</div>
@@ -73,14 +73,14 @@ export function Sidebar() {
           <SidebarGroupLabel className="text-[11px] font-semibold tracking-wide">ORGANIZATION</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {ORG_ITEMS.filter((it) => it.to !== "/team" || roles.data?.isOrgAdmin).map((it) => (
+              {ORG_ITEMS.filter((it) => it.to !== "/team" || roles.isOrgAdmin).map((it) => (
                 <NavItem key={it.to} {...it} />
               ))}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {roles.data?.isSuperAdmin ? (
+        {roles.isSuperAdmin ? (
           <SidebarGroup>
             <SidebarGroupLabel className="text-[11px] font-semibold tracking-wide">PLATFORM · SUPER ADMIN</SidebarGroupLabel>
             <SidebarGroupContent>
@@ -100,14 +100,16 @@ export function Sidebar() {
             <div className="text-[11px] text-muted-foreground">{role}</div>
           </div>
           <ThemeToggle />
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => signOut()}
-            className="text-[12px] font-semibold text-destructive group-data-[collapsible=icon]:hidden"
-          >
-            Sign out
-          </Button>
+          <form action={signOutAction} className="group-data-[collapsible=icon]:hidden">
+            <Button
+              type="submit"
+              variant="ghost"
+              size="sm"
+              className="text-[12px] font-semibold text-destructive"
+            >
+              Sign out
+            </Button>
+          </form>
         </div>
       </SidebarFooter>
       <SidebarRail />
