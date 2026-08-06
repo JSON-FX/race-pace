@@ -1,9 +1,10 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { Search } from "lucide-react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Breadcrumb, BreadcrumbList, BreadcrumbItem, BreadcrumbPage } from "@/components/ui/breadcrumb";
+import { CommandPalette } from "@/components/CommandPalette";
+import type { MyRoles } from "@/lib/queries/roles";
 
 const TITLES: Record<string, string> = {
   "/dashboard": "Dashboard", "/events": "Events", "/registrations": "Registrations",
@@ -11,7 +12,7 @@ const TITLES: Record<string, string> = {
   "/organizations": "Organizations", "/commission": "Commission", "/payouts": "Payout statements",
 };
 
-export function TopBar({ orgName }: { orgName: string | null }) {
+export function TopBar({ roles, orgName }: { roles: MyRoles; orgName: string | null }) {
   const pathname = usePathname();
   const title = pathname === "/events/new" ? "Create event"
     : /^\/events\/[^/]+\/edit$/.test(pathname) ? "Edit event"
@@ -34,17 +35,7 @@ export function TopBar({ orgName }: { orgName: string | null }) {
         </BreadcrumbList>
       </Breadcrumb>
       <div className="ml-auto flex items-center">
-        <button
-          type="button"
-          aria-label="Open search (command palette)"
-          className="flex min-w-[180px] items-center gap-2 rounded-lg border border-border bg-card px-[11px] py-2 text-[13px] text-muted-foreground transition-colors hover:bg-muted"
-        >
-          <Search className="size-[15px] shrink-0" strokeWidth={2} />
-          <span className="flex-1 text-left">Search…</span>
-          <kbd className="rounded-md border border-border px-[5px] py-px font-mono text-[11px] text-muted-foreground">
-            ⌘K
-          </kbd>
-        </button>
+        <CommandPalette roles={roles} />
       </div>
     </header>
   );

@@ -3,10 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard, CalendarDays, ClipboardList, CreditCard,
-  QrCode, Users, Settings as SettingsIcon, Building2, Percent, Banknote, type LucideIcon,
-} from "lucide-react";
-import {
   Sidebar as UISidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent,
   SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarRail,
 } from "@/components/ui/sidebar";
@@ -16,24 +12,7 @@ import { cn } from "@/lib/utils";
 import { ThemeToggle } from "./ThemeToggle";
 import { signOutAction } from "@/lib/actions/auth";
 import type { MyRoles } from "@/lib/queries/roles";
-import type { NavCounts } from "./AppShell";
-
-type Item = { to: string; label: string; icon: LucideIcon; countKey?: keyof NonNullable<NavCounts> };
-
-const ORG_ITEMS: Item[] = [
-  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/events", label: "Events", icon: CalendarDays, countKey: "events" },
-  { to: "/registrations", label: "Registrations", icon: ClipboardList, countKey: "registrations" },
-  { to: "/payments", label: "Payments", icon: CreditCard },
-  { to: "/check-in", label: "Check-in", icon: QrCode },
-  { to: "/team", label: "Team", icon: Users },
-  { to: "/settings", label: "Settings", icon: SettingsIcon },
-];
-const SUPER_ITEMS: Item[] = [
-  { to: "/organizations", label: "Organizations", icon: Building2 },
-  { to: "/commission", label: "Commission", icon: Percent },
-  { to: "/payouts", label: "Payouts", icon: Banknote },
-];
+import { visibleOrgItems, visibleSuperItems, type NavCounts, type NavItem as Item } from "@/lib/nav-items";
 
 function NavItem({ to, label, icon: Icon, count }: Item & { count?: number }) {
   const pathname = usePathname();
@@ -89,20 +68,20 @@ export function Sidebar({
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
-              {ORG_ITEMS.filter((it) => it.to !== "/team" || roles.isOrgAdmin).map((it) => (
+              {visibleOrgItems(roles).map((it) => (
                 <NavItem key={it.to} {...it} count={it.countKey && counts ? counts[it.countKey] : undefined} />
               ))}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {roles.isSuperAdmin ? (
+        {visibleSuperItems(roles).length > 0 ? (
           <SidebarGroup>
             <SidebarGroupLabel className="text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground">
               PLATFORM
             </SidebarGroupLabel>
             <SidebarGroupContent>
-              <SidebarMenu>{SUPER_ITEMS.map((it) => <NavItem key={it.to} {...it} />)}</SidebarMenu>
+              <SidebarMenu>{visibleSuperItems(roles).map((it) => <NavItem key={it.to} {...it} />)}</SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
         ) : null}

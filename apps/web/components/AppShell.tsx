@@ -2,8 +2,11 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 import type { MyRoles } from "@/lib/queries/roles";
-
-export type NavCounts = { events: number; registrations: number } | null;
+// Re-exported for callers that historically imported NavCounts from here;
+// the canonical definition now lives in lib/nav-items.ts alongside the nav
+// model it describes (shared by Sidebar and the ⌘K command palette).
+export type { NavCounts } from "@/lib/nav-items";
+import type { NavCounts } from "@/lib/nav-items";
 
 export function AppShell({
   roles, email, orgName, counts, children,
@@ -18,7 +21,7 @@ export function AppShell({
     <SidebarProvider>
       <Sidebar roles={roles} email={email} orgName={orgName} counts={counts} />
       <SidebarInset className="bg-muted">
-        <TopBar orgName={orgName} />
+        <TopBar roles={roles} orgName={orgName} />
         <main className="rp-scroll flex-1 overflow-y-auto bg-muted">{children}</main>
       </SidebarInset>
     </SidebarProvider>
