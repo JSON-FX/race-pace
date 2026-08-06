@@ -108,10 +108,17 @@ export async function saveEventAction(_prev: EditorState, formData: FormData): P
   // eventInputSchema's own status enum, which excludes "cancelled" — see
   // that block's comment.
   const sanitized = sanitizeListFields(payload.event);
-  if (!eventInputSchema.omit({ status: true }).safeParse(sanitized).success) {
+  // coordPairError runs on the PARSED output, not `sanitized` directly —
+  // start/finish lat/lng are `.default(null)` in the schema, so a forged
+  // payload that omits a field entirely (as opposed to sending an explicit
+  // null, which is all the client form ever does) is normalized before the
+  // pairing check rather than slipping past it into the DB's CHECK
+  // constraint, where it would only ever surface as the generic error.
+  const parsed = eventInputSchema.omit({ status: true }).safeParse(sanitized);
+  if (!parsed.success) {
     return { error: "Fix the event fields (name is required, valid date/time, schedule times as HH:MM, inclusion lines under 140 characters)." };
   }
-  const coordError = coordPairError(sanitized);
+  const coordError = coordPairError(parsed.data);
   if (coordError) return { error: coordError };
   if (sanitized.end_date && sanitized.event_date && sanitized.end_date < sanitized.event_date) {
     return { error: "End date can't be before the start date." };
@@ -177,27 +184,32 @@ export async function saveEventAction(_prev: EditorState, formData: FormData): P
     if (!upd.data || upd.data.length === 0) return { error: GENERIC_ERROR };
   }
 
-  // The authoritative "what currently exists" list for the diff is a fresh
-  // query scoped to THIS event, never the client-supplied
-  // payload.categories.original / payload.addons.original. Those arrays are
-  // attacker-controlled JSON: RLS on categories/addons only checks the
-  // PARENT event's org (categories_delete_org_admin etc.), not that the
-  // category belongs to the event being saved — a stale tab, a
-  // double-submit racing router.refresh(), or a crafted request could
-  // otherwise carry another event's (in the same org) category ids into
-  // `original`, and reconcileChildren would compute those as "no longer
-  // present" and delete them out from under a DIFFERENT event.
-  const [catRows, addonRows] = await Promise.all([
-    supabase.from("categories").select("id").eq("event_id", finalEventId),
-    supabase.from("addons").select("id").eq("event_id", finalEventId),
-  ]);
-  if (catRows.error || addonRows.error) {
-    console.error("[events] child lookup failed", { eventId: finalEventId, catError: catRows.error, addonError: addonRows.error });
-    return { error: GENERIC_ERROR };
-  }
-
+  // The diff itself is computed against the client-supplied
+  // payload.categories.original / payload.addons.original — exactly as
+  // reconcileChildren always had it (ported verbatim, byte-identical to the
+  // old lib/eventWrites.ts). What changed for security is scoping every
+  // write below to `finalEventId` with `.eq("event_id", finalEventId)`:
+  // RLS on categories/addons only checks the PARENT event's org
+  // (categories_delete_org_admin etc.), not that a given row belongs to
+  // THIS event, so without that `.eq` a stale tab, a double-submit racing
+  // router.refresh(), or a crafted request naming another event's (same
+  // org) category id in `original` could delete/update it. `.eq("id", …)`
+  // ALONE against a foreign id already matches zero rows and is a no-op —
+  // the `.eq("event_id", …)` is what makes that explicit and load-bearing
+  // rather than incidental.
+  //
+  // Deliberately NOT re-deriving `original` from a fresh DB query (an
+  // earlier version of this fix did, and it was wrong): the diff needs to
+  // reflect what THIS SAVE REQUEST believes existed when the form was
+  // loaded, not what the DB holds right now. If tab A adds category X and
+  // saves, then a stale tab B (which never saw X) saves, a DB-derived
+  // `original` would see X as "already there" and compute it as "no longer
+  // present in tab B's `current`" — silently deleting tab A's category (and
+  // throwing a confusing "has registrations" error if X already has
+  // registrations by then). The client-supplied `original` correctly
+  // leaves X alone, since tab B never claimed to know about it.
   const childErrors: string[] = [];
-  const cat = reconcileChildren(catRows.data ?? [], payload.categories.current);
+  const cat = reconcileChildren(payload.categories.original, payload.categories.current);
   for (const c of cat.toInsert) {
     const r = await supabase.from("categories").insert({ org_id: event.org_id, event_id: finalEventId, code: c.code, label: c.label, distance_km: c.distance_km, base_price: c.base_price, slots_total: c.slots_total, elevation_gain_m: c.elevation_gain_m, cutoff_hours: c.cutoff_hours, blurb: c.blurb });
     if (r.error) childErrors.push(`Category "${c.label}": ${r.error.message}`);
@@ -208,12 +220,12 @@ export async function saveEventAction(_prev: EditorState, formData: FormData): P
   }
   for (const id of cat.toDelete) {
     // .eq("event_id", finalEventId) is load-bearing, not redundant with RLS
-    // — see the comment above catRows/addonRows.
+    // — see the comment above `cat`.
     const r = await supabase.from("categories").delete().eq("id", id).eq("event_id", finalEventId);
     if (r.error) childErrors.push(`Couldn't remove a category — it has registrations.`);
   }
 
-  const add = reconcileChildren(addonRows.data ?? [], payload.addons.current);
+  const add = reconcileChildren(payload.addons.original, payload.addons.current);
   for (const a of add.toInsert) {
     const r = await supabase.from("addons").insert({ org_id: event.org_id, event_id: finalEventId, name: a.name, price: a.price });
     if (r.error) childErrors.push(`Add-on "${a.name}": ${r.error.message}`);

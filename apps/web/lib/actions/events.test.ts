@@ -105,22 +105,27 @@ describe("saveEventAction", () => {
 
   // events_start_coords_paired / events_finish_coords_paired
   // (supabase/migrations/20260806160000_event_course_coordinates.sql):
-  // check ((start_lat is null) = (start_lng is null)). Client validation
-  // already blocks this, but the Server Action is a public endpoint that
-  // doesn't have to go through the client form.
-  it("blocks a half-entered coordinate pair before any write", async () => {
+  // check ((start_lat is null) = (start_lng is null)), same for finish.
+  // Client validation already blocks this, but the Server Action is a
+  // public endpoint that doesn't have to go through the client form. All
+  // four directions covered — a lat without a lng and vice versa, for both
+  // the start and finish pair.
+  it.each([
+    ["start_lat", { start_lat: 6.7719, start_lng: null }, /start latitude and longitude/],
+    ["start_lng", { start_lat: null, start_lng: 125.2794 }, /start latitude and longitude/],
+    ["finish_lat", { finish_lat: 6.77, finish_lng: null }, /finish latitude and longitude/],
+    ["finish_lng", { finish_lat: null, finish_lng: 125.28 }, /finish latitude and longitude/],
+  ])("blocks a half-entered coordinate pair (%s set alone) before any write", async (_field, override, expected) => {
     getMyRoles.mockResolvedValue(roles({}));
-    const res = await saveEventAction({}, savePayload({ start_lat: 6.7719, start_lng: null }));
-    expect(res.error).toMatch(/start latitude and longitude/);
+    const res = await saveEventAction({}, savePayload(override));
+    expect(res.error).toMatch(expected);
     expect(from).not.toHaveBeenCalled();
   });
 
   it("inserts a new event, revalidates, and returns its id", async () => {
     getMyRoles.mockResolvedValue(roles({}));
     const insertChain = chain({ data: { id: "e9" }, error: null });
-    const catsChain = chain({ data: [], error: null });
-    const addonsChain = chain({ data: [], error: null });
-    from.mockReturnValueOnce(insertChain).mockReturnValueOnce(catsChain).mockReturnValueOnce(addonsChain);
+    from.mockReturnValueOnce(insertChain);
     const res = await saveEventAction({}, savePayload());
     expect(res.eventId).toBe("e9");
     expect(res.error).toBeUndefined();
@@ -155,44 +160,82 @@ describe("saveEventAction", () => {
     getMyRoles.mockResolvedValue(roles({}));
     const statusChain = chain({ data: { status: "cancelled" }, error: null });
     const updateChain = chain({ data: [{ id: "e1" }], error: null });
-    const catsChain = chain({ data: [], error: null });
-    const addonsChain = chain({ data: [], error: null });
-    from.mockReturnValueOnce(statusChain).mockReturnValueOnce(updateChain).mockReturnValueOnce(catsChain).mockReturnValueOnce(addonsChain);
+    from.mockReturnValueOnce(statusChain).mockReturnValueOnce(updateChain);
     const res = await saveEventAction({}, savePayload({ id: "e1", status: "cancelled" }));
     expect(res.error).toBeUndefined();
   });
 
-  // Category/add-on deletes must be scoped to the event actually being
-  // saved, not trusted from the client-supplied `original` array — RLS on
-  // categories/addons only checks the PARENT EVENT's org, not that the row
-  // belongs to THIS event, so a crafted/stale payload naming a category id
-  // from a different event in the same org would otherwise be a valid
-  // delete target.
-  it("derives the categories/addons diff from a fresh DB query, not the client-supplied `original` array", async () => {
+  // The diff itself still trusts the client-supplied `original` array —
+  // ported verbatim from lib/eventWrites.ts, unchanged. What closes the
+  // cross-event hole is `.eq("event_id", finalEventId)` on every
+  // category/add-on write below: a delete/update naming a row id that
+  // belongs to a DIFFERENT event (even one in the caller's own org, so RLS
+  // alone wouldn't catch it) now matches zero rows instead of succeeding.
+  // (An earlier version of this fix instead re-derived `original` from a
+  // fresh DB query — that was reverted: it changes reconcileChildren's
+  // semantics so that a second, stale tab's save can delete a category a
+  // FIRST tab just added, since the DB now "knows about" it but the stale
+  // tab's `current` doesn't. `.eq` alone has no such side effect.)
+  it("scopes every category/add-on write to the event actually being saved, so a foreign row id is a no-op", async () => {
     getMyRoles.mockResolvedValue(roles({}));
     const statusChain = chain({ data: { status: "draft" }, error: null });
     const updateChain = chain({ data: [{ id: "e1" }], error: null });
-    // The server's authoritative view: event e1 actually has category "real-1".
-    const catsChain = chain({ data: [{ id: "real-1" }], error: null });
-    const addonsChain = chain({ data: [], error: null });
+    // Zero rows matched: "other-event-cat" belongs to a different event, so
+    // `.eq("id", "other-event-cat").eq("event_id", "e1")` matches nothing —
+    // this is what actually stops the cross-event delete, not an error.
     const deleteChain = chain({ data: null, error: null });
-    from.mockReturnValueOnce(statusChain).mockReturnValueOnce(updateChain).mockReturnValueOnce(catsChain).mockReturnValueOnce(addonsChain).mockReturnValueOnce(deleteChain);
+    from.mockReturnValueOnce(statusChain).mockReturnValueOnce(updateChain).mockReturnValueOnce(deleteChain);
 
-    // The payload lies: it claims the event's original categories were
-    // ["other-event-cat"] (belonging to some OTHER event in the same org)
-    // and the current list is empty — if trusted, this would compute
-    // "other-event-cat" as deleted. The real original ("real-1") isn't
-    // mentioned by the payload at all.
+    // The payload claims the event's original categories were
+    // ["other-event-cat"] — a category id belonging to some OTHER event in
+    // the same org — and the current list is empty, so reconcileChildren
+    // computes it as "no longer present" and a delete is attempted.
     const res = await saveEventAction({}, savePayload({ id: "e1" }, {
       categories: { current: [], original: [{ id: "other-event-cat" }] },
     }));
 
     expect(res.error).toBeUndefined();
-    // The delete that actually ran targeted "real-1" (the DB's real child),
-    // not "other-event-cat" (the payload's claim) — and was scoped to e1.
     expect(deleteChain.delete).toHaveBeenCalled();
-    expect(deleteChain.eq).toHaveBeenCalledWith("id", "real-1");
+    expect(deleteChain.eq).toHaveBeenCalledWith("id", "other-event-cat");
+    // This is the actual fix under test: without it, the delete would only
+    // be scoped by "id", and RLS (which checks the PARENT event's org, not
+    // that the row belongs to THIS event) would let it through.
     expect(deleteChain.eq).toHaveBeenCalledWith("event_id", "e1");
+  });
+
+  // The concurrent-edit case this fix must NOT break: tab A adds category X
+  // and saves; a stale tab B (whose `original` was captured before X
+  // existed) saves next. Because `original` is trusted from B's OWN
+  // payload rather than re-fetched from the DB, X is simply never a
+  // candidate for `toDelete` — reconcileChildren only deletes ids present
+  // in `original` and absent from `current`, and B's `original` never knew
+  // X existed in the first place. No DB round trip is needed to prove this;
+  // it falls out of reconcileChildren's definition once `original` is the
+  // payload's, which is exactly what this test pins down: the action makes
+  // no extra "what are this event's current categories" lookup at all.
+  it("makes no extra DB lookup to re-derive `original` — a stale tab's save cannot see (or delete) another tab's newer category", async () => {
+    getMyRoles.mockResolvedValue(roles({}));
+    const statusChain = chain({ data: { status: "draft" }, error: null });
+    const updateChain = chain({ data: [{ id: "e1" }], error: null });
+    const deleteChain = chain({ data: null, error: null });
+    from.mockReturnValueOnce(statusChain).mockReturnValueOnce(updateChain).mockReturnValueOnce(deleteChain);
+
+    // Tab B's `original` only ever knew about "b-cat" (captured on load,
+    // before tab A added "a-cat"). B's `current` drops "b-cat" (the
+    // organizer deleted it in tab B) — "a-cat" is not mentioned anywhere in
+    // B's payload, because B never knew it existed.
+    const res = await saveEventAction({}, savePayload({ id: "e1" }, {
+      categories: { current: [], original: [{ id: "b-cat" }] },
+    }));
+
+    expect(res.error).toBeUndefined();
+    // Exactly 3 calls total: status lookup, event update, the ONE delete
+    // (for "b-cat", the row B's own payload named). No 4th call fetching
+    // "what categories does e1 actually have" — that lookup is what would
+    // have surfaced "a-cat" and put it at risk of deletion.
+    expect(from).toHaveBeenCalledTimes(3);
+    expect(deleteChain.eq).toHaveBeenCalledWith("id", "b-cat");
+    expect(deleteChain.eq).not.toHaveBeenCalledWith("id", "a-cat");
   });
 });
 

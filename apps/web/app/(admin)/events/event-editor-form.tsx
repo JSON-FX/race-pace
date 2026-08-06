@@ -91,8 +91,15 @@ export function EventEditorForm({ initial, orgId }: { initial: EditorData | null
     // intentionally outside EVENT_STATUSES, and the dropdown already restricts input
     // to valid values — validating it here would permanently block Save on a
     // cancelled event with a misleading "fix the event fields" message.
-    if (!eventInputSchema.omit({ status: true }).safeParse(sanitizeListFields(event)).success) return "Fix the event fields (name is required, valid date/time, schedule times as HH:MM, inclusion lines under 140 characters).";
-    const coordError = coordPairError(event);
+    // Parse once and reuse the OUTPUT for coordPairError, not the raw `event`
+    // state — the schema's start/finish lat/lng fields are `.default(null)`,
+    // so a value that's `undefined` (never happens from this form's own
+    // inputs, but matters for anything else that might construct an
+    // EventDraft) is normalized to `null` by the parse rather than slipping
+    // past this check into the DB's CHECK constraint.
+    const parsed = eventInputSchema.omit({ status: true }).safeParse(sanitizeListFields(event));
+    if (!parsed.success) return "Fix the event fields (name is required, valid date/time, schedule times as HH:MM, inclusion lines under 140 characters).";
+    const coordError = coordPairError(parsed.data);
     if (coordError) return coordError;
     if (event.end_date && event.event_date && event.end_date < event.event_date) return "End date can't be before the start date.";
     for (const c of cats) if (!categoryInputSchema.safeParse(c).success) return "Fix the category rows (code, label, non-negative price/slots, gain 0-30000m, cut-off 0-240h).";
