@@ -1,3 +1,5 @@
+"use client";
+
 import imageCompression from "browser-image-compression";
 import { createClient } from "@/lib/supabase/client";
 

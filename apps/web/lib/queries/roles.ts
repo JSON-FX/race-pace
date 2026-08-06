@@ -19,19 +19,40 @@ export const getMyRoles = cache(async (): Promise<MyRoles | null> => {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const { data, error } = await supabase.from("user_roles").select("role, org_id");
+  // .order() so PostgREST's row order is never load-bearing for anything
+  // below — the org-resolution logic reads every row and picks explicitly,
+  // it does not rely on which row the database happened to return first.
+  const { data, error } = await supabase.from("user_roles").select("role, org_id").order("role");
   if (error) throw error;
 
   const rows = data ?? [];
   const isSuperAdmin = rows.some((r) => r.role === "super_admin");
-  const adminRow = rows.find((r) => r.role === "admin" || r.role === "editor");
+
+  // The role model is additive/dual-role: a user can hold an `admin` row in
+  // org X AND an `editor` row in org Y at the same time. getMyRoles must
+  // resolve to exactly ONE org, and `orgId`/`isOrgAdmin` must describe THAT
+  // SAME org — they must never be able to disagree. Bug this fixes: the old
+  // code picked `orgId` from `rows.find(admin-or-editor)` (whichever row
+  // Postgres returned first) but computed `isOrgAdmin` from `rows.some(role
+  // === "admin")` across ALL rows. For an admin-in-X + editor-in-Y user
+  // whose Y row sorted first, that returned `{orgId: "Y", isOrgAdmin:
+  // true}" — "admin of Y" — when the user is only an editor of Y. Every
+  // downstream isOrgAdmin gate (Team, Settings) trusted that false signal
+  // for org Y. Fix: resolve a single `resolvedRow` FIRST (preferring an
+  // `admin` row over an `editor` row, deterministically, regardless of scan
+  // order), then derive every other field from that same row.
+  const resolvedRow = rows.find((r) => r.role === "admin") ?? rows.find((r) => r.role === "editor");
 
   return {
-    role: isSuperAdmin ? "super_admin" : adminRow?.role ?? rows[0]?.role ?? null,
-    orgId: adminRow?.org_id ?? null,
+    role: isSuperAdmin ? "super_admin" : resolvedRow?.role ?? rows[0]?.role ?? null,
+    orgId: resolvedRow?.org_id ?? null,
     isSuperAdmin,
-    isAdmin: isSuperAdmin || !!adminRow,
-    isOrgAdmin: isSuperAdmin || rows.some((r) => r.role === "admin"),
+    isAdmin: isSuperAdmin || !!resolvedRow,
+    // "admin of the resolved org" — NOT "admin of any org the caller
+    // belongs to". See the resolvedRow comment above: this must be computed
+    // from the same row `orgId` came from, or the two fields can describe
+    // different organizations.
+    isOrgAdmin: isSuperAdmin || resolvedRow?.role === "admin",
   };
 });
 
