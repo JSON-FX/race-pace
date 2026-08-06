@@ -181,6 +181,11 @@ confirmation, so changing an organization's commission applies from the next reg
 onward. Correct for money, but must be stated on the page — an operator changing a rate
 will otherwise assume it applies to existing payments.
 
+**A refund reverses the commission too.** The runner gets the full amount back: Race Pace
+returns its `platform_fee` alongside the organizer's `net_to_org`. So commission earned is
+always net of refunds, and a refunded entry contributes nothing to either party. How that
+interacts with an already-transferred payout is the subtlest part of this spec — see §9.1.
+
 **The payout unit is an event, not a calendar month.** This supersedes the earlier
 "monthly periods" decision. A month boundary would split one race weekend's money across
 two statements.
@@ -213,6 +218,11 @@ in-flight registrations and open statements in ways needing their own design.
 
 Super-admin only. Scope band, KPI row (commission earned, GMV, effective rate, passed to
 orgs), then two tables.
+
+**Commission earned is net of refunds.** Because a refund returns the platform's fee too
+(§5), the KPI counts only `status = 'paid'` rows — refunded entries drop out on their own.
+The KPI's caption states the returned amount (`₱4,200 returned on 3 refunds`) so the figure
+is not silently smaller than an operator's own tally of gross sales.
 
 **Fee per organization** — each row carries a **type toggle (% / ₱)** and a value, saved per
 row. The fee applies to every single registration, so the row also shows the other form as
@@ -260,10 +270,11 @@ event picks up only unstamped rows. So:
 - opening mid-registration is safe — a later top-up statement catches what arrived after;
 - each transfer has an audit trail of exactly which payments it settled.
 
-**Refunds** reduce net owed while a statement is open. A refund arriving after a statement
-is paid cannot retroactively change it — it lands unstamped and nets against the event's
-next statement. If none follows, it surfaces as a negative balance for manual resolution.
-This is the accepted cost of manual opening.
+**Refunds** never retroactively alter a paid statement. A refund on money not yet paid out
+simply drops out of the next statement's earnings; a refund on money already transferred
+becomes a clawback against the event's next statement (§9.1). If no further statement
+follows, the balance stays visible as **Owed back by organizer** for manual resolution —
+the accepted cost of manual opening.
 
 ---
 
@@ -294,22 +305,61 @@ create unique index payout_statements_one_open_per_event
   on payout_statements (event_id) where status = 'open';
 ```
 
-Plus `alter table payments add column payout_statement_id uuid references payout_statements(id)`,
-indexed, null = not yet settled.
+Plus two nullable, indexed FKs on `payments`:
 
-**How each amount is derived**, over payments for the event where `payout_statement_id is null`:
+```sql
+alter table payments
+  add column payout_statement_id uuid references payout_statements(id),  -- settled by
+  add column payout_clawback_id  uuid references payout_statements(id);  -- refund recovered by
+```
+
+`payout_statement_id` null = earnings not yet paid out. `payout_clawback_id` exists so a
+refund on an already-settled payment is deducted **once** — without it, every subsequent
+statement for that event would re-subtract the same refund forever.
+
+**A refund returns the runner's whole payment, commission included.** Race Pace gives back
+its `platform_fee` as well as the organizer's `net_to_org`. `refund_registration_tx` flips
+`payments.status` to `'refunded'` and **leaves `platform_fee` and `net_to_org` on the row**
+(`20260723100000_money_txn_rpcs.sql:61`), so the original split survives for clawback math.
+
+**A statement's amounts key on the stamp, not on status alone.** Two disjoint sets of that
+event's payments:
+
+```sql
+earn:     status = 'paid'      and payout_statement_id is null
+clawback: status = 'refunded'  and payout_statement_id is not null
+                               and payout_clawback_id  is null
+```
 
 | Column | Derivation |
 | --- | --- |
-| `gross_cents` | `sum(amount) filter (where status = 'paid')` |
-| `commission_cents` | `sum(platform_fee) filter (where status = 'paid')` |
-| `refunds_cents` | `sum(net_to_org) filter (where status = 'refunded')` |
+| `gross_cents` | `sum(amount)` over **earn** |
+| `commission_cents` | `sum(platform_fee)` over **earn** |
+| `refunds_cents` | `sum(net_to_org)` over **clawback** |
 | `net_owed_cents` | `gross − commission − refunds` |
 
+Why it must work this way — the three cases:
+
+| Case | Treatment |
+| --- | --- |
+| Paid, not yet settled | in **earn** → increases what is owed |
+| Refunded **before** any payout | in neither set → **invisible**. The organizer was never given this money, so there is nothing to claw back |
+| Refunded **after** being paid out | in **clawback** → subtracts `net_to_org` from the next statement |
+
+Keying on status alone was wrong: a refund before payout would contribute ₱0 to gross (it
+is no longer `'paid'`) while subtracting its full `net_to_org` — inventing a debt for money
+the organizer never received.
+
 Refunds subtract `net_to_org`, not `amount`: the organizer is only clawed back what they
-were credited. Whether the platform also refunds its `platform_fee` on a refunded entry is
-a **commercial decision, not a technical one** — the arithmetic above assumes it keeps the
-fee. Flag before implementing if that is wrong.
+were credited. The platform absorbs the return of its own `platform_fee`, which is why
+commission earned (§7) is net of refunds by construction — a refunded payment is no longer
+`'paid'`, so it drops out of `sum(platform_fee) filter (where status = 'paid')`.
+
+**`net_owed_cents` may be negative.** An event settled and then refunded, with no new sales
+to offset it, leaves the organizer owing Race Pace. The row renders as **Owed back by
+organizer** rather than a negative payout, and marking it paid records the recovery rather
+than a transfer. Rare, but it falls straight out of manual statement opening and must not
+render as a payment instruction.
 
 RLS: super-admin only, via `auth_is_super_admin()`. Amounts are integer centavos, matching
 `payments.amount`.
@@ -318,8 +368,8 @@ RLS: super-admin only, via `auth_is_super_admin()`. Amounts are integer centavos
 
 | RPC | Purpose |
 | --- | --- |
-| `payout_open_statement(p_event_id)` | sums unstamped payments for the event, inserts the statement. Security definer — the write must be atomic with the read. |
-| `payout_mark_paid(p_statement_id, p_reference, p_note)` | sets status/paid_at/paid_by **and** stamps `payout_statement_id` on covered payments, in one transaction. |
+| `payout_open_statement(p_event_id)` | computes the earn and clawback sets (§9.1), inserts the statement. Security definer — the write must be atomic with the read. |
+| `payout_mark_paid(p_statement_id, p_reference, p_note)` | sets status/paid_at/paid_by, stamps `payout_statement_id` on the earn rows **and** `payout_clawback_id` on the clawback rows, in one transaction. |
 | `admin_org_signups_daily(p_org_id, p_days)` | dashboard time series |
 | `checkin_undo(p_registration_id)` | deletes the `checkins` row, authorized by `auth_can_check_in_event` |
 
@@ -457,6 +507,16 @@ remains the portable path.
 - **RPCs, pgTAP:** `payout_open_statement` excludes already-stamped payments; a second open
   statement for the same event violates the partial unique index; `payout_mark_paid` stamps
   every covered row; `checkin_undo` refuses a caller without `auth_can_check_in_event`
+- **Refund/payout interaction, pgTAP** — the arithmetic most likely to be wrong, and the
+  most expensive to get wrong:
+  - refund **before** any payout contributes nothing — statement net is as if the entry
+    never existed, **not** negative
+  - refund **after** payout subtracts `net_to_org` from the next statement, exactly once —
+  - a third statement after a clawback does **not** re-subtract it (`payout_clawback_id` is
+    already set)
+  - clawbacks exceeding new earnings produce a negative `net_owed_cents` that surfaces as
+    "owed back", not as a payout
+  - commission earned excludes refunded entries, since the platform returns its fee too
 - **Tenant isolation:** an org admin reading `payout_statements` gets zero rows; a
   non-super-admin `UPDATE` of `commission_rate` changes zero rows
 - **E2E (Playwright):** provision an org end to end; open and mark a statement paid; check a
