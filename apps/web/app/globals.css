@@ -140,16 +140,21 @@
   --radius-lg: var(--radius);
   --radius-xl: var(--radius-card);
   --radius-pill: var(--radius-pill);
+  --font-sans: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, monospace;
 }
 
 @layer base {
   * { box-sizing: border-box; }
-  html, body, #root { height: 100%; margin: 0; }
+  html, body { height: 100%; margin: 0; }
   body {
-    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Inter, system-ui, sans-serif;
+    font-family: var(--font-sans);
     color: rgb(var(--foreground));
     background: rgb(var(--muted));
   }
+  /* Money, bib numbers, dates and counts. Proportional figures change width
+     between digits, so a column visibly reflows when you page through it. */
+  .tabular { font-variant-numeric: tabular-nums; }
   .rp-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
   .rp-scroll::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 8px; }
   .rp-scroll::-webkit-scrollbar-track { background: transparent; }

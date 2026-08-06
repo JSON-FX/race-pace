@@ -1,3 +1,5 @@
+"use client"
+
 import { useEffect, useState } from "react"
 import {
   CircleCheckIcon,
@@ -14,7 +16,7 @@ import { Toaster as Sonner, type ToasterProps } from "sonner"
 // so toasts always match the app's actual theme instead of the OS preference.
 function useHtmlDarkMode(): boolean {
   const [isDark, setIsDark] = useState(
-    () => document.documentElement.classList.contains("dark")
+    () => typeof document !== "undefined" && document.documentElement.classList.contains("dark")
   )
 
   useEffect(() => {
