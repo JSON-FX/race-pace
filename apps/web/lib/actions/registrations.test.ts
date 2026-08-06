@@ -111,10 +111,17 @@ describe("cancelRegistrationsAction", () => {
   // A genuine transport/DB error from .rpc() (network blip, function
   // dropped, etc.) must be surfaced, never swallowed into a reported
   // success — same discipline as the RLS-empty-result rule for `.update()`.
-  it("surfaces a hard RPC error rather than reporting success", async () => {
+  // The raw driver text ("connection reset") must NOT reach the UI — only a
+  // generic, actionable message; the real error is logged server-side via
+  // console.error instead (see lib/actions/settings.ts for the same rule).
+  it("surfaces a hard RPC error rather than reporting success, without leaking raw driver text", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
     rpc.mockResolvedValue({ data: null, error: { message: "connection reset" } });
     const res = await cancelRegistrationsAction(["r1"]);
     expect(res.ok).toBe(false);
-    expect(res.error).toBe("connection reset");
+    expect(res.error).toBe("Cancel failed. Please try again.");
+    expect(res.error).not.toContain("connection reset");
+    expect(consoleError).toHaveBeenCalled();
+    consoleError.mockRestore();
   });
 });

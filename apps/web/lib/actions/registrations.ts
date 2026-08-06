@@ -65,7 +65,10 @@ export async function cancelRegistrationsAction(ids: string[]): Promise<BulkCanc
   const results = await Promise.all(
     ids.map(async (id) => {
       const { data, error } = await supabase.rpc("admin_cancel_registration", { p_registration_id: id });
-      if (error) return { id, status: "error" as const, message: error.message };
+      if (error) {
+        console.error("[registrations] admin_cancel_registration failed", { id, error });
+        return { id, status: "error" as const };
+      }
       return { id, status: (data as string) ?? "error" };
     }),
   );
@@ -75,7 +78,7 @@ export async function cancelRegistrationsAction(ids: string[]): Promise<BulkCanc
   const notFound = results.filter((r) => r.status === "not_found").length;
   const notCancellable = results.filter((r) => r.status === "not_cancellable").length;
   const paymentInFlight = results.filter((r) => r.status === "payment_in_flight").length;
-  const hardError = results.find((r) => r.status === "error") as { message?: string } | undefined;
+  const hardError = results.find((r) => r.status === "error");
 
   // Revalidate whenever ANY row actually wrote, before any of the
   // early-return branches below — not only on the fully-successful path.
@@ -90,7 +93,10 @@ export async function cancelRegistrationsAction(ids: string[]): Promise<BulkCanc
     return { ok: false, cancelled, error: "You don't have permission to cancel one or more of these registrations." };
   }
   if (hardError) {
-    return { ok: false, cancelled, error: hardError.message ?? "Cancel failed. Please try again." };
+    // Never surface `error.message` (raw Postgres text) to the UI — the real
+    // error is already logged server-side above, with context. Matches the
+    // pattern in lib/actions/settings.ts and refundRegistrationAction.
+    return { ok: false, cancelled, error: "Cancel failed. Please try again." };
   }
   if (cancelled === 0) {
     return {

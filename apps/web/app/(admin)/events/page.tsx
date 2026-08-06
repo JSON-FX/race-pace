@@ -33,7 +33,24 @@ export default async function EventsPage({
     );
   }
 
-  const { rows, total } = await listOrgEvents(orgId, params);
+  // Caught here (rather than left to throw into error.tsx) so a transient
+  // DB blip degrades gracefully: the header, count text and "New event"
+  // button stay usable, and only the table area shows a retryable inline
+  // error (DataTable's `isError` — see that prop's doc comment). Nothing
+  // else on this page depends on `listOrgEvents`, unlike Registrations/
+  // Payments where the table query and the KPI aggregates are batched
+  // together in one `Promise.all` and a partial "table failed, KPIs fine"
+  // state isn't something today's query shape can express — those still
+  // fall through to app/(admin)/error.tsx on a query failure.
+  let rows: Awaited<ReturnType<typeof listOrgEvents>>["rows"] = [];
+  let total = 0;
+  let isError = false;
+  try {
+    ({ rows, total } = await listOrgEvents(orgId, params));
+  } catch (error) {
+    console.error("[events] listOrgEvents failed", { orgId, error });
+    isError = true;
+  }
 
   return (
     <div className="px-4 pb-10 pt-6 md:px-[30px]">
@@ -50,7 +67,8 @@ export default async function EventsPage({
       </div>
 
       <EventsTable rows={rows} total={total} page={params.page} per={params.per}
-        sort={params.sort} activeFilters={params.filters} q={params.q} />
+        sort={params.sort} activeFilters={params.filters} q={params.q}
+        canWrite={!!roles?.isAdmin} isError={isError} />
     </div>
   );
 }

@@ -78,13 +78,21 @@ export async function listOrgEvents(
   const status = params.filters.status ?? "all";
   if (status !== "all") req = req.eq("status", status);
 
-  if (params.q.trim()) {
-    const term = quotePostgrestValue(`%${params.q.trim()}%`);
+  const trimmed = params.q.trim();
+  if (trimmed) {
+    // Routed through toIlikePattern (not a hand-rolled `%${q}%`) so a
+    // user-typed `*`, `%` or `_` means the same thing here as it does on
+    // Registrations/Payments — see that helper's doc comment.
+    const term = quotePostgrestValue(toIlikePattern(trimmed));
     req = req.or(`name.ilike.${term},place.ilike.${term},city_name.ilike.${term}`);
   }
 
   const s = params.sort[0] ?? { id: "event_date", desc: false };
-  req = req.order(s.id, { ascending: !s.desc }).range(from, from + params.per - 1);
+  // Secondary `.order("id")` tiebreaker, matching registrations.ts/payments.ts:
+  // rows sharing the primary sort value have no guaranteed relative order
+  // across two separate `.range()` calls otherwise. Events has no export route
+  // today, but the invariant should hold before one is ever added.
+  req = req.order(s.id, { ascending: !s.desc }).order("id", { ascending: true }).range(from, from + params.per - 1);
 
   const { data, error, count } = await req;
   if (error) throw error;

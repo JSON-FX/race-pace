@@ -212,11 +212,22 @@ export async function saveEventAction(_prev: EditorState, formData: FormData): P
   const cat = reconcileChildren(payload.categories.original, payload.categories.current);
   for (const c of cat.toInsert) {
     const r = await supabase.from("categories").insert({ org_id: event.org_id, event_id: finalEventId, code: c.code, label: c.label, distance_km: c.distance_km, base_price: c.base_price, slots_total: c.slots_total, elevation_gain_m: c.elevation_gain_m, cutoff_hours: c.cutoff_hours, blurb: c.blurb });
-    if (r.error) childErrors.push(`Category "${c.label}": ${r.error.message}`);
+    // Never surface `r.error.message` (raw Postgres text — table/column/
+    // constraint names) to the UI. Log it server-side with context; the
+    // admin gets a generic, actionable message naming no internals. Matches
+    // lib/actions/settings.ts and the friendly strings already used by the
+    // delete branches below.
+    if (r.error) {
+      console.error("[events] category insert failed", { eventId: finalEventId, code: c.code, error: r.error });
+      childErrors.push(`Category "${c.label}" couldn't be saved.`);
+    }
   }
   for (const c of cat.toUpdate) {
     const r = await supabase.from("categories").update({ code: c.code, label: c.label, distance_km: c.distance_km, base_price: c.base_price, slots_total: c.slots_total, elevation_gain_m: c.elevation_gain_m, cutoff_hours: c.cutoff_hours, blurb: c.blurb }).eq("id", c.id).eq("event_id", finalEventId);
-    if (r.error) childErrors.push(`Category "${c.label}": ${r.error.message}`);
+    if (r.error) {
+      console.error("[events] category update failed", { eventId: finalEventId, categoryId: c.id, error: r.error });
+      childErrors.push(`Category "${c.label}" couldn't be saved.`);
+    }
   }
   for (const id of cat.toDelete) {
     // .eq("event_id", finalEventId) is load-bearing, not redundant with RLS
@@ -228,11 +239,17 @@ export async function saveEventAction(_prev: EditorState, formData: FormData): P
   const add = reconcileChildren(payload.addons.original, payload.addons.current);
   for (const a of add.toInsert) {
     const r = await supabase.from("addons").insert({ org_id: event.org_id, event_id: finalEventId, name: a.name, price: a.price });
-    if (r.error) childErrors.push(`Add-on "${a.name}": ${r.error.message}`);
+    if (r.error) {
+      console.error("[events] addon insert failed", { eventId: finalEventId, name: a.name, error: r.error });
+      childErrors.push(`Add-on "${a.name}" couldn't be saved.`);
+    }
   }
   for (const a of add.toUpdate) {
     const r = await supabase.from("addons").update({ name: a.name, price: a.price }).eq("id", a.id).eq("event_id", finalEventId);
-    if (r.error) childErrors.push(`Add-on "${a.name}": ${r.error.message}`);
+    if (r.error) {
+      console.error("[events] addon update failed", { eventId: finalEventId, addonId: a.id, error: r.error });
+      childErrors.push(`Add-on "${a.name}" couldn't be saved.`);
+    }
   }
   for (const id of add.toDelete) {
     const r = await supabase.from("addons").delete().eq("id", id).eq("event_id", finalEventId);

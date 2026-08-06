@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { getMyRoles, requireOrgId } from "@/lib/queries/roles";
-import { quotePostgrestValue } from "@/lib/queries/events";
+import { quotePostgrestValue, toIlikePattern } from "@/lib/queries/events";
 
 export type EventSearchResult = { id: string; name: string };
 
@@ -32,7 +32,10 @@ export async function searchEvents(term: string): Promise<EventSearchResult[]> {
   // 400s the whole query. quotePostgrestValue (lib/queries/events.ts) wraps
   // the term as one opaque quoted token, same as listOrgEvents's own
   // name/place/city search.
-  const quoted = quotePostgrestValue(`%${trimmed}%`);
+  // toIlikePattern normalizes `*`/`%`/`_` the same way Registrations and
+  // Payments do, so a keystroke in the ⌘K palette can't mean something
+  // different than the identical keystroke on those pages' search boxes.
+  const quoted = quotePostgrestValue(toIlikePattern(trimmed));
   const { data, error } = await supabase
     .from("events")
     .select("id,name")

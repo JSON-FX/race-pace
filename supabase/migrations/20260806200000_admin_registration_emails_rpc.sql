@@ -28,6 +28,11 @@
 -- this hardened form — this function should have matched it from the start.
 -- auth_can_admin_org itself is unchanged (pre-existing, shared by many policies —
 -- hardening it is a separate follow-up, not folded into this migration).
+-- CORRECTION (see 20260806202000_harden_auth_helper_search_path.sql): that
+-- follow-up already happened, two migrations later. `auth_can_admin_org` (and
+-- `auth_is_super_admin`, which it calls) were hardened to `search_path = ''` there.
+-- Read the paragraph above as historical only — as of 20260806202000,
+-- auth_can_admin_org IS hardened. Do not cite it as a live gap.
 create or replace function public.admin_registration_emails(p_event_id uuid)
 returns table (registration_id uuid, email text)
 language sql
