@@ -1,10 +1,13 @@
+"use client";
+
 import { useCallback, useState, type ChangeEvent } from "react";
 import Cropper, { type Area } from "react-easy-crop";
 import { toast } from "sonner";
-import { getCroppedBlob } from "../lib/cropImage";
-import { uploadOrgImage, updateOrgBranding, type OrgImageKind } from "../lib/org";
-import { Dialog, DialogContent, DialogTitle } from "./ui/dialog";
-import { Button } from "./ui/button";
+import { getCroppedBlob } from "@/lib/cropImage";
+import { uploadOrgImage, type OrgImageKind } from "@/lib/org-upload";
+import { updateOrgBrandingAction } from "@/lib/actions/settings";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 
 export function CropUploader({ orgId, kind, aspect, field, label, currentUrl, round, onSaved }: {
   orgId: string;
@@ -50,7 +53,7 @@ export function CropUploader({ orgId, kind, aspect, field, label, currentUrl, ro
     try {
       const blob = await getCroppedBlob(src, pixels);
       const url = await uploadOrgImage(orgId, blob, kind);
-      const res = await updateOrgBranding(orgId, { [field]: url });
+      const res = await updateOrgBrandingAction(orgId, { [field]: url });
       if (!res.ok) throw new Error(res.error);
       close();
       toast.success("Branding updated");

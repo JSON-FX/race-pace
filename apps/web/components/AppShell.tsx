@@ -4,13 +4,13 @@ import { TopBar } from "./TopBar";
 import type { MyRoles } from "@/lib/queries/roles";
 
 export function AppShell({
-  roles, email, children,
-}: { roles: MyRoles; email: string; children: React.ReactNode }) {
+  roles, email, orgName, children,
+}: { roles: MyRoles; email: string; orgName: string | null; children: React.ReactNode }) {
   return (
     <SidebarProvider>
       <Sidebar roles={roles} email={email} />
       <SidebarInset className="bg-muted">
-        <TopBar roles={roles} />
+        <TopBar roles={roles} orgName={orgName} />
         <main className="rp-scroll flex-1 overflow-y-auto bg-muted">{children}</main>
       </SidebarInset>
     </SidebarProvider>
