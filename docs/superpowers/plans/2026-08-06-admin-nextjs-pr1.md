@@ -533,7 +533,7 @@ directly. Wire format is otherwise byte-compatible with the old URLs."
 - Produces:
   - `lib/supabase/client.ts` → `createClient(): SupabaseClient` (browser)
   - `lib/supabase/server.ts` → `async createClient(): Promise<SupabaseClient>` (**must be awaited**)
-  - `lib/routes.ts` → `isProtectedPath(pathname: string): boolean`, `signInRedirectPath(pathname: string, search: string): string`
+  - `lib/routes.ts` → `isProtectedPath(pathname: string): boolean`, `signInRedirectPath(pathname: string, search: string): string`, `safeNextPath(next: string | null | undefined, fallback?: string): string`
   - `lib/actions/auth.ts` → `signInAction(prev: AuthState, formData: FormData): Promise<AuthState>`, `signOutAction(): Promise<void>`, where `type AuthState = { error?: string }`
 
 - [ ] **Step 1: Write the failing test for route classification**
@@ -724,6 +724,7 @@ export const config = {
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { safeNextPath } from "@/lib/routes";
 
 export type AuthState = { error?: string };
 
@@ -744,7 +745,10 @@ export async function signInAction(_prev: AuthState, formData: FormData): Promis
 
   revalidatePath("/", "layout");
   // redirect() throws internally; it must be outside any try/catch.
-  redirect(next.startsWith("/") ? next : "/events");
+  // safeNextPath (lib/routes.ts) rejects protocol-relative targets: `next` is
+  // attacker-controlled and "//evil.com" starts with "/" but resolves to an
+  // external origin, so a bare startsWith("/") check is an open redirect.
+  redirect(safeNextPath(next));
 }
 
 export async function signOutAction(): Promise<void> {
