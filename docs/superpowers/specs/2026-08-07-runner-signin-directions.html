@@ -1,0 +1,263 @@
+<meta charset="utf-8">
+<title>Runner sign-in — three directions</title>
+<style>
+  :root{
+    --bg:#f5f5f7;--fg:#1d1d1f;--card:#fff;--muted:#f5f5f7;--mutedfg:#7a7a7a;
+    --border:#e0e0e0;--divider:#efeff1;--primary:#159a55;--primaryfocus:#0f7a42;
+    --forest:#0f2a20;--accent:#eaf3ee;--amber:#b45309;
+    --shadow:0 1px 2px rgb(16 24 40/.04),0 1px 3px rgb(16 24 40/.06);
+    --shadow-lg:0 12px 34px rgb(16 24 40/.13);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+    font:400 15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1150px;margin:0 auto;padding:28px 20px 70px}
+  h1{font-size:25px;font-weight:800;letter-spacing:-.03em;margin:0 0 6px}
+  .sub{color:var(--mutedfg);font-size:14.5px;margin:0 0 6px;max-width:78ch}
+  .pagelabel{display:flex;align-items:center;gap:9px;margin:30px 0 12px;
+    font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--mutedfg)}
+  .pagelabel::after{content:"";flex:1;height:1px;background:var(--border)}
+  .note{background:var(--card);border:1px solid var(--border);border-left:3px solid var(--primary);
+    border-radius:9px;padding:11px 14px;font-size:13px;color:#3a3a3c;margin-top:12px}
+  .note b{color:var(--fg)}
+  .note.warn{border-left-color:var(--amber)}
+  .row{display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start}
+  .cap{font-size:12px;color:var(--mutedfg);font-weight:600;margin-top:8px;text-align:center}
+
+  /* form bits */
+  .lab{display:block;font-size:12.5px;font-weight:650;margin-bottom:5px}
+  .inp{width:100%;height:46px;border:1px solid var(--border);border-radius:11px;background:var(--card);
+    padding:0 13px;font-size:14px;display:flex;align-items:center;color:var(--mutedfg)}
+  .fg{margin-bottom:13px}
+  .btn{width:100%;height:48px;border:0;border-radius:999px;background:var(--primary);color:#fff;
+    font-size:14.5px;font-weight:700;display:flex;align-items:center;justify-content:center}
+  .gbtn{width:100%;height:48px;border:1px solid var(--border);border-radius:999px;background:#fff;color:#1f1f1f;
+    font:600 14px/1 "Roboto",system-ui,sans-serif;display:flex;align-items:center;justify-content:center;gap:10px}
+  .divider{display:flex;align-items:center;gap:10px;margin:14px 0;color:var(--mutedfg);font-size:12px;font-weight:600}
+  .divider::before,.divider::after{content:"";flex:1;height:1px;background:var(--divider)}
+  .eyebrow{font-size:10.5px;font-weight:800;letter-spacing:.15em;color:var(--primary);text-transform:uppercase}
+  .display{font-size:34px;font-weight:900;letter-spacing:-.035em;line-height:1.02;margin:8px 0 8px}
+  .foot{margin-top:14px;text-align:center;font-size:13px;color:var(--mutedfg)}
+  .foot a{color:var(--primary);font-weight:700;text-decoration:none}
+
+  /* phone */
+  .phone{width:340px;border:1px solid var(--border);border-radius:20px;overflow:hidden;box-shadow:0 8px 26px rgb(16 24 40/.10)}
+  .pscreen{height:600px;display:flex;flex-direction:column;background:var(--card);position:relative;overflow:hidden}
+
+  /* topo */
+  .topo{position:absolute;inset:0;opacity:.5}
+  .canvas{background:var(--forest);color:#fff;position:relative;overflow:hidden}
+
+  /* split */
+  .split{display:grid;grid-template-columns:1.05fr .95fr;min-height:470px;border:1px solid var(--border);
+    border-radius:16px;overflow:hidden;box-shadow:var(--shadow-lg)}
+  .pane{padding:34px;display:flex;flex-direction:column;justify-content:space-between;position:relative}
+  .formpane{background:var(--card);display:flex;align-items:center;justify-content:center;padding:34px}
+  .formpane .in{width:100%;max-width:330px}
+  .stat{display:flex;gap:26px;position:relative;z-index:2}
+  .stat .n{font-size:22px;font-weight:800;letter-spacing:-.02em}
+  .stat .k{font-size:10px;font-weight:700;letter-spacing:.09em;color:rgba(255,255,255,.5);margin-top:2px}
+  @media (max-width:860px){.split{grid-template-columns:1fr}}
+</style>
+
+<div class="wrap">
+<h1>Runner sign-in — three directions</h1>
+<p class="sub">The page works and the targets are already 44px+. What it lacks is any of the site's
+voice.</p>
+
+<div class="note warn"><b>The gap is tone, not usability.</b> The rest of the runner site is
+editorial and loud — a 40px Archivo "Find your next start line", forest slabs, race photography,
+condensed eyebrows. The sign-in is a plain centred stack that could belong to any product, and it
+is often the FIRST screen a runner sees when a friend shares a race link and they hit register. It
+should sound like the thing they are joining.</div>
+
+<!-- ============ A ============ -->
+<div class="pagelabel">A · Editorial split — recommended</div>
+<div class="split">
+  <div class="pane canvas">
+    <svg class="topo" viewBox="0 0 400 470" preserveAspectRatio="none" aria-hidden="true">
+      <g fill="none" stroke="rgba(53,192,110,.30)" stroke-width="1.1">
+        <path d="M-20 300 C 60 250, 120 330, 200 285 S 340 230, 420 275"/>
+        <path d="M-20 330 C 60 280, 120 360, 200 315 S 340 260, 420 305"/>
+        <path d="M-20 360 C 60 310, 120 390, 200 345 S 340 290, 420 335"/>
+        <path d="M-20 392 C 60 342, 120 422, 200 377 S 340 322, 420 367"/>
+        <path d="M-20 424 C 60 374, 120 454, 200 409 S 340 354, 420 399"/>
+      </g>
+      <g fill="none" stroke="rgba(53,192,110,.16)" stroke-width="1">
+        <path d="M-20 120 C 70 90, 130 150, 210 118 S 350 80, 420 110"/>
+        <path d="M-20 155 C 70 125, 130 185, 210 153 S 350 115, 420 145"/>
+      </g>
+    </svg>
+    <img src="../../../apps/site/public/topnav-logo.png" alt="Race Pace"
+      style="height:32px;width:auto;position:relative;z-index:2;filter:brightness(0) invert(1)">
+    <div style="position:relative;z-index:2">
+      <div class="eyebrow" style="color:#7FE0A6">MINDANAO · 2026 SEASON</div>
+      <div class="display" style="max-width:12ch">Your start line is waiting.</div>
+      <p style="color:rgba(255,255,255,.66);font-size:14px;margin:0;max-width:32ch;line-height:1.55">
+        Sign in to claim a slot, carry your ticket offline, and keep every race you've run in one place.</p>
+    </div>
+    <div class="stat">
+      <div><div class="n">20</div><div class="k">RACES OPEN</div></div>
+      <div><div class="n">2</div><div class="k">ORGANIZERS</div></div>
+      <div><div class="n">65K</div><div class="k">LONGEST</div></div>
+    </div>
+  </div>
+  <div class="formpane">
+    <div class="in">
+      <div style="font-size:22px;font-weight:800;letter-spacing:-.03em">Sign in</div>
+      <p style="font-size:13.5px;color:var(--mutedfg);margin:4px 0 18px">Enter races and carry your ticket to the start line.</p>
+      <button class="gbtn">
+        <svg width="17" height="17" viewBox="0 0 48 48" aria-hidden="true"><path fill="#4285F4" d="M45.1 24.5c0-1.6-.1-3.2-.4-4.7H24v8.9h11.8c-.5 2.8-2 5.1-4.4 6.7v5.5h7.1c4.1-3.8 6.6-9.4 6.6-16.4z"/><path fill="#34A853" d="M24 46c5.9 0 10.9-2 14.5-5.3l-7.1-5.5c-2 1.3-4.5 2.1-7.4 2.1-5.7 0-10.5-3.8-12.2-9H4.5v5.7C8.1 41.2 15.5 46 24 46z"/><path fill="#FBBC05" d="M11.8 28.3c-.4-1.3-.7-2.7-.7-4.3s.2-2.9.7-4.3v-5.7H4.5C2.9 17.2 2 20.5 2 24s.9 6.8 2.5 9.7l7.3-5.4z"/><path fill="#EA4335" d="M24 10.7c3.2 0 6.1 1.1 8.4 3.3l6.3-6.3C34.9 4.1 29.9 2 24 2 15.5 2 8.1 6.8 4.5 14.3l7.3 5.7c1.7-5.2 6.5-9.3 12.2-9.3z"/></svg>
+        Continue with Google
+      </button>
+      <div class="divider">or</div>
+      <div class="fg"><span class="lab">Email</span><div class="inp">alma@example.com</div></div>
+      <div class="fg"><span class="lab">Password</span><div class="inp">••••••••</div></div>
+      <button class="btn">Sign in</button>
+      <div class="foot">New here? <a href="#">Create an account</a></div>
+    </div>
+  </div>
+</div>
+<div class="cap">Desktop — brand canvas left, form right</div>
+
+<div class="row" style="margin-top:18px">
+  <div>
+    <div class="phone">
+      <div class="pscreen">
+        <div class="canvas" style="padding:22px 20px 20px;flex:none">
+          <svg class="topo" viewBox="0 0 340 190" preserveAspectRatio="none" aria-hidden="true">
+            <g fill="none" stroke="rgba(53,192,110,.28)" stroke-width="1.1">
+              <path d="M-10 120 C 50 95, 110 145, 170 118 S 290 88, 350 112"/>
+              <path d="M-10 145 C 50 120, 110 170, 170 143 S 290 113, 350 137"/>
+              <path d="M-10 170 C 50 145, 110 195, 170 168 S 290 138, 350 162"/>
+            </g>
+          </svg>
+          <img src="../../../apps/site/public/topnav-logo.png" alt="Race Pace"
+            style="height:26px;width:auto;position:relative;z-index:2;filter:brightness(0) invert(1)">
+          <div style="position:relative;z-index:2;margin-top:14px">
+            <div class="eyebrow" style="color:#7FE0A6;font-size:9.5px">MINDANAO · 2026 SEASON</div>
+            <div class="display" style="font-size:27px;margin:6px 0 0;max-width:11ch">Your start line is waiting.</div>
+          </div>
+        </div>
+        <div style="padding:20px;flex:1">
+          <button class="gbtn">
+            <svg width="17" height="17" viewBox="0 0 48 48" aria-hidden="true"><path fill="#4285F4" d="M45.1 24.5c0-1.6-.1-3.2-.4-4.7H24v8.9h11.8c-.5 2.8-2 5.1-4.4 6.7v5.5h7.1c4.1-3.8 6.6-9.4 6.6-16.4z"/><path fill="#34A853" d="M24 46c5.9 0 10.9-2 14.5-5.3l-7.1-5.5c-2 1.3-4.5 2.1-7.4 2.1-5.7 0-10.5-3.8-12.2-9H4.5v5.7C8.1 41.2 15.5 46 24 46z"/><path fill="#FBBC05" d="M11.8 28.3c-.4-1.3-.7-2.7-.7-4.3s.2-2.9.7-4.3v-5.7H4.5C2.9 17.2 2 20.5 2 24s.9 6.8 2.5 9.7l7.3-5.4z"/><path fill="#EA4335" d="M24 10.7c3.2 0 6.1 1.1 8.4 3.3l6.3-6.3C34.9 4.1 29.9 2 24 2 15.5 2 8.1 6.8 4.5 14.3l7.3 5.7c1.7-5.2 6.5-9.3 12.2-9.3z"/></svg>
+            Continue with Google
+          </button>
+          <div class="divider">or</div>
+          <div class="fg"><span class="lab">Email</span><div class="inp">alma@example.com</div></div>
+          <div class="fg"><span class="lab">Password</span><div class="inp">••••••••</div></div>
+          <button class="btn">Sign in</button>
+          <div class="foot">New here? <a href="#">Create an account</a></div>
+        </div>
+      </div>
+    </div>
+    <div class="cap">Mobile — the canvas becomes a header band</div>
+  </div>
+  <div style="flex:1;min-width:290px">
+    <div class="note"><b>Why this one.</b> It uses the site's own voice — condensed eyebrow, heavy
+    Archivo display, forest canvas — so a runner arriving from a shared race link sees the same
+    product they were just looking at, not a generic form.
+    <br><br>
+    The contour lines are drawn from the existing <code>TopoPattern</code> component and
+    <code>--forest</code>, so there is <b>no photography to source or licence</b> and no new asset
+    to ship. That matters: a stock trail photo here would be the one image on the site that isn't a
+    real Mindanao race.
+    <br><br>
+    <b>Google is first.</b> Most runners arriving from a phone will not have a password yet, and
+    burying the one-tap option under a form they can't complete is a dead end. The counts at the
+    bottom are real data the site already loads for the home page.
+    <br><br>
+    On mobile the canvas collapses to a header band rather than disappearing, so the brand survives
+    the breakpoint instead of degrading to the plain form we have now.</div>
+  </div>
+</div>
+
+<!-- ============ B ============ -->
+<div class="pagelabel">B · Full-bleed canvas, floating card</div>
+<div class="row">
+  <div>
+    <div class="phone">
+      <div class="pscreen canvas" style="justify-content:center;padding:20px">
+        <svg class="topo" viewBox="0 0 340 600" preserveAspectRatio="none" aria-hidden="true">
+          <g fill="none" stroke="rgba(53,192,110,.24)" stroke-width="1.1">
+            <path d="M-10 380 C 50 340, 110 420, 170 380 S 290 330, 350 370"/>
+            <path d="M-10 415 C 50 375, 110 455, 170 415 S 290 365, 350 405"/>
+            <path d="M-10 450 C 50 410, 110 490, 170 450 S 290 400, 350 440"/>
+            <path d="M-10 485 C 50 445, 110 525, 170 485 S 290 435, 350 475"/>
+            <path d="M-10 150 C 60 120, 120 180, 180 150 S 300 115, 350 145"/>
+          </g>
+        </svg>
+        <div style="position:relative;z-index:2;text-align:center;margin-bottom:16px">
+          <img src="../../../apps/site/public/topnav-logo.png" alt="Race Pace"
+            style="height:28px;width:auto;filter:brightness(0) invert(1)">
+        </div>
+        <div style="position:relative;z-index:2;background:var(--card);border-radius:18px;padding:20px;box-shadow:var(--shadow-lg)">
+          <div style="font-size:20px;font-weight:800;letter-spacing:-.03em;color:var(--fg)">Sign in</div>
+          <p style="font-size:13px;color:var(--mutedfg);margin:4px 0 15px">Carry your ticket to the start line.</p>
+          <button class="gbtn">
+            <svg width="17" height="17" viewBox="0 0 48 48" aria-hidden="true"><path fill="#4285F4" d="M45.1 24.5c0-1.6-.1-3.2-.4-4.7H24v8.9h11.8c-.5 2.8-2 5.1-4.4 6.7v5.5h7.1c4.1-3.8 6.6-9.4 6.6-16.4z"/><path fill="#34A853" d="M24 46c5.9 0 10.9-2 14.5-5.3l-7.1-5.5c-2 1.3-4.5 2.1-7.4 2.1-5.7 0-10.5-3.8-12.2-9H4.5v5.7C8.1 41.2 15.5 46 24 46z"/><path fill="#FBBC05" d="M11.8 28.3c-.4-1.3-.7-2.7-.7-4.3s.2-2.9.7-4.3v-5.7H4.5C2.9 17.2 2 20.5 2 24s.9 6.8 2.5 9.7l7.3-5.4z"/><path fill="#EA4335" d="M24 10.7c3.2 0 6.1 1.1 8.4 3.3l6.3-6.3C34.9 4.1 29.9 2 24 2 15.5 2 8.1 6.8 4.5 14.3l7.3 5.7c1.7-5.2 6.5-9.3 12.2-9.3z"/></svg>
+            Continue with Google
+          </button>
+          <div class="divider">or</div>
+          <div class="fg"><span class="lab">Email</span><div class="inp">alma@example.com</div></div>
+          <div class="fg"><span class="lab">Password</span><div class="inp">••••••••</div></div>
+          <button class="btn">Sign in</button>
+        </div>
+        <div class="foot" style="position:relative;z-index:2;color:rgba(255,255,255,.7)">
+          New here? <a href="#" style="color:#7FE0A6">Create an account</a></div>
+      </div>
+    </div>
+    <div class="cap">One layout, every breakpoint</div>
+  </div>
+  <div style="flex:1;min-width:290px">
+    <div class="note"><b>Simplest to build and the same at every size</b> — no split to reflow, no
+    breakpoint where the brand disappears. The card floating on the forest canvas reads as
+    deliberate and is unmistakably Race Pace.
+    <br><br>
+    What it gives up is the room A has for a sentence of persuasion. This page is often a runner's
+    first impression via a shared link, and "Sign in to claim a slot, carry your ticket offline"
+    does work that a bare form does not. Choose this if you would rather ship the smaller change.</div>
+  </div>
+</div>
+
+<!-- ============ C ============ -->
+<div class="pagelabel">C · Keep it minimal, add the voice</div>
+<div class="row">
+  <div>
+    <div class="phone">
+      <div class="pscreen" style="padding:26px 22px;justify-content:center">
+        <img src="../../../apps/site/public/topnav-logo.png" alt="Race Pace" style="height:30px;width:auto;margin-bottom:22px">
+        <div class="eyebrow">MINDANAO · 2026 SEASON</div>
+        <div class="display" style="font-size:32px;margin:7px 0 6px">Sign in.</div>
+        <p style="font-size:13.5px;color:var(--mutedfg);margin:0 0 20px">Enter races and carry your ticket to the start line.</p>
+        <button class="gbtn">
+          <svg width="17" height="17" viewBox="0 0 48 48" aria-hidden="true"><path fill="#4285F4" d="M45.1 24.5c0-1.6-.1-3.2-.4-4.7H24v8.9h11.8c-.5 2.8-2 5.1-4.4 6.7v5.5h7.1c4.1-3.8 6.6-9.4 6.6-16.4z"/><path fill="#34A853" d="M24 46c5.9 0 10.9-2 14.5-5.3l-7.1-5.5c-2 1.3-4.5 2.1-7.4 2.1-5.7 0-10.5-3.8-12.2-9H4.5v5.7C8.1 41.2 15.5 46 24 46z"/><path fill="#FBBC05" d="M11.8 28.3c-.4-1.3-.7-2.7-.7-4.3s.2-2.9.7-4.3v-5.7H4.5C2.9 17.2 2 20.5 2 24s.9 6.8 2.5 9.7l7.3-5.4z"/><path fill="#EA4335" d="M24 10.7c3.2 0 6.1 1.1 8.4 3.3l6.3-6.3C34.9 4.1 29.9 2 24 2 15.5 2 8.1 6.8 4.5 14.3l7.3 5.7c1.7-5.2 6.5-9.3 12.2-9.3z"/></svg>
+          Continue with Google
+        </button>
+        <div class="divider">or</div>
+        <div class="fg"><span class="lab">Email</span><div class="inp">alma@example.com</div></div>
+        <div class="fg"><span class="lab">Password</span><div class="inp">••••••••</div></div>
+        <button class="btn">Sign in</button>
+        <div class="foot">New here? <a href="#">Create an account</a></div>
+      </div>
+    </div>
+    <div class="cap">Today's layout, in the site's typography</div>
+  </div>
+  <div style="flex:1;min-width:290px">
+    <div class="note"><b>The half-hour version.</b> Same structure as today; the changes are an
+    Archivo display heading, a condensed eyebrow, Google promoted above the password form, and the
+    logo sized properly. It removes the "could be any product" feeling without any new layout.
+    <br><br>
+    Honest limitation: on a wide screen it is still a narrow column in a large empty page, which is
+    what A and B both solve.</div>
+  </div>
+</div>
+
+<div class="note"><b>Common to all three.</b> Google first, since a runner arriving from a shared
+race link most likely has no password yet; <code>autocomplete="email"</code> and
+<code>current-password</code> so password managers fill correctly; errors rendered next to the
+field rather than only at the top; the first invalid field focused on a failed submit; and the
+existing 44px+ targets kept. None of them need a new image asset — the contours come from the
+<code>TopoPattern</code> component the site already ships.</div>
+</div>

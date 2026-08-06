@@ -153,6 +153,18 @@
    * upstream integration guide is expressed here instead, and the matching
    * @keyframes live below. Per-instance speed: style={{ "--speed": "3s" }}. */
   --animate-rainbow: rainbow var(--speed, 2s) infinite linear;
+
+  /* Indeterminate travel for the navigation progress bar
+     (components/NavProgress.tsx). Identical to the admin console's, so a
+     runner and a race director see the same motion.
+
+     Transform only — animating `left` or `width` would lay out on every frame
+     at the top of a page already busy rendering a new route. */
+  --animate-nav-progress: nav-progress 1.15s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  @keyframes nav-progress {
+    0%   { transform: translateX(-100%); }
+    100% { transform: translateX(320%); }
+  }
 }
 
 @keyframes rainbow {

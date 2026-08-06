@@ -1,0 +1,301 @@
+<meta charset="utf-8">
+<title>Event form — three directions</title>
+<style>
+  :root{
+    --bg:#f5f5f7;--fg:#1d1d1f;--card:#fff;--muted:#f5f5f7;--mutedfg:#7a7a7a;
+    --border:#e0e0e0;--divider:#efeff1;--primary:#159a55;--forest:#0f2a20;--accent:#eaf3ee;
+    --amber:#b45309;--ambertint:#fbefe3;--destructive:#ff3b30;--desttint:#fdecea;
+    --shadow:0 1px 2px rgb(16 24 40/.04),0 1px 3px rgb(16 24 40/.06);--r:11px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+    font:400 15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1180px;margin:0 auto;padding:28px 20px 70px}
+  h1{font-size:25px;font-weight:800;letter-spacing:-.03em;margin:0 0 6px}
+  .sub{color:var(--mutedfg);font-size:14.5px;margin:0 0 6px;max-width:78ch}
+  .pagelabel{display:flex;align-items:center;gap:9px;margin:30px 0 12px;
+    font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--mutedfg)}
+  .pagelabel::after{content:"";flex:1;height:1px;background:var(--border)}
+  .note{background:var(--card);border:1px solid var(--border);border-left:3px solid var(--primary);
+    border-radius:9px;padding:11px 14px;font-size:13px;color:#3a3a3c;margin-top:12px}
+  .note b{color:var(--fg)}
+  .note.bad{border-left-color:var(--destructive)}
+  .note.warn{border-left-color:var(--amber)}
+  .row{display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start}
+
+  .frame{border:1px solid var(--border);border-radius:14px;overflow:hidden;background:var(--bg);box-shadow:var(--shadow)}
+  .cap{font-size:12px;color:var(--mutedfg);font-weight:600;margin-top:8px;text-align:center}
+
+  /* form bits */
+  .lab{display:block;font-size:12px;font-weight:650;color:#3a3a3c;margin-bottom:5px}
+  .lab .req{color:var(--destructive);margin-left:2px}
+  .inp{width:100%;height:42px;border:1px solid var(--border);border-radius:9px;background:var(--card);
+    padding:0 11px;font-size:13.5px;display:flex;align-items:center;color:var(--fg)}
+  .inp.ph{color:var(--mutedfg)}
+  .hint{font-size:11.5px;color:var(--mutedfg);margin-top:4px}
+  .fg{margin-bottom:14px}
+  .g2{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+  .g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:11px}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow)}
+  .chd{display:flex;align-items:center;gap:9px;padding:13px 15px;border-bottom:1px solid var(--divider)}
+  .chd b{font-size:14.5px;font-weight:700;letter-spacing:-.01em}
+  .cbd{padding:15px}
+  .btn{background:var(--primary);color:#fff;border:0;border-radius:999px;padding:11px 18px;
+    font-size:13.5px;font-weight:700}
+  .btn.ghost{background:var(--card);color:var(--fg);border:1px solid var(--border)}
+
+  /* section rail */
+  .railwrap{display:grid;grid-template-columns:190px 1fr;gap:18px;padding:16px}
+  .rail{position:sticky;top:16px;align-self:start}
+  .rlink{display:flex;align-items:center;gap:9px;padding:9px 10px;border-radius:9px;font-size:13px;
+    font-weight:600;color:var(--mutedfg)}
+  .rlink.on{background:var(--card);color:var(--fg);box-shadow:var(--shadow)}
+  .rdot{width:7px;height:7px;border-radius:50%;background:var(--border);flex:none}
+  .rlink.on .rdot{background:var(--primary)}
+  .rlink.done .rdot{background:var(--primary)}
+  .rcount{margin-left:auto;font-size:11px;font-weight:700;color:var(--mutedfg)}
+
+  /* sticky action bar */
+  .savebar{position:sticky;bottom:0;display:flex;align-items:center;gap:11px;background:var(--card);
+    border-top:1px solid var(--border);padding:11px 15px;box-shadow:0 -3px 12px rgb(16 24 40/.06)}
+  .dirty{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:650;color:var(--amber)}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--amber)}
+
+  /* category card */
+  .catcard{border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;background:var(--card)}
+  .cattop{display:flex;align-items:center;gap:9px;margin-bottom:10px}
+  .catcode{background:var(--forest);color:#fff;border-radius:7px;padding:4px 9px;font-size:11.5px;font-weight:800}
+  .del{margin-left:auto;color:var(--destructive);font-size:12px;font-weight:650}
+
+  /* tabs */
+  .tabbar{display:flex;gap:2px;border-bottom:1px solid var(--border);background:var(--card);padding:0 12px;overflow-x:auto}
+  .tb{padding:13px 14px;font-size:13px;font-weight:650;color:var(--mutedfg);white-space:nowrap;border-bottom:2px solid transparent}
+  .tb.on{color:var(--primary);border-bottom-color:var(--primary)}
+  .tb .n{display:inline-block;margin-left:6px;background:var(--muted);border-radius:999px;padding:1px 6px;font-size:10.5px}
+
+  /* phone */
+  .phone{width:330px;border:1px solid var(--border);border-radius:20px;overflow:hidden;background:var(--card);box-shadow:0 8px 26px rgb(16 24 40/.10)}
+  .pscreen{height:540px;display:flex;flex-direction:column;background:var(--bg);overflow:hidden}
+  .phdr{display:flex;align-items:center;gap:8px;padding:0 12px;height:52px;background:var(--card);border-bottom:1px solid var(--divider);flex:none}
+  .pbody{flex:1;overflow:hidden;padding:12px}
+  .acc{background:var(--card);border:1px solid var(--border);border-radius:10px;margin-bottom:8px}
+  .acchd{display:flex;align-items:center;gap:9px;padding:13px 13px;font-size:13.5px;font-weight:700;min-height:48px}
+  .acchd .chev{margin-left:auto;color:var(--mutedfg)}
+  .accbd{padding:0 13px 13px}
+  @media (max-width:900px){.railwrap{grid-template-columns:1fr}.rail{position:static}}
+</style>
+
+<div class="wrap">
+<h1>Event form — three directions</h1>
+<p class="sub">Measured on the edit screen for Dulang-Dulang Vertical, at 1280px and 375px.</p>
+
+<div class="note bad"><b>What's wrong now.</b> <b>28 of 30</b> form controls are 36px tall, under
+the 44px touch minimum — on mobile the whole form is a 2,308px scroll of them, roughly three
+screens with no structure and no sense of what's required. On desktop the Categories table squeezes
+price and slots until "2100" reads as "210" and "1500" as "150", and its headers wrap to three
+lines ("ELEVATION GAIN (M, OPTIONAL)"). Labels are 11px ALL-CAPS, which is the hardest case to
+scan quickly. Nothing anywhere says which sections still need attention.</div>
+
+<!-- ============ A ============ -->
+<div class="pagelabel">A · Section rail — recommended</div>
+<div class="frame">
+  <div class="railwrap">
+    <div class="rail">
+      <div class="rlink on"><span class="rdot"></span>Basics</div>
+      <div class="rlink done"><span class="rdot"></span>Location</div>
+      <div class="rlink done"><span class="rdot"></span>Course</div>
+      <div class="rlink done"><span class="rdot"></span>Categories<span class="rcount">2</span></div>
+      <div class="rlink done"><span class="rdot"></span>Images<span class="rcount">1</span></div>
+      <div class="rlink"><span class="rdot"></span>Schedule<span class="rcount">0</span></div>
+      <div class="rlink"><span class="rdot"></span>Inclusions<span class="rcount">0</span></div>
+      <div class="rlink"><span class="rdot"></span>Add-ons<span class="rcount">0</span></div>
+    </div>
+    <div>
+      <div class="card" style="margin-bottom:12px">
+        <div class="chd"><b>Basics</b><span style="margin-left:auto;font-size:11.5px;color:var(--mutedfg)">Shown on the public race page</span></div>
+        <div class="cbd">
+          <div class="fg"><span class="lab">Event name<span class="req">*</span></span><div class="inp">Dulang-Dulang Vertical</div></div>
+          <div class="g2">
+            <div class="fg"><span class="lab">Discipline<span class="req">*</span></span><div class="inp">Trail run</div>
+              <div class="hint">Chooses the public page layout — trail shows an elevation profile.</div></div>
+            <div class="fg"><span class="lab">Status<span class="req">*</span></span><div class="inp">Almost full</div></div>
+          </div>
+          <div class="g3">
+            <div class="fg"><span class="lab">Date<span class="req">*</span></span><div class="inp">12 Sept 2026</div></div>
+            <div class="fg"><span class="lab">End date</span><div class="inp ph">Same day</div></div>
+            <div class="fg"><span class="lab">Flag-off</span><div class="inp">05:00</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="chd"><b>Categories</b><span class="rcount" style="margin-left:auto">2 distances</span>
+          <button class="btn ghost" style="padding:7px 13px;font-size:12.5px">+ Add</button></div>
+        <div class="cbd">
+          <div class="catcard">
+            <div class="cattop"><span class="catcode">28K</span>
+              <span style="font-size:13.5px;font-weight:650">28K Vert</span>
+              <span class="del">Remove</span></div>
+            <div class="g3">
+              <div class="fg" style="margin-bottom:0"><span class="lab">Distance (km)</span><div class="inp">28</div></div>
+              <div class="fg" style="margin-bottom:0"><span class="lab">Price (₱)</span><div class="inp">2,100</div></div>
+              <div class="fg" style="margin-bottom:0"><span class="lab">Slots</span><div class="inp">150</div></div>
+            </div>
+          </div>
+          <div class="catcard">
+            <div class="cattop"><span class="catcode">14K</span>
+              <span style="font-size:13.5px;font-weight:650">14K</span>
+              <span class="del">Remove</span></div>
+            <div class="g3">
+              <div class="fg" style="margin-bottom:0"><span class="lab">Distance (km)</span><div class="inp">14</div></div>
+              <div class="fg" style="margin-bottom:0"><span class="lab">Price (₱)</span><div class="inp">1,400</div></div>
+              <div class="fg" style="margin-bottom:0"><span class="lab">Slots</span><div class="inp">180</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="savebar">
+    <span class="dirty"><span class="dot"></span>Unsaved changes</span>
+    <span style="margin-left:auto"></span>
+    <button class="btn ghost">Cancel</button>
+    <button class="btn">Save event</button>
+  </div>
+</div>
+<div class="cap">Desktop — rail shows completeness, categories become cards</div>
+
+<div class="row" style="margin-top:18px">
+  <div>
+    <div class="phone">
+      <div class="pscreen">
+        <div class="phdr"><span style="font-size:14.5px;font-weight:750">Edit event</span></div>
+        <div class="pbody">
+          <div class="acc">
+            <div class="acchd">Basics<span class="chev">▴</span></div>
+            <div class="accbd">
+              <div class="fg"><span class="lab">Event name<span class="req">*</span></span><div class="inp">Dulang-Dulang Vertical</div></div>
+              <div class="fg" style="margin-bottom:0"><span class="lab">Date<span class="req">*</span></span><div class="inp">12 Sept 2026</div></div>
+            </div>
+          </div>
+          <div class="acc"><div class="acchd"><span style="width:7px;height:7px;border-radius:50%;background:var(--primary)"></span>Location<span class="chev">▾</span></div></div>
+          <div class="acc"><div class="acchd"><span style="width:7px;height:7px;border-radius:50%;background:var(--primary)"></span>Course<span class="chev">▾</span></div></div>
+          <div class="acc"><div class="acchd"><span style="width:7px;height:7px;border-radius:50%;background:var(--primary)"></span>Categories<span style="margin-left:auto;font-size:11.5px;color:var(--mutedfg);margin-right:8px">2</span><span class="chev">▾</span></div></div>
+          <div class="acc"><div class="acchd"><span style="width:7px;height:7px;border-radius:50%;background:var(--border)"></span>Schedule<span style="margin-left:auto;font-size:11.5px;color:var(--mutedfg);margin-right:8px">0</span><span class="chev">▾</span></div></div>
+        </div>
+        <div class="savebar" style="padding:10px 12px">
+          <span class="dirty" style="font-size:11.5px"><span class="dot"></span>Unsaved</span>
+          <span style="margin-left:auto"></span>
+          <button class="btn" style="padding:11px 16px;font-size:13px">Save</button>
+        </div>
+      </div>
+    </div>
+    <div class="cap">Mobile — the rail becomes an accordion</div>
+  </div>
+  <div style="flex:1;min-width:280px">
+    <div class="note"><b>Why this one.</b> The rail is the only option that answers "what still
+    needs doing?" without scrolling — the dots and counts show at a glance that Schedule, Inclusions
+    and Add-ons are empty. A race director editing a live event usually wants one section, but has
+    to be able to trust that the rest is intact.
+    <br><br>
+    The <b>Categories table becomes cards</b>, which is what fixes the truncated money. A table
+    forces every column to share one width; a card gives price and slots a full field each, and it
+    is the same component on mobile instead of a horizontally-scrolling table.
+    <br><br>
+    On mobile the rail collapses to an accordion with the same dots, so the mental model does not
+    change between devices — and only one section is open, which takes the page from a 2,308px
+    scroll to roughly one screen.
+    <br><br>
+    The <b>sticky save bar</b> replaces a Save button stranded at the bottom of three screens, and
+    states unsaved changes explicitly — a long form is exactly where someone navigates away
+    mid-edit.</div>
+  </div>
+</div>
+
+<!-- ============ B ============ -->
+<div class="pagelabel">B · Tabbed workspace</div>
+<div class="frame">
+  <div class="tabbar">
+    <span class="tb on">Details</span>
+    <span class="tb">Location &amp; course</span>
+    <span class="tb">Categories<span class="n">2</span></span>
+    <span class="tb">Images<span class="n">1</span></span>
+    <span class="tb">Schedule<span class="n">0</span></span>
+    <span class="tb">Extras<span class="n">0</span></span>
+  </div>
+  <div style="padding:16px">
+    <div class="card">
+      <div class="cbd">
+        <div class="fg"><span class="lab">Event name<span class="req">*</span></span><div class="inp">Dulang-Dulang Vertical</div></div>
+        <div class="g2">
+          <div class="fg"><span class="lab">Discipline<span class="req">*</span></span><div class="inp">Trail run</div></div>
+          <div class="fg"><span class="lab">Status<span class="req">*</span></span><div class="inp">Almost full</div></div>
+        </div>
+        <div class="fg" style="margin-bottom:0"><span class="lab">Description</span>
+          <div class="inp ph" style="height:76px;align-items:flex-start;padding-top:10px">What runners should know…</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="savebar">
+    <span class="dirty"><span class="dot"></span>Unsaved changes in <b>Details</b></span>
+    <span style="margin-left:auto"></span>
+    <button class="btn ghost">Cancel</button>
+    <button class="btn">Save event</button>
+  </div>
+</div>
+<div class="cap">Each tab is a short, focused pane</div>
+<div class="note warn"><b>Cleanest single screen, riskiest for a form.</b> Every pane is short and
+nothing competes for attention. But a validation error on a tab you are not looking at is invisible
+— the operator hits Save and gets "fix the errors" with no idea where. It also hides how much is
+left: with everything behind tabs, an event missing its categories looks identical to a complete
+one until you click through. On mobile the tab strip has to scroll horizontally, which reintroduces
+the "destinations you cannot see" problem.</div>
+
+<!-- ============ C ============ -->
+<div class="pagelabel">C · One column, bigger targets</div>
+<div class="row">
+  <div>
+    <div class="phone">
+      <div class="pscreen">
+        <div class="phdr"><span style="font-size:14.5px;font-weight:750">Edit event</span></div>
+        <div class="pbody" style="overflow:hidden">
+          <div class="card" style="margin-bottom:10px">
+            <div class="chd" style="padding:11px 13px"><b style="font-size:13.5px">Basics</b></div>
+            <div class="cbd" style="padding:13px">
+              <div class="fg"><span class="lab">Event name<span class="req">*</span></span><div class="inp">Dulang-Dulang Vertical</div></div>
+              <div class="fg"><span class="lab">Venue</span><div class="inp">Barangay Songco</div></div>
+              <div class="fg" style="margin-bottom:0"><span class="lab">Discipline<span class="req">*</span></span><div class="inp">Trail run</div></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="chd" style="padding:11px 13px"><b style="font-size:13.5px">When</b></div>
+            <div class="cbd" style="padding:13px">
+              <div class="fg" style="margin-bottom:0"><span class="lab">Date<span class="req">*</span></span><div class="inp">12 Sept 2026</div></div>
+            </div>
+          </div>
+        </div>
+        <div class="savebar" style="padding:10px 12px">
+          <span style="margin-left:auto"></span>
+          <button class="btn" style="padding:11px 16px;font-size:13px">Save</button>
+        </div>
+      </div>
+    </div>
+    <div class="cap">Same order, just bigger and grouped</div>
+  </div>
+  <div style="flex:1;min-width:280px">
+    <div class="note"><b>The minimum honest fix.</b> Keeps today's structure and order — nothing to
+    relearn — but raises every control to 44px, converts the ALL-CAPS micro-labels to sentence case
+    at a readable size, groups fields under real headings, and adds the sticky save bar. It does
+    <i>not</i> solve the two structural complaints: the mobile page is still a very long scroll, and
+    there is still no way to see what is incomplete without reading all of it.
+    <br><br>
+    Worth choosing if the priority is "stop it being painful" rather than "rethink it".</div>
+  </div>
+</div>
+
+<div class="note"><b>Common to all three.</b> Controls to 44px on touch (Apple HIG / Material both
+require it, and a date field at 36px is genuinely hard to hit); labels in sentence case with a real
+required marker rather than ALL-CAPS; helper text below the field it explains rather than after it;
+the first invalid field focused on a failed submit; and the map/GPX editors given a full-width row
+of their own instead of sharing a squeezed column.</div>
+</div>

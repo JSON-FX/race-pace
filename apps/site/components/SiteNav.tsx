@@ -8,6 +8,7 @@ import { motion, useReducedMotion } from "motion/react";
 import { LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { signOut } from "@/lib/auth";
+import { LinkPending } from "./NavProgress";
 
 /**
  * The nav's interactive half. SiteHeader stays a server component so it can
@@ -127,7 +128,13 @@ export function SiteNav({ signedIn }: { signedIn: boolean }) {
                     }
                   />
                 ) : null}
-                <span className="relative">{item.label}</span>
+                <span className="relative inline-flex items-center gap-1.5">
+                  {item.label}
+                  {/* Without this the progress bar never fires for a desktop or
+                      signed-out visitor — the tab bar is the only other place
+                      that reports pending, and neither of them has one. */}
+                  <LinkPending className="ml-0 size-2.5" />
+                </span>
               </Link>
             );
           })}

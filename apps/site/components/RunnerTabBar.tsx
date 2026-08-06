@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Home, Mountain, Ticket, User } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { LinkPending } from "./NavProgress";
 
 /**
  * Mobile bottom navigation for signed-in runners.
@@ -67,12 +68,16 @@ export function RunnerTabBar({ signedIn }: { signedIn: boolean }) {
             className={cn(
               // The whole cell is the target, not the glyph — min 44px tall with
               // the padding, and each cell is a quarter of the viewport wide.
-              "flex min-h-12 flex-1 flex-col items-center justify-center gap-1 rounded-lg px-1 py-1.5",
+              "relative flex min-h-12 flex-1 flex-col items-center justify-center gap-1 rounded-lg px-1 py-1.5",
               "text-[10.5px] font-semibold transition-colors",
               active ? "text-primary" : "text-muted-foreground",
             )}
           >
             <Icon className="size-[22px]" strokeWidth={active ? 2.3 : 1.9} aria-hidden />
+            {/* Marks WHICH tab is loading. The top bar says a navigation is
+                happening; this says which one — the difference between "it's
+                working" and "I hit the wrong thing". */}
+            <LinkPending className="absolute right-[calc(50%-20px)] top-0.5 ml-0" />
             {/* Always labelled. A ticket stub and a mountain are not
                 self-evident icons, and an unlabelled bar is guesswork on a
                 runner's first visit. */}
