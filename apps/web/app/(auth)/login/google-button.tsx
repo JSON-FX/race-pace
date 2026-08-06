@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { OAUTH_NEXT_COOKIE } from "@/lib/routes";
 import { Button } from "@/components/ui/button";
 
 /**
@@ -31,15 +32,25 @@ export function GoogleButton({ next }: { next: string }) {
     setPending(true);
     setError(null);
     const supabase = createClient();
+    // The destination travels in a COOKIE, never in `redirectTo`.
+    //
+    // Supabase matches redirectTo against the dashboard's Redirect URLs
+    // allow-list as a whole string, so `…/auth/callback?next=%2Fevents` does NOT
+    // match a registered `…/auth/callback`. On a miss it silently falls back to
+    // the project's Site URL — which is the runner site, so an admin would land
+    // on the public homepage with no error. apps/site hit exactly this; see the
+    // comment on its signInWithGoogle.
+    //
+    // SameSite=Lax is required and sufficient: the return leg is a top-level GET
+    // navigation from Supabase to our origin, which Lax permits and Strict would
+    // drop. 10 minutes outlasts a Google consent screen without letting a stale
+    // value misroute a later visit.
+    document.cookie =
+      `${OAUTH_NEXT_COOKIE}=${encodeURIComponent(next)}; path=/; max-age=600; samesite=lax`;
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: {
-        // `next` is carried through the callback so a deep link survives the
-        // round trip to Google. The callback route re-validates it with
-        // safeNextPath — a redirect target that has been off-site and back is
-        // exactly the kind an open-redirect check exists for.
-        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
-      },
+      options: { redirectTo: `${window.location.origin}/auth/callback` },
     });
     if (error) {
       setPending(false);

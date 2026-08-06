@@ -14,6 +14,14 @@ export function signInRedirectPath(pathname: string, search: string): string {
 /** Only same-origin absolute paths are safe redirect targets. A value like
  *  "//evil.com" starts with "/" but browsers resolve it as an external
  *  origin, so a bare startsWith("/") check is not sufficient. */
+/** Cookie carrying the post-auth destination across the OAuth round-trip.
+ *
+ *  Lives here rather than beside the sign-in button so the server-side callback
+ *  Route Handler can read it without importing the browser Supabase client.
+ *  Mirrors apps/site/lib/routes.ts#OAUTH_NEXT_COOKIE — the two apps run the same
+ *  flow against the same Supabase project and should not diverge. */
+export const OAUTH_NEXT_COOKIE = "rp_oauth_next_admin";
+
 export function safeNextPath(next: string | null | undefined, fallback = "/events"): string {
   if (!next) return fallback;
   if (!next.startsWith("/")) return fallback;
