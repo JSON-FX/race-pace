@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { RoutePoint } from "@race-pace/shared";
-import { snapSegment, buildRoute } from "../lib/snap";
+import { snapSegment, buildRoute } from "./snap";
 
 const A: RoutePoint = [124.8497, 8.2839];
 const B: RoutePoint = [124.86, 8.25];

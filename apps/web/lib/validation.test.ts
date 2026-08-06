@@ -1,5 +1,5 @@
 import { EVENT_DISCIPLINES } from "@race-pace/shared";
-import { eventInputSchema, categoryInputSchema, addonInputSchema, scheduleItemSchema, inclusionItemSchema, sanitizeListFields, INCLUSION_MAX_LEN } from "../lib/validation";
+import { eventInputSchema, categoryInputSchema, addonInputSchema, scheduleItemSchema, inclusionItemSchema, sanitizeListFields, INCLUSION_MAX_LEN } from "./validation";
 
 const validEvent = { name: "Race", city_psgc_code: null, region_name: null, province_name: null, city_name: null, venue: null, event_date: "2026-10-18", end_date: null, flag_off: "04:00", status: "open", discipline: "trail", elevation_gain_m: 4300, cutoff_hours: 18, description: null, hero_image_url: null };
 

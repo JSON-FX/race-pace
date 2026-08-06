@@ -37,6 +37,12 @@ supabase/.temp/
 # Turborepo
 .turbo/
 
+# Playwright
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+
 # Git worktrees (isolated workspaces for agent sessions)
 .claude/worktrees/
 

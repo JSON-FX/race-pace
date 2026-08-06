@@ -1,6 +1,6 @@
 import { render, act, waitFor } from "@testing-library/react";
 import { toast } from "sonner";
-import { Toaster } from "../components/ui/sonner";
+import { Toaster } from "./sonner";
 
 function getToasterTheme() {
   return document.querySelector("[data-sonner-toaster]")?.getAttribute("data-sonner-theme");

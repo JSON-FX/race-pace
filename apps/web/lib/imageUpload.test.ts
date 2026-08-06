@@ -5,11 +5,11 @@ vi.mock("browser-image-compression", () => ({ default: (file: File, opts: unknow
 
 const uploadMock = vi.fn().mockResolvedValue({ error: null });
 const getPublicUrlMock = vi.fn(() => ({ data: { publicUrl: "https://cdn.test/event-images/a1/x.png" } }));
-vi.mock("../lib/supabase", () => ({
-  supabase: { storage: { from: () => ({ upload: uploadMock, getPublicUrl: getPublicUrlMock }) } },
+vi.mock("@/lib/supabase/client", () => ({
+  createClient: () => ({ storage: { from: () => ({ upload: uploadMock, getPublicUrl: getPublicUrlMock }) } }),
 }));
 
-import { compressImage, uploadEventImage } from "../lib/imageUpload";
+import { compressImage, uploadEventImage } from "./imageUpload";
 
 function pngFile(name = "a.png") {
   return new File([new Uint8Array([1, 2, 3])], name, { type: "image/png" });

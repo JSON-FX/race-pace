@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { PaymentStatusBadge, EventStatusBadge } from "../components/StatusBadge";
+import { PaymentStatusBadge, EventStatusBadge } from "./StatusBadge";
 
 it("labels each payment status", () => {
   const { rerender } = render(<PaymentStatusBadge status="paid" />);

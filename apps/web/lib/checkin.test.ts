@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { bannerFor, wrongEventBanner, decodeTicketEventId } from "../lib/checkin";
+import { bannerFor, wrongEventBanner, decodeTicketEventId } from "./checkin";
 
 describe("bannerFor", () => {
   it("maps a fresh check-in to success", () => {

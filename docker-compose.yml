@@ -18,6 +18,12 @@ services:
   web:
     image: node:20-bookworm-slim
     working_dir: /repo
+    # The dev server has repeatedly exited cleanly (code 0) mid-session with no
+    # error in its log — most recently right after serving a request. The known
+    # causes (a shared node_modules volume, a host `pnpm build` writing .next
+    # through the bind mount) are both fixed below, and this one is unexplained.
+    # Restart rather than leave the stack silently down.
+    restart: unless-stopped
     # Invoke the next binary directly rather than `pnpm --filter web dev -- …`,
     # for the same reason documented on the `site` service below: pnpm forwards
     # the `--` as a literal argv entry, which Next reads as a project directory.
@@ -78,6 +84,7 @@ services:
   site:
     image: node:20-bookworm-slim
     working_dir: /repo
+    restart: unless-stopped
     # Invoke the next binary directly rather than `pnpm --filter site dev -- …`:
     # pnpm forwards the `--` as a literal argv entry, which Next then treats as
     # a project directory ("no such directory: /repo/apps/site/--hostname").
