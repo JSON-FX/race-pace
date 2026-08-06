@@ -4,7 +4,9 @@ import { usePathname } from "next/navigation";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Breadcrumb, BreadcrumbList, BreadcrumbItem, BreadcrumbPage } from "@/components/ui/breadcrumb";
 import { CommandPalette } from "@/components/CommandPalette";
+import { OrgSwitcher } from "@/components/OrgSwitcher";
 import type { MyRoles } from "@/lib/queries/roles";
+import type { OrgContext } from "@/lib/org-context";
 
 const TITLES: Record<string, string> = {
   "/dashboard": "Dashboard", "/events": "Events", "/registrations": "Registrations",
@@ -12,7 +14,9 @@ const TITLES: Record<string, string> = {
   "/organizations": "Organizations", "/commission": "Commission", "/payouts": "Payout statements",
 };
 
-export function TopBar({ roles, orgName }: { roles: MyRoles; orgName: string | null }) {
+export function TopBar({
+  roles, orgName, orgContext,
+}: { roles: MyRoles; orgName: string | null; orgContext: OrgContext }) {
   const pathname = usePathname();
   const title = pathname === "/events/new" ? "Create event"
     : /^\/events\/[^/]+\/edit$/.test(pathname) ? "Edit event"
@@ -34,7 +38,17 @@ export function TopBar({ roles, orgName }: { roles: MyRoles; orgName: string | n
           </BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
-      <div className="ml-auto flex items-center">
+      {/* Right of the title, before the palette: which org the console is
+          acting as belongs next to the breadcrumb that names it, not buried
+          in a menu. `ml-auto` lives here rather than in OrgSwitcher so the
+          switcher stays a plain component the layout can place anywhere. */}
+      <div className="ml-auto flex items-center gap-2">
+        <OrgSwitcher
+          availableOrgs={orgContext.availableOrgs}
+          activeOrgId={orgContext.activeOrgId}
+          isSuperAdmin={orgContext.isSuperAdmin}
+          canSwitch={orgContext.canSwitch}
+        />
         <CommandPalette roles={roles} />
       </div>
     </header>

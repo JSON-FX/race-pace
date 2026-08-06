@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getMyRoles, requireOrgId } from "@/lib/queries/roles";
+import { getOrgContext } from "@/lib/org-context";
 import { getOrg } from "@/lib/queries/org";
 import { getOrgEventCount } from "@/lib/queries/events";
 import { getOrgRegistrationCount } from "@/lib/queries/registrations";
@@ -22,6 +23,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // next to the role badge (see TopBar). getOrg is React-cache()d, so if
   // the current page (e.g. Settings) also calls it for the same orgId
   // within this request, this doesn't cost a second query.
+  // Feeds the TopBar switcher. cache()d and already awaited inside getMyRoles
+  // for a super admin, so this is a cache hit rather than a second round trip.
+  const orgContext = await getOrgContext();
+
   const orgId = requireOrgId(roles);
   const orgName = orgId ? (await getOrg(orgId)).name : null;
   // Sidebar nav-count pills (Events, Registrations) are real data, not
@@ -35,7 +40,13 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     : null;
 
   return (
-    <AppShell roles={roles} email={user.email ?? ""} orgName={orgName} counts={counts}>
+    <AppShell
+      roles={roles}
+      email={user.email ?? ""}
+      orgName={orgName}
+      counts={counts}
+      orgContext={orgContext}
+    >
       {children}
     </AppShell>
   );
