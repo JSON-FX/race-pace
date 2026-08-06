@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { fmtDate } from "@/lib/format";
 import type { RosterRow } from "@/lib/checkin";
 import { CheckInStation } from "./scanner";
+import { EventSwitcher } from "./event-switcher";
 
 type CheckinEvent = { id: string; name: string; event_date: string | null; end_date: string | null };
 
@@ -94,28 +95,16 @@ export default async function CheckInPage({
           {dateLabel(event)}
         </span>
         {events.length > 1 ? (
-          // A plain GET form: switching event is a navigation, so it needs no
-          // client component and keeps working before hydration — which on a
-          // start-line phone on 3G is a real window, not a theoretical one.
-          <form method="get" className="flex items-center gap-1.5">
-            <label htmlFor="event" className="sr-only">Switch event</label>
-            <select
-              id="event"
-              name="event"
-              defaultValue={event.id}
-              className="rounded-lg border bg-card px-2.5 py-[5px] text-[12.5px] font-semibold"
-            >
-              {events.map((e) => (
-                <option key={e.id} value={e.id}>{e.name}</option>
-              ))}
-            </select>
-            <button
-              type="submit"
-              className="cursor-pointer rounded-lg border bg-card px-2.5 py-[5px] text-[12.5px] font-semibold hover:bg-muted"
-            >
-              Switch
-            </button>
-          </form>
+          // Searchable, because an established organizer accumulates far more
+          // events than a dropdown can be scrolled through — and a wrong event
+          // picked at a start line checks runners into the wrong race.
+          //
+          // EventSwitcher keeps the original plain GET form as its pre-hydration
+          // render, so the no-JS path this page deliberately had is preserved.
+          <EventSwitcher
+            events={events.map((e) => ({ id: e.id, name: e.name, subtitle: dateLabel(e) }))}
+            value={event.id}
+          />
         ) : null}
       </div>
 

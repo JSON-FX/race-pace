@@ -10,7 +10,7 @@ import {
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { EventCombobox } from "@/components/EventCombobox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -68,21 +68,21 @@ export function OpenStatementControl({ events }: { events: OpenableEvent[] }) {
   return (
     <>
       <div className="flex flex-wrap items-center gap-2">
-        <Select value={eventId} onValueChange={setEventId}>
-          <SelectTrigger className="w-[290px]" aria-label="Event to open a statement for">
-            <SelectValue placeholder="Choose an event…" />
-          </SelectTrigger>
-          <SelectContent>
-            {events.map((e) => (
-              <SelectItem key={e.id} value={e.id}>
-                {e.name}
-                <span className="text-muted-foreground">
-                  {" · "}{e.org_name}{e.event_finished ? "" : " · still running"}
-                </span>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {/* Searchable: this list spans EVERY organization on the platform, so it
+            grows fastest of any picker in the console. The subtitle carries the
+            org and the still-running warning, since two orgs can legitimately
+            run events with similar names. */}
+        <EventCombobox
+          events={events.map((e) => ({
+            id: e.id,
+            name: e.name,
+            subtitle: `${e.org_name}${e.event_finished ? "" : " · still running"}`,
+          }))}
+          value={eventId || null}
+          onSelect={setEventId}
+          label="Event to open a statement for"
+          className="w-[290px]"
+        />
         <Button className="rounded-pill" disabled={!selected || busy} onClick={submit}>
           <Plus />
           {busy ? "Opening…" : "Open statement"}

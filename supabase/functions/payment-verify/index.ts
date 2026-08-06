@@ -55,7 +55,20 @@ Deno.serve(async (req) => {
     // read this correctly, meaning the recorded method depended on which path
     // happened to confirm first. The session is already in hand; no extra fetch.
     const method = pmMethodFromSession(session);
-    const r = await confirmPayment(registrationId, method, { source: "payment-verify", session_id: ref });
+    // Persist the WHOLE session, not just its id.
+    //
+    // The old payload was `{source, session_id}`, which threw away the only copy
+    // of the payment details we will ever hold: PayMongo deletes a checkout
+    // session after it completes (a later GET returns `not_found`), so once this
+    // request ends the instrument is unrecoverable from anywhere. That is
+    // precisely how a real GCash payment ended up permanently displayed as
+    // "Unknown" — the method was mis-recorded AND nothing was kept to repair it
+    // from. The webhook path already stores its full event; this matches it.
+    const r = await confirmPayment(registrationId, method, {
+      source: "payment-verify",
+      session_id: ref,
+      session: session.raw,
+    });
     if (!r.ok) return json({ error: r.error }, r.status);
     return json({ status: "paid", registration_id: r.registration_id });
   } catch (e) {
