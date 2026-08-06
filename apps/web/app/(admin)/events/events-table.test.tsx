@@ -32,6 +32,27 @@ describe("EventsTable", () => {
 
   it("offers a create action from the empty state", () => {
     render(<EventsTable rows={[]} total={0} page={1} per={25} sort={[]} activeFilters={{}} q="" />);
+    expect(screen.getByText("No events yet")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /create an event/i })).toBeInTheDocument();
+  });
+
+  it("shows no-match copy (not the first-run copy) when a search is active", () => {
+    render(<EventsTable rows={[]} total={0} page={1} per={25} sort={[]} activeFilters={{}} q="ultra" />);
+    expect(screen.getByText("No events match")).toBeInTheDocument();
+    expect(screen.queryByText("No events yet")).not.toBeInTheDocument();
+  });
+
+  it("shows no-match copy when a status filter is active", () => {
+    render(<EventsTable rows={[]} total={0} page={1} per={25} sort={[]} activeFilters={{ status: "cancelled" }} q="" />);
+    expect(screen.getByText("No events match")).toBeInTheDocument();
+    expect(screen.queryByText("No events yet")).not.toBeInTheDocument();
+  });
+
+  it("links the row's primary anchor to the event editor route", () => {
+    render(<EventsTable rows={rows} total={1} page={1} per={25} sort={[]} activeFilters={{}} q="" />);
+    // DataTable renders exactly one real <a> per row, in the first visible
+    // data cell — assert against that anchor specifically, not every cell.
+    const link = screen.getByRole("link", { name: /Dahilayan Sky Ultra/ });
+    expect(link).toHaveAttribute("href", "/events/e1/edit");
   });
 });
