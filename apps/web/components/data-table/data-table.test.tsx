@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ColumnDef } from "@tanstack/react-table";
 import { tableParamsSpies, tableParamsMockReturn, resetTableParamsSpies } from "@/lib/test-utils/mock-table-params";
@@ -89,28 +89,37 @@ describe("DataTable", () => {
   // *current* data, even if the selection state hasn't been reset yet — the
   // reset effect (keyed on page/per/q/filters) is the fix, this intersection
   // is the seatbelt that must hold independently of it. Simulated here by
-  // rerendering with different data while a row is selected, which is what
-  // happens in practice on a filter change or after a mutation shrinks the
-  // list, whether or not the reset effect has flushed yet.
+  // rerendering with different data while two rows are selected, which is
+  // what happens in practice on a filter change or after a mutation shrinks
+  // the list, whether or not the reset effect has flushed yet. This is the
+  // seatbelt on a money operation (refund/cancel), so it pins the exact
+  // argument handed to onSelect rather than just the visible "N selected"
+  // count.
   it("never hands a bulk action an id absent from the current data", async () => {
     const onSelect = vi.fn();
     const { rerender } = render(
       <DataTable {...base} bulkActions={[{ label: "Send email", onSelect }]} getRowId={(r) => r.id} />,
     );
+    // Re-query between clicks rather than reusing a captured array: the
+    // Checkbox's own re-render on each selection change is enough for
+    // testing-library's node references to go stale.
     await userEvent.click(screen.getAllByLabelText("Select row")[0]); // selects id "1"
-    expect(screen.getByText("1 selected")).toBeInTheDocument();
+    await userEvent.click(screen.getAllByLabelText("Select row")[1]); // selects id "2"
+    expect(screen.getByText("2 selected")).toBeInTheDocument();
 
     // Row "1" drops out of view (e.g. a filter change) without any of
     // page/per/q/activeFilters literally changing on this particular
-    // rerender — data alone changed.
+    // rerender — data alone changed. Row "2" is still present.
     rerender(
       <DataTable {...base} data={[rows[1]]} total={1}
         bulkActions={[{ label: "Send email", onSelect }]} getRowId={(r) => r.id} />,
     );
+    expect(screen.getByText("1 selected")).toBeInTheDocument();
 
-    // The stale selection must not be reported as "1 selected" for a row
-    // that's no longer on screen.
-    expect(screen.queryByText("1 selected")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Send email" }));
+    // The seatbelt, pinned exactly: never "1" (stale, no longer visible),
+    // only "2" (still present).
+    expect(onSelect).toHaveBeenCalledWith(["2"]);
   });
 
   // I6 regression: rowHref must produce exactly one <a> per row (the first
@@ -128,6 +137,62 @@ describe("DataTable", () => {
     const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click");
     await userEvent.click(amountCell);
     expect(clickSpy).toHaveBeenCalledTimes(1);
+    clickSpy.mockRestore();
+  });
+
+  // Regression for a bug found in review: firstDataColumnId was memoized on
+  // `table`, whose identity never changes (useReactTable mutates a ref in
+  // place), so the memo never recomputed after a column was hidden — the
+  // row lost its anchor entirely and became a silent dead end. Toggling the
+  // first data column off must not do that; the row must still expose
+  // exactly one link, now wrapping whichever data column is first visible.
+  it("keeps the row navigable when the first data column is hidden", async () => {
+    render(<DataTable {...base} rowHref={(r) => `/registrations/${r.id}`} />);
+    await userEvent.click(screen.getByLabelText("Toggle columns"));
+    await userEvent.click(screen.getByLabelText("Name"));
+
+    const links = screen.getAllByRole("link");
+    expect(links).toHaveLength(rows.length);
+    expect(links[0]).toHaveAttribute("href", "/registrations/1");
+    expect(links[0]).toHaveTextContent("2850");
+  });
+
+  // Regression: a drag-select that ends (mouseup) over a non-link cell
+  // still fires a click on the row. An admin copying an email or bib number
+  // out of a cell must not get thrown to the detail page mid-copy.
+  it("does not navigate when the click follows a text selection inside the row", () => {
+    render(<DataTable {...base} rowHref={(r) => `/registrations/${r.id}`} />);
+    const amountCell = screen.getByText("2850");
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click");
+    const getSelectionSpy = vi.spyOn(window, "getSelection")
+      .mockReturnValue({ toString: () => "2850" } as unknown as Selection);
+
+    fireEvent.click(amountCell);
+    expect(clickSpy).not.toHaveBeenCalled();
+
+    getSelectionSpy.mockRestore();
+    clickSpy.mockRestore();
+  });
+
+  // Regression: a modifier click (cmd/ctrl/shift/alt) or non-primary button
+  // on a non-link cell used to call `.click()` on the real anchor
+  // programmatically, which drops the modifier and forces a same-tab
+  // navigation — actively defeating "open in new tab", worse than doing
+  // nothing. These must fall through and let the real anchor (which the
+  // browser never even routes the click to here, since the click landed on
+  // a non-link cell) handle it, i.e. do nothing from this handler's side.
+  it("does not force a same-tab navigation on a modifier or non-primary click", () => {
+    render(<DataTable {...base} rowHref={(r) => `/registrations/${r.id}`} />);
+    const amountCell = screen.getByText("2850");
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click");
+
+    fireEvent.click(amountCell, { ctrlKey: true });
+    fireEvent.click(amountCell, { metaKey: true });
+    fireEvent.click(amountCell, { shiftKey: true });
+    fireEvent.click(amountCell, { altKey: true });
+    fireEvent.click(amountCell, { button: 1 }); // middle click
+    expect(clickSpy).not.toHaveBeenCalled();
+
     clickSpy.mockRestore();
   });
 });

@@ -48,7 +48,13 @@ export type DataTableProps<TData> = {
   /** Query-param keys "Clear all" must NOT remove, beyond the `sort`/`per`
    *  it already preserves — e.g. Registrations passes `["event"]` so
    *  clearing filters can't navigate the admin off the event they're
-   *  scoped to. Forwarded verbatim to `useTableParams().clearFilters`. */
+   *  scoped to. Forwarded verbatim to `useTableParams().clearFilters`.
+   *
+   *  This guards `clearFilters` ONLY. `setFilter`/`setQ`/`setPage`/`setPer`/
+   *  `setSort` all patch a single key on top of the existing query string —
+   *  they never touch `event` (or anything else not named in the call) in
+   *  the first place, so there is nothing for them to preserve. Only a
+   *  blanket wipe like `clearFilters` needs an explicit keep-list. */
   preserveOnClear?: string[];
   emptyState?: { title: string; description: string; action?: React.ReactNode };
   isError?: boolean;
@@ -114,10 +120,17 @@ export function DataTable<TData>({
   );
   const selectedIds = Object.keys(selected).filter((k) => selected[k] && currentIds.has(k));
 
-  const firstDataColumnId = useMemo(
-    () => table.getVisibleFlatColumns().find((c) => c.id !== "__select")?.id,
-    [table],
-  );
+  // Deliberately NOT memoized on `table` — useReactTable returns the same
+  // object identity for the component's whole lifetime (it's a ref mutated
+  // in place internally), so a `useMemo(..., [table])` here never
+  // recomputes. That previously left this naming a hidden column once an
+  // admin toggled the first data column off: no cell matched, the row lost
+  // its anchor entirely, and the row's onClick fell back to
+  // `querySelector("a")` grabbing the first anchor ANYWHERE in the row
+  // (including one a caller's own cell renderer might render), which is
+  // worse than no navigation. This is cheap enough (one small array scan)
+  // to just recompute every render instead of chasing the right memo key.
+  const firstDataColumnId = table.getVisibleFlatColumns().find((c) => c.id !== "__select")?.id;
 
   const columnToggles = table
     .getAllColumns()
@@ -182,14 +195,29 @@ export function DataTable<TData>({
                     onClick={
                       rowHref
                         ? (e) => {
-                            // Only the first data cell renders a real <a> (see
-                            // below) — clicking anywhere else in the row
-                            // delegates to it, so the row acts clickable
-                            // without turning every cell into its own link.
-                            // Clicks that already landed on an interactive
-                            // element (the link itself, the select checkbox,
-                            // a future row action) are left alone so we don't
-                            // double-navigate or eat their own click.
+                            // Modifier clicks (cmd/ctrl/shift/alt) and
+                            // non-primary buttons must fall through to
+                            // nothing here, NOT to a programmatic
+                            // `.click()` — that would strip the modifier
+                            // and force a same-tab navigation, defeating
+                            // "open in new tab" (worse than doing
+                            // nothing). The real anchor in the first cell
+                            // still handles these natively on its own.
+                            if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+                            // A drag-select that happens to end (mouseup)
+                            // over a non-link cell still fires a click —
+                            // don't hijack an admin's copy of an email or
+                            // bib number into a navigation.
+                            if (window.getSelection()?.toString()) return;
+                            // Only the first VISIBLE data cell renders a
+                            // real <a> (see below) — clicking anywhere else
+                            // in the row delegates to it, so the row acts
+                            // clickable without turning every cell into its
+                            // own link. Clicks that already landed on an
+                            // interactive element (the link itself, the
+                            // select checkbox, a future row action) are
+                            // left alone so we don't double-navigate or eat
+                            // their own click.
                             const target = e.target as HTMLElement;
                             if (target.closest("a,button,input,[role='checkbox']")) return;
                             (e.currentTarget.querySelector("a") as HTMLAnchorElement | null)?.click();
