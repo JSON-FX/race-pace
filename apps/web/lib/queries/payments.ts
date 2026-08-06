@@ -79,6 +79,47 @@ export async function listOrgPayments(
   return { rows: (data ?? []) as PaymentRow[], total: count ?? 0 };
 }
 
+/** Every distinct `method` this org's payments actually carry, for the Method
+ *  filter's option list.
+ *
+ *  Deliberately NOT a hardcoded list. `payments.method` stores PayMongo's own
+ *  `source.type` verbatim (supabase/functions/_shared/paymongo.ts:106) — an
+ *  external vocabulary this repo does not control — so a fixed list would both
+ *  offer instruments no runner has ever used and silently hide any instrument
+ *  PayMongo adds.
+ *
+ *  Scoped to the org and NOTHING else: it must ignore the current status/method/q
+ *  filters, or selecting GCash would collapse the list to GCash alone and leave
+ *  no way back to the other methods.
+ *
+ *  There is no `distinct` in PostgREST and this task adds no migration, so the
+ *  dedupe happens here over a single narrow text column. `limit(BATCH)` matches
+ *  the instance's measured PGRST_DB_MAX_ROWS (see the payments export route),
+ *  which caps the response either way; ordering newest-first means a
+ *  just-launched PayMongo instrument is the first thing in the window rather
+ *  than the last. For an org past that many payments the list is therefore
+ *  "methods seen in the most recent 1000 payments" — an instrument used only on
+ *  older rows would drop out of the filter, which is worth a real `distinct` in
+ *  the view when one of these orgs exists.
+ *
+ *  Degrades to an empty list on failure rather than taking the page down; the
+ *  table itself is unaffected. */
+export async function listOrgPaymentMethods(orgId: string): Promise<string[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("admin_payments_v")
+    .select("method")
+    .eq("org_id", orgId)
+    .not("method", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(1000);
+  if (error) {
+    console.error("listOrgPaymentMethods failed", error);
+    return [];
+  }
+  return (data ?? []).map((r) => (r as { method: string | null }).method).filter((m): m is string => !!m);
+}
+
 export type PaymentAggregates = {
   grossCents: number;
   feeCents: number;

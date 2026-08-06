@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Wallet, Percent, Landmark, Undo2, Download } from "lucide-react";
 import { parseTableParams, serializeTableParams } from "@/lib/table-params";
 import { getMyRoles, requireOrgId } from "@/lib/queries/roles";
-import { listOrgPayments, getPaymentAggregates } from "@/lib/queries/payments";
+import { listOrgPayments, getPaymentAggregates, listOrgPaymentMethods } from "@/lib/queries/payments";
 import { NoOrgScope } from "@/components/no-org-scope";
 import { KpiCard, KpiRow } from "@/components/kpi-card";
 import { Button } from "@/components/ui/button";
@@ -34,12 +34,15 @@ export default async function PaymentsPage({
     );
   }
 
-  const [{ rows, total }, aggregates] = await Promise.all([
+  const [{ rows, total }, aggregates, methods] = await Promise.all([
     listOrgPayments(orgId, params),
     // Same org + same filters as the table above. Gross/fee/net come straight
     // off admin_payments_v's own columns — see getPaymentAggregates' doc
     // comment for why net is never recomputed as amount - fee here.
     getPaymentAggregates(orgId, params),
+    // Org-scoped but deliberately UNfiltered — the Method filter has to keep
+    // offering the other methods once one is selected. See its doc comment.
+    listOrgPaymentMethods(orgId),
   ]);
 
   const exportHref = `/payments/export?${serializeTableParams({ ...params, page: 1 }, DEFAULTS)}`;
@@ -75,7 +78,7 @@ export default async function PaymentsPage({
       </KpiRow>
 
       <PaymentsTable rows={rows} total={total} page={params.page} per={params.per}
-        sort={params.sort} activeFilters={params.filters} q={params.q} />
+        sort={params.sort} activeFilters={params.filters} q={params.q} methods={methods} />
     </div>
   );
 }
