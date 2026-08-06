@@ -77,7 +77,7 @@ export function RegistrationsTable({
       header: "Bib",
       cell: ({ row }) => (
         row.original.bib_name
-          ? <span className="font-mono tabular">{row.original.bib_name}</span>
+          ? <span className="tabular">{row.original.bib_name}</span>
           : <span className="text-muted-foreground">—</span>
       ),
     },
@@ -85,13 +85,13 @@ export function RegistrationsTable({
       accessorKey: "created_at",
       header: "Registered",
       cell: ({ row }) => (
-        <span className="font-mono tabular text-muted-foreground">{fmtDateTime(row.original.created_at)}</span>
+        <span className="tabular text-muted-foreground">{fmtDateTime(row.original.created_at)}</span>
       ),
     },
     {
       accessorKey: "total_amount",
       header: "Amount",
-      cell: ({ row }) => <span className="font-mono tabular">{peso(row.original.total_amount)}</span>,
+      cell: ({ row }) => <span className="tabular">{peso(row.original.total_amount)}</span>,
     },
     {
       accessorKey: "payment_status",

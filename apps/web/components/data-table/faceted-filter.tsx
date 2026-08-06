@@ -42,7 +42,7 @@ export function FacetedFilter({ def, value, onChange }: {
                   <Check className={cn("mr-2 size-4", value === o.value ? "opacity-100" : "opacity-0")} />
                   <span className="flex-1 truncate">{o.label}</span>
                   {o.count != null ? (
-                    <span className="ml-2 font-mono tabular text-xs text-muted-foreground">{o.count}</span>
+                    <span className="ml-2 tabular text-xs text-muted-foreground">{o.count}</span>
                   ) : null}
                 </CommandItem>
               ))}

@@ -44,7 +44,7 @@ export function DataTablePagination({
           </SelectContent>
         </Select>
         <span aria-hidden>·</span>
-        <span className="font-mono tabular">{rangeLabel(page, per, total)}</span>
+        <span className="tabular">{rangeLabel(page, per, total)}</span>
       </div>
 
       <div className="flex items-center gap-1">
@@ -61,7 +61,7 @@ export function DataTablePagination({
             <span key={`gap-${i}`} className="px-1 text-sm text-muted-foreground" aria-hidden>…</span>
           ) : (
             <Button key={n} size="icon" aria-label={`Page ${n}`} aria-current={n === page ? "page" : undefined}
-              variant={n === page ? "default" : "outline"} className="size-8 rounded-lg font-mono tabular"
+              variant={n === page ? "default" : "outline"} className="size-8 rounded-lg tabular"
               onClick={() => onPageChange(n)}>
               {n}
             </Button>

@@ -26,7 +26,7 @@ export function EventPicker({ events, value }: {
       <SelectContent>
         {events.map((e) => (
           <SelectItem key={e.id} value={e.id}>
-            {e.name} <span className="font-mono tabular text-muted-foreground">({e.count})</span>
+            {e.name} <span className="tabular text-muted-foreground">({e.count})</span>
           </SelectItem>
         ))}
       </SelectContent>

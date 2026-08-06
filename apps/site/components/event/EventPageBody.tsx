@@ -317,7 +317,13 @@ function DistanceRow({
           </div>
         </div>
 
-        <div className="font-mono-race self-start text-right text-[clamp(1.1rem,2.6vw,1.6rem)] font-bold tabular-nums sm:self-center">
+        {/* Archivo, not the mono race face: JetBrains Mono has no PESO SIGN
+            (U+20B1), so "₱" fell back to a system font and rendered larger and
+            heavier than the digits next to it. Archivo carries ₱ AND tabular
+            figures, and it is already the display face — so the price reads as
+            the headline figure it is. Mono stays on the km/gain/cut-off data
+            below, which never contains a currency symbol. */}
+        <div className="self-start text-right font-display text-[clamp(1.1rem,2.6vw,1.6rem)] font-extrabold tabular-nums sm:self-center">
           {formatPeso(category.base_price)}
         </div>
 

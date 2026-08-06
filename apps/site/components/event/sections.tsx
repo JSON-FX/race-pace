@@ -174,7 +174,7 @@ export function AddonsSection({ addons, tone }: { addons: AddonRow[]; tone: Tone
               )}
             >
               <span className="text-[15.5px] font-semibold leading-snug">{a.name}</span>
-              <span className="font-mono-race shrink-0 text-[15px] font-bold tabular-nums text-primary">
+              <span className="shrink-0 font-display text-[15px] font-extrabold tabular-nums text-primary">
                 +{formatPeso(a.price)}
               </span>
             </div>

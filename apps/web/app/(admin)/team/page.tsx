@@ -59,7 +59,7 @@ export default async function TeamPage({
         <div>
           <h1 className="text-[21px] font-bold tracking-[-0.02em]">Team</h1>
           <p className="mt-0.5 text-[13px] text-muted-foreground">
-            <span className="font-mono tabular">{total}</span> member{total === 1 ? "" : "s"}
+            <span className="tabular">{total}</span> member{total === 1 ? "" : "s"}
           </p>
         </div>
         <div className="ml-auto"><InviteMemberForm orgId={orgId} /></div>

@@ -28,7 +28,7 @@ function NavItem({ to, label, icon: Icon, count }: Item & { count?: number }) {
           {count != null ? (
             <span
               className={cn(
-                "ml-auto rounded-pill px-[7px] py-px font-mono text-[11px] font-semibold tabular",
+                "ml-auto rounded-pill px-[7px] py-px text-[11px] font-semibold tabular",
                 isActive ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
               )}
             >

@@ -50,7 +50,7 @@ export default async function PaymentsPage({
         <div>
           <h1 className="text-[21px] font-bold tracking-[-0.02em]">Payments</h1>
           <p className="mt-0.5 text-[13px] text-muted-foreground">
-            <span className="font-mono tabular">{total}</span> transaction{total === 1 ? "" : "s"}
+            <span className="tabular">{total}</span> transaction{total === 1 ? "" : "s"}
           </p>
         </div>
         <Button variant="outline" asChild>

@@ -95,9 +95,9 @@ export default async function RegistrationsPage({
         <div>
           <h1 className="text-[21px] font-bold tracking-[-0.02em]">Registrations</h1>
           <p className="mt-0.5 text-[13px] text-muted-foreground">
-            <span className="font-mono tabular">{orgTotal.toLocaleString()}</span> total across{" "}
-            <span className="font-mono tabular">{events.length}</span> event{events.length === 1 ? "" : "s"} ·{" "}
-            <span className="font-mono tabular">{orgPending.toLocaleString()}</span> pending payment
+            <span className="tabular">{orgTotal.toLocaleString()}</span> total across{" "}
+            <span className="tabular">{events.length}</span> event{events.length === 1 ? "" : "s"} ·{" "}
+            <span className="tabular">{orgPending.toLocaleString()}</span> pending payment
           </p>
         </div>
         <div className="flex items-center gap-2">

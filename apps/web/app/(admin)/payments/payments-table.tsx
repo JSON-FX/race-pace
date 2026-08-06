@@ -90,17 +90,17 @@ export function PaymentsTable({ rows, total, page, per, sort, activeFilters, q }
     {
       accessorKey: "amount",
       header: "Gross",
-      cell: ({ row }) => <span className="font-mono tabular">{peso(row.original.amount)}</span>,
+      cell: ({ row }) => <span className="tabular">{peso(row.original.amount)}</span>,
     },
     {
       accessorKey: "platform_fee",
       header: "Fee",
-      cell: ({ row }) => <span className="font-mono tabular text-muted-foreground">{peso(row.original.platform_fee)}</span>,
+      cell: ({ row }) => <span className="tabular text-muted-foreground">{peso(row.original.platform_fee)}</span>,
     },
     {
       accessorKey: "net_to_org",
       header: "Net",
-      cell: ({ row }) => <span className="font-mono tabular font-semibold">{peso(row.original.net_to_org)}</span>,
+      cell: ({ row }) => <span className="tabular font-semibold">{peso(row.original.net_to_org)}</span>,
     },
     {
       accessorKey: "method",
@@ -115,7 +115,7 @@ export function PaymentsTable({ rows, total, page, per, sort, activeFilters, q }
     {
       accessorKey: "created_at",
       header: "Date",
-      cell: ({ row }) => <span className="font-mono tabular text-muted-foreground">{fmtDate(row.original.created_at)}</span>,
+      cell: ({ row }) => <span className="tabular text-muted-foreground">{fmtDate(row.original.created_at)}</span>,
     },
   ], []);
 

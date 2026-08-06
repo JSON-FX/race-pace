@@ -74,7 +74,7 @@ export function EventsTable({ rows, total, page, per, sort, activeFilters, q, ca
       {
         accessorKey: "event_date",
         header: "Date",
-        cell: ({ row }) => <span className="font-mono tabular text-muted-foreground">{fmtDate(row.original.event_date)}</span>,
+        cell: ({ row }) => <span className="tabular text-muted-foreground">{fmtDate(row.original.event_date)}</span>,
       },
       {
         id: "slots",
@@ -83,7 +83,7 @@ export function EventsTable({ rows, total, page, per, sort, activeFilters, q, ca
         cell: ({ row }) => {
           const taken = row.original.categories.reduce((n, c) => n + c.slots_taken, 0);
           const totalSlots = row.original.categories.reduce((n, c) => n + c.slots_total, 0);
-          return <span className="font-mono tabular">{taken} / {totalSlots}</span>;
+          return <span className="tabular">{taken} / {totalSlots}</span>;
         },
       },
       { accessorKey: "status", header: "Status", cell: ({ row }) => <EventStatusBadge status={row.original.status} /> },

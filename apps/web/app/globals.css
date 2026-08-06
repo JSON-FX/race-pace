@@ -173,7 +173,15 @@
     background: rgb(var(--muted));
   }
   /* Money, bib numbers, dates and counts. Proportional figures change width
-     between digits, so a column visibly reflows when you page through it. */
+     between digits, so a column visibly reflows when you page through it.
+     Inter carries real tabular figures, which is why these no longer need a
+     monospace face — and why they must not use one: JetBrains Mono has no
+     PESO SIGN (U+20B1), so every "₱" fell back to a system font and rendered
+     heavier and larger than the digits beside it. No monospace family on
+     Google Fonts covers ₱ (checked Plex/Roboto/Fira/Source/Space/Geist), so
+     switching mono would not have fixed it. --font-mono is now reserved for
+     genuinely code-like strings — keyboard hints, tokens — where ₱ never
+     appears. */
   .tabular { font-variant-numeric: tabular-nums; }
   .rp-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
   .rp-scroll::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 8px; }

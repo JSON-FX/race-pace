@@ -23,7 +23,7 @@ export type KpiCardProps = {
  *  Mirrors the mockup's `.kpi` block exactly (docs/superpowers/specs/
  *  2026-08-06-admin-design-directions.html, tab A, `.kpis` / `.kpi` rules):
  *  rounded-xl bordered card + card shadow, 14/15px padding, a label row
- *  (13px icon + 11px semibold muted text), a 23px bold mono value, and an
+ *  (13px icon + 11px semibold muted text), a 23px semibold value, and an
  *  optional 11.5px semibold delta line. Server component — no client state. */
 export function KpiCard({ icon: Icon, label, value, delta }: KpiCardProps) {
   return (
@@ -32,7 +32,7 @@ export function KpiCard({ icon: Icon, label, value, delta }: KpiCardProps) {
         <Icon className="size-[13px]" strokeWidth={2} aria-hidden />
         {label}
       </div>
-      <div className="mt-[7px] font-mono text-[23px] font-bold tabular-nums tracking-[-0.03em]">
+      <div className="mt-[7px] text-[23px] font-semibold tabular-nums tracking-[-0.02em]">
         {value}
       </div>
       {delta ? (
