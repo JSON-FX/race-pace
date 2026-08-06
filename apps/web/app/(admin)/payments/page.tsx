@@ -1,7 +1,10 @@
+import { Wallet, Percent, Landmark, Undo2 } from "lucide-react";
 import { parseTableParams } from "@/lib/table-params";
 import { getMyRoles, requireOrgId } from "@/lib/queries/roles";
-import { listOrgPayments } from "@/lib/queries/payments";
+import { listOrgPayments, getPaymentAggregates } from "@/lib/queries/payments";
 import { NoOrgScope } from "@/components/no-org-scope";
+import { KpiCard, KpiRow } from "@/components/kpi-card";
+import { peso } from "@/lib/format";
 import { PaymentsTable } from "./payments-table";
 
 const DEFAULTS = { sort: [{ id: "created_at", desc: true }], filters: { status: "all", method: "all" } };
@@ -29,7 +32,13 @@ export default async function PaymentsPage({
     );
   }
 
-  const { rows, total } = await listOrgPayments(orgId, params);
+  const [{ rows, total }, aggregates] = await Promise.all([
+    listOrgPayments(orgId, params),
+    // Same org + same filters as the table above. Gross/fee/net come straight
+    // off admin_payments_v's own columns — see getPaymentAggregates' doc
+    // comment for why net is never recomputed as amount - fee here.
+    getPaymentAggregates(orgId, params),
+  ]);
 
   return (
     <div className="px-4 pb-10 pt-6 md:px-[30px]">
@@ -39,6 +48,20 @@ export default async function PaymentsPage({
           <span className="font-mono tabular">{total}</span> transaction{total === 1 ? "" : "s"}
         </p>
       </div>
+
+      {/* No delta line on any Payments card — the binding spec's KPI table
+          (docs/superpowers/specs/2026-08-06-admin-visual-parity-spec.md,
+          "KPI row") lists only a peso value for Gross/Platform fees/Net to
+          org/Refunded, and the mockup's tab A content view is the
+          Registrations page, not Payments, so there is no `.kpi` delta
+          markup to match here. */}
+      <KpiRow>
+        <KpiCard icon={Wallet} label="Gross" value={peso(aggregates.grossCents)} />
+        <KpiCard icon={Percent} label="Platform fees" value={peso(aggregates.feeCents)} />
+        <KpiCard icon={Landmark} label="Net to org" value={peso(aggregates.netCents)} />
+        <KpiCard icon={Undo2} label="Refunded" value={peso(aggregates.refundedCents)} />
+      </KpiRow>
+
       <PaymentsTable rows={rows} total={total} page={params.page} per={params.per}
         sort={params.sort} activeFilters={params.filters} q={params.q} />
     </div>

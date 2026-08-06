@@ -86,6 +86,60 @@ export const getOrgRegistrationCount = cache(async (orgId: string): Promise<numb
   return count ?? 0;
 });
 
+export type RegistrationAggregates = {
+  total: number;
+  paid: number;
+  grossCents: number;
+  refundCount: number;
+  refundedCents: number;
+  newThisWeek: number;
+};
+
+const EMPTY_AGGREGATES: RegistrationAggregates = {
+  total: 0,
+  paid: 0,
+  grossCents: 0,
+  refundCount: 0,
+  refundedCents: 0,
+  newThisWeek: 0,
+};
+
+/** KPI-row aggregates for the Registrations page. Scoped to the SAME event and
+ *  filters (status/category/q) as `listEventRegistrations` — computed by a
+ *  Postgres RPC (see supabase/migrations/20260806190000_admin_kpi_aggregates.sql)
+ *  over admin_registrations_v, the same view the table reads, so the cards can
+ *  never disagree with the rows beneath them and never truncate at PostgREST's
+ *  max-rows limit the way a client-side sum over `.select()` rows would.
+ *
+ *  Degrades to zeroes on failure rather than taking the page down — the table
+ *  is the primary content, the KPI row is decoration on top of it. */
+export async function getRegistrationAggregates(
+  eventId: string,
+  params: TableParams,
+): Promise<RegistrationAggregates> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("admin_registration_aggregates", {
+    p_event_id: eventId,
+    p_status: params.filters.status ?? "all",
+    p_category_id: params.filters.category ?? "all",
+    p_q: params.q.trim(),
+  });
+  if (error) {
+    console.error("getRegistrationAggregates failed", error);
+    return EMPTY_AGGREGATES;
+  }
+  const row = data?.[0];
+  if (!row) return EMPTY_AGGREGATES;
+  return {
+    total: row.total ?? 0,
+    paid: row.paid ?? 0,
+    grossCents: Number(row.gross_cents ?? 0),
+    refundCount: row.refund_count ?? 0,
+    refundedCents: Number(row.refunded_cents ?? 0),
+    newThisWeek: row.new_this_week ?? 0,
+  };
+}
+
 export async function listEventCategories(eventId: string): Promise<{ id: string; label: string }[]> {
   const supabase = await createClient();
   const { data, error } = await supabase

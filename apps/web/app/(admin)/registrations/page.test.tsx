@@ -1,15 +1,33 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import RegistrationsPage from "./page";
+import type { RegistrationAggregates, RegistrationRow } from "@/lib/queries/registrations";
+import { tableParamsMockReturn, resetTableParamsSpies } from "@/lib/test-utils/mock-table-params";
 
-const { listEventRegistrations, listOrgEventOptions, listEventCategories, getMyRoles } = vi.hoisted(() => ({
-  listEventRegistrations: vi.fn(() => {
+// The happy-path tests below render past the KPI row into <RegistrationsTable>
+// (a <DataTable>) and <EventPicker>, both of which call Next's router hooks —
+// mock the same way every other DataTable-rendering test in this app does.
+vi.mock("@/lib/use-table-params", () => ({ useTableParams: () => tableParamsMockReturn }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn() }),
+  usePathname: () => "/registrations",
+}));
+
+const { listEventRegistrations, listOrgEventOptions, listEventCategories, getRegistrationAggregates, getMyRoles } = vi.hoisted(() => ({
+  // Explicit return-type annotations, not inference, on these throwing
+  // defaults: an arrow function whose body is only `throw` infers `never`,
+  // which then rejects every later `.mockResolvedValue(...)` call below with
+  // "not assignable to parameter of type 'never'".
+  listEventRegistrations: vi.fn((): Promise<{ rows: RegistrationRow[]; total: number }> => {
     throw new Error("must not be called");
   }),
-  listOrgEventOptions: vi.fn(() => {
+  listOrgEventOptions: vi.fn((): Promise<{ id: string; name: string; count: number }[]> => {
     throw new Error("must not be called");
   }),
-  listEventCategories: vi.fn(() => {
+  listEventCategories: vi.fn((): Promise<{ id: string; label: string }[]> => {
+    throw new Error("must not be called");
+  }),
+  getRegistrationAggregates: vi.fn((): Promise<RegistrationAggregates> => {
     throw new Error("must not be called");
   }),
   getMyRoles: vi.fn(),
@@ -19,6 +37,7 @@ vi.mock("@/lib/queries/registrations", () => ({
   listEventRegistrations,
   listOrgEventOptions,
   listEventCategories,
+  getRegistrationAggregates,
 }));
 
 vi.mock("@/lib/queries/roles", async () => {
@@ -27,6 +46,8 @@ vi.mock("@/lib/queries/roles", async () => {
 });
 
 describe("RegistrationsPage", () => {
+  beforeEach(() => resetTableParamsSpies());
+
   it("renders NoOrgScope and never queries registrations when the caller has no org", async () => {
     // A bare super_admin: isAdmin true (clears the (admin) layout guard) but
     // orgId null — there's no organization to scope a registrations query
@@ -41,5 +62,59 @@ describe("RegistrationsPage", () => {
     expect(listOrgEventOptions).not.toHaveBeenCalled();
     expect(listEventRegistrations).not.toHaveBeenCalled();
     expect(listEventCategories).not.toHaveBeenCalled();
+    expect(getRegistrationAggregates).not.toHaveBeenCalled();
+  });
+
+  it("renders the KPI row from the aggregates reader, scoped to the same event as the table", async () => {
+    getMyRoles.mockResolvedValue({ role: "admin", orgId: "org-1", isSuperAdmin: false, isAdmin: true, isOrgAdmin: true });
+    listOrgEventOptions.mockResolvedValue([{ id: "event-1", name: "Dahilayan Sky Ultra", count: 4 }]);
+    listEventRegistrations.mockResolvedValue({ rows: [], total: 4 });
+    listEventCategories.mockResolvedValue([]);
+    getRegistrationAggregates.mockResolvedValue({
+      total: 4, paid: 2, grossCents: 480000, refundCount: 1, refundedCents: 120000, newThisWeek: 2,
+    });
+
+    const ui = await RegistrationsPage({ searchParams: Promise.resolve({}) });
+    render(ui);
+
+    // Same event id and same (default) filters reach the aggregates reader
+    // as reach the table's own list query — that's the "structural, not
+    // remembered" filter parity the KPI row depends on.
+    expect(getRegistrationAggregates).toHaveBeenCalledWith(
+      "event-1",
+      expect.objectContaining({ filters: expect.objectContaining({ status: "all", category: "all" }) }),
+    );
+    expect(listEventRegistrations).toHaveBeenCalledWith(
+      "event-1",
+      expect.objectContaining({ filters: expect.objectContaining({ status: "all", category: "all" }) }),
+    );
+
+    expect(screen.getByText("Total")).toBeInTheDocument();
+    expect(screen.getByText("+2 this week")).toBeInTheDocument();
+    expect(screen.getByText("Paid")).toBeInTheDocument();
+    expect(screen.getByText("50.0% conversion")).toBeInTheDocument();
+    expect(screen.getByText("Gross revenue")).toBeInTheDocument();
+    expect(screen.getByText("₱4,800")).toBeInTheDocument();
+    expect(screen.getByText("Refunds")).toBeInTheDocument();
+    expect(screen.getByText("₱1,200")).toBeInTheDocument();
+    expect(screen.getByText("1 request · 0 pending")).toBeInTheDocument();
+  });
+
+  it("renders zeroed KPI cards, not a blank row, when the filtered set is empty", async () => {
+    getMyRoles.mockResolvedValue({ role: "admin", orgId: "org-1", isSuperAdmin: false, isAdmin: true, isOrgAdmin: true });
+    listOrgEventOptions.mockResolvedValue([{ id: "event-1", name: "Dahilayan Sky Ultra", count: 0 }]);
+    listEventRegistrations.mockResolvedValue({ rows: [], total: 0 });
+    listEventCategories.mockResolvedValue([]);
+    getRegistrationAggregates.mockResolvedValue({
+      total: 0, paid: 0, grossCents: 0, refundCount: 0, refundedCents: 0, newThisWeek: 0,
+    });
+
+    const ui = await RegistrationsPage({ searchParams: Promise.resolve({}) });
+    render(ui);
+
+    expect(screen.getByText("+0 this week")).toBeInTheDocument();
+    expect(screen.getByText("0.0% conversion")).toBeInTheDocument();
+    expect(screen.getAllByText("₱0").length).toBeGreaterThanOrEqual(2); // gross revenue + refunds
+    expect(screen.getByText("0 requests · 0 pending")).toBeInTheDocument();
   });
 });

@@ -47,3 +47,43 @@ export async function listOrgPayments(
   if (error) throw error;
   return { rows: (data ?? []) as PaymentRow[], total: count ?? 0 };
 }
+
+export type PaymentAggregates = {
+  grossCents: number;
+  feeCents: number;
+  netCents: number;
+  refundedCents: number;
+};
+
+const EMPTY_AGGREGATES: PaymentAggregates = { grossCents: 0, feeCents: 0, netCents: 0, refundedCents: 0 };
+
+/** KPI-row aggregates for the Payments page. Scoped to the SAME org and filters
+ *  (status/method/q) as `listOrgPayments` — computed by a Postgres RPC (see
+ *  supabase/migrations/20260806190000_admin_kpi_aggregates.sql) over
+ *  admin_payments_v, the same view the table reads. Gross/fee/net are summed
+ *  straight from that view's own amount/platform_fee/net_to_org columns —
+ *  net is NEVER recomputed as amount - fee client-side, so the card can never
+ *  disagree with the ledger.
+ *
+ *  Degrades to zeroes on failure rather than taking the page down. */
+export async function getPaymentAggregates(orgId: string, params: TableParams): Promise<PaymentAggregates> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("admin_payment_aggregates", {
+    p_org_id: orgId,
+    p_status: params.filters.status ?? "all",
+    p_method: params.filters.method ?? "all",
+    p_q: params.q.trim(),
+  });
+  if (error) {
+    console.error("getPaymentAggregates failed", error);
+    return EMPTY_AGGREGATES;
+  }
+  const row = data?.[0];
+  if (!row) return EMPTY_AGGREGATES;
+  return {
+    grossCents: Number(row.gross_cents ?? 0),
+    feeCents: Number(row.fee_cents ?? 0),
+    netCents: Number(row.net_cents ?? 0),
+    refundedCents: Number(row.refunded_cents ?? 0),
+  };
+}
