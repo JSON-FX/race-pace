@@ -1,6 +1,5 @@
 import { useLocation } from "react-router-dom";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { useMyRoles } from "../lib/roles";
 import { OrgSwitcher } from "./OrgSwitcher";
 
 const TITLES: Record<string, string> = {
@@ -11,7 +10,6 @@ const TITLES: Record<string, string> = {
 
 export function TopBar() {
   const { pathname } = useLocation();
-  const roles = useMyRoles();
   const title = pathname === "/events/new" ? "Create event"
     : /^\/events\/[^/]+\/edit$/.test(pathname) ? "Edit event"
     : TITLES[pathname] ?? "Dashboard";
@@ -22,7 +20,7 @@ export function TopBar() {
       <div className="text-lg font-bold tracking-tight">{title}</div>
       {/* Owns the org name AND the switch — one control, so the label can
           never disagree with the org the pages are actually querying. */}
-      <OrgSwitcher isSuperAdmin={!!roles.data?.isSuperAdmin} />
+      <OrgSwitcher />
     </header>
   );
 }

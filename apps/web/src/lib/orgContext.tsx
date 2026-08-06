@@ -4,27 +4,42 @@ import { supabase } from "./supabase";
 import { useAuth } from "./auth";
 
 /**
- * Which organization the console is currently acting as.
+ * Which organization the console is acting as.
  *
- * Before this, useMyRoles() took `rows.find(r => r.role === 'admin' || 'editor')`
- * — the FIRST admin row — and there was no way to reach any other. With one org
- * that was invisible; with two, half the data was simply unreachable.
+ * The tenancy model (docs/00-product-overview.md §8) is: editor/admin/marshal
+ * grants are bound to ONE org_id; `super_admin` holds org_id null and is "the
+ * only role that can see across organizations". Plan 09 files the cross-org
+ * switcher under Plan 14, super_admin only.
  *
- * Everything downstream is already keyed by orgId (useOrgEvents, usePayments,
- * useRegistrations…), so switching orgs invalidates and refetches through
- * React Query's key change alone. There is deliberately no manual cache
- * clearing here — that would be a second mechanism to keep in sync.
+ * So switching is gated on super_admin, NOT on how many memberships you happen
+ * to hold. An org admin has exactly one org and no picker; a super admin picks
+ * from every organization on the platform.
+ *
+ * This is a UI affordance, not the security boundary. The database is the
+ * boundary: every staff-facing policy is `auth_can_admin_org(org_id)`, which
+ * checks user_roles for that specific org. Verified by probe — an org admin
+ * reading another org's registrations gets zero rows, and a cross-org UPDATE
+ * changes zero rows. Nothing here can widen that; hiding the switcher only
+ * stops the console from offering a door the DB would slam anyway.
+ *
+ * Everything downstream is keyed by orgId (useOrgEvents, usePayments,
+ * useRegistrations, useMyOrg), so a switch refetches through React Query's key
+ * change alone — no manual invalidation to keep in sync.
  */
 
-export type Membership = { orgId: string; role: string };
+export type OrgOption = { orgId: string; name: string; role: string | null };
 
 export type OrgContextValue = {
-  /** Orgs this user can administer, ordered deterministically by id. */
-  memberships: Membership[];
+  /** Orgs this account may act as: its own for staff, all of them for a
+   *  super admin. Sorted by name — this is what the picker renders. */
+  availableOrgs: OrgOption[];
   activeOrgId: string | null;
-  /** Role held in the ACTIVE org — not "any role anywhere". */
+  /** Role held in the ACTIVE org. "super_admin" is platform-wide, so it holds
+   *  for whichever org is selected. */
   activeRole: string | null;
   isSuperAdmin: boolean;
+  /** Only a super admin with more than one org gets a picker. */
+  canSwitch: boolean;
   setActiveOrg: (orgId: string) => void;
   isLoading: boolean;
 };
@@ -36,27 +51,29 @@ export const ACTIVE_ORG_KEY = "rp-active-org";
 /**
  * Which org to open with. Pure so the rule is testable without a browser.
  *
- * The stored id is VALIDATED against current memberships rather than trusted.
- * An org can be deleted, or your access to it revoked, between sessions — and
- * an unvalidated stored id then pins the console to an org whose every query
- * returns nothing, which reads as "the app is broken" rather than "you were
- * removed from that org".
+ * `stored` is VALIDATED against the available list rather than trusted. An org
+ * can be deleted, or access revoked, between sessions — and an unvalidated id
+ * then pins the console to an org whose every query returns nothing, which
+ * reads as "the app is broken" rather than "you no longer have that org".
+ *
+ * Callers pass `stored: null` when the account cannot switch: a remembered
+ * preference is meaningless when there is no choice to remember.
  */
-export function pickActiveOrg(memberships: Membership[], stored: string | null): string | null {
-  if (stored && memberships.some((m) => m.orgId === stored)) return stored;
-  return memberships[0]?.orgId ?? null;
+export function pickActiveOrg(orgIds: string[], stored: string | null): string | null {
+  if (stored && orgIds.includes(stored)) return stored;
+  return orgIds[0] ?? null;
 }
 
-/** Admin and editor can both operate the console; other roles (marshal,
- *  claiming) are not org-management roles and must not appear in the picker. */
+/** Admin and editor operate the console. `marshal` is race-day check-in only
+ *  and `user`/`claiming` are not staff at all — none may act as the org here. */
 const MANAGING_ROLES = new Set(["admin", "editor"]);
 
 function readStored(): string | null {
   try {
     return localStorage.getItem(ACTIVE_ORG_KEY);
   } catch {
-    // Private mode / disabled storage: fall back to the default org rather
-    // than taking the whole console down over a preference.
+    // Private mode / disabled storage: fall back to the default rather than
+    // taking the console down over a preference.
     return null;
   }
 }
@@ -69,9 +86,7 @@ export function OrgProvider({ children }: { children: ReactNode }) {
     queryKey: ["my-roles", uid],
     enabled: !!uid,
     queryFn: async () => {
-      // ORDER BY matters: PostgREST gives no ordering guarantee, so without it
-      // "the first membership" — the default org for anyone with no stored
-      // preference — can differ between page loads.
+      // `user_roles_read_own` restricts this to the caller's own rows.
       const { data, error } = await supabase.from("user_roles").select("role, org_id").order("org_id");
       if (error) throw error;
       return (data ?? []) as { role: string; org_id: string | null }[];
@@ -81,45 +96,68 @@ export function OrgProvider({ children }: { children: ReactNode }) {
   const rows = useMemo(() => rolesQuery.data ?? [], [rolesQuery.data]);
   const isSuperAdmin = rows.some((r) => r.role === "super_admin");
 
-  const memberships = useMemo<Membership[]>(() => {
-    const seen = new Set<string>();
-    const out: Membership[] = [];
+  // Names for the label, and the full list a super admin picks from. `is_active`
+  // filtering is the `orgs_read_active` policy's job, not ours.
+  const orgsQuery = useQuery({
+    queryKey: ["orgs-for-switcher", uid],
+    enabled: !!uid && !rolesQuery.isLoading,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("organizations").select("id,name").order("name");
+      if (error) throw error;
+      return (data ?? []) as { id: string; name: string }[];
+    },
+  });
+
+  const availableOrgs = useMemo<OrgOption[]>(() => {
+    const allOrgs = orgsQuery.data ?? [];
+    const roleFor = new Map<string, string>();
     for (const r of rows) {
-      if (!r.org_id || !MANAGING_ROLES.has(r.role) || seen.has(r.org_id)) continue;
-      seen.add(r.org_id);
-      out.push({ orgId: r.org_id, role: r.role });
+      if (r.org_id && MANAGING_ROLES.has(r.role) && !roleFor.has(r.org_id)) roleFor.set(r.org_id, r.role);
     }
-    return out;
-  }, [rows]);
+    const source = isSuperAdmin ? allOrgs : allOrgs.filter((o) => roleFor.has(o.id));
+    return source.map((o) => ({
+      orgId: o.id,
+      name: o.name,
+      role: isSuperAdmin ? "super_admin" : roleFor.get(o.id) ?? null,
+    }));
+  }, [orgsQuery.data, rows, isSuperAdmin]);
+
+  const canSwitch = isSuperAdmin && availableOrgs.length > 1;
 
   const [selected, setSelected] = useState<string | null>(null);
 
-  // Re-resolve whenever memberships change: on first load, and again if the
-  // selected org disappears from under us.
+  const ids = useMemo(() => availableOrgs.map((o) => o.orgId), [availableOrgs]);
+  const isLoading = rolesQuery.isLoading || orgsQuery.isLoading;
+
+  // Re-resolve when the list changes: on first load, and again if the selected
+  // org disappears from under us.
   useEffect(() => {
-    if (rolesQuery.isLoading) return;
-    setSelected((prev) => pickActiveOrg(memberships, prev ?? readStored()));
-  }, [memberships, rolesQuery.isLoading]);
+    if (isLoading) return;
+    setSelected((prev) => pickActiveOrg(ids, canSwitch ? prev ?? readStored() : null));
+  }, [ids, canSwitch, isLoading]);
 
   const setActiveOrg = useCallback((orgId: string) => {
     setSelected(orgId);
     try {
       localStorage.setItem(ACTIVE_ORG_KEY, orgId);
     } catch {
-      // Preference just won't survive a reload; the switch itself still works.
+      // The preference just won't survive a reload; the switch still works.
     }
   }, []);
 
   const value = useMemo<OrgContextValue>(
     () => ({
-      memberships,
+      availableOrgs,
       activeOrgId: selected,
-      activeRole: memberships.find((m) => m.orgId === selected)?.role ?? null,
+      activeRole: isSuperAdmin
+        ? "super_admin"
+        : availableOrgs.find((o) => o.orgId === selected)?.role ?? null,
       isSuperAdmin,
+      canSwitch,
       setActiveOrg,
-      isLoading: rolesQuery.isLoading,
+      isLoading,
     }),
-    [memberships, selected, isSuperAdmin, setActiveOrg, rolesQuery.isLoading],
+    [availableOrgs, selected, isSuperAdmin, canSwitch, setActiveOrg, isLoading],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

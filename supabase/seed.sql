@@ -131,36 +131,63 @@ insert into form_fields (id, org_id, event_id, key, label, type, required, optio
   ('00000000-0000-0000-0000-0000000000f2','00000000-0000-0000-0000-00000000a001','00000000-0000-0000-0000-000000010009','running_club','Running club','text',false,null,2),
   ('00000000-0000-0000-0000-0000000000f3','00000000-0000-0000-0000-00000000a001','00000000-0000-0000-0000-000000010009','shirt_size','Shirt size','select',true, array['S','M','L','XL'],3);
 
--- Provisioned admin for the web console (survives db reset). Password: password123
--- crypt()/gen_salt() come from pgcrypto. Qualified with the extensions schema so this
--- works both locally and on hosted Supabase (where extensions isn't on the search_path).
+-- Provisioned staff accounts. Password for all three: password123
+--
+-- ONE ACCOUNT PER ORGANIZATION, plus the platform operator — this mirrors the
+-- tenancy model in docs/00-product-overview.md §8, where editor/admin/marshal
+-- grants bind to a single org_id and only `super_admin` (org_id null) sees
+-- across organizations.
+--
+-- An earlier seed gave one account `admin` on BOTH orgs so it could upload
+-- hero images for each. That is precisely the cross-org account the model says
+-- must not exist, and it made the console offer an org switcher to org staff.
+-- A super admin can upload for any org anyway: auth_can_admin_org() short-
+-- circuits on auth_is_super_admin().
+--
+--   admin@racepace.test        super_admin   platform-wide
+--   muspo@racepace.test        admin         Muspo only
+--   runwithpoint@racepace.test admin         RunWithPoint only
+--
+-- crypt()/gen_salt() come from pgcrypto. Qualified with the extensions schema so
+-- this works both locally and on hosted Supabase (where extensions isn't on the
+-- search_path).
 do $$
-declare admin_id uuid := '00000000-0000-0000-0000-0000000000b1';
+declare
+  plat  uuid := '00000000-0000-0000-0000-0000000000b1';
+  muspo uuid := '00000000-0000-0000-0000-0000000000b2';
+  rwp   uuid := '00000000-0000-0000-0000-0000000000b3';
 begin
   insert into auth.users (
     instance_id, id, aud, role, email, encrypted_password,
     email_confirmed_at, created_at, updated_at,
     raw_app_meta_data, raw_user_meta_data,
     confirmation_token, recovery_token, email_change_token_new, email_change
-  ) values (
-    '00000000-0000-0000-0000-000000000000', admin_id, 'authenticated', 'authenticated',
-    'admin@racepace.test', extensions.crypt('password123', extensions.gen_salt('bf')),
-    now(), now(), now(),
-    '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb,
-    '', '', '', ''
-  );
+  )
+  select '00000000-0000-0000-0000-000000000000', v.id, 'authenticated', 'authenticated',
+         v.email, extensions.crypt('password123', extensions.gen_salt('bf')),
+         now(), now(), now(),
+         '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb, '', '', '', ''
+  from (values
+    (plat,  'admin@racepace.test'),
+    (muspo, 'muspo@racepace.test'),
+    (rwp,   'runwithpoint@racepace.test')
+  ) as v(id, email);
 
   insert into auth.identities (
     id, user_id, provider_id, identity_data, provider, last_sign_in_at, created_at, updated_at
-  ) values (
-    gen_random_uuid(), admin_id, admin_id::text,
-    jsonb_build_object('sub', admin_id::text, 'email', 'admin@racepace.test', 'email_verified', true),
-    'email', now(), now(), now()
-  );
+  )
+  select gen_random_uuid(), v.id, v.id::text,
+         jsonb_build_object('sub', v.id::text, 'email', v.email, 'email_verified', true),
+         'email', now(), now(), now()
+  from (values
+    (plat,  'admin@racepace.test'),
+    (muspo, 'muspo@racepace.test'),
+    (rwp,   'runwithpoint@racepace.test')
+  ) as v(id, email);
 
-  -- Admin on BOTH orgs: the event-images storage policy checks the first path
-  -- segment (org_id) against auth_can_admin_org, so a single-org grant would
-  -- block hero uploads for the other organizer.
-  insert into user_roles (user_id, role, org_id)
-  select admin_id, 'admin', id from organizations;
+  -- org_id null = platform-wide. Org admins are bound to exactly one org.
+  insert into user_roles (user_id, role, org_id) values
+    (plat,  'super_admin', null),
+    (muspo, 'admin',       '00000000-0000-0000-0000-00000000a001'),
+    (rwp,   'admin',       '00000000-0000-0000-0000-00000000a002');
 end $$;
