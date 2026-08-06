@@ -5,8 +5,9 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { Menu, X } from "lucide-react";
+import { Menu, X, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { signOut } from "@/lib/auth";
 
 /**
  * The nav's interactive half. SiteHeader stays a server component so it can
@@ -21,8 +22,12 @@ import { cn } from "@/lib/utils";
 
 type Item = { href: string; label: string };
 
-const PUBLIC_ITEMS: Item[] = [{ href: "/events", label: "Races" }];
+const PUBLIC_ITEMS: Item[] = [
+  { href: "/", label: "Home" },
+  { href: "/events", label: "Races" },
+];
 const RUNNER_ITEMS: Item[] = [
+  { href: "/", label: "Home" },
   { href: "/events", label: "Races" },
   { href: "/races", label: "My Races" },
   { href: "/profile", label: "Profile" },
@@ -31,6 +36,9 @@ const RUNNER_ITEMS: Item[] = [
 /** `/events/abc` should light "Races"; `/racesomething` should not light
  *  "My Races". Segment boundary, same rule as lib/routes.ts. */
 function isActive(pathname: string, href: string): boolean {
+  // "/" is a prefix of every path, so it gets an exact match only — otherwise
+  // Home would stay lit on /events, /races and everything else.
+  if (href === "/") return pathname === "/";
   return pathname === href || pathname.startsWith(href + "/");
 }
 
@@ -38,7 +46,20 @@ export function SiteNav({ signedIn }: { signedIn: boolean }) {
   const pathname = usePathname() ?? "/";
   const items = signedIn ? RUNNER_ITEMS : PUBLIC_ITEMS;
   const [open, setOpen] = React.useState(false);
+  const [leaving, setLeaving] = React.useState(false);
   const reduced = useReducedMotion();
+
+  // A hard navigation, not router.push: the header is a server component that
+  // reads auth, so a client-side transition would leave it rendering the
+  // signed-in nav until something else forced a refetch.
+  const logOut = React.useCallback(async () => {
+    setLeaving(true);
+    try {
+      await signOut();
+    } finally {
+      window.location.assign("/");
+    }
+  }, []);
 
   // A route change with the sheet open must close it, or the runner lands on
   // the new page behind a menu they already dismissed in their head.
@@ -115,7 +136,17 @@ export function SiteNav({ signedIn }: { signedIn: boolean }) {
         </nav>
 
         <div className="flex shrink-0 items-center gap-2">
-          {signedIn ? null : (
+          {signedIn ? (
+            <button
+              type="button"
+              onClick={logOut}
+              disabled={leaving}
+              className="hidden items-center gap-1.5 rounded-pill border border-border px-4 py-2.5 text-[13px] font-semibold text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground disabled:opacity-60 sm:inline-flex"
+            >
+              <LogOut size={15} aria-hidden="true" />
+              {leaving ? "Logging out…" : "Log out"}
+            </button>
+          ) : (
             <Link
               href="/sign-in"
               className="rounded-pill bg-primary px-4 py-2.5 text-[13px] font-semibold text-primary-foreground transition-colors hover:bg-primary-focus sm:px-5"
@@ -195,16 +226,26 @@ export function SiteNav({ signedIn }: { signedIn: boolean }) {
               })}
             </nav>
 
-            {signedIn ? null : (
-              <div className="px-5 pt-7">
+            <div className="px-5 pt-7">
+              {signedIn ? (
+                <button
+                  type="button"
+                  onClick={logOut}
+                  disabled={leaving}
+                  className="flex w-full items-center justify-center gap-2 rounded-pill border border-white/20 py-4 text-[15px] font-semibold text-white disabled:opacity-60"
+                >
+                  <LogOut size={17} aria-hidden="true" />
+                  {leaving ? "Logging out…" : "Log out"}
+                </button>
+              ) : (
                 <Link
                   href="/sign-in"
                   className="block rounded-pill bg-primary py-4 text-center text-[15px] font-semibold text-primary-foreground"
                 >
                   Sign in
                 </Link>
-              </div>
-            )}
+              )}
+            </div>
           </motion.div>
         ) : null}
       </AnimatePresence>
