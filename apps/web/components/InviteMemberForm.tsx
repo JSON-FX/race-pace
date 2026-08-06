@@ -1,31 +1,24 @@
-import { useState, type FormEvent } from "react";
-import { ASSIGNABLE_ROLES, ROLE_LABELS, inviteMember } from "../lib/team";
-import { Input } from "./ui/input";
-import { Button } from "./ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
+"use client";
 
-export function InviteMemberForm({ orgId, onInvited }: { orgId: string; onInvited: () => void }) {
-  const [email, setEmail] = useState("");
+import { useActionState, useState } from "react";
+import { inviteMemberAction, type TeamState } from "@/lib/actions/team";
+import { ASSIGNABLE_ROLES, ROLE_LABELS } from "@/lib/team-roles";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+export function InviteMemberForm({ orgId }: { orgId: string }) {
+  const [state, formAction, pending] = useActionState<TeamState, FormData>(inviteMemberAction, {});
+  // Radix's <Select> isn't a native form control — it needs its own state
+  // mirrored into a hidden input so FormData actually carries the role.
   const [role, setRole] = useState<string>("editor");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function submit(e: FormEvent) {
-    e.preventDefault();
-    if (!email.trim()) return;
-    setBusy(true);
-    setError(null);
-    const res = await inviteMember(orgId, email.trim(), role);
-    setBusy(false);
-    if (res.ok) { setEmail(""); onInvited(); }
-    else setError(res.error ?? "Couldn't send the invite.");
-  }
 
   return (
-    <form onSubmit={submit} className="flex flex-wrap items-start gap-2">
+    <form action={formAction} className="flex flex-wrap items-start gap-2">
+      <input type="hidden" name="orgId" value={orgId} />
+      <input type="hidden" name="role" value={role} />
       <Input
-        type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-        placeholder="name@email.com" aria-label="Invite email"
+        type="email" name="email" placeholder="name@email.com" aria-label="Invite email" required
         className="min-w-[200px] flex-1"
       />
       <Select value={role} onValueChange={setRole}>
@@ -36,10 +29,11 @@ export function InviteMemberForm({ orgId, onInvited }: { orgId: string; onInvite
           {ASSIGNABLE_ROLES.map((r) => <SelectItem key={r} value={r}>{ROLE_LABELS[r]}</SelectItem>)}
         </SelectContent>
       </Select>
-      <Button type="submit" disabled={busy}>
-        {busy ? "Inviting…" : "Invite"}
+      <Button type="submit" disabled={pending}>
+        {pending ? "Inviting…" : "Invite"}
       </Button>
-      {error ? <div role="alert" className="basis-full text-[13px] text-destructive">{error}</div> : null}
+      {state.error ? <div role="alert" className="basis-full text-[13px] text-destructive">{state.error}</div> : null}
+      {state.success ? <div className="basis-full text-[13px] text-muted-foreground">{state.success}</div> : null}
     </form>
   );
 }
