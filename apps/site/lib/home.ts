@@ -6,14 +6,18 @@ import type { EventRow } from "@/lib/events";
  * events are still registerable (mirrors isRegistrationClosed — do not
  * invent a second definition of "registerable" here).
  *
- * "single" is the immersive one-event landing (the launch case: exactly one
- * open/almost_full race). "multi" is today's hero + grid. "empty" is a
- * deliberate no-races state — it can still happen with a full events table
- * if everything in it is cancelled/closed/completed.
+ * There used to be a third mode, "single": with exactly one open race the
+ * home page BECAME that race's event page. That's gone as of the shell
+ * redesign. Home is a catalog at every size of field, including a field of
+ * one — a runner who lands on `/` should always be able to tell that Race
+ * Pace lists races, and the old behaviour made a one-race season look like a
+ * one-race product. The featured slab already gives a lone race the whole
+ * top of the page, which was the real intent behind "single".
+ *
+ * "empty" is a deliberate no-races state — it can still happen with a full
+ * events table if everything in it is cancelled/closed/completed.
  */
-export function homeMode(events: Pick<EventRow, "status">[]): "single" | "multi" | "empty" {
+export function homeMode(events: Pick<EventRow, "status">[]): "multi" | "empty" {
   const registerable = events.filter((e) => !isRegistrationClosed(e.status));
-  if (registerable.length === 1) return "single";
-  if (registerable.length >= 2) return "multi";
-  return "empty";
+  return registerable.length > 0 ? "multi" : "empty";
 }
