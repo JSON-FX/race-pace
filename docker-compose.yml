@@ -27,12 +27,17 @@ services:
     environment:
       # The admin was a Vite SPA until the App Router conversion, so ONLY the
       # browser ever called Supabase and apps/web/.env.local's 127.0.0.1 was
-      # fine. Server components now fetch from inside this container, where
-      # 127.0.0.1 is the container itself and the supabase_* containers are not
-      # on dev-net. NEXT_PUBLIC_* is read by both the server and the browser, so
-      # the one value has to resolve in both — hence the LAN IP. Override
-      # LAN_IP in a .env beside this file if yours differs.
-      NEXT_PUBLIC_SUPABASE_URL: "http://${LAN_IP:-192.168.0.93}:54521"
+      # fine. Server components, Server Actions and middleware now fetch from
+      # inside this container, where 127.0.0.1 is the container itself and the
+      # supabase_* containers are not on dev-net.
+      #
+      # NEXT_PUBLIC_SUPABASE_URL is read by BOTH the server and the browser, so
+      # it cannot satisfy both. Rather than pin a LAN IP here — which silently
+      # breaks the moment the host changes network, as it did — the server side
+      # reads SUPABASE_INTERNAL_URL when set (see lib/supabase/server.ts) and
+      # the browser keeps .env.local's 127.0.0.1, which is correct from the
+      # host. host.docker.internal is provided by Docker Desktop.
+      SUPABASE_INTERNAL_URL: "http://host.docker.internal:54521"
       # Next dev's file watcher needs polling across the bind mount.
       WATCHPACK_POLLING: "true"
     labels:
@@ -56,8 +61,17 @@ services:
       - "traefik.http.services.racepace-admin-${STACK_ID:-fff722}.loadbalancer.server.port=3001"
     volumes:
       - ./:/repo
-      - repo_node_modules:/repo/node_modules
+      # Each service gets its OWN root node_modules. They used to share one, and
+      # since every service's command starts with `pnpm install`, starting or
+      # recreating either one rewrote the shared tree underneath the other's
+      # running dev server — which exited cleanly mid-request. Separate volumes
+      # cost some disk and buy independence.
+      - web_repo_node_modules:/repo/node_modules
       - web_node_modules:/repo/apps/web/node_modules
+      # Keep the container's dev build off the bind mount. Running `pnpm build`
+      # on the HOST used to corrupt this container's .next through the shared
+      # mount, which took pages down to unstyled HTML mid-session.
+      - web_next:/repo/apps/web/.next
       - pnpm_store:/repo/.pnpm-store
 
   # Public runner site (apps/site, Next.js) at https://racepace.lan
@@ -75,6 +89,10 @@ services:
       # localhost. This is what builds PayMongo's return_url — wrong value and
       # the runner lands on a dead origin right after paying.
       NEXT_PUBLIC_SITE_URL: "https://racepace.lan"
+      # Same split as the web service: server-side code fetches from inside this
+      # container, where 127.0.0.1 is the container itself, while the browser
+      # needs the host-facing URL. See apps/site/lib/supabase/server.ts.
+      SUPABASE_INTERNAL_URL: "http://host.docker.internal:54521"
       # Next dev's HMR websocket must dial the browser-visible host, not the
       # container's internal port.
       WATCHPACK_POLLING: "true"
@@ -98,7 +116,7 @@ services:
       - "traefik.http.services.racepace-site-${STACK_ID:-fff722}.loadbalancer.server.port=3000"
     volumes:
       - ./:/repo
-      - repo_node_modules:/repo/node_modules
+      - site_repo_node_modules:/repo/node_modules
       - site_node_modules:/repo/apps/site/node_modules
       - site_next:/repo/apps/site/.next
       - pnpm_store:/repo/.pnpm-store
@@ -107,8 +125,10 @@ networks:
   dev-net:
     external: true
 volumes:
-  repo_node_modules:
+  web_repo_node_modules:
+  site_repo_node_modules:
   web_node_modules:
   site_node_modules:
+  web_next:
   site_next:
   pnpm_store:
