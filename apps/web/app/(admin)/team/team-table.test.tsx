@@ -7,9 +7,17 @@ import { tableParamsMockReturn, resetTableParamsSpies } from "@/lib/test-utils/m
 
 vi.mock("@/lib/use-table-params", () => ({ useTableParams: () => tableParamsMockReturn }));
 
+// Typed explicitly as the real actions' return shape (see
+// lib/actions/team.ts's changeRoleAction/removeMemberAction:
+// `Promise<{ ok: boolean; error?: string }>`) rather than left to infer
+// from the literal `{ ok: true }` the mock happens to resolve with first.
+// Without this, TS narrows the inferred return type to `{ ok: true }` only,
+// and every `mockResolvedValueOnce({ ok: false, error: "..." })` below
+// fails to typecheck (TS2353) — the mock and the real action must agree on
+// shape for the test to mean anything.
 const { changeRoleAction, removeMemberAction } = vi.hoisted(() => ({
-  changeRoleAction: vi.fn(() => Promise.resolve({ ok: true })),
-  removeMemberAction: vi.fn(() => Promise.resolve({ ok: true })),
+  changeRoleAction: vi.fn<() => Promise<{ ok: boolean; error?: string }>>(() => Promise.resolve({ ok: true })),
+  removeMemberAction: vi.fn<() => Promise<{ ok: boolean; error?: string }>>(() => Promise.resolve({ ok: true })),
 }));
 vi.mock("@/lib/actions/team", () => ({ changeRoleAction, removeMemberAction }));
 
