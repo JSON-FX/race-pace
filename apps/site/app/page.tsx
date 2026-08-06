@@ -3,7 +3,6 @@ import { createClient } from "@/lib/supabase/server";
 import { fetchMarketplaceEvents, fetchCategories } from "@/lib/events";
 import { EventCard } from "@/components/EventCard";
 import { SiteHeader } from "@/components/SiteHeader";
-import { SiteFooter } from "@/components/SiteFooter";
 import { FeaturedRace } from "@/components/FeaturedRace";
 import { RaceRail } from "@/components/RaceRail";
 import { SeasonBand } from "@/components/SeasonBand";
@@ -43,7 +42,6 @@ export default async function Home() {
             ) : null}
           </section>
         </main>
-        <SiteFooter />
       </>
     );
   }
@@ -159,7 +157,6 @@ export default async function Home() {
           </section>
         ) : null}
       </main>
-      <SiteFooter />
     </>
   );
 }

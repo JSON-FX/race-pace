@@ -4,7 +4,6 @@ import { createClient } from "@/lib/supabase/server";
 import { fetchMarketplaceEvents } from "@/lib/events";
 import { EventCard } from "@/components/EventCard";
 import { SiteHeader } from "@/components/SiteHeader";
-import { SiteFooter } from "@/components/SiteFooter";
 import { Reveal } from "@/components/event/motion-primitives";
 import { applyFilters, hasAnyFilter, parseFilters, provincesOf } from "@/lib/eventFilters";
 import { EventFilters } from "./EventFilters";
@@ -82,7 +81,6 @@ export default async function EventsPage({
           </div>
         )}
       </main>
-      <SiteFooter />
     </>
   );
 }

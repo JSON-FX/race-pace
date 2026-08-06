@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { SiteHeader } from "@/components/SiteHeader";
-import { SiteFooter } from "@/components/SiteFooter";
 import { RacesList } from "./RacesList";
 
 export const dynamic = "force-dynamic";
@@ -28,7 +27,6 @@ export default async function RacesPage() {
           <RacesList />
         </div>
       </main>
-      <SiteFooter />
     </>
   );
 }

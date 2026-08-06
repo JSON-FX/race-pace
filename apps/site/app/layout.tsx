@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Archivo, Archivo_Narrow, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
+import { SiteFooter } from "@/components/SiteFooter";
 
 // Archivo carries the editorial-magazine headlines (oversized, tight
 // tracking) while body copy stays on the system stack in globals.css —
@@ -20,7 +21,16 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${archivo.variable} ${archivoNarrow.variable} ${jetbrainsMono.variable}`}>
-      <body><Providers>{children}</Providers></body>
+      {/* min-h-dvh + flex so the footer sits at the BOTTOM of a short page
+          (sign-in, a one-line error) instead of floating under the fold. */}
+      <body className="flex min-h-dvh flex-col">
+        <Providers>
+          <div className="flex flex-1 flex-col">{children}</div>
+          {/* Rendered here, not per page: six routes had silently shipped
+              without it, and every new route would have had to remember. */}
+          <SiteFooter />
+        </Providers>
+      </body>
     </html>
   );
 }
