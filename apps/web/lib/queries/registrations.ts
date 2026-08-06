@@ -164,6 +164,24 @@ export const getOrgRegistrationCount = cache(async (orgId: string): Promise<numb
   return count ?? 0;
 });
 
+/** Org-wide pending-payment count for the Registrations page header subtitle
+ *  (`N total across M events · K pending payment`). Same view/pattern as
+ *  `getOrgRegistrationCount` above — `admin_registrations_v` already carries
+ *  `org_id` and `payment_status`, so this is a second head:true count, not a
+ *  new RPC or a client-side recompute. Scoped to the whole org (every event),
+ *  deliberately NOT the single event `getRegistrationAggregates` describes —
+ *  the subtitle is a cross-event figure by spec. */
+export const getOrgPendingRegistrationCount = cache(async (orgId: string): Promise<number> => {
+  const supabase = await createClient();
+  const { count, error } = await supabase
+    .from("admin_registrations_v")
+    .select("id", { count: "exact", head: true })
+    .eq("org_id", orgId)
+    .eq("payment_status", "pending");
+  if (error) throw error;
+  return count ?? 0;
+});
+
 export type RegistrationAggregates = {
   total: number;
   paid: number;

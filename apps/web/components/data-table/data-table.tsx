@@ -10,6 +10,7 @@ import { AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
+import { Card } from "@/components/ui/card";
 import { useTableParams } from "@/lib/use-table-params";
 import type { SortState } from "@/lib/table-params";
 import { DataTableToolbar } from "./toolbar";
@@ -159,7 +160,7 @@ export function DataTable<TData>({
           result count without hunting for it. */}
       <p role="status" aria-live="polite" className="sr-only">{total} results</p>
 
-      <div className={cn("overflow-hidden rounded-xl border border-border bg-card", params.isPending && "opacity-60 transition-opacity")}>
+      <Card className={cn("gap-0 overflow-hidden rounded-xl border py-0 shadow-card", params.isPending && "opacity-60 transition-opacity")}>
         {selectable ? (
           <BulkBar count={selectedIds.length} ids={selectedIds} actions={bulkActions} onClear={() => setSelected({})} />
         ) : null}
@@ -263,7 +264,7 @@ export function DataTable<TData>({
           <DataTablePagination page={page} per={per} total={total}
             onPageChange={params.setPage} onPerChange={params.setPer} />
         ) : null}
-      </div>
+      </Card>
     </div>
   );
 }

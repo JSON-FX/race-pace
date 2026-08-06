@@ -27,7 +27,7 @@ export default async function PaymentsPage({
     return (
       <div className="px-4 pb-10 pt-6 md:px-[30px]">
         <div className="mb-5">
-          <h1 className="text-xl font-bold tracking-tight">Payments</h1>
+          <h1 className="text-[21px] font-bold tracking-[-0.02em]">Payments</h1>
         </div>
         <NoOrgScope />
       </div>
@@ -48,8 +48,8 @@ export default async function PaymentsPage({
     <div className="px-4 pb-10 pt-6 md:px-[30px]">
       <div className="mb-5 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold tracking-tight">Payments</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">
+          <h1 className="text-[21px] font-bold tracking-[-0.02em]">Payments</h1>
+          <p className="mt-0.5 text-[13px] text-muted-foreground">
             <span className="font-mono tabular">{total}</span> transaction{total === 1 ? "" : "s"}
           </p>
         </div>

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ClipboardList, CheckCircle2, Wallet, Undo2, Download } from "lucide-react";
+import { ClipboardList, CheckCircle2, Wallet, Undo2, Download, Plus } from "lucide-react";
 import { parseTableParams, serializeTableParams } from "@/lib/table-params";
 import { getMyRoles, requireOrgId } from "@/lib/queries/roles";
 import {
@@ -7,11 +7,15 @@ import {
   listOrgEventOptions,
   listEventCategories,
   getRegistrationAggregates,
+  getOrgRegistrationCount,
+  getOrgPendingRegistrationCount,
 } from "@/lib/queries/registrations";
 import { TableEmptyState } from "@/components/data-table";
 import { NoOrgScope } from "@/components/no-org-scope";
 import { KpiCard, KpiRow } from "@/components/kpi-card";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { peso } from "@/lib/format";
 import { EventPicker } from "./event-picker";
 import { RegistrationsTable } from "./registrations-table";
@@ -34,7 +38,7 @@ export default async function RegistrationsPage({
     return (
       <div className="px-4 pb-10 pt-6 md:px-[30px]">
         <div className="mb-5">
-          <h1 className="text-xl font-bold tracking-tight">Registrations</h1>
+          <h1 className="text-[21px] font-bold tracking-[-0.02em]">Registrations</h1>
         </div>
         <NoOrgScope />
       </div>
@@ -51,10 +55,10 @@ export default async function RegistrationsPage({
   if (!eventId) {
     return (
       <div className="px-4 pb-10 pt-6 md:px-[30px]">
-        <h1 className="mb-5 text-xl font-bold tracking-tight">Registrations</h1>
-        <div className="rounded-xl border border-border bg-card">
+        <h1 className="mb-5 text-[21px] font-bold tracking-[-0.02em]">Registrations</h1>
+        <Card className="gap-0 overflow-hidden rounded-xl border py-0 shadow-card">
           <TableEmptyState title="No events yet" description="Create an event before you can take registrations." />
-        </div>
+        </Card>
       </div>
     );
   }
@@ -70,32 +74,65 @@ export default async function RegistrationsPage({
     DEFAULTS,
   )}`;
 
-  const [{ rows, total }, categories, aggregates] = await Promise.all([
+  const [{ rows, total }, categories, aggregates, orgTotal, orgPending] = await Promise.all([
     listEventRegistrations(eventId, params),
     listEventCategories(eventId),
     // Same event + same filters as the table above — see getRegistrationAggregates'
     // doc comment for why this is an RPC over the shared view rather than a sum
     // over `rows` (which would describe one page, not the filtered set).
     getRegistrationAggregates(eventId, params),
+    // Subtitle figures ("N total across M events · K pending payment") are
+    // deliberately ORG-wide, not scoped to the selected event/filters the
+    // way `aggregates` above is — see getOrgRegistrationCount and
+    // getOrgPendingRegistrationCount's doc comments.
+    getOrgRegistrationCount(orgId),
+    getOrgPendingRegistrationCount(orgId),
   ]);
 
   return (
     <div className="px-4 pb-10 pt-6 md:px-[30px]">
       <div className="mb-5 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold tracking-tight">Registrations</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            <span className="font-mono tabular">{total}</span> registration{total === 1 ? "" : "s"} for this event
+          <h1 className="text-[21px] font-bold tracking-[-0.02em]">Registrations</h1>
+          <p className="mt-0.5 text-[13px] text-muted-foreground">
+            <span className="font-mono tabular">{orgTotal.toLocaleString()}</span> total across{" "}
+            <span className="font-mono tabular">{events.length}</span> event{events.length === 1 ? "" : "s"} ·{" "}
+            <span className="font-mono tabular">{orgPending.toLocaleString()}</span> pending payment
           </p>
         </div>
-        {/* Manual entry (primary, Plus) is out of scope for this task — see
-            task-v4-report.md. Only the Export CSV route + button ships here. */}
-        <Button variant="outline" asChild>
-          <Link href={exportHref}>
-            <Download />
-            Export CSV
-          </Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" asChild>
+            <Link href={exportHref}>
+              <Download />
+              Export CSV
+            </Link>
+          </Button>
+          {/* Manual entry: honest-disabled, not a dead-looking live button —
+              see components/data-table/bulk-bar.tsx's `disabled`/
+              `disabledReason` pattern (task-v3-report.md, "bulk actions:
+              real vs disabled"). There is no create-registration RPC or
+              Server Action yet (grepped supabase/functions and
+              supabase/migrations — nothing named "manual" or
+              "create_registration" exists), and a registration created here would need a
+              payment_status decision (paid? pending? which method?) with no
+              PayMongo transaction behind it. Shipping a wired-looking button
+              that silently does nothing would be worse than this. */}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span tabIndex={0} aria-label="Manual entry isn't built yet — there's no create-registration RPC or Server Action.">
+                  <Button disabled aria-disabled>
+                    <Plus />
+                    Manual entry
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>
+                Manual entry isn&apos;t built yet — there&apos;s no create-registration RPC or Server Action.
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
       </div>
 
       <KpiRow>

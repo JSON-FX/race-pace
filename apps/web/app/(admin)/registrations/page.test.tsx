@@ -13,7 +13,10 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/registrations",
 }));
 
-const { listEventRegistrations, listOrgEventOptions, listEventCategories, getRegistrationAggregates, getMyRoles } = vi.hoisted(() => ({
+const {
+  listEventRegistrations, listOrgEventOptions, listEventCategories, getRegistrationAggregates,
+  getOrgRegistrationCount, getOrgPendingRegistrationCount, getMyRoles,
+} = vi.hoisted(() => ({
   // Explicit return-type annotations, not inference, on these throwing
   // defaults: an arrow function whose body is only `throw` infers `never`,
   // which then rejects every later `.mockResolvedValue(...)` call below with
@@ -30,6 +33,14 @@ const { listEventRegistrations, listOrgEventOptions, listEventCategories, getReg
   getRegistrationAggregates: vi.fn((): Promise<RegistrationAggregates> => {
     throw new Error("must not be called");
   }),
+  // Header-subtitle figures ("N total across M events · K pending payment")
+  // — org-wide, independent of the event/filters scope above.
+  getOrgRegistrationCount: vi.fn((): Promise<number> => {
+    throw new Error("must not be called");
+  }),
+  getOrgPendingRegistrationCount: vi.fn((): Promise<number> => {
+    throw new Error("must not be called");
+  }),
   getMyRoles: vi.fn(),
 }));
 
@@ -38,6 +49,8 @@ vi.mock("@/lib/queries/registrations", () => ({
   listOrgEventOptions,
   listEventCategories,
   getRegistrationAggregates,
+  getOrgRegistrationCount,
+  getOrgPendingRegistrationCount,
 }));
 
 vi.mock("@/lib/queries/roles", async () => {
@@ -73,6 +86,8 @@ describe("RegistrationsPage", () => {
     getRegistrationAggregates.mockResolvedValue({
       total: 4, paid: 2, grossCents: 480000, refundCount: 1, refundedCents: 120000, newThisWeek: 2,
     });
+    getOrgRegistrationCount.mockResolvedValue(4);
+    getOrgPendingRegistrationCount.mockResolvedValue(1);
 
     const ui = await RegistrationsPage({ searchParams: Promise.resolve({}) });
     render(ui);
@@ -99,9 +114,20 @@ describe("RegistrationsPage", () => {
     expect(screen.getByText("₱1,200")).toBeInTheDocument();
     // "1 request", NOT "1 request · 0 pending" — there is no refund-approval
     // queue backing a pending count, so asserting "0 pending" would claim an
-    // answer the system doesn't have. See IMPORTANT 3 in the V2 review.
+    // answer the system doesn't have. See IMPORTANT 3 in the V2 review. (The
+    // page header subtitle DOES say "pending payment" — that's the org-wide
+    // payment_status='pending' count, a real query, not the same "no data"
+    // case as the refund queue.)
     expect(screen.getByText("1 request")).toBeInTheDocument();
-    expect(screen.queryByText(/pending/)).not.toBeInTheDocument();
+    // The subtitle's figures each live in their own `<span>` (for
+    // `font-mono tabular`), so its full text is split across sibling nodes —
+    // match against the header <p>'s own textContent rather than
+    // getByText's default (direct-text-node-only) matching.
+    expect(
+      screen.getByText(
+        (_, element) => element?.tagName === "P" && element.textContent === "4 total across 1 event · 1 pending payment",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("renders zeroed KPI cards, not a blank row, when the filtered set is empty", async () => {
@@ -112,6 +138,8 @@ describe("RegistrationsPage", () => {
     getRegistrationAggregates.mockResolvedValue({
       total: 0, paid: 0, grossCents: 0, refundCount: 0, refundedCents: 0, newThisWeek: 0,
     });
+    getOrgRegistrationCount.mockResolvedValue(0);
+    getOrgPendingRegistrationCount.mockResolvedValue(0);
 
     const ui = await RegistrationsPage({ searchParams: Promise.resolve({}) });
     render(ui);
@@ -120,6 +148,15 @@ describe("RegistrationsPage", () => {
     expect(screen.getByText("0.0% conversion")).toBeInTheDocument();
     expect(screen.getAllByText("₱0").length).toBeGreaterThanOrEqual(2); // gross revenue + refunds
     expect(screen.getByText("0 requests")).toBeInTheDocument();
-    expect(screen.queryByText(/pending/)).not.toBeInTheDocument();
+    // Refunds delta stays "0 requests" (not "0 requests · 0 pending" — no
+    // refund-approval queue exists to answer that question, see the test
+    // above). The header subtitle's "0 pending payment" is a different,
+    // real figure (org-wide payment_status='pending' count) and is expected
+    // to be present here.
+    expect(
+      screen.getByText(
+        (_, element) => element?.tagName === "P" && element.textContent === "0 total across 1 event · 0 pending payment",
+      ),
+    ).toBeInTheDocument();
   });
 });

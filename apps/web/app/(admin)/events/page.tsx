@@ -26,7 +26,7 @@ export default async function EventsPage({
     return (
       <div className="px-4 pb-10 pt-6 md:px-[30px]">
         <div className="mb-5">
-          <h1 className="text-xl font-bold tracking-tight">Events</h1>
+          <h1 className="text-[21px] font-bold tracking-[-0.02em]">Events</h1>
         </div>
         <NoOrgScope />
       </div>
@@ -39,8 +39,8 @@ export default async function EventsPage({
     <div className="px-4 pb-10 pt-6 md:px-[30px]">
       <div className="mb-5 flex flex-wrap items-start gap-4">
         <div>
-          <h1 className="text-xl font-bold tracking-tight">Events</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">
+          <h1 className="text-[21px] font-bold tracking-[-0.02em]">Events</h1>
+          <p className="mt-0.5 text-[13px] text-muted-foreground">
             <span className="font-mono tabular">{total}</span> event{total === 1 ? "" : "s"} in this organization
           </p>
         </div>

@@ -1,4 +1,5 @@
 import { TableEmptyState } from "@/components/data-table";
+import { Card } from "@/components/ui/card";
 
 /**
  * Rendered by TeamPage when the caller clears the (admin) layout's
@@ -15,11 +16,11 @@ import { TableEmptyState } from "@/components/data-table";
  */
 export function OrgAdminsOnly() {
   return (
-    <div className="overflow-hidden rounded-xl border border-border bg-card">
+    <Card className="gap-0 overflow-hidden rounded-xl border py-0 shadow-card">
       <TableEmptyState
         title="Organization admins only"
         description="Managing your team's roles and invitations is limited to organization admins. Ask an admin if you need a change made here."
       />
-    </div>
+    </Card>
   );
 }

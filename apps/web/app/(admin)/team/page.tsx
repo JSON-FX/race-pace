@@ -24,7 +24,7 @@ export default async function TeamPage({
     return (
       <div className="px-4 pb-10 pt-6 md:px-[30px]">
         <div className="mb-5">
-          <h1 className="text-xl font-bold tracking-tight">Team</h1>
+          <h1 className="text-[21px] font-bold tracking-[-0.02em]">Team</h1>
         </div>
         <NoOrgScope />
       </div>
@@ -44,7 +44,7 @@ export default async function TeamPage({
     return (
       <div className="px-4 pb-10 pt-6 md:px-[30px]">
         <div className="mb-5">
-          <h1 className="text-xl font-bold tracking-tight">Team</h1>
+          <h1 className="text-[21px] font-bold tracking-[-0.02em]">Team</h1>
         </div>
         <OrgAdminsOnly />
       </div>
@@ -57,8 +57,8 @@ export default async function TeamPage({
     <div className="px-4 pb-10 pt-6 md:px-[30px]">
       <div className="mb-5 flex flex-wrap items-start gap-4">
         <div>
-          <h1 className="text-xl font-bold tracking-tight">Team</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">
+          <h1 className="text-[21px] font-bold tracking-[-0.02em]">Team</h1>
+          <p className="mt-0.5 text-[13px] text-muted-foreground">
             <span className="font-mono tabular">{total}</span> member{total === 1 ? "" : "s"}
           </p>
         </div>

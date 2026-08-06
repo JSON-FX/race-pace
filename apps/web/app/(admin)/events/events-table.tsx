@@ -8,6 +8,7 @@ import { DataTable, type FilterDef } from "@/components/data-table";
 import { EventStatusBadge } from "@/components/StatusBadge";
 import type { AdminEventRow } from "@/lib/queries/events";
 import type { SortState } from "@/lib/table-params";
+import { fmtDate as fmtDateBase } from "@/lib/format";
 
 // Mirrors the Postgres `event_status` enum (draft, open, almost_full,
 // closed, completed, cancelled — see supabase/migrations) and the labels
@@ -26,8 +27,10 @@ const STATUS_FILTER: FilterDef = {
   ],
 };
 
-const fmtDate = (d: string | null) =>
-  d ? new Date(d).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "—";
+// Thin null-guard over lib/format's fmtDate — that helper takes a non-null
+// `string` (every OTHER caller has a guaranteed date), but `event_date` on
+// this table is nullable. Never hand-roll the actual formatting here.
+const fmtDate = (d: string | null) => (d ? fmtDateBase(d) : "—");
 
 export function EventsTable({ rows, total, page, per, sort, activeFilters, q }: {
   rows: AdminEventRow[]; total: number; page: number; per: number;

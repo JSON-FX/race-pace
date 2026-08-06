@@ -1,4 +1,5 @@
 import { Inbox } from "lucide-react";
+import { Card } from "@/components/ui/card";
 
 export function TableEmptyState({ title, description, action }: {
   title: string; description: string; action?: React.ReactNode;
@@ -17,7 +18,7 @@ export function TableEmptyState({ title, description, action }: {
 
 export function DataTableSkeleton({ rows = 8, columns = 5 }: { rows?: number; columns?: number }) {
   return (
-    <div className="overflow-hidden rounded-xl border border-border bg-card">
+    <Card className="gap-0 overflow-hidden rounded-xl border py-0 shadow-card">
       <div className="h-10 border-b border-divider bg-muted/60" />
       {Array.from({ length: rows }).map((_, r) => (
         // 44px matches the real row height, so nothing shifts when data lands.
@@ -27,6 +28,6 @@ export function DataTableSkeleton({ rows = 8, columns = 5 }: { rows?: number; co
           ))}
         </div>
       ))}
-    </div>
+    </Card>
   );
 }

@@ -1,4 +1,5 @@
 import { TableEmptyState } from "@/components/data-table";
+import { Card } from "@/components/ui/card";
 
 /**
  * Rendered by org-scoped pages (Events, and Registrations/Payments/Team/
@@ -12,11 +13,11 @@ import { TableEmptyState } from "@/components/data-table";
  */
 export function NoOrgScope() {
   return (
-    <div className="overflow-hidden rounded-xl border border-border bg-card">
+    <Card className="gap-0 overflow-hidden rounded-xl border py-0 shadow-card">
       <TableEmptyState
         title="No organization on this account"
         description="This account isn't attached to an organization, so there's nothing to show here. Org-scoped pages need an organization — ask a super admin to scope your account to one."
       />
-    </div>
+    </Card>
   );
 }
