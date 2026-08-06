@@ -240,7 +240,7 @@ export function CourseDrawEditor({
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-background">
-      <div className="flex flex-wrap items-center gap-2 border-b border-border px-5 py-3">
+      <div className="flex flex-wrap items-center gap-2 border-b border-divider px-5 py-3">
         <span className="mr-2 text-[14px] font-semibold">Draw the course</span>
 
         <Button type="button" size="sm" variant="outline" onClick={undo} disabled={history.length === 0}>
@@ -302,7 +302,7 @@ export function CourseDrawEditor({
       </div>
 
       {initialRoute ? (
-        <p className="border-b border-border bg-muted px-5 py-2 text-[12.5px] text-muted-foreground">
+        <p className="border-b border-divider bg-muted px-5 py-2 text-[12.5px] text-muted-foreground">
           Editing an imported course. What you save here REPLACES it, simplified to the handles
           shown — cancel to keep the original untouched. Turning on “snap to trails” will re-route
           between handles and can change the course substantially.

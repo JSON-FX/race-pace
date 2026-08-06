@@ -27,7 +27,7 @@ export function AddonEditor({ rows, onChange }: { rows: AddonDraft[]; onChange: 
         </div>
       ) : null}
       {rows.map((r, i) => (
-        <div key={r.id ?? r.tempId} className={`grid items-center gap-2 border-t border-border py-2.5 ${GRID}`}>
+        <div key={r.id ?? r.tempId} className={`grid items-center gap-2 border-t border-divider py-2.5 ${GRID}`}>
           <Input aria-label="Add-on name" placeholder="Event singlet" className="h-auto rounded-lg px-2.5 py-[7px] text-[13px]" value={r.name} onChange={(e) => set(i, { name: e.target.value })} />
           <Input aria-label="Add-on price" placeholder="₱" type="number" step="0.01" className="h-auto rounded-lg px-2.5 py-[7px] text-[13px]" value={peso(r.price)} onChange={(e) => set(i, { price: cent(e.target.value) })} />
           <Button aria-label="Remove add-on" variant="ghost" size="icon" onClick={() => onChange(rows.filter((_, j) => j !== i))} className="h-auto w-auto p-0 text-base text-destructive hover:bg-transparent">×</Button>

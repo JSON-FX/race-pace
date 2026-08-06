@@ -160,6 +160,11 @@
 }
 
 @layer base {
+  /* Tailwind v4 defaults border-color to currentColor (v3 defaulted to
+     gray-200). Without this, every unqualified border-b/-t/-l/-r utility
+     (e.g. components/ui/table.tsx's bare `border-b`) resolves its colour to
+     --foreground (near-black) instead of the intended --border token. */
+  * { @apply border-border outline-ring/50; }
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; }
   body {

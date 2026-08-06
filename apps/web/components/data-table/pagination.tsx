@@ -30,7 +30,7 @@ export function DataTablePagination({
   const pageCount = Math.max(1, Math.ceil(total / per));
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-4 border-t border-border px-4 py-3">
+    <div className="flex flex-wrap items-center justify-between gap-4 border-t border-divider px-4 py-3">
       <div className="flex items-center gap-2.5 text-[13px] text-muted-foreground">
         <span>Rows per page</span>
         <Select value={String(per)} onValueChange={(v) => onPerChange(Number(v))}>

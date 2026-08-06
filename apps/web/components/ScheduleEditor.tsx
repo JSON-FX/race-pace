@@ -37,7 +37,7 @@ export function ScheduleEditor({ rows, onChange }: { rows: ScheduleItem[]; onCha
         <p className="mt-2 text-[13px] text-muted-foreground">No schedule yet — add the first row when the timeline is set.</p>
       )}
       {rows.map((r, i) => (
-        <div key={i} className={`grid items-center gap-2 border-t border-border py-2.5 ${GRID}`}>
+        <div key={i} className={`grid items-center gap-2 border-t border-divider py-2.5 ${GRID}`}>
           <Input aria-label="Schedule time" type="time" className="h-auto w-[110px] rounded-lg px-2.5 py-[7px] text-[13px]" value={r.time} onChange={(e) => set(i, { time: e.target.value })} />
           <Input aria-label="Schedule label" placeholder="e.g. Gun start, 21K and 10K" className="h-auto rounded-lg px-2.5 py-[7px] text-[13px]" value={r.label} onChange={(e) => set(i, { label: e.target.value })} />
           <Button aria-label="Move row up" variant="ghost" size="icon" disabled={i === 0} onClick={() => onChange(swap(rows, i, i - 1))} className="h-auto w-auto p-0 text-sm text-muted-foreground hover:bg-transparent disabled:opacity-30">↑</Button>

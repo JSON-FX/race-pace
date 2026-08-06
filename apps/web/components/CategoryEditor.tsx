@@ -31,7 +31,7 @@ export function CategoryEditor({ rows, onChange }: { rows: CategoryDraft[]; onCh
         </div>
       ) : null}
       {rows.map((r, i) => (
-        <div key={r.id ?? r.tempId} className="border-t border-border py-2.5">
+        <div key={r.id ?? r.tempId} className="border-t border-divider py-2.5">
           <div className={`grid items-center gap-2 ${GRID}`}>
             <Input aria-label="Category code" placeholder="e.g. 21k" className="h-auto rounded-lg px-2.5 py-[7px] text-[13px]" value={r.code} onChange={(e) => set(i, { code: e.target.value })} />
             <Input aria-label="Category label" placeholder="e.g. 21K Trail Run" className="h-auto rounded-lg px-2.5 py-[7px] text-[13px]" value={r.label} onChange={(e) => set(i, { label: e.target.value })} />

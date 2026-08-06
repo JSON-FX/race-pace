@@ -18,7 +18,7 @@ export function TopBar({ orgName }: { orgName: string | null }) {
     : TITLES[pathname] ?? "Dashboard";
 
   return (
-    <header className="flex h-[66px] shrink-0 items-center gap-3 border-b border-border bg-card px-4 md:px-[22px]">
+    <header className="flex h-[66px] shrink-0 items-center gap-3 border-b border-divider bg-card px-4 md:px-[22px]">
       <SidebarTrigger />
       <Breadcrumb>
         <BreadcrumbList className="flex-nowrap gap-1.5 text-xs text-muted-foreground sm:gap-1.5">

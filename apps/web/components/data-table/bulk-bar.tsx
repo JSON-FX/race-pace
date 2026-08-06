@@ -15,7 +15,7 @@ export function BulkBar({ count, ids, actions, onClear }: {
 }) {
   if (count === 0) return null;
   return (
-    <div className="flex flex-wrap items-center gap-2.5 border-b border-border bg-accent px-4 py-2.5">
+    <div className="flex flex-wrap items-center gap-2.5 border-b border-divider bg-accent px-4 py-2.5">
       <span className="text-[13px] font-semibold text-accent-foreground">{count} selected</span>
       {actions.map((a) => (
         <Button key={a.label} size="sm" variant={a.variant === "destructive" ? "destructive" : "outline"}

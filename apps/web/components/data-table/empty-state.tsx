@@ -18,10 +18,10 @@ export function TableEmptyState({ title, description, action }: {
 export function DataTableSkeleton({ rows = 8, columns = 5 }: { rows?: number; columns?: number }) {
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-card">
-      <div className="h-10 border-b border-border bg-muted/60" />
+      <div className="h-10 border-b border-divider bg-muted/60" />
       {Array.from({ length: rows }).map((_, r) => (
         // 44px matches the real row height, so nothing shifts when data lands.
-        <div key={r} className="flex h-11 items-center gap-4 border-b border-border px-4 last:border-b-0">
+        <div key={r} className="flex h-11 items-center gap-4 border-b border-divider px-4 last:border-b-0">
           {Array.from({ length: columns }).map((_, c) => (
             <div key={c} className="h-3 flex-1 animate-pulse rounded bg-muted" />
           ))}

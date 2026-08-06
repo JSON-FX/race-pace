@@ -30,7 +30,7 @@ export function InclusionsEditor({ rows, onChange }: { rows: string[]; onChange:
         <p className="mt-2 text-[13px] text-muted-foreground">No inclusions yet — add the first row to show this section on the public page.</p>
       ) : null}
       {rows.map((r, i) => (
-        <div key={i} className={`grid items-center gap-2 border-t border-border py-2.5 ${GRID}`}>
+        <div key={i} className={`grid items-center gap-2 border-t border-divider py-2.5 ${GRID}`}>
           <Input
             aria-label="Inclusion"
             placeholder="e.g. Finisher medal and summit certificate"
