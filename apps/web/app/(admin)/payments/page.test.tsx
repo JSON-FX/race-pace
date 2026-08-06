@@ -9,7 +9,15 @@ import { tableParamsMockReturn, resetTableParamsSpies } from "@/lib/test-utils/m
 // other DataTable-rendering test in this app does.
 vi.mock("@/lib/use-table-params", () => ({ useTableParams: () => tableParamsMockReturn }));
 
-const { listOrgPayments, getPaymentAggregates, listOrgPaymentMethods, getMyRoles } = vi.hoisted(() => ({
+// The event picker is a Client Component using the app-router hooks; the page
+// renders it, so they must exist even though these tests assert on the readers.
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
+  usePathname: () => "/payments",
+  useSearchParams: () => new URLSearchParams(),
+}));
+
+const { listOrgPayments, getPaymentAggregates, listOrgPaymentMethods, getMyRoles, listOrgEventOptions } = vi.hoisted(() => ({
   // Explicit return-type annotations, not inference, on these throwing
   // defaults: an arrow function whose body is only `throw` infers `never`,
   // which then rejects every later `.mockResolvedValue(...)` call below with
@@ -24,9 +32,16 @@ const { listOrgPayments, getPaymentAggregates, listOrgPaymentMethods, getMyRoles
     throw new Error("must not be called");
   }),
   getMyRoles: vi.fn(),
+  listOrgEventOptions: vi.fn((): Promise<{ id: string; name: string; count: number }[]> => {
+    throw new Error("must not be called");
+  }),
 }));
 
 vi.mock("@/lib/queries/payments", () => ({ listOrgPayments, getPaymentAggregates, listOrgPaymentMethods }));
+
+// The event picker's option list. Mocked because the real reader opens a
+// Supabase server client, and `cookies()` throws outside a request scope.
+vi.mock("@/lib/queries/registrations", () => ({ listOrgEventOptions }));
 
 vi.mock("@/lib/queries/roles", async () => {
   const actual = await vi.importActual<typeof import("@/lib/queries/roles")>("@/lib/queries/roles");
@@ -50,6 +65,7 @@ describe("PaymentsPage", () => {
     expect(listOrgPayments).not.toHaveBeenCalled();
     expect(getPaymentAggregates).not.toHaveBeenCalled();
     expect(listOrgPaymentMethods).not.toHaveBeenCalled();
+    expect(listOrgEventOptions).not.toHaveBeenCalled();
   });
 
   it("renders the KPI row from the aggregates reader, scoped to the same org and filters as the table", async () => {
@@ -57,6 +73,7 @@ describe("PaymentsPage", () => {
     listOrgPayments.mockResolvedValue({ rows: [], total: 3 });
     getPaymentAggregates.mockResolvedValue({ grossCents: 600000, feeCents: 30000, netCents: 456000, refundedCents: 120000 });
     listOrgPaymentMethods.mockResolvedValue(["gcash", "card"]);
+    listOrgEventOptions.mockResolvedValue([{ id: "ev-1", name: "Kitanglad Skyline Ultra", count: 3 }]);
 
     const ui = await PaymentsPage({ searchParams: Promise.resolve({}) });
     render(ui);
@@ -87,6 +104,7 @@ describe("PaymentsPage", () => {
     listOrgPayments.mockResolvedValue({ rows: [], total: 0 });
     getPaymentAggregates.mockResolvedValue({ grossCents: 0, feeCents: 0, netCents: 0, refundedCents: 0 });
     listOrgPaymentMethods.mockResolvedValue([]);
+    listOrgEventOptions.mockResolvedValue([]);
 
     const ui = await PaymentsPage({ searchParams: Promise.resolve({}) });
     render(ui);
@@ -103,6 +121,7 @@ describe("PaymentsPage", () => {
     listOrgPayments.mockResolvedValue({ rows: [], total: 0 });
     getPaymentAggregates.mockResolvedValue({ grossCents: 0, feeCents: 0, netCents: 0, refundedCents: 0 });
     listOrgPaymentMethods.mockResolvedValue(["gcash"]);
+    listOrgEventOptions.mockResolvedValue([]);
 
     const ui = await PaymentsPage({ searchParams: Promise.resolve({ method: "gcash" }) });
     render(ui);

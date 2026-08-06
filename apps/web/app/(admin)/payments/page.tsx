@@ -3,13 +3,19 @@ import { Wallet, Percent, Landmark, Undo2, Download } from "lucide-react";
 import { parseTableParams, serializeTableParams } from "@/lib/table-params";
 import { getMyRoles, requireOrgId } from "@/lib/queries/roles";
 import { listOrgPayments, getPaymentAggregates, listOrgPaymentMethods } from "@/lib/queries/payments";
+import { listOrgEventOptions } from "@/lib/queries/registrations";
 import { NoOrgScope } from "@/components/no-org-scope";
 import { KpiCard, KpiRow } from "@/components/kpi-card";
 import { Button } from "@/components/ui/button";
 import { peso } from "@/lib/format";
 import { PaymentsTable } from "./payments-table";
+import { PaymentsEventPicker } from "./event-picker";
+import { ALL_EVENTS } from "./constants";
 
-const DEFAULTS = { sort: [{ id: "created_at", desc: true }], filters: { status: "all", method: "all" } };
+const DEFAULTS = {
+  sort: [{ id: "created_at", desc: true }],
+  filters: { status: "all", method: "all", event: "all" },
+};
 
 export default async function PaymentsPage({
   searchParams,
@@ -34,7 +40,7 @@ export default async function PaymentsPage({
     );
   }
 
-  const [{ rows, total }, aggregates, methods] = await Promise.all([
+  const [{ rows, total }, aggregates, methods, events] = await Promise.all([
     listOrgPayments(orgId, params),
     // Same org + same filters as the table above. Gross/fee/net come straight
     // off admin_payments_v's own columns — see getPaymentAggregates' doc
@@ -43,7 +49,12 @@ export default async function PaymentsPage({
     // Org-scoped but deliberately UNfiltered — the Method filter has to keep
     // offering the other methods once one is selected. See its doc comment.
     listOrgPaymentMethods(orgId),
+    // Org-scoped and deliberately UNfiltered, same as the methods list: the
+    // picker must keep offering every other event once one is selected.
+    listOrgEventOptions(orgId),
   ]);
+
+  const activeEvent = params.filters.event ?? ALL_EVENTS;
 
   const exportHref = `/payments/export?${serializeTableParams({ ...params, page: 1 }, DEFAULTS)}`;
 
@@ -54,14 +65,25 @@ export default async function PaymentsPage({
           <h1 className="text-[21px] font-bold tracking-[-0.02em]">Payments</h1>
           <p className="mt-0.5 text-[13px] text-muted-foreground">
             <span className="tabular">{total}</span> transaction{total === 1 ? "" : "s"}
+            {activeEvent !== ALL_EVENTS ? (
+              // Name the scope in words next to the count. The KPI cards above
+              // change silently otherwise, and "₱2,100 gross" for one event
+              // looks identical to "₱2,100 gross" for the whole organization.
+              <> in <span className="font-semibold text-foreground">
+                {events.find((e) => e.id === activeEvent)?.name ?? "this event"}
+              </span></>
+            ) : " across all events"}
           </p>
         </div>
+        <div className="flex items-center gap-2">
+        <PaymentsEventPicker events={events} value={activeEvent} />
         <Button variant="outline" asChild>
           <Link href={exportHref}>
             <Download />
             Export CSV
           </Link>
         </Button>
+        </div>
       </div>
 
       {/* No delta line on any Payments card — the binding spec's KPI table

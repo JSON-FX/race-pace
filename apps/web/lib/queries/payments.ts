@@ -58,6 +58,13 @@ export async function listOrgPayments(
   const method = params.filters.method ?? "all";
   if (method !== "all") req = req.eq("method", method);
 
+  // Kept byte-for-byte in step with admin_payment_aggregates' p_event_id (see
+  // 20260807100000_payment_aggregates_by_event.sql). If these two ever diverge,
+  // the KPI cards silently describe a different set of rows than the table
+  // beneath them — the exact failure those RPCs exist to prevent.
+  const event = params.filters.event ?? "all";
+  if (event !== "all") req = req.eq("event_id", event);
+
   const pattern = searchPattern(params.q);
   if (pattern) {
     const term = quotePostgrestValue(pattern);
@@ -151,6 +158,7 @@ export async function getPaymentAggregates(orgId: string, params: TableParams): 
     p_org_id: orgId,
     p_status: params.filters.status ?? "all",
     p_method: params.filters.method ?? "all",
+    p_event_id: params.filters.event ?? "all",
     // Already a full `%...%` ILIKE pattern (or '' for "no filter") — see
     // searchPattern's doc comment. The RPC consumes this as-is.
     p_q: searchPattern(params.q) ?? "",

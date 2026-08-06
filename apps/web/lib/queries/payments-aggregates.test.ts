@@ -4,12 +4,16 @@ import { quotePostgrestValue, toIlikePattern } from "./events";
 
 const rpcMock = vi.fn();
 const orCapture = vi.fn();
+const eqCapture = vi.fn();
 vi.mock("@/lib/supabase/server", () => ({
   createClient: async () => ({
     rpc: rpcMock,
     from: () => {
       const builder: Record<string, unknown> = {};
-      ["select", "eq", "order", "range"].forEach((m) => { builder[m] = () => builder; });
+      ["select", "order", "range"].forEach((m) => { builder[m] = () => builder; });
+      // Captured, not a no-op: the event filter reaching the LIST query is half
+      // of the card/table parity invariant asserted below.
+      builder.eq = (col: string, val: unknown) => { eqCapture(col, val); return builder; };
       builder.or = (arg: string) => { orCapture(arg); return builder; };
       (builder as { then: unknown }).then = (resolve: (v: unknown) => unknown) =>
         resolve({ data: [], count: 0, error: null });
@@ -24,7 +28,7 @@ const params = (overrides: Partial<TableParams> = {}): TableParams => ({
   page: 1,
   per: 25,
   sort: [],
-  filters: { status: "all", method: "all" },
+  filters: { status: "all", method: "all", event: "all" },
   q: "",
   ...overrides,
 });
@@ -33,19 +37,53 @@ describe("getPaymentAggregates", () => {
   beforeEach(() => {
     rpcMock.mockReset();
     orCapture.mockReset();
+    eqCapture.mockReset();
   });
 
   it("calls the RPC with the SAME org id and filters as the table query — filter parity is structural", async () => {
     rpcMock.mockResolvedValue({ data: [{ gross_cents: 0, fee_cents: 0, net_cents: 0, refunded_cents: 0 }], error: null });
 
-    await getPaymentAggregates("org-1", params({ filters: { status: "paid", method: "gcash" }, q: "  cruz  " }));
+    await getPaymentAggregates("org-1", params({
+      filters: { status: "paid", method: "gcash", event: "ev-9" }, q: "  cruz  ",
+    }));
 
     expect(rpcMock).toHaveBeenCalledWith("admin_payment_aggregates", {
       p_org_id: "org-1",
       p_status: "paid",
       p_method: "gcash",
+      p_event_id: "ev-9",
       p_q: "%cruz%", // trimmed AND wildcard-wrapped, via the shared searchPattern() helper
     });
+  });
+
+  it("defaults the event filter to the 'all' sentinel, never null", async () => {
+    // A null would reach `v.event_id::text = null` in SQL, which is NULL rather
+    // than true — every card would silently read zero for an unfiltered page.
+    rpcMock.mockResolvedValue({ data: [{ gross_cents: 0, fee_cents: 0, net_cents: 0, refunded_cents: 0 }], error: null });
+
+    await getPaymentAggregates("org-1", params({}));
+
+    expect(rpcMock).toHaveBeenCalledWith(
+      "admin_payment_aggregates",
+      expect.objectContaining({ p_event_id: "all" }),
+    );
+  });
+
+  it("scopes the KPI cards and the table to the SAME event", async () => {
+    // The invariant this whole RPC exists for. If the table filtered by event
+    // and the cards did not, "Gross ₱5,900" would sit above two rows totalling
+    // ₱2,100 — the failure mode that motivated moving these sums into Postgres.
+    rpcMock.mockResolvedValue({ data: [{ gross_cents: 0, fee_cents: 0, net_cents: 0, refunded_cents: 0 }], error: null });
+
+    const withEvent = params({ filters: { event: "ev-42" } });
+    await getPaymentAggregates("org-1", withEvent);
+    await listOrgPayments("org-1", withEvent);
+
+    expect(rpcMock).toHaveBeenCalledWith(
+      "admin_payment_aggregates",
+      expect.objectContaining({ p_event_id: "ev-42" }),
+    );
+    expect(eqCapture).toHaveBeenCalledWith("event_id", "ev-42");
   });
 
   // IMPORTANT 1 regression, Payments side: same requirement as Registrations
