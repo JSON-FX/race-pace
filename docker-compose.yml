@@ -18,8 +18,23 @@ services:
   web:
     image: node:20-bookworm-slim
     working_dir: /repo
-    command: sh -c "corepack enable && corepack prepare pnpm@9.7.0 --activate && pnpm install --frozen-lockfile=false && pnpm --filter web dev --host 0.0.0.0"
+    # Invoke the next binary directly rather than `pnpm --filter web dev -- …`,
+    # for the same reason documented on the `site` service below: pnpm forwards
+    # the `--` as a literal argv entry, which Next reads as a project directory.
+    # Port 3001 because `site` already owns 3000.
+    command: sh -c "corepack enable && corepack prepare pnpm@9.7.0 --activate && pnpm install --frozen-lockfile=false && pnpm --filter web exec next dev -p 3001 -H 0.0.0.0"
     networks: [dev-net]
+    environment:
+      # The admin was a Vite SPA until the App Router conversion, so ONLY the
+      # browser ever called Supabase and apps/web/.env.local's 127.0.0.1 was
+      # fine. Server components now fetch from inside this container, where
+      # 127.0.0.1 is the container itself and the supabase_* containers are not
+      # on dev-net. NEXT_PUBLIC_* is read by both the server and the browser, so
+      # the one value has to resolve in both — hence the LAN IP. Override
+      # LAN_IP in a .env beside this file if yours differs.
+      NEXT_PUBLIC_SUPABASE_URL: "http://${LAN_IP:-192.168.0.93}:54521"
+      # Next dev's file watcher needs polling across the bind mount.
+      WATCHPACK_POLLING: "true"
     labels:
       - "traefik.enable=true"
       # http :80 -> https redirect
@@ -38,7 +53,7 @@ services:
       # names across stacks are what Traefik merges into a single
       # load-balanced pool of mismatched containers.
       - "traefik.http.routers.racepace-admin-${STACK_ID:-fff722}.service=racepace-admin-${STACK_ID:-fff722}"
-      - "traefik.http.services.racepace-admin-${STACK_ID:-fff722}.loadbalancer.server.port=5173"
+      - "traefik.http.services.racepace-admin-${STACK_ID:-fff722}.loadbalancer.server.port=3001"
     volumes:
       - ./:/repo
       - repo_node_modules:/repo/node_modules
