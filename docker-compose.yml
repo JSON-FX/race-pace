@@ -43,7 +43,7 @@ services:
       # reads SUPABASE_INTERNAL_URL when set (see lib/supabase/server.ts) and
       # the browser keeps .env.local's 127.0.0.1, which is correct from the
       # host. host.docker.internal is provided by Docker Desktop.
-      SUPABASE_INTERNAL_URL: "http://host.docker.internal:54521"
+      SUPABASE_INTERNAL_URL: "${SUPABASE_INTERNAL_URL-http://host.docker.internal:54521}"
       # Next dev's file watcher needs polling across the bind mount.
       WATCHPACK_POLLING: "true"
     labels:
@@ -99,7 +99,15 @@ services:
       # Same split as the web service: server-side code fetches from inside this
       # container, where 127.0.0.1 is the container itself, while the browser
       # needs the host-facing URL. See apps/site/lib/supabase/server.ts.
-      SUPABASE_INTERNAL_URL: "http://host.docker.internal:54521"
+      #
+      # This is a LOCAL-STACK value and it OVERRIDES NEXT_PUBLIC_SUPABASE_URL
+      # unconditionally. Pointing .env.local at hosted Supabase is therefore not
+      # enough on its own: server-side calls still went to host.docker.internal
+      # with a cloud anon key, which PostgREST rejects as
+      # PGRST301 "None of the keys was able to decode the JWT".
+      # Blank it to target the cloud — `SUPABASE_INTERNAL_URL=` in ./.env — and
+      # the empty string falls through to NEXT_PUBLIC_SUPABASE_URL.
+      SUPABASE_INTERNAL_URL: "${SUPABASE_INTERNAL_URL-http://host.docker.internal:54521}"
       # Next dev's HMR websocket must dial the browser-visible host, not the
       # container's internal port.
       WATCHPACK_POLLING: "true"
