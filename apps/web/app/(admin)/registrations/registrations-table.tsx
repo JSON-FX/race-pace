@@ -82,14 +82,11 @@ export function RegistrationsTable({
         <span className="font-mono tabular text-muted-foreground">{fmtDate(row.original.created_at)}</span>
       ),
     },
-  // `setFilter` is a plain closure returned fresh by `useTableParams()` on
-  // every render (it isn't wrapped in `useCallback`), not a stable
-  // reference — depending on it here means these columns recompute every
-  // render rather than truly memoizing, but that's the correct tradeoff:
-  // omitting it would freeze the Runner cell's onClick on the very first
-  // render's `setFilter`, which closes over that render's stale
-  // `searchParams` and would silently stop patching the CURRENT URL after
-  // any navigation.
+  // `setFilter` is stable across renders (see use-table-params.ts — every
+  // setter is wrapped in useCallback), so depending on it here both keeps
+  // the Runner cell's onClick correct (it always calls the current
+  // setFilter, never a stale closure over an old `searchParams`) AND lets
+  // this memo genuinely memoize instead of recomputing every render.
   ], [setFilter]);
 
   return (

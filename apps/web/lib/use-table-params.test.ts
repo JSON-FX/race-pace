@@ -140,4 +140,30 @@ describe("useTableParams", () => {
     expect(p.has("status")).toBe(false);
     expect(p.has("q")).toBe(false);
   });
+
+  // Regression guard for stabilising the setters with useCallback: every
+  // setter (and clearFilters) now depends on `patch`'s deps
+  // (pathname/router/searchParams) so callers can safely put them in a
+  // memo dependency array without freezing on a stale closure. clearFilters
+  // reads `searchParams` directly (not via `patch`) to decide what to
+  // *delete*, so it's the one most at risk of silently reading a stale
+  // snapshot from mount if the useCallback deps were ever wrong — verify it
+  // picks up a URL change that happens AFTER the hook first rendered,
+  // rather than the query string captured at mount.
+  it("clearFilters reflects a live URL change after mount, not a stale searchParams closure", () => {
+    mockSearch = "status=paid&sort=name:asc&per=50";
+    const { result, rerender } = setupHook();
+    // Simulate the URL moving on after mount (e.g. the event picker fired,
+    // or a Back navigation) — a stale closure captured at mount would still
+    // only see the OLD query string here and silently drop `event`.
+    mockSearch = "status=paid&category=c1&sort=name:asc&per=50&event=e9";
+    rerender();
+    act(() => result.current.clearFilters(["event"]));
+    const p = pushedParams();
+    expect(p.get("event")).toBe("e9");
+    expect(p.get("sort")).toBe("name:asc");
+    expect(p.get("per")).toBe("50");
+    expect(p.has("status")).toBe(false);
+    expect(p.has("category")).toBe(false);
+  });
 });
