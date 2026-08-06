@@ -37,6 +37,25 @@ function parseSort(raw: string | undefined, fallback: SortState[]): SortState[] 
 
 const formatSort = (s: SortState[]) => s.map((x) => `${x.id}:${x.desc ? "desc" : "asc"}`).join(",");
 
+/** Adapts a `URLSearchParams` (what a Route Handler gets from `request.url`)
+ *  into the `Record<string, string | string[] | undefined>` shape
+ *  `parseTableParams` expects — the same shape Next hands a Server
+ *  Component's `searchParams` prop. Repeated keys collect into an array (so
+ *  `one()` inside `parseTableParams` can apply its documented "take the
+ *  first" rule) rather than the last-write-wins collapse a naive
+ *  `Object.fromEntries(sp.entries())` would produce. This is what lets an
+ *  export Route Handler parse the SAME query string the page did, via the
+ *  SAME `parseTableParams` call, instead of a second hand-rolled parser
+ *  that could drift from it. */
+export function searchParamsToRecord(sp: URLSearchParams): Record<string, string | string[] | undefined> {
+  const out: Record<string, string | string[]> = {};
+  for (const key of new Set(sp.keys())) {
+    const all = sp.getAll(key);
+    out[key] = all.length > 1 ? all : all[0];
+  }
+  return out;
+}
+
 export function parseTableParams(
   sp: Record<string, string | string[] | undefined>,
   defaults: TableDefaults = {},

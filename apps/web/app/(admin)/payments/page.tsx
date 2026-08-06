@@ -1,9 +1,11 @@
-import { Wallet, Percent, Landmark, Undo2 } from "lucide-react";
-import { parseTableParams } from "@/lib/table-params";
+import Link from "next/link";
+import { Wallet, Percent, Landmark, Undo2, Download } from "lucide-react";
+import { parseTableParams, serializeTableParams } from "@/lib/table-params";
 import { getMyRoles, requireOrgId } from "@/lib/queries/roles";
 import { listOrgPayments, getPaymentAggregates } from "@/lib/queries/payments";
 import { NoOrgScope } from "@/components/no-org-scope";
 import { KpiCard, KpiRow } from "@/components/kpi-card";
+import { Button } from "@/components/ui/button";
 import { peso } from "@/lib/format";
 import { PaymentsTable } from "./payments-table";
 
@@ -40,13 +42,23 @@ export default async function PaymentsPage({
     getPaymentAggregates(orgId, params),
   ]);
 
+  const exportHref = `/payments/export?${serializeTableParams({ ...params, page: 1 }, DEFAULTS)}`;
+
   return (
     <div className="px-4 pb-10 pt-6 md:px-[30px]">
-      <div className="mb-5">
-        <h1 className="text-xl font-bold tracking-tight">Payments</h1>
-        <p className="mt-0.5 text-sm text-muted-foreground">
-          <span className="font-mono tabular">{total}</span> transaction{total === 1 ? "" : "s"}
-        </p>
+      <div className="mb-5 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-bold tracking-tight">Payments</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            <span className="font-mono tabular">{total}</span> transaction{total === 1 ? "" : "s"}
+          </p>
+        </div>
+        <Button variant="outline" asChild>
+          <Link href={exportHref}>
+            <Download />
+            Export CSV
+          </Link>
+        </Button>
       </div>
 
       {/* No delta line on any Payments card — the binding spec's KPI table

@@ -1,5 +1,6 @@
-import { ClipboardList, CheckCircle2, Wallet, Undo2 } from "lucide-react";
-import { parseTableParams } from "@/lib/table-params";
+import Link from "next/link";
+import { ClipboardList, CheckCircle2, Wallet, Undo2, Download } from "lucide-react";
+import { parseTableParams, serializeTableParams } from "@/lib/table-params";
 import { getMyRoles, requireOrgId } from "@/lib/queries/roles";
 import {
   listEventRegistrations,
@@ -10,6 +11,7 @@ import {
 import { TableEmptyState } from "@/components/data-table";
 import { NoOrgScope } from "@/components/no-org-scope";
 import { KpiCard, KpiRow } from "@/components/kpi-card";
+import { Button } from "@/components/ui/button";
 import { peso } from "@/lib/format";
 import { EventPicker } from "./event-picker";
 import { RegistrationsTable } from "./registrations-table";
@@ -57,6 +59,17 @@ export default async function RegistrationsPage({
     );
   }
 
+  // Explicitly pin `event` to the resolved eventId (not params.filters.event,
+  // which may be absent when the page fell back to the org's most recent
+  // event) so the Export CSV link always carries the SAME event scope the
+  // page is actually rendering — otherwise a bare `/registrations` visit
+  // would link to an export that defaults independently and could resolve
+  // to a different event if one gets created between the two requests.
+  const exportHref = `/registrations/export?${serializeTableParams(
+    { ...params, page: 1, filters: { ...params.filters, event: eventId } },
+    DEFAULTS,
+  )}`;
+
   const [{ rows, total }, categories, aggregates] = await Promise.all([
     listEventRegistrations(eventId, params),
     listEventCategories(eventId),
@@ -68,11 +81,21 @@ export default async function RegistrationsPage({
 
   return (
     <div className="px-4 pb-10 pt-6 md:px-[30px]">
-      <div className="mb-5">
-        <h1 className="text-xl font-bold tracking-tight">Registrations</h1>
-        <p className="mt-0.5 text-sm text-muted-foreground">
-          <span className="font-mono tabular">{total}</span> registration{total === 1 ? "" : "s"} for this event
-        </p>
+      <div className="mb-5 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-bold tracking-tight">Registrations</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            <span className="font-mono tabular">{total}</span> registration{total === 1 ? "" : "s"} for this event
+          </p>
+        </div>
+        {/* Manual entry (primary, Plus) is out of scope for this task — see
+            task-v4-report.md. Only the Export CSV route + button ships here. */}
+        <Button variant="outline" asChild>
+          <Link href={exportHref}>
+            <Download />
+            Export CSV
+          </Link>
+        </Button>
       </div>
 
       <KpiRow>
