@@ -2,12 +2,17 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
+import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { DataTable, type FilterDef } from "@/components/data-table";
-import { changeRoleAction } from "@/lib/actions/team";
+import { changeRoleAction, removeMemberAction } from "@/lib/actions/team";
 import type { TeamMember } from "@/lib/queries/team";
 import { ASSIGNABLE_ROLES, ROLE_LABELS } from "@/lib/team-roles";
 import type { SortState } from "@/lib/table-params";
@@ -75,11 +80,75 @@ function RoleCell({ member, orgId }: { member: TeamMember; orgId: string }) {
   );
 }
 
-export function TeamTable({ rows, total, page, per, sort, activeFilters, q, canManage, orgId }: {
+/**
+ * Revocation, not just role management, is a permissions-critical
+ * capability — without this, an org admin has no way to cut off a departed
+ * staff member's access at all. The edge function independently refuses to
+ * remove an org's last admin (409, same `wouldLeaveNoAdmin` guard as
+ * changeRoleAction), so the error path here is real and must be surfaced,
+ * not swallowed — the dialog stays open with the message until the admin
+ * cancels or the removal actually succeeds.
+ */
+function RemoveMemberCell({ member, orgId }: { member: TeamMember; orgId: string }) {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const name = member.full_name ?? member.email ?? "this member";
+
+  async function confirmRemove() {
+    setBusy(true);
+    setError(null);
+    const res = await removeMemberAction(member.user_id, orgId);
+    setBusy(false);
+    if (!res.ok) {
+      setError(res.error ?? "Couldn't remove the member.");
+      return;
+    }
+    toast.success("Member removed");
+    setOpen(false);
+  }
+
+  return (
+    <AlertDialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setError(null); }}>
+      <AlertDialogTrigger asChild>
+        <Button
+          variant="ghost" size="icon-sm" aria-label={`Remove ${name}`}
+          className="text-muted-foreground hover:text-destructive"
+        >
+          <Trash2 className="size-4" />
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Remove {name}?</AlertDialogTitle>
+          <AlertDialogDescription>
+            They&apos;ll immediately lose access to this organization&apos;s admin console. This can&apos;t be undone.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        {error ? <p role="alert" className="text-[13px] text-destructive">{error}</p> : null}
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <Button variant="destructive" disabled={busy} onClick={confirmRemove}>
+            {busy ? "Removing…" : "Remove member"}
+          </Button>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
+export function TeamTable({ rows, total, page, per, sort, activeFilters, q, orgId }: {
   rows: TeamMember[]; total: number; page: number; per: number;
   sort: SortState[]; activeFilters: Record<string, string>; q: string;
-  canManage: boolean; orgId: string;
+  orgId: string;
 }) {
+  // No `canManage` prop: the org-members edge function's "list" action
+  // itself 403s a non-org-admin before it ever reaches the members-list
+  // branch (see index.ts's caller-is-admin check, which runs before action
+  // dispatch) — so TeamTable is only ever rendered for a caller who has
+  // already been let past TeamPage's `roles.isOrgAdmin` gate. There is no
+  // real "editor sees a read-only Team page" mode the server can serve
+  // today, so there's no read-only rendering branch to keep here either.
   const columns = useMemo<ColumnDef<TeamMember, unknown>[]>(() => [
     {
       accessorKey: "full_name",
@@ -97,22 +166,18 @@ export function TeamTable({ rows, total, page, per, sort, activeFilters, q, canM
     {
       accessorKey: "role",
       header: "Role",
-      cell: ({ row }) => {
-        const member = row.original;
-        return canManage
-          ? <RoleCell member={member} orgId={orgId} />
-          : <span>{ROLE_LABELS[member.role as keyof typeof ROLE_LABELS] ?? member.role}</span>;
-      },
+      cell: ({ row }) => <RoleCell member={row.original} orgId={orgId} />,
     },
     {
-      accessorKey: "status",
-      header: "Status",
-      cell: ({ row }) =>
-        row.original.status === "invited"
-          ? <Badge variant="secondary">Invited</Badge>
-          : <Badge variant="outline">Active</Badge>,
+      id: "actions",
+      header: "",
+      cell: ({ row }) => (
+        <div className="flex justify-end">
+          <RemoveMemberCell member={row.original} orgId={orgId} />
+        </div>
+      ),
     },
-  ], [canManage, orgId]);
+  ], [orgId]);
 
   return (
     <DataTable

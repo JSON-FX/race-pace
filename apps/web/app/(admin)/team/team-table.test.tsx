@@ -7,22 +7,24 @@ import { tableParamsMockReturn, resetTableParamsSpies } from "@/lib/test-utils/m
 
 vi.mock("@/lib/use-table-params", () => ({ useTableParams: () => tableParamsMockReturn }));
 
-const { changeRoleAction } = vi.hoisted(() => ({
+const { changeRoleAction, removeMemberAction } = vi.hoisted(() => ({
   changeRoleAction: vi.fn(() => Promise.resolve({ ok: true })),
+  removeMemberAction: vi.fn(() => Promise.resolve({ ok: true })),
 }));
-vi.mock("@/lib/actions/team", () => ({ changeRoleAction }));
+vi.mock("@/lib/actions/team", () => ({ changeRoleAction, removeMemberAction }));
 
 beforeEach(() => {
   resetTableParamsSpies();
   changeRoleAction.mockClear();
+  removeMemberAction.mockClear();
 });
 
 const rows: TeamMember[] = [
-  { user_id: "u1", email: "admin@racepace.test", full_name: "Ada Admin", role: "admin", created_at: "2026-07-01T00:00:00Z", status: "active" },
-  { user_id: "u2", email: "marshal@racepace.test", full_name: null, role: "marshal", created_at: "2026-07-20T00:00:00Z", status: "invited" },
+  { user_id: "u1", email: "admin@racepace.test", full_name: "Ada Admin", role: "admin", created_at: "2026-07-01T00:00:00Z" },
+  { user_id: "u2", email: "marshal@racepace.test", full_name: null, role: "marshal", created_at: "2026-07-20T00:00:00Z" },
 ];
 
-const props = { rows, total: 2, page: 1, per: 25, sort: [], activeFilters: {}, q: "", canManage: true, orgId: "a1" };
+const props = { rows, total: 2, page: 1, per: 25, sort: [], activeFilters: {}, q: "", orgId: "a1" };
 
 describe("TeamTable", () => {
   it("lists members with their roles in the right columns", () => {
@@ -36,25 +38,16 @@ describe("TeamTable", () => {
     expect(within(cells[0]).getByText("admin@racepace.test")).toBeInTheDocument();
   });
 
-  it("marks a pending invite in the Status column, not elsewhere", () => {
+  // TeamTable is only ever rendered for a caller TeamPage has already
+  // confirmed is an org admin (the org-members edge function 403s anyone
+  // else before its "list" branch even runs — see page.tsx and
+  // team-table.tsx's top comment), so every row always gets a live role
+  // picker. This guards that the picker renders unconditionally rather than
+  // depending on a prop that no longer exists.
+  it("always renders a live role picker for every row", () => {
     render(<TeamTable {...props} />);
-    const rowsEls = screen.getAllByRole("row");
-    const marshalRow = rowsEls[2];
-    const cells = within(marshalRow).getAllByRole("cell");
-    expect(within(cells[2]).getByText("Invited")).toBeInTheDocument();
-    expect(within(rowsEls[1]).queryByText("Invited")).not.toBeInTheDocument();
-  });
-
-  // Regression guard: an editor (canManage=false) must not be able to
-  // trigger changeRoleAction at all — if the Select ever renders for a
-  // non-manager, this catches it via the missing aria-label as well as via
-  // the plain-text role fallback appearing instead.
-  it("hides role controls and shows plain text when the viewer cannot manage the team", () => {
-    render(<TeamTable {...props} canManage={false} />);
-    expect(screen.queryByLabelText(/change role/i)).not.toBeInTheDocument();
-    const rowsEls = screen.getAllByRole("row");
-    const cells = within(rowsEls[1]).getAllByRole("cell");
-    expect(within(cells[1]).getByText("Admin")).toBeInTheDocument();
+    expect(screen.getByLabelText("Change role for Ada Admin")).toBeInTheDocument();
+    expect(screen.getByLabelText(/change role for marshal@racepace.test/i)).toBeInTheDocument();
   });
 
   // Regression guard for the assignable-role list: if ASSIGNABLE_ROLES in
@@ -92,5 +85,41 @@ describe("TeamTable", () => {
 
     await waitFor(() => expect(changeRoleAction).toHaveBeenCalledWith("u1", "a1", "marshal"));
     await waitFor(() => expect(trigger).toHaveTextContent("Admin"));
+  });
+
+  // Revocation is the most consequential capability on a permissions
+  // screen — this guards that it's actually wired to the real action with
+  // the right ids, not just present visually.
+  it("removes a member after confirming in the dialog", async () => {
+    const user = userEvent.setup();
+    render(<TeamTable {...props} />);
+    await user.click(screen.getByLabelText("Remove marshal@racepace.test"));
+    expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Remove member" }));
+    await waitFor(() => expect(removeMemberAction).toHaveBeenCalledWith("u2", "a1"));
+  });
+
+  // The edge function refuses to remove an org's last admin (409) — that
+  // error must reach the admin, not fail silently, and the dialog must
+  // stay open so they actually see it.
+  it("surfaces the server's error and keeps the dialog open when removal is rejected", async () => {
+    removeMemberAction.mockResolvedValueOnce({ ok: false, error: "An organization must keep at least one admin." });
+    const user = userEvent.setup();
+    render(<TeamTable {...props} />);
+    await user.click(screen.getByLabelText("Remove Ada Admin"));
+    await user.click(screen.getByRole("button", { name: "Remove member" }));
+    expect(await screen.findByText("An organization must keep at least one admin.")).toBeInTheDocument();
+    expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+  });
+
+  it("clears the removal error when the dialog is cancelled", async () => {
+    removeMemberAction.mockResolvedValueOnce({ ok: false, error: "Couldn't remove the member." });
+    const user = userEvent.setup();
+    render(<TeamTable {...props} />);
+    await user.click(screen.getByLabelText("Remove Ada Admin"));
+    await user.click(screen.getByRole("button", { name: "Remove member" }));
+    expect(await screen.findByText("Couldn't remove the member.")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByText("Couldn't remove the member.")).not.toBeInTheDocument();
   });
 });

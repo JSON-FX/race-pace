@@ -12,16 +12,20 @@ export type TeamMember = {
   full_name: string | null;
   role: string;
   created_at: string;
-  // NOTE: the org-members edge function (supabase/functions/org-members,
-  // out of scope for this task to modify) does not return any
-  // invite/confirmation state — a user_roles row is written the moment an
-  // invite is sent, identical to an accepted member's row. There is
-  // currently no real signal this query can use to populate "invited"
-  // distinctly from "active", so listTeam always returns "active" today.
-  // The field is kept (and the table/tests support rendering "Invited")
-  // because the brief's interface requires it and TeamTable must not
-  // silently break if a future edge-function change starts sending it.
-  status: "active" | "invited";
+  // No invite/confirmation status field here (deliberately, not an
+  // oversight): supabase/functions/org-members/index.ts's "list" handler
+  // (around line 72) already calls `db.auth.admin.getUserById(r.user_id)`
+  // per member but only forwards `email` — it throws away
+  // `email_confirmed_at`/`confirmed_at`/`invited_at`, which is where a real
+  // "invited, hasn't accepted yet" signal would come from. Without it, a
+  // user_roles row looks identical the instant an invite is sent and after
+  // it's accepted — there is no way for this app to tell them apart. Adding
+  // a client-side "status" field with no real backing data would have
+  // shown a permissions screen affirmatively (and wrongly) reporting
+  // invited-but-never-logged-in staff as "Active". The one-line fix belongs
+  // in that edge function (forward `email_confirmed_at`, out of scope here:
+  // it's outside apps/web and needs its own deploy) — until then this app
+  // does not claim to know a member's invite status.
 };
 
 type RawMember = { user_id: string; email: string | null; full_name: string | null; role: string; created_at: string };
@@ -54,9 +58,7 @@ export async function listTeam(
   });
   if (error) throw new Error(errorMessage(error));
 
-  const members = ((data as { members?: RawMember[] })?.members ?? []).map(
-    (m): TeamMember => ({ ...m, status: "active" }),
-  );
+  const members = (data as { members?: RawMember[] })?.members ?? [];
 
   let filtered = members;
 

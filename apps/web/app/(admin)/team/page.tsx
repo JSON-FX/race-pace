@@ -2,6 +2,7 @@ import { parseTableParams } from "@/lib/table-params";
 import { getMyRoles, requireOrgId } from "@/lib/queries/roles";
 import { listTeam } from "@/lib/queries/team";
 import { NoOrgScope } from "@/components/no-org-scope";
+import { OrgAdminsOnly } from "@/components/org-admins-only";
 import { InviteMemberForm } from "@/components/InviteMemberForm";
 import { TeamTable } from "./team-table";
 
@@ -30,14 +31,27 @@ export default async function TeamPage({
     );
   }
 
+  // Who can VIEW the team is not "anyone who clears the (admin) layout's
+  // isAdmin gate" (that includes editors/marshals/claiming roles) — it's
+  // isOrgAdmin only ("admin" role, or super_admin). This isn't a UI
+  // preference: the org-members edge function's caller-is-admin check runs
+  // BEFORE its "list" action branch (supabase/functions/org-members/
+  // index.ts), so a non-org-admin's listTeam call 403s server side. Branch
+  // here, before calling listTeam, rather than letting that throw into an
+  // uncaught 500 — an org editor who bookmarks /team must see an
+  // explanatory notice, not a crash.
+  if (!roles!.isOrgAdmin) {
+    return (
+      <div className="px-4 pb-10 pt-6 md:px-[30px]">
+        <div className="mb-5">
+          <h1 className="text-xl font-bold tracking-tight">Team</h1>
+        </div>
+        <OrgAdminsOnly />
+      </div>
+    );
+  }
+
   const { rows, total } = await listTeam(orgId, params);
-  // Who can VIEW the team (any org-scoped admin/editor/marshal/claiming role
-  // clears the (admin) layout guard) is not who can MANAGE it. Only
-  // isOrgAdmin ("admin" role, or super_admin) may change roles or invite —
-  // an editor must see a read-only list. This predicate gates the UI only;
-  // the org-members edge function independently re-checks the caller server
-  // side for every write (see lib/actions/team.ts).
-  const canManage = roles!.isOrgAdmin;
 
   return (
     <div className="px-4 pb-10 pt-6 md:px-[30px]">
@@ -48,13 +62,13 @@ export default async function TeamPage({
             <span className="font-mono tabular">{total}</span> member{total === 1 ? "" : "s"}
           </p>
         </div>
-        {canManage ? <div className="ml-auto"><InviteMemberForm orgId={orgId} /></div> : null}
+        <div className="ml-auto"><InviteMemberForm orgId={orgId} /></div>
       </div>
 
       <TeamTable
         rows={rows} total={total} page={params.page} per={params.per}
         sort={params.sort} activeFilters={params.filters} q={params.q}
-        canManage={canManage} orgId={orgId}
+        orgId={orgId}
       />
     </div>
   );
