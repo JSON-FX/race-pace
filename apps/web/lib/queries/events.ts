@@ -30,6 +30,42 @@ export function quotePostgrestValue(value: string): string {
   return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
 }
 
+/**
+ * Builds a `%...%` ILIKE substring pattern from a raw user search term,
+ * with ONE normalization rule applied before the term reaches ANY query
+ * path: PostgREST auto-rewrites a literal `*` to `%` inside `ilike`/`like`
+ * values (even quoted ones — confirmed against this project: `or=(name.
+ * ilike."%Dahi*Sky%")` matches, while a raw SQL `name ilike '%'||'Dahi*Sky'
+ * ||'%'` does not). A raw SQL `ilike` — e.g. inside an RPC — has no such
+ * rewrite. Left unhandled, the SAME search term produces two different
+ * result sets depending on which transport a given reader happens to use,
+ * which is exactly how a KPI-row RPC and its list query can desync (see
+ * docs/superpowers/specs/2026-08-06-admin-visual-parity-spec.md, "KPI row",
+ * and the V2 review that caught it).
+ *
+ * Fix: normalize here, once, before either transport sees the term, so
+ * both consume an IDENTICAL already-wildcarded pattern —
+ *   - the PostgREST/list path: `quotePostgrestValue(toIlikePattern(q))`
+ *   - the RPC path: pass `toIlikePattern(q)` straight through as `p_q`,
+ *     and the RPC's SQL uses `ilike p_q` directly (no extra `'%'||p_q||'%'`
+ *     wrapping — the wildcards are already in the string).
+ * Existing `%`/`_`/`\` in the term are escaped first (so a literal percent
+ * sign a user types doesn't silently become a wildcard), THEN `*` is
+ * rewritten to `%` — matching PostgREST's own alias so search behaves the
+ * same as it always has for anyone used to typing `*` as a wildcard.
+ * Postgres' ILIKE default escape character is `\`, so both a raw SQL
+ * `ilike` and PostgREST's translated `ilike` interpret these escapes
+ * identically with no extra `ESCAPE` clause needed.
+ */
+export function toIlikePattern(rawTerm: string): string {
+  const escaped = rawTerm
+    .replace(/\\/g, "\\\\")
+    .replace(/%/g, "\\%")
+    .replace(/_/g, "\\_")
+    .replace(/\*/g, "%");
+  return `%${escaped}%`;
+}
+
 export async function listOrgEvents(
   orgId: string,
   params: TableParams,

@@ -1,7 +1,19 @@
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import type { TableParams } from "@/lib/table-params";
-import { quotePostgrestValue } from "./events";
+import { quotePostgrestValue, toIlikePattern } from "./events";
+
+/** THE one place a raw `q` becomes a search pattern for this page — both
+ *  `listEventRegistrations` (PostgREST `.or()`) and `getRegistrationAggregates`
+ *  (RPC) call this, so a `*` (or any ILIKE metacharacter) in the search box
+ *  can never desync the table from the KPI row above it. Returns `null` for
+ *  a blank/whitespace-only term, the "no search filter" case both call sites
+ *  already handle separately. See `toIlikePattern`'s doc comment for why
+ *  this normalization has to happen before either transport, not in SQL. */
+function searchPattern(q: string): string | null {
+  const trimmed = q.trim();
+  return trimmed ? toIlikePattern(trimmed) : null;
+}
 
 // Mirrors the Postgres `payment_status` enum (pending, paid, failed,
 // refunded — see supabase/migrations/20260718182546_init_orgs_profiles.sql).
@@ -45,8 +57,9 @@ export async function listEventRegistrations(
   const category = params.filters.category ?? "all";
   if (category !== "all") req = req.eq("category_id", category);
 
-  if (params.q.trim()) {
-    const term = quotePostgrestValue(`%${params.q.trim()}%`);
+  const pattern = searchPattern(params.q);
+  if (pattern) {
+    const term = quotePostgrestValue(pattern);
     req = req.or(`full_name.ilike.${term},bib_name.ilike.${term}`);
   }
 
@@ -122,7 +135,9 @@ export async function getRegistrationAggregates(
     p_event_id: eventId,
     p_status: params.filters.status ?? "all",
     p_category_id: params.filters.category ?? "all",
-    p_q: params.q.trim(),
+    // Already a full `%...%` ILIKE pattern (or '' for "no filter") — see
+    // searchPattern's doc comment. The RPC consumes this as-is.
+    p_q: searchPattern(params.q) ?? "",
   });
   if (error) {
     console.error("getRegistrationAggregates failed", error);

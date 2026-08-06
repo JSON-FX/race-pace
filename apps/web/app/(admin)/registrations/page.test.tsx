@@ -97,7 +97,11 @@ describe("RegistrationsPage", () => {
     expect(screen.getByText("₱4,800")).toBeInTheDocument();
     expect(screen.getByText("Refunds")).toBeInTheDocument();
     expect(screen.getByText("₱1,200")).toBeInTheDocument();
-    expect(screen.getByText("1 request · 0 pending")).toBeInTheDocument();
+    // "1 request", NOT "1 request · 0 pending" — there is no refund-approval
+    // queue backing a pending count, so asserting "0 pending" would claim an
+    // answer the system doesn't have. See IMPORTANT 3 in the V2 review.
+    expect(screen.getByText("1 request")).toBeInTheDocument();
+    expect(screen.queryByText(/pending/)).not.toBeInTheDocument();
   });
 
   it("renders zeroed KPI cards, not a blank row, when the filtered set is empty", async () => {
@@ -115,6 +119,7 @@ describe("RegistrationsPage", () => {
     expect(screen.getByText("+0 this week")).toBeInTheDocument();
     expect(screen.getByText("0.0% conversion")).toBeInTheDocument();
     expect(screen.getAllByText("₱0").length).toBeGreaterThanOrEqual(2); // gross revenue + refunds
-    expect(screen.getByText("0 requests · 0 pending")).toBeInTheDocument();
+    expect(screen.getByText("0 requests")).toBeInTheDocument();
+    expect(screen.queryByText(/pending/)).not.toBeInTheDocument();
   });
 });

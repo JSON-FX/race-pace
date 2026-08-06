@@ -106,13 +106,17 @@ export default async function RegistrationsPage({
           label="Refunds"
           value={peso(aggregates.refundedCents)}
           delta={{
-            // "K pending" has no backing data yet: refunds run through
-            // refund_registration_tx (supabase/migrations/20260723100000_money_txn_rpcs.sql)
-            // as one atomic transition straight to 'refunded' — there is no
-            // refund-approval queue (that's Payments A2, not yet built; see
-            // memory note race-pace-refund-money-path). Pending is genuinely
-            // 0 today, not a stand-in for missing data.
-            text: `${aggregates.refundCount.toLocaleString()} request${aggregates.refundCount === 1 ? "" : "s"} · 0 pending`,
+            // Deliberately NOT "· K pending": there is no refund-approval
+            // queue in this schema yet (refunds run through
+            // refund_registration_tx, supabase/migrations/20260723100000_
+            // money_txn_rpcs.sql, one atomic transition straight to
+            // 'refunded' — the queue is Payments A2, not yet built). "0
+            // pending" would assert the system tracks pending refunds and
+            // found none; it doesn't track them at all, so the question is
+            // unanswerable, not answered-zero. Same judgment already applied
+            // to the omitted MoM delta above — don't invent a number a
+            // reader can't tell "we checked" from "we have no idea" on.
+            text: `${aggregates.refundCount.toLocaleString()} request${aggregates.refundCount === 1 ? "" : "s"}`,
             tone: "neutral",
           }}
         />

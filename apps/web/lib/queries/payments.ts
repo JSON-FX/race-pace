@@ -1,7 +1,18 @@
 import { createClient } from "@/lib/supabase/server";
 import type { TableParams } from "@/lib/table-params";
-import { quotePostgrestValue } from "./events";
+import { quotePostgrestValue, toIlikePattern } from "./events";
 import type { PaymentStatus } from "./registrations";
+
+/** THE one place a raw `q` becomes a search pattern for this page — both
+ *  `listOrgPayments` (PostgREST `.or()`) and `getPaymentAggregates` (RPC)
+ *  call this, so a `*` (or any ILIKE metacharacter) in the search box can
+ *  never desync the table from the KPI row above it. Returns `null` for a
+ *  blank/whitespace-only term. See `toIlikePattern`'s doc comment (lib/
+ *  queries/events.ts) for why this has to happen before either transport. */
+function searchPattern(q: string): string | null {
+  const trimmed = q.trim();
+  return trimmed ? toIlikePattern(trimmed) : null;
+}
 
 export type PaymentRow = {
   registration_id: string;
@@ -35,8 +46,9 @@ export async function listOrgPayments(
   const method = params.filters.method ?? "all";
   if (method !== "all") req = req.eq("method", method);
 
-  if (params.q.trim()) {
-    const term = quotePostgrestValue(`%${params.q.trim()}%`);
+  const pattern = searchPattern(params.q);
+  if (pattern) {
+    const term = quotePostgrestValue(pattern);
     req = req.or(`full_name.ilike.${term},event_name.ilike.${term}`);
   }
 
@@ -65,6 +77,13 @@ const EMPTY_AGGREGATES: PaymentAggregates = { grossCents: 0, feeCents: 0, netCen
  *  net is NEVER recomputed as amount - fee client-side, so the card can never
  *  disagree with the ledger.
  *
+ *  Gross/fee/net are restricted to `status = 'paid'` rows inside the RPC — a
+ *  refunded payment keeps its original amount/fee/net columns (see the
+ *  migration's comment), so summing every status would count money already
+ *  given back as still "net to org". `listOrgPayments`'s TABLE is unaffected;
+ *  only these aggregates narrow. `refundedCents` is unaffected by this and
+ *  still sums `status = 'refunded'` rows.
+ *
  *  Degrades to zeroes on failure rather than taking the page down. */
 export async function getPaymentAggregates(orgId: string, params: TableParams): Promise<PaymentAggregates> {
   const supabase = await createClient();
@@ -72,7 +91,9 @@ export async function getPaymentAggregates(orgId: string, params: TableParams): 
     p_org_id: orgId,
     p_status: params.filters.status ?? "all",
     p_method: params.filters.method ?? "all",
-    p_q: params.q.trim(),
+    // Already a full `%...%` ILIKE pattern (or '' for "no filter") — see
+    // searchPattern's doc comment. The RPC consumes this as-is.
+    p_q: searchPattern(params.q) ?? "",
   });
   if (error) {
     console.error("getPaymentAggregates failed", error);
