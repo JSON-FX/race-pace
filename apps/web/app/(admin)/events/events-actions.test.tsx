@@ -1,11 +1,11 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { CancelModal } from "../components/CancelModal";
+import { CancelModal } from "@/components/CancelModal";
 
 const mockCancel = vi.fn().mockResolvedValue({});
-vi.mock("../lib/eventWrites", () => ({ cancelEvent: (id: string, note: string) => mockCancel(id, note) }));
+vi.mock("@/lib/actions/events", () => ({ cancelEventAction: (id: string, note: string) => mockCancel(id, note) }));
 
-it("cancel modal calls cancelEvent then onDone", async () => {
+it("cancel modal calls cancelEventAction then onDone", async () => {
   const user = userEvent.setup();
   const onClose = vi.fn(), onDone = vi.fn();
   render(<CancelModal event={{ id: "e1", name: "Apo Sky Ultra" }} onClose={onClose} onDone={onDone} />);

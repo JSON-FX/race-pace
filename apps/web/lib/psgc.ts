@@ -1,5 +1,9 @@
+"use client";
+
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "./supabase";
+import { createClient } from "@/lib/supabase/client";
+
+const supabase = createClient();
 
 export type PsgcRow = { code: string; name: string };
 export type PsgcCity = { code: string; name: string; province_code: string | null; region_code: string };

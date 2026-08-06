@@ -3,16 +3,16 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 
 const eq = vi.fn();
-vi.mock("../lib/supabase", () => {
+vi.mock("./supabase/client", () => {
   const b: Record<string, unknown> = {};
   b.select = vi.fn(() => b);
   b.eq = (...a: unknown[]) => { eq(...a); return b; };
   b.order = () => Promise.resolve({ data: [{ code: "x", name: "X" }], error: null });
   b.maybeSingle = () => Promise.resolve({ data: { code: "c", name: "C", province_code: "p", region_code: "r" }, error: null });
-  return { supabase: { from: vi.fn(() => b) } };
+  return { createClient: () => ({ from: vi.fn(() => b) }) };
 });
 
-import { usePsgcProvinces, usePsgcCities, usePsgcCity } from "../lib/psgc";
+import { usePsgcProvinces, usePsgcCities, usePsgcCity } from "./psgc";
 
 function wrap() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });

@@ -1,6 +1,6 @@
 import { render, screen, fireEvent } from "@testing-library/react";
-import { CategoryEditor } from "../components/CategoryEditor";
-import type { CategoryDraft } from "../lib/eventWrites";
+import { CategoryEditor } from "./CategoryEditor";
+import type { CategoryDraft } from "../lib/actions/events";
 
 const row: CategoryDraft = {
   id: "c1", code: "21k", label: "21K", distance_km: 21, base_price: 150000, slots_total: 100,

@@ -1,4 +1,6 @@
-import type { AddonDraft } from "../lib/eventWrites";
+"use client";
+
+import type { AddonDraft } from "../lib/actions/events";
 import { Card } from "./ui/card";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";

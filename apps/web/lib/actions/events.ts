@@ -1,0 +1,249 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { createClient } from "@/lib/supabase/server";
+import { getMyRoles, type MyRoles } from "@/lib/queries/roles";
+import type { EventDiscipline, RoutePoint } from "@race-pace/shared";
+import type { ScheduleItem } from "@/lib/validation";
+import { eventInputSchema, categoryInputSchema, addonInputSchema, sanitizeListFields } from "@/lib/validation";
+import { reconcileChildren } from "@/lib/reconcile-children";
+
+const GENERIC_ERROR = "Something went wrong. Please try again.";
+
+// ---- Draft shapes, ported verbatim from the old lib/eventWrites.ts -------
+
+export type CategoryDraft = {
+  id?: string; tempId?: string; code: string; label: string; distance_km: number | null; base_price: number; slots_total: number;
+  elevation_gain_m: number | null; cutoff_hours: number | null; blurb: string | null;
+};
+export type AddonDraft = { id?: string; tempId?: string; name: string; price: number };
+export type EventDraft = {
+  id?: string; org_id: string; name: string;
+  city_psgc_code: string | null; region_name: string | null; province_name: string | null; city_name: string | null; venue: string | null;
+  event_date: string | null; end_date: string | null; flag_off: string | null; status: string; discipline: EventDiscipline;
+  elevation_gain_m: number | null; cutoff_hours: number | null; description: string | null;
+  start_lat: number | null; start_lng: number | null; finish_lat: number | null; finish_lng: number | null;
+  route: RoutePoint[] | null;
+  hero_image_url: string | null; gallery: string[]; schedule: ScheduleItem[]; inclusions: string[];
+};
+
+const EVENT_COLS = (e: EventDraft) => ({
+  org_id: e.org_id, name: e.name,
+  city_psgc_code: e.city_psgc_code, region_name: e.region_name, province_name: e.province_name, city_name: e.city_name, venue: e.venue,
+  event_date: e.event_date, end_date: e.end_date, flag_off: e.flag_off, status: e.status, discipline: e.discipline,
+  elevation_gain_m: e.elevation_gain_m, cutoff_hours: e.cutoff_hours,
+  start_lat: e.start_lat, start_lng: e.start_lng, finish_lat: e.finish_lat, finish_lng: e.finish_lng,
+  route: e.route,
+  description: e.description, hero_image_url: e.hero_image_url, gallery: e.gallery, schedule: e.schedule, inclusions: e.inclusions,
+});
+
+/**
+ * Who may create/edit an event: any caller `auth_can_admin_org` would admit —
+ * i.e. an `admin` OR `editor` row in the event's own org (or super_admin).
+ * This intentionally mirrors RLS rather than narrowing it (contrast
+ * lib/actions/settings.ts's assertCanEditOrg, which restricts organization
+ * branding to admins ONLY even though RLS there also permits editors — that
+ * is a deliberate product decision for org identity, not the default).
+ * There is no equivalent narrower business rule for events: creating and
+ * editing race content has always been an editor-level action in this app
+ * (the old EventEditor route was reachable by anyone who could reach
+ * /events, i.e. any org member, and RLS was the only gate). Verified
+ * against supabase/migrations/20260721100000_events_write_rls.sql:
+ *   create policy "events_insert_org_admin" on events for insert
+ *     with check (auth_can_admin_org(org_id));
+ *   create policy "events_update_org_admin" on events for update
+ *     using (auth_can_admin_org(org_id)) with check (auth_can_admin_org(org_id));
+ * and auth_can_admin_org (20260720150000_user_roles.sql):
+ *   select auth_is_super_admin() or exists (select 1 from user_roles
+ *     where user_id = auth.uid() and org_id = target and role in ('editor','admin'));
+ *
+ * `roles.isAdmin` (lib/queries/roles.ts) is true for super_admin OR any
+ * resolved admin/editor row — exactly this set. `roles.orgId` is the org
+ * that resolved row belongs to; the caller must match the event's org_id,
+ * or an editor in org A could forge org_id "B" in the JSON payload and
+ * create/update a row in org B (the request would still 403 at the RLS
+ * layer, since the caller has no editor/admin row in org B — this check is
+ * the same boundary duplicated at the app layer so a bad request fails
+ * loudly with a clear message instead of a raw Postgres/RLS error).
+ */
+function assertCanWriteEvent(roles: MyRoles | null, orgId: string): string | null {
+  if (!roles?.isAdmin) return "You don't have permission to edit this event.";
+  // A super_admin (auth_is_super_admin() in the RLS policy) can admin ANY
+  // org, not just the one `getMyRoles` happened to resolve `orgId` to — see
+  // requireOrgId's doc comment in lib/queries/roles.ts: a super_admin with
+  // no org-scoped admin/editor row resolves `orgId: null`, which must not
+  // be treated as "belongs to no org" here.
+  if (roles.isSuperAdmin) return null;
+  if (roles.orgId !== orgId) return "You don't have permission to edit this event.";
+  return null;
+}
+
+export type EditorState = { error?: string; eventId?: string };
+
+type SavePayload = {
+  event: EventDraft;
+  categories: { current: CategoryDraft[]; original: { id?: string }[] };
+  addons: { current: AddonDraft[]; original: { id?: string }[] };
+};
+
+export async function saveEventAction(_prev: EditorState, formData: FormData): Promise<EditorState> {
+  const raw = formData.get("payload");
+  if (typeof raw !== "string") return { error: GENERIC_ERROR };
+
+  let payload: SavePayload;
+  try {
+    payload = JSON.parse(raw) as SavePayload;
+  } catch {
+    return { error: GENERIC_ERROR };
+  }
+
+  const roles = await getMyRoles();
+  const denied = assertCanWriteEvent(roles, payload.event.org_id);
+  if (denied) return { error: denied };
+
+  // Re-validate server-side — the client already blocks Save on an invalid
+  // draft, but a Server Action is a public HTTP endpoint and this FormData
+  // payload can be forged by anything that can reach it, not just the form.
+  // Status is intentionally excluded, same as the client validator: "cancelled"
+  // (set only via the Cancel modal) is outside eventInputSchema's status enum,
+  // and re-checking it here would block Save on an already-cancelled event.
+  const sanitized = sanitizeListFields(payload.event);
+  if (!eventInputSchema.omit({ status: true }).safeParse(sanitized).success) {
+    return { error: "Fix the event fields (name is required, valid date/time, schedule times as HH:MM, inclusion lines under 140 characters)." };
+  }
+  if (sanitized.end_date && sanitized.event_date && sanitized.end_date < sanitized.event_date) {
+    return { error: "End date can't be before the start date." };
+  }
+  for (const c of payload.categories.current) {
+    if (!categoryInputSchema.safeParse(c).success) {
+      return { error: "Fix the category rows (code, label, non-negative price/slots, gain 0-30000m, cut-off 0-240h)." };
+    }
+  }
+  for (const a of payload.addons.current) {
+    if (!addonInputSchema.safeParse(a).success) return { error: "Fix the add-on rows (name, non-negative price)." };
+  }
+
+  const event: EventDraft = { ...sanitized, id: payload.event.id };
+  const supabase = await createClient();
+
+  let eventId = event.id;
+  if (!eventId) {
+    const ins = await supabase.from("events").insert(EVENT_COLS(event)).select("id").single();
+    if (ins.error) {
+      console.error("[events] event insert failed", { orgId: event.org_id, error: ins.error });
+      return { error: GENERIC_ERROR };
+    }
+    eventId = ins.data!.id;
+  } else {
+    // .select("id") + the empty-result check matter here: an UPDATE blocked
+    // by RLS (rather than by the grant) does not raise an error — it
+    // silently affects zero rows. assertCanWriteEvent above is what actually
+    // prevents that in the normal case; this is the honest-response check
+    // for when it's ever wrong (stale roles cache, org reassignment, etc.).
+    const upd = await supabase.from("events").update(EVENT_COLS(event)).eq("id", eventId).select("id");
+    if (upd.error) {
+      console.error("[events] event update failed", { eventId, error: upd.error });
+      return { error: GENERIC_ERROR };
+    }
+    if (!upd.data || upd.data.length === 0) return { error: GENERIC_ERROR };
+  }
+
+  const childErrors: string[] = [];
+  const cat = reconcileChildren(payload.categories.original, payload.categories.current);
+  for (const c of cat.toInsert) {
+    const r = await supabase.from("categories").insert({ org_id: event.org_id, event_id: eventId, code: c.code, label: c.label, distance_km: c.distance_km, base_price: c.base_price, slots_total: c.slots_total, elevation_gain_m: c.elevation_gain_m, cutoff_hours: c.cutoff_hours, blurb: c.blurb });
+    if (r.error) childErrors.push(`Category "${c.label}": ${r.error.message}`);
+  }
+  for (const c of cat.toUpdate) {
+    const r = await supabase.from("categories").update({ code: c.code, label: c.label, distance_km: c.distance_km, base_price: c.base_price, slots_total: c.slots_total, elevation_gain_m: c.elevation_gain_m, cutoff_hours: c.cutoff_hours, blurb: c.blurb }).eq("id", c.id);
+    if (r.error) childErrors.push(`Category "${c.label}": ${r.error.message}`);
+  }
+  for (const id of cat.toDelete) {
+    const r = await supabase.from("categories").delete().eq("id", id);
+    if (r.error) childErrors.push(`Couldn't remove a category — it has registrations.`);
+  }
+
+  const add = reconcileChildren(payload.addons.original, payload.addons.current);
+  for (const a of add.toInsert) {
+    const r = await supabase.from("addons").insert({ org_id: event.org_id, event_id: eventId, name: a.name, price: a.price });
+    if (r.error) childErrors.push(`Add-on "${a.name}": ${r.error.message}`);
+  }
+  for (const a of add.toUpdate) {
+    const r = await supabase.from("addons").update({ name: a.name, price: a.price }).eq("id", a.id);
+    if (r.error) childErrors.push(`Add-on "${a.name}": ${r.error.message}`);
+  }
+  for (const id of add.toDelete) {
+    const r = await supabase.from("addons").delete().eq("id", id);
+    if (r.error) childErrors.push(`Couldn't remove an add-on.`);
+  }
+
+  revalidatePath("/events");
+  revalidatePath(`/events/${eventId}/edit`);
+
+  return { eventId, error: childErrors.length ? childErrors.join(" ") : undefined };
+}
+
+function daysBetween(a: string, b: string): number {
+  return Math.round((new Date(`${b}T00:00:00Z`).getTime() - new Date(`${a}T00:00:00Z`).getTime()) / 86400000);
+}
+function addDays(iso: string, days: number): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Reschedule keeps the original 5-argument shape from lib/eventWrites.ts
+ * (id, currentDate, currentEndDate, newDate, note) rather than the task
+ * brief's abbreviated `(id, newDate)` — the end_date shift math needs
+ * currentDate/currentEndDate, and RescheduleModal already calls it with all
+ * five. Per the task instructions, the existing module wins where it
+ * disagrees with the brief.
+ */
+export async function rescheduleEventAction(
+  id: string,
+  currentDate: string | null,
+  currentEndDate: string | null,
+  newDate: string,
+  note: string,
+): Promise<{ error?: string }> {
+  const supabase = await createClient();
+
+  const row = await supabase.from("events").select("org_id").eq("id", id).single();
+  if (row.error) return { error: GENERIC_ERROR };
+
+  const roles = await getMyRoles();
+  const denied = assertCanWriteEvent(roles, row.data.org_id);
+  if (denied) return { error: denied };
+
+  const newEndDate = currentEndDate && currentDate ? addDays(newDate, daysBetween(currentDate, currentEndDate)) : null;
+  const upd = await supabase.from("events")
+    .update({ original_date: currentDate, event_date: newDate, end_date: newEndDate, status_note: note || null })
+    .eq("id", id)
+    .select("id");
+  if (upd.error) return { error: GENERIC_ERROR };
+  if (!upd.data || upd.data.length === 0) return { error: GENERIC_ERROR };
+
+  revalidatePath("/events");
+  revalidatePath(`/events/${id}/edit`);
+  return {};
+}
+
+export async function cancelEventAction(id: string, note: string): Promise<{ error?: string }> {
+  const supabase = await createClient();
+
+  const row = await supabase.from("events").select("org_id").eq("id", id).single();
+  if (row.error) return { error: GENERIC_ERROR };
+
+  const roles = await getMyRoles();
+  const denied = assertCanWriteEvent(roles, row.data.org_id);
+  if (denied) return { error: denied };
+
+  const upd = await supabase.from("events").update({ status: "cancelled", status_note: note || null }).eq("id", id).select("id");
+  if (upd.error) return { error: GENERIC_ERROR };
+  if (!upd.data || upd.data.length === 0) return { error: GENERIC_ERROR };
+
+  revalidatePath("/events");
+  revalidatePath(`/events/${id}/edit`);
+  return {};
+}

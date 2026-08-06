@@ -1,5 +1,5 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { EventImagesEditor } from "../components/EventImagesEditor";
+import { EventImagesEditor } from "./EventImagesEditor";
 
 const uploadMock = vi.fn();
 vi.mock("../lib/imageUpload", () => ({ uploadEventImage: (...a: unknown[]) => uploadMock(...a) }));

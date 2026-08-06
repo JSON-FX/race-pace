@@ -1,4 +1,6 @@
-import type { CategoryDraft } from "../lib/eventWrites";
+"use client";
+
+import type { CategoryDraft } from "../lib/actions/events";
 import { Card } from "./ui/card";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";

@@ -1,3 +1,5 @@
+"use client";
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Map as MlMap, Marker, NavigationControl, AttributionControl, type GeoJSONSource } from "maplibre-gl";
 import { Undo2, Redo2, Trash2, MapPin, Check, X, Loader2 } from "lucide-react";

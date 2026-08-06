@@ -1,3 +1,5 @@
+"use client";
+
 import { useRef, useState } from "react";
 import { Upload, Trash2, Route as RouteIcon, PencilLine } from "lucide-react";
 import { CourseDrawEditor } from "./CourseDrawEditor";

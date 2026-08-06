@@ -1,3 +1,5 @@
+"use client";
+
 import type { ScheduleItem } from "../lib/validation";
 import { Card } from "./ui/card";
 import { Input } from "./ui/input";

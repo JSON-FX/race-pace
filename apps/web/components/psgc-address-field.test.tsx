@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { PsgcAddressField } from "../components/PsgcAddressField";
+import { PsgcAddressField } from "./PsgcAddressField";
 
 let provinces: { data: { code: string; name: string }[]; isSuccess: boolean };
 let cityLookup: { data: { code: string; name: string; province_code: string | null; region_code: string } | null };

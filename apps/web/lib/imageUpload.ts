@@ -1,5 +1,7 @@
+"use client";
+
 import imageCompression from "browser-image-compression";
-import { supabase } from "./supabase";
+import { createClient } from "@/lib/supabase/client";
 
 const BUCKET = "event-images";
 const ACCEPTED = ["image/jpeg", "image/png", "image/webp"];
@@ -16,6 +18,7 @@ export async function uploadEventImage(orgId: string, file: File): Promise<strin
   const compressed = await compressImage(file);
   const ext = EXT[compressed.type] ?? EXT[file.type] ?? "jpg";
   const path = `${orgId}/${crypto.randomUUID()}.${ext}`;
+  const supabase = createClient();
   const { error } = await supabase.storage.from(BUCKET).upload(path, compressed, {
     contentType: compressed.type || file.type,
     upsert: false,

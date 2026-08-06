@@ -1,9 +1,11 @@
+"use client";
+
 import { useState } from "react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { cancelEvent } from "../lib/eventWrites";
+import { cancelEventAction } from "../lib/actions/events";
 
 export function CancelModal({ event, onClose, onDone }: { event: { id: string; name: string }; onClose: () => void; onDone: () => void }) {
   const [note, setNote] = useState("");
@@ -12,7 +14,7 @@ export function CancelModal({ event, onClose, onDone }: { event: { id: string; n
 
   async function submit() {
     setBusy(true); setError(null);
-    const { error } = await cancelEvent(event.id, note);
+    const { error } = await cancelEventAction(event.id, note);
     setBusy(false);
     if (error) { setError(error); return; }
     toast.success(`"${event.name}" cancelled`);

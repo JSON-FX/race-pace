@@ -1,9 +1,11 @@
+"use client";
+
 import { useState } from "react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { rescheduleEvent } from "../lib/eventWrites";
+import { rescheduleEventAction } from "../lib/actions/events";
 
 export function RescheduleModal({ event, onClose, onDone }: { event: { id: string; event_date: string | null; end_date: string | null }; onClose: () => void; onDone: () => void }) {
   const [date, setDate] = useState("");
@@ -14,7 +16,7 @@ export function RescheduleModal({ event, onClose, onDone }: { event: { id: strin
   async function submit() {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { setError("Enter a date as YYYY-MM-DD"); return; }
     setBusy(true); setError(null);
-    const { error } = await rescheduleEvent(event.id, event.event_date, event.end_date, date, note);
+    const { error } = await rescheduleEventAction(event.id, event.event_date, event.end_date, date, note);
     setBusy(false);
     if (error) { setError(error); return; }
     toast.success("Event rescheduled");
