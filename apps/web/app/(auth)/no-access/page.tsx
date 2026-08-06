@@ -33,26 +33,37 @@ export default async function NoAccessPage() {
           </div>
 
           <div>
-            <h1 className="text-[17px] font-bold tracking-[-0.02em]">No admin access</h1>
+            <h1 className="text-[17px] font-bold tracking-[-0.02em]">
+              This account isn&apos;t registered
+            </h1>
             <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
               {email ? (
                 <>
-                  <span className="font-semibold text-foreground">{email}</span> isn&apos;t an
-                  organizer on any event yet. Ask your organization admin to invite this exact
-                  address, then sign in again.
+                  <span className="font-semibold text-foreground">{email}</span> isn&apos;t
+                  registered to any organization, and isn&apos;t a platform admin. Sign-in worked —
+                  the account just has no access yet.
                 </>
               ) : (
                 <>
-                  This account isn&apos;t an organizer on any event. Ask your organization admin to
-                  invite you, then sign in again.
+                  This account isn&apos;t registered to any organization, and isn&apos;t a platform
+                  admin. Sign-in worked — the account just has no access yet.
                 </>
               )}
             </p>
+            <p className="mt-2.5 text-[12.5px] leading-relaxed text-muted-foreground">
+              Ask your organization admin to invite{" "}
+              {email ? "this exact address" : "your email address"}, then sign in again. Access is
+              matched on the email, so an invite sent to a different address won&apos;t apply here.
+            </p>
           </div>
 
+          {/* Signing out is the ONLY useful action from here. Without it a
+              Google user is stuck: /login now redirects an authenticated caller
+              straight back to this page, so the session has to be cleared before
+              a different account can be tried. */}
           <form action={signOutAction}>
             <Button type="submit" variant="outline" className="w-full">
-              Sign out
+              Sign out and try another account
             </Button>
           </form>
         </CardContent>

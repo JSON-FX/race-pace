@@ -1,6 +1,9 @@
 import { Suspense } from "react";
 import Image from "next/image";
+import { redirect } from "next/navigation";
 import { Card } from "@/components/ui/card";
+import { createClient } from "@/lib/supabase/server";
+import { getMyRoles } from "@/lib/queries/roles";
 import { LoginForm } from "./login-form";
 
 /**
@@ -17,7 +20,26 @@ import { LoginForm } from "./login-form";
  * bug report. This uses `login-logo.png` (1177x760, the full lockup, already in
  * public/ and previously unused) at its true ratio.
  */
-export default function LoginPage() {
+export default async function LoginPage() {
+  // Never show a bare sign-in form to someone who is ALREADY signed in.
+  //
+  // This was a dead end. A Google account with no organization role signs in
+  // successfully, gets bounced by the (admin) layout, and any later visit to
+  // /login rendered the form again — so clicking "Sign in with Google" appeared
+  // to do nothing at all: it re-authenticated an account that was already
+  // authenticated, and returned to the same screen. The account was never the
+  // problem; the missing feedback was.
+  //
+  // Authenticated callers are now routed by AUTHORIZATION: into the console if
+  // they have a role, to /no-access — which names the rejected address — if they
+  // do not.
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (user) {
+    const roles = await getMyRoles();
+    redirect(roles?.isAdmin ? "/events" : "/no-access");
+  }
+
   return (
     <main className="grid min-h-dvh place-items-center bg-muted p-6">
       <Card className="w-full max-w-sm overflow-hidden rounded-xl p-0 shadow-lg">
