@@ -1,0 +1,237 @@
+<meta charset="utf-8">
+<title>Admin login — three directions</title>
+<style>
+  :root{
+    --bg:#f5f5f7;--fg:#1d1d1f;--card:#fff;--muted:#f5f5f7;--mutedfg:#7a7a7a;
+    --border:#e0e0e0;--divider:#efeff1;--primary:#159a55;--primaryfocus:#0f7a42;
+    --forest:#0f2a20;--paid:#0f7a42;--paidtint:#eaf3ee;--destructive:#ff3b30;--desttint:#fdecea;
+    --amber:#b45309;--ambertint:#fbefe3;
+    --shadow:0 1px 2px rgb(16 24 40/.04),0 1px 3px rgb(16 24 40/.06);
+    --shadow-lg:0 10px 30px rgb(16 24 40/.09),0 2px 8px rgb(16 24 40/.05);
+    --r:11px;--rc:16px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+    font:400 15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1120px;margin:0 auto;padding:28px 20px 70px}
+  h1{font-size:25px;font-weight:800;letter-spacing:-.03em;margin:0 0 6px}
+  .sub{color:var(--mutedfg);font-size:14.5px;margin:0 0 8px;max-width:76ch}
+  .pagelabel{display:flex;align-items:center;gap:9px;margin:30px 0 12px;
+    font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--mutedfg)}
+  .pagelabel::after{content:"";flex:1;height:1px;background:var(--border)}
+  .note{background:var(--card);border:1px solid var(--border);border-left:3px solid var(--primary);
+    border-radius:9px;padding:11px 14px;font-size:13px;color:#3a3a3c;margin-top:12px}
+  .note b{color:var(--fg)}
+  .note.bad{border-left-color:var(--destructive)}
+  .note.warn{border-left-color:var(--amber)}
+
+  /* ---- shared form bits ---- */
+  .field{margin-bottom:13px}
+  .lab{display:block;font-size:12.5px;font-weight:650;margin-bottom:5px}
+  .inp{width:100%;height:40px;border:1px solid var(--border);border-radius:9px;background:var(--card);
+    padding:0 11px;font:400 14px/1 inherit;color:var(--mutedfg);display:flex;align-items:center}
+  .inp.focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(21,154,85,.16)}
+  .btn{width:100%;height:40px;border:0;border-radius:9px;background:var(--primary);color:#fff;
+    font:650 14px/1 inherit;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
+  .btn.ghost{background:var(--card);color:var(--fg);border:1px solid var(--border)}
+  .gbtn{width:100%;height:40px;border:1px solid var(--border);border-radius:9px;background:#fff;color:#1f1f1f;
+    font:600 14px/1 "Roboto",-apple-system,system-ui,sans-serif;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;gap:10px}
+  .divider{display:flex;align-items:center;gap:10px;margin:14px 0;color:var(--mutedfg);font-size:11.5px;font-weight:600}
+  .divider::before,.divider::after{content:"";flex:1;height:1px;background:var(--divider)}
+  .logo{display:block}
+  .foot{margin-top:14px;text-align:center;font-size:12px;color:var(--mutedfg)}
+
+  /* ---- A ---- */
+  .screen{background:var(--muted);border:1px solid var(--border);border-radius:var(--rc);
+    padding:34px;display:grid;place-items:center;min-height:430px;overflow:hidden}
+  .cardA{width:100%;max-width:352px;background:var(--card);border:1px solid var(--border);
+    border-radius:var(--rc);box-shadow:var(--shadow-lg);padding:26px 24px}
+
+  /* ---- B split ---- */
+  .screenB{border:1px solid var(--border);border-radius:var(--rc);overflow:hidden;
+    display:grid;grid-template-columns:1.05fr .95fr;min-height:470px}
+  .brandpane{background:
+      radial-gradient(120% 90% at 12% 8%, rgba(21,154,85,.34), transparent 58%),
+      linear-gradient(160deg,#12332592,#0b1f18) , #0f2a20;
+    color:#fff;padding:32px;display:flex;flex-direction:column;justify-content:space-between;position:relative}
+  .ridge{position:absolute;left:0;right:0;bottom:0;height:150px;opacity:.5}
+  .brandpane h2{font-size:23px;line-height:1.25;letter-spacing:-.025em;font-weight:750;margin:0 0 9px;max-width:19ch}
+  .brandpane p{color:rgba(255,255,255,.66);font-size:13.5px;margin:0;max-width:34ch;line-height:1.55}
+  .stat{display:flex;gap:26px;position:relative;z-index:2}
+  .stat .n{font-size:21px;font-weight:750;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+  .stat .k{font-size:10.5px;font-weight:700;letter-spacing:.08em;color:rgba(255,255,255,.5);margin-top:2px}
+  .formpane{background:var(--card);padding:32px;display:flex;flex-direction:column;justify-content:center}
+  .formpane .inner{width:100%;max-width:312px;margin:0 auto}
+
+  /* ---- C band ---- */
+  .cardC{width:100%;max-width:352px;background:var(--card);border:1px solid var(--border);
+    border-radius:var(--rc);box-shadow:var(--shadow-lg);overflow:hidden}
+  .band{background:var(--forest);padding:22px 24px 18px;color:#fff}
+  .band .t{font-size:16px;font-weight:750;letter-spacing:-.02em;margin-top:11px}
+  .band .s{font-size:12.5px;color:rgba(255,255,255,.6);margin-top:3px}
+  .cardC .body{padding:22px 24px 24px}
+
+  /* logo demo */
+  .logorow{display:flex;gap:26px;align-items:flex-end;flex-wrap:wrap;
+    background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:18px 20px;box-shadow:var(--shadow)}
+  .logobox{text-align:center}
+  .logobox .cap{font-size:11px;color:var(--mutedfg);margin-top:8px;font-weight:600}
+  .bad{outline:2px solid var(--destructive);outline-offset:3px}
+  .good{outline:2px solid var(--paid);outline-offset:3px}
+  @media (max-width:860px){.screenB{grid-template-columns:1fr}.brandpane{min-height:190px}}
+</style>
+
+<div class="wrap">
+<h1>Admin login — three directions</h1>
+<p class="sub">Plus the logo fix and the Google sign-in gate. All three use the same form, the same
+Google button and the same authorization rule — only the framing differs.</p>
+
+<div class="pagelabel">First: the logo bug</div>
+<div class="logorow">
+  <div class="logobox">
+    <div class="bad" style="width:40px;height:40px;overflow:hidden">
+      <img src="../../../apps/web/public/topnav-logo.png" style="width:40px;height:40px" alt="">
+    </div>
+    <div class="cap">Now — 700×372 forced into 40×40</div>
+  </div>
+  <div class="logobox">
+    <div class="good">
+      <img src="../../../apps/web/public/topnav-logo.png" style="height:40px;width:auto;display:block" alt="">
+    </div>
+    <div class="cap">Fixed — height 40, width auto</div>
+  </div>
+  <div class="logobox">
+    <div class="good">
+      <img src="../../../apps/web/public/login-logo.png" style="height:52px;width:auto;display:block" alt="">
+    </div>
+    <div class="cap">login-logo.png — the full lockup, currently unused</div>
+  </div>
+</div>
+<div class="note bad"><b>The cause.</b> <code>login/page.tsx</code> renders
+<code>topnav-logo.png</code> at <code>width={40} height={40}</code>, but that file is
+<b>700×372</b>. Next.js applies both numbers literally, so the lockup is crushed to a square —
+the mangled "R" in the screenshot. Fixing the ratio fixes it; the login screen should use
+<code>login-logo.png</code>, which is the proper lockup and is already sitting in
+<code>public/</code> unused.</div>
+
+<!-- ============ A ============ -->
+<div class="pagelabel">A · Refined card</div>
+<div class="screen">
+  <div class="cardA">
+    <img class="logo" src="../../../apps/web/public/login-logo.png" style="height:44px;width:auto;margin:0 auto 16px" alt="Race Pace">
+    <div style="text-align:center;margin-bottom:18px">
+      <div style="font-size:17px;font-weight:750;letter-spacing:-.02em">Sign in to the console</div>
+      <div style="font-size:12.5px;color:var(--mutedfg);margin-top:3px">For race directors and platform staff</div>
+    </div>
+    <button class="gbtn">
+      <svg width="17" height="17" viewBox="0 0 48 48" aria-hidden="true"><path fill="#4285F4" d="M45.1 24.5c0-1.6-.1-3.2-.4-4.7H24v8.9h11.8c-.5 2.8-2 5.1-4.4 6.7v5.5h7.1c4.1-3.8 6.6-9.4 6.6-16.4z"/><path fill="#34A853" d="M24 46c5.9 0 10.9-2 14.5-5.3l-7.1-5.5c-2 1.3-4.5 2.1-7.4 2.1-5.7 0-10.5-3.8-12.2-9H4.5v5.7C8.1 41.2 15.5 46 24 46z"/><path fill="#FBBC05" d="M11.8 28.3c-.4-1.3-.7-2.7-.7-4.3s.2-2.9.7-4.3v-5.7H4.5C2.9 17.2 2 20.5 2 24s.9 6.8 2.5 9.7l7.3-5.4z"/><path fill="#EA4335" d="M24 10.7c3.2 0 6.1 1.1 8.4 3.3l6.3-6.3C34.9 4.1 29.9 2 24 2 15.5 2 8.1 6.8 4.5 14.3l7.3 5.7c1.7-5.2 6.5-9.3 12.2-9.3z"/></svg>
+      Sign in with Google
+    </button>
+    <div class="divider">OR</div>
+    <div class="field"><span class="lab">Email</span><div class="inp">alma@muspo.ph</div></div>
+    <div class="field"><span class="lab">Password</span><div class="inp focus">••••••••••</div></div>
+    <button class="btn">Sign in</button>
+    <div class="foot">Invite-only. Ask your organization admin for access.</div>
+  </div>
+</div>
+<div class="note"><b>Smallest change.</b> The card you already have, with the logo corrected, a
+Google button above the divider, and a line that sets the expectation before someone tries an
+address that will be refused. Ships in an afternoon; looks like a competent internal tool rather
+than a product.</div>
+
+<!-- ============ B ============ -->
+<div class="pagelabel">B · Split canvas</div>
+<div class="screenB">
+  <div class="brandpane">
+    <svg class="ridge" viewBox="0 0 600 150" preserveAspectRatio="none" aria-hidden="true">
+      <path d="M0 118 L70 74 L118 100 L186 44 L248 88 L316 34 L382 82 L442 56 L508 96 L560 68 L600 92 V150 H0 Z" fill="rgba(53,192,110,.16)"/>
+      <path d="M0 132 L64 104 L132 122 L198 84 L262 116 L330 78 L398 112 L460 90 L524 120 L600 100 V150 H0 Z" fill="rgba(53,192,110,.10)"/>
+    </svg>
+    <img src="../../../apps/web/public/login-logo.png" style="height:40px;width:auto;position:relative;z-index:2;filter:brightness(0) invert(1)" alt="Race Pace">
+    <div style="position:relative;z-index:2">
+      <h2>Every start line, one console.</h2>
+      <p>Events, registrations, payments and race-day check-in — for the organizers running them
+      and the platform settling them.</p>
+    </div>
+    <div class="stat">
+      <div><div class="n">1,986</div><div class="k">ENTRIES</div></div>
+      <div><div class="n">20</div><div class="k">EVENTS</div></div>
+      <div><div class="n">2</div><div class="k">ORGANIZERS</div></div>
+    </div>
+  </div>
+  <div class="formpane">
+    <div class="inner">
+      <div style="font-size:19px;font-weight:750;letter-spacing:-.025em">Sign in</div>
+      <div style="font-size:12.5px;color:var(--mutedfg);margin:3px 0 18px">Race Pace Admin</div>
+      <button class="gbtn">
+        <svg width="17" height="17" viewBox="0 0 48 48" aria-hidden="true"><path fill="#4285F4" d="M45.1 24.5c0-1.6-.1-3.2-.4-4.7H24v8.9h11.8c-.5 2.8-2 5.1-4.4 6.7v5.5h7.1c4.1-3.8 6.6-9.4 6.6-16.4z"/><path fill="#34A853" d="M24 46c5.9 0 10.9-2 14.5-5.3l-7.1-5.5c-2 1.3-4.5 2.1-7.4 2.1-5.7 0-10.5-3.8-12.2-9H4.5v5.7C8.1 41.2 15.5 46 24 46z"/><path fill="#FBBC05" d="M11.8 28.3c-.4-1.3-.7-2.7-.7-4.3s.2-2.9.7-4.3v-5.7H4.5C2.9 17.2 2 20.5 2 24s.9 6.8 2.5 9.7l7.3-5.4z"/><path fill="#EA4335" d="M24 10.7c3.2 0 6.1 1.1 8.4 3.3l6.3-6.3C34.9 4.1 29.9 2 24 2 15.5 2 8.1 6.8 4.5 14.3l7.3 5.7c1.7-5.2 6.5-9.3 12.2-9.3z"/></svg>
+        Sign in with Google
+      </button>
+      <div class="divider">OR</div>
+      <div class="field"><span class="lab">Email</span><div class="inp">alma@muspo.ph</div></div>
+      <div class="field"><span class="lab">Password</span><div class="inp focus">••••••••••</div></div>
+      <button class="btn">Sign in</button>
+      <div class="foot">Invite-only. Ask your organization admin for access.</div>
+    </div>
+  </div>
+</div>
+<div class="note"><b>Recommended.</b> The console's one public-facing screen — the only page a new
+race director sees before deciding whether this looks like software they'd trust with their
+runners' money. The left pane carries the brand and a ridgeline drawn from the existing token set
+(no new assets, no photography to source), and the right pane is the identical form. On mobile the
+brand pane collapses to a short header and the form takes the screen.</div>
+
+<!-- ============ C ============ -->
+<div class="pagelabel">C · Branded band</div>
+<div class="screen">
+  <div class="cardC">
+    <div class="band">
+      <img src="../../../apps/web/public/login-logo.png" style="height:34px;width:auto;filter:brightness(0) invert(1)" alt="Race Pace">
+      <div class="t">Race Pace Admin</div>
+      <div class="s">Race directors, marshals and platform staff</div>
+    </div>
+    <div class="body">
+      <button class="gbtn">
+        <svg width="17" height="17" viewBox="0 0 48 48" aria-hidden="true"><path fill="#4285F4" d="M45.1 24.5c0-1.6-.1-3.2-.4-4.7H24v8.9h11.8c-.5 2.8-2 5.1-4.4 6.7v5.5h7.1c4.1-3.8 6.6-9.4 6.6-16.4z"/><path fill="#34A853" d="M24 46c5.9 0 10.9-2 14.5-5.3l-7.1-5.5c-2 1.3-4.5 2.1-7.4 2.1-5.7 0-10.5-3.8-12.2-9H4.5v5.7C8.1 41.2 15.5 46 24 46z"/><path fill="#FBBC05" d="M11.8 28.3c-.4-1.3-.7-2.7-.7-4.3s.2-2.9.7-4.3v-5.7H4.5C2.9 17.2 2 20.5 2 24s.9 6.8 2.5 9.7l7.3-5.4z"/><path fill="#EA4335" d="M24 10.7c3.2 0 6.1 1.1 8.4 3.3l6.3-6.3C34.9 4.1 29.9 2 24 2 15.5 2 8.1 6.8 4.5 14.3l7.3 5.7c1.7-5.2 6.5-9.3 12.2-9.3z"/></svg>
+        Sign in with Google
+      </button>
+      <div class="divider">OR</div>
+      <div class="field"><span class="lab">Email</span><div class="inp">alma@muspo.ph</div></div>
+      <div class="field"><span class="lab">Password</span><div class="inp focus">••••••••••</div></div>
+      <button class="btn">Sign in</button>
+      <div class="foot">Invite-only. Ask your organization admin for access.</div>
+    </div>
+  </div>
+</div>
+<div class="note"><b>Middle ground.</b> Keeps the compact centred card — so it needs no responsive
+rethink — while giving the brand a real surface. Cheaper than B, more considered than A. The band
+reuses <code>--forest</code>, same as the check-in scan bar and the platform scope band, so the
+console gains one consistent "this is Race Pace speaking" surface.</div>
+
+<!-- ============ REFUSAL ============ -->
+<div class="pagelabel">The Google gate — what an unauthorized account sees</div>
+<div class="screen" style="min-height:340px">
+  <div class="cardA" style="text-align:center">
+    <div style="width:44px;height:44px;border-radius:50%;background:var(--desttint);color:var(--destructive);
+      display:grid;place-items:center;margin:0 auto 13px">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><path d="M18.4 18.4A9 9 0 0 1 5.6 5.6m2.2-1.5A9 9 0 0 1 19.9 16.2"/><path d="M2 2l20 20"/></svg>
+    </div>
+    <div style="font-size:17px;font-weight:750;letter-spacing:-.02em">No admin access</div>
+    <p style="font-size:13px;color:var(--mutedfg);margin:8px 0 16px;line-height:1.55">
+      <b style="color:var(--fg)">alma@gmail.com</b> isn't an organizer on any event yet. Ask your
+      organization admin to invite this exact address, then sign in again.
+    </p>
+    <button class="btn ghost">Sign out</button>
+  </div>
+</div>
+<div class="note"><b>The rule is already enforced — Google inherits it.</b> Authorization lives in
+<code>user_roles</code>, and <code>(admin)/layout.tsx</code> already sends anyone without a role to
+<code>/no-access</code>. Signing in with Google authenticates; it grants nothing. An uninvited
+Google account reaches exactly this screen.</div>
+<div class="note warn"><b>One thing to decide.</b> The gate is on the EMAIL, so the invite and the
+Google account must use the same address. Someone invited at
+<code>alma@muspo.ph</code> who signs in with a personal <code>alma@gmail.com</code> is refused —
+correctly, but confusingly. Naming the rejected address (as above) is what turns "it's broken" into
+"ah, wrong account".</div>
+</div>

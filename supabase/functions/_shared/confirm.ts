@@ -1,5 +1,6 @@
 import { serviceClient } from "./supabase.ts";
 import { mintTicketToken } from "./ticket.ts";
+import { computeFee, type FeeTerms } from "./fee.ts";
 
 export type ConfirmResult =
   | { ok: true; registration_id: string; already?: boolean }
@@ -15,15 +16,26 @@ export async function confirmPayment(
   const db = serviceClient();
   const { data: reg } = await db
     .from("registrations")
-    .select("id,event_id,total_amount,status,organizations(commission_rate)")
+    // All three commission columns, not just the rate. Fetching only
+    // commission_rate would make a 'fixed' org fall through to the percent
+    // branch's `?? 0.10` default and be charged 10% instead of its flat fee —
+    // silently, and only visible as wrong money weeks later.
+    .select(
+      "id,event_id,total_amount,status," +
+      "organizations(commission_type,commission_rate,commission_flat_cents)",
+    )
     .eq("id", registrationId)
     .single();
   if (!reg) return { ok: false, error: "not_found", status: 404 };
   if (reg.status === "paid") return { ok: true, registration_id: reg.id, already: true };
   if (reg.status !== "pending") return { ok: true, registration_id: reg.id, already: true }; // refunded/cancelled: no-op (replay-safe)
 
-  const rate = (reg.organizations as { commission_rate: number } | null)?.commission_rate ?? 0.10;
-  const fee = Math.round(reg.total_amount * rate);
+  // The org's terms are read ONCE here and frozen onto the payment row below, so
+  // a later rate change is never retroactive.
+  const terms = (reg.organizations as FeeTerms | null) ?? {
+    commission_type: "percent", commission_rate: 0.10, commission_flat_cents: 0,
+  };
+  const fee = computeFee(reg.total_amount, terms);
   const net = reg.total_amount - fee;
 
   const secret = Deno.env.get("TICKET_SIGNING_SECRET") ?? "dev-secret";

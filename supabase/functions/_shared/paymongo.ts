@@ -86,6 +86,37 @@ export function pmPaymentIdFromSession(session: PmSession): string | null {
   return chosen?.id ?? null;
 }
 
+/**
+ * The INSTRUMENT a runner actually paid with — "gcash", "card", "paymaya" —
+ * from a checkout session's attributes.
+ *
+ * Takes the `attributes` object rather than a PmSession so both callers can use
+ * it: payment-verify has a parsed PmSession, while payments-webhook only has the
+ * raw event resource.
+ *
+ * Prefers the PAID payment, matching pmPaymentIdFromSession. A session can carry
+ * a failed attempt followed by a successful one, and `payments[0]` then reports
+ * the instrument the runner tried and abandoned rather than the one that worked.
+ *
+ * Falls back to "paymongo" — the provider, not an instrument — only when the
+ * shape is genuinely absent, so a null here is visible as a known-unknown rather
+ * than silently becoming "card".
+ */
+// deno-lint-ignore no-explicit-any
+export function pmMethodFromAttributes(attributes: any): string {
+  const payments: unknown[] = Array.isArray(attributes?.payments) ? attributes.payments : [];
+  // deno-lint-ignore no-explicit-any
+  const chosen = (payments as any[]).find((p) => p?.attributes?.status === "paid") ?? payments[0];
+  // deno-lint-ignore no-explicit-any
+  return (chosen as any)?.attributes?.source?.type ?? "paymongo";
+}
+
+/** Convenience wrapper for callers holding a parsed session. */
+export function pmMethodFromSession(session: PmSession): string {
+  // deno-lint-ignore no-explicit-any
+  return pmMethodFromAttributes((session.raw as any)?.data?.attributes);
+}
+
 export interface PmRefund { id: string; status: "pending" | "succeeded" | "failed"; raw: unknown }
 
 /** POST /refunds — amount in centavos. PayMongo returns status pending|succeeded|failed. */

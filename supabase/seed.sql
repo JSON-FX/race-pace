@@ -15,11 +15,25 @@
 -- with 2 of the open ones carrying an original_date (rescheduled).
 -- Hero images are 20 DISTINCT objects in the public event-images bucket.
 
-insert into organizations (id, name, slug, brand_color, commission_rate, description) values
-  ('00000000-0000-0000-0000-00000000a001','Muspo','muspo','#159A55',0.06,
-   'Mountain and ultra-trail racing out of Bukidnon. Kitanglad, Kalatungan, and every ridge in between.'),
-  ('00000000-0000-0000-0000-00000000a002','RunWithPoint','runwithpoint','#FF6B4A',0.06,
-   'Road racing across Bukidnon — from river-flat 5Ks to the Malaybalay full marathon.');
+-- Commercial terms are stated EXPLICITLY, never left to the column defaults.
+-- commission_type defaults to 'fixed' and commission_flat_cents to 0, so an org
+-- inserted with only a commission_rate would silently charge nothing at all —
+-- the exact silent-zero the Commission page flags in red.
+--
+-- The two orgs deliberately differ so both fee paths and both refund paths are
+-- exercised in development: Muspo on a percentage with full refunds,
+-- RunWithPoint on a flat ₱75 per registration retaining ₱300 on a cancellation.
+insert into organizations (
+  id, name, slug, brand_color, description,
+  commission_type, commission_rate, commission_flat_cents,
+  refund_policy, refund_fee_cents
+) values
+  ('00000000-0000-0000-0000-00000000a001','Muspo','muspo','#159A55',
+   'Mountain and ultra-trail racing out of Bukidnon. Kitanglad, Kalatungan, and every ridge in between.',
+   'percent', 0.06, 0, 'full', 0),
+  ('00000000-0000-0000-0000-00000000a002','RunWithPoint','runwithpoint','#FF6B4A',
+   'Road racing across Bukidnon — from river-flat 5Ks to the Malaybalay full marathon.',
+   'fixed', 0.06, 7500, 'flat_fee', 30000);
 
 insert into events (
   id, org_id, name, discipline, status, event_date, end_date, original_date, status_note,

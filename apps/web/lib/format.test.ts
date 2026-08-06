@@ -60,3 +60,44 @@ describe("initials", () => {
     expect(initials("")).toBe("?");
   });
 });
+
+describe("date formatting is timezone-stable", () => {
+  // The regression these lock down: fmtDate/fmtDateTime used the RUNTIME's own
+  // zone, so the UTC server and a Manila browser disagreed. React reported a
+  // hydration mismatch and, more importantly, a payment briefly showed the
+  // wrong DAY. Asserting against fixed strings means a future edit that drops
+  // the pinned timeZone fails here rather than in production.
+
+  it("renders an instant late in the UTC day as the NEXT Manila day", () => {
+    // 2026-08-06T17:30Z is 2026-08-07 01:30 in Manila (UTC+8).
+    expect(fmtDate("2026-08-06T17:30:00Z")).toBe("Aug 7, 2026");
+  });
+
+  it("renders an instant early in the UTC day as the same Manila day", () => {
+    expect(fmtDate("2026-08-06T02:00:00Z")).toBe("Aug 6, 2026");
+  });
+
+  it("is unaffected by the process timezone", () => {
+    // Simulates the server/client split directly: same input, two runtimes.
+    const original = process.env.TZ;
+    try {
+      process.env.TZ = "UTC";
+      const asUtc = fmtDate("2026-08-06T17:30:00Z");
+      process.env.TZ = "America/New_York";
+      const asNy = fmtDate("2026-08-06T17:30:00Z");
+      expect(asUtc).toBe(asNy);
+    } finally {
+      process.env.TZ = original;
+    }
+  });
+
+  it("renders the time in Manila, zero-padded", () => {
+    expect(fmtDateTime("2026-08-06T17:30:00Z")).toBe("Aug 7, 01:30");
+  });
+
+  it("renders Manila midnight as 00:00, never 24:00", () => {
+    // 2026-08-06T16:00Z is exactly 2026-08-07 00:00 Manila — the ICU quirk the
+    // original getHours() implementation existed to avoid.
+    expect(fmtDateTime("2026-08-06T16:00:00Z")).toBe("Aug 7, 00:00");
+  });
+});

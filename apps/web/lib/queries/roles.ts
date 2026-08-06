@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
+import { getOrgContext } from "@/lib/org-context";
 
 export type MyRoles = {
   role: string | null;
@@ -66,9 +67,22 @@ export const getMyRoles = cache(async (): Promise<MyRoles | null> => {
   // should not mistake the `.order()` above for having solved it.
   const resolvedRow = rows.find((r) => r.role === "admin") ?? rows.find((r) => r.role === "editor");
 
+  // A super admin legitimately has no org-scoped admin/editor row. Rather than
+  // leaving orgId null — which sends every org-scoped page to <NoOrgScope /> —
+  // fall back to the org they have selected. This is the "KNOWN LIMITATION"
+  // noted above finally being resolved for the super-admin case.
+  //
+  // Only fetched for a super admin: getOrgContext reads `organizations`, and a
+  // non-super-admin's orgId already comes from resolvedRow, so the extra round
+  // trip would buy nothing. Both functions are cache()d, so a page that also
+  // calls getOrgContext (the TopBar switcher does) shares this one call.
+  const orgCtx = isSuperAdmin ? await getOrgContext() : null;
+
   return {
     role: isSuperAdmin ? "super_admin" : resolvedRow?.role ?? rows[0]?.role ?? null,
-    orgId: resolvedRow?.org_id ?? null,
+    // resolvedRow first: a super admin who ALSO holds a real org-scoped admin
+    // row keeps that org, so the fallback only fires when there is nothing else.
+    orgId: resolvedRow?.org_id ?? orgCtx?.activeOrgId ?? null,
     isSuperAdmin,
     isAdmin: isSuperAdmin || !!resolvedRow,
     // "admin of the resolved org" — NOT "admin of any org the caller

@@ -1,6 +1,7 @@
 import { confirmPayment } from "../_shared/confirm.ts";
 import { serviceClient } from "../_shared/supabase.ts";
 import { verifyWebhookSignature } from "../_shared/paymongo-webhook.ts";
+import { pmMethodFromAttributes } from "../_shared/paymongo.ts";
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -25,7 +26,11 @@ Deno.serve(async (req) => {
     if (type === "checkout_session.payment.paid" || type === "payment.paid") {
       const rid = resource?.attributes?.metadata?.registration_id as string | undefined;
       if (!rid) return json({ ok: true, ignored: "no_registration_id" });
-      const method = resource?.attributes?.payments?.[0]?.attributes?.source?.type ?? "paymongo";
+      // Shared with payment-verify so both confirm paths record the same
+      // instrument. Also fixes a latent bug in the old inline `payments[0]`: a
+      // session can carry a failed attempt followed by a successful one, and
+      // [0] then reports the method the runner abandoned.
+      const method = pmMethodFromAttributes(resource?.attributes);
       const r = await confirmPayment(rid, method, { source: "webhook", event: evt });
       if (!r.ok) return json({ error: r.error }, r.status); // surface failures so PayMongo retries
       return json({ ok: true, registration_id: r.registration_id });
@@ -40,7 +45,20 @@ Deno.serve(async (req) => {
       // deno-lint-ignore no-explicit-any
       const parked = (pay.raw as any)?.refund ?? {};
       if (status === "succeeded") {
-        const { error: rpcErr } = await db.rpc("refund_registration_tx", { p_registration_id: pay.registration_id, p_refunded_by: parked.refunded_by ?? null, p_note: parked.note ?? null, p_provider_refund: resource });
+        // The retained split was computed and parked when the refund was
+        // REQUESTED (_shared/refund.ts), not now: the org's policy may have
+        // changed since, and the provider has already moved the parked amount.
+        // Passing null here would settle a flat-fee refund as a full one and
+        // hand back money both parties had agreed to keep.
+        const { error: rpcErr } = await db.rpc("refund_registration_tx", {
+          p_registration_id: pay.registration_id,
+          p_refunded_by: parked.refunded_by ?? null,
+          p_note: parked.note ?? null,
+          p_provider_refund: resource,
+          p_refunded_amount: parked.refunded_amount ?? null,
+          p_retained_fee: parked.retained_fee ?? 0,
+          p_retained_net: parked.retained_net ?? 0,
+        });
         if (rpcErr) {
           console.error("[webhook] refund_registration_tx failed", rpcErr);
           return json({ error: "refund_reconcile_failed" }, 500); // surface so PayMongo retries
