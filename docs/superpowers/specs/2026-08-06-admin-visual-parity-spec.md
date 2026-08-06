@@ -173,3 +173,18 @@ trigger is the topbar field so it is discoverable by mouse too.
 
 Dashboard, Check-in, Organizations, Commission and Payouts keep their coming-soon state — PR2/PR3.
 The mockup's Direction B and C treatments are not being built.
+
+---
+
+## Decided: org editors may read runner emails (2026-08-06)
+
+`admin_registration_emails` and `admin_cancel_registration` gate on `auth_can_admin_org`, which
+accepts `role in ('editor','admin')`. Editors can therefore enumerate every runner's email address
+for every event in their org, and cancel registrations.
+
+This was raised as a product decision rather than inherited silently, and the answer is **keep it**:
+editors are event operators who legitimately need runner contact information, and the same helper
+already gates registration reads, payment reads, storage writes and `admin-refund`. Narrowing these
+two RPCs alone would have made them diverge from every other admin surface.
+
+Recorded here so a future reader finds a decision rather than an accident.
