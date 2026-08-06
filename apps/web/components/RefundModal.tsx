@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { refundRegistrationAction } from "@/lib/actions/registrations";
+import { peso } from "@/lib/format";
 
 export function RefundModal({ registration, onClose, onDone }: {
   registration: { id: string; full_name: string | null; total_amount: number };
@@ -15,14 +16,14 @@ export function RefundModal({ registration, onClose, onDone }: {
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const peso = `₱${(registration.total_amount / 100).toLocaleString()}`;
+  const amount = peso(registration.total_amount);
 
   async function submit() {
     setBusy(true); setError(null);
     const res = await refundRegistrationAction(registration.id, note || undefined);
     setBusy(false);
     if (!res.ok) { setError(res.error ?? "Refund failed."); return; }
-    toast.success(`Refunded ${peso}`);
+    toast.success(`Refunded ${amount}`);
     onDone();
     onClose();
   }
@@ -31,7 +32,7 @@ export function RefundModal({ registration, onClose, onDone }: {
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent className="w-[380px] rounded-xl">
         <DialogHeader>
-          <DialogTitle className="text-[17px] font-bold">Refund {peso}?</DialogTitle>
+          <DialogTitle className="text-[17px] font-bold">Refund {amount}?</DialogTitle>
           <DialogDescription className="text-[13px] text-muted-foreground">
             Refunds {registration.full_name ?? "this runner"} and reopens their slot. This can't be undone.
           </DialogDescription>

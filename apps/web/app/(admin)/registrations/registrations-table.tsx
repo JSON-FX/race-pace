@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { DataTable, type FilterDef } from "@/components/data-table";
 import { PaymentStatusBadge } from "@/components/StatusBadge";
 import { RegistrationDetail } from "@/components/RegistrationDetail";
 import { peso, fmtDate } from "@/lib/format";
+import { useTableParams } from "@/lib/use-table-params";
 import type { RegistrationRow } from "@/lib/queries/registrations";
 import type { SortState } from "@/lib/table-params";
 
@@ -27,10 +28,19 @@ export function RegistrationsTable({
   sort: SortState[]; activeFilters: Record<string, string>; q: string;
   categories: { id: string; label: string }[];
 }) {
-  // The row detail sheet is client-local state, not URL state — the sheet
-  // shows data already present in `rows`, so there's nothing to deep-link to
-  // that a fresh server fetch would add.
-  const [selected, setSelected] = useState<RegistrationRow | null>(null);
+  // The detail sheet is driven by `?reg=<id>`, not local state, so an admin
+  // can bookmark or paste a link to a specific registration (the old SPA
+  // supported this). `reg` is a filter key like any other (parseTableParams
+  // treats every non-reserved param that way) but deliberately has no
+  // FilterDef — ActiveFilters only renders a chip for keys present in
+  // filterDefs, so this never shows up as a removable chip, same as `event`
+  // already doesn't. `listEventRegistrations` never reads `filters.reg`, so
+  // it can't affect the query. And because `reg` isn't in
+  // `preserveOnClear`, "Clear all" closes the sheet along with every other
+  // non-`event` param.
+  const { setFilter } = useTableParams();
+  const selectedId = activeFilters.reg;
+  const selected = selectedId ? rows.find((r) => r.id === selectedId) ?? null : null;
 
   const filterDefs = useMemo<FilterDef[]>(() => [
     STATUS_FILTER,
@@ -44,7 +54,7 @@ export function RegistrationsTable({
       cell: ({ row }) => (
         <button
           type="button"
-          onClick={() => setSelected(row.original)}
+          onClick={() => setFilter("reg", row.original.id)}
           className="text-left hover:underline"
         >
           <div className="font-semibold">{row.original.full_name ?? "—"}</div>
@@ -72,7 +82,15 @@ export function RegistrationsTable({
         <span className="font-mono tabular text-muted-foreground">{fmtDate(row.original.created_at)}</span>
       ),
     },
-  ], []);
+  // `setFilter` is a plain closure returned fresh by `useTableParams()` on
+  // every render (it isn't wrapped in `useCallback`), not a stable
+  // reference — depending on it here means these columns recompute every
+  // render rather than truly memoizing, but that's the correct tradeoff:
+  // omitting it would freeze the Runner cell's onClick on the very first
+  // render's `setFilter`, which closes over that render's stale
+  // `searchParams` and would silently stop patching the CURRENT URL after
+  // any navigation.
+  ], [setFilter]);
 
   return (
     <>
@@ -93,8 +111,11 @@ export function RegistrationsTable({
       {selected ? (
         <RegistrationDetail
           row={selected}
-          onClose={() => setSelected(null)}
-          onRefunded={() => setSelected(null)}
+          // "all" is setFilter's own sentinel for "remove this key" — closes
+          // the sheet by dropping `reg` from the URL, same as removing any
+          // other filter chip.
+          onClose={() => setFilter("reg", "all")}
+          onRefunded={() => setFilter("reg", "all")}
         />
       ) : null}
     </>
