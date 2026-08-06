@@ -58,13 +58,20 @@ describe("updateOrgBrandingAction", () => {
 
   // A GRANT-blocked write is a loud Postgres error (e.g. "permission denied
   // for table organizations") — the DB layer errors, unlike the RLS-blocked
-  // silent-zero-rows case below. Must not leak that raw text to the UI.
-  it("returns a generic error and does not leak raw Postgres text on a DB error", async () => {
+  // silent-zero-rows case below. Must not leak that raw text to the UI, but
+  // must still be recoverable from server logs (console.error).
+  it("returns a generic error, logs the real one server-side, and does not leak raw Postgres text to the UI", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     getMyRoles.mockResolvedValue(roles({}));
     updateSelect.mockResolvedValueOnce({ data: null, error: { message: "permission denied for table organizations" } });
     const res = await updateOrgBrandingAction("a1", { logo_url: "https://x/a.png" });
     expect(res.ok).toBe(false);
     expect(res.error).not.toMatch(/permission denied|postgres/i);
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("[settings]"),
+      expect.objectContaining({ error: expect.objectContaining({ message: "permission denied for table organizations" }) }),
+    );
+    errorSpy.mockRestore();
   });
 
   // RLS-blocked (as opposed to grant-blocked) UPDATEs return success with
@@ -107,12 +114,18 @@ describe("updateOrgNameAction", () => {
     expect(updateMock).not.toHaveBeenCalled();
   });
 
-  it("returns a generic error and does not leak raw Postgres text on a DB error", async () => {
+  it("returns a generic error, logs the real one server-side, and does not leak raw Postgres text to the UI", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     getMyRoles.mockResolvedValue(roles({}));
     updateSelect.mockResolvedValueOnce({ data: null, error: { message: "permission denied for table organizations" } });
     const res = await updateOrgNameAction({}, formData({ orgId: "a1", name: "Renamed Org" }));
     expect(res.error).toBeTruthy();
     expect(res.error).not.toMatch(/permission denied|postgres/i);
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("[settings]"),
+      expect.objectContaining({ error: expect.objectContaining({ message: "permission denied for table organizations" }) }),
+    );
+    errorSpy.mockRestore();
   });
 
   it("reports failure, not success, when the update silently affects zero rows", async () => {

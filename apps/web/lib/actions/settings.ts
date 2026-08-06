@@ -49,9 +49,17 @@ export async function updateOrgBrandingAction(
   // what actually prevents that in practice; this is the honest-response
   // check for the case it's ever wrong (see finding #2 in the Task 10
   // report — orgId/isOrgAdmin resolving to different orgs was exactly that
-  // case). Never surface `error.message` (raw Postgres text) to the UI.
+  // case). Never surface `error.message` (raw Postgres text) to the UI — but
+  // don't discard it entirely: log it server-side (matches the
+  // console.error("[tag] message", details) convention used throughout
+  // supabase/functions/*) so a real failure (e.g. a grant regression) is
+  // recoverable from server logs instead of only ever seen as "Something
+  // went wrong" by the user.
   const { data, error } = await supabase.from("organizations").update(patch).eq("id", orgId).select("id");
-  if (error) return { ok: false, error: GENERIC_ERROR };
+  if (error) {
+    console.error("[settings] organizations branding update failed", { orgId, patch, error });
+    return { ok: false, error: GENERIC_ERROR };
+  }
   if (!data || data.length === 0) return { ok: false, error: GENERIC_ERROR };
 
   revalidatePath("/settings");
@@ -73,9 +81,12 @@ export async function updateOrgNameAction(_prev: SettingsState, formData: FormDa
   // See updateOrgBrandingAction's comment: .select("id") + the empty-result
   // check are what stop this from reporting "Organization name updated."
   // when an RLS-blocked write silently changed zero rows. Never surface
-  // `error.message` (raw Postgres text) to the UI.
+  // `error.message` (raw Postgres text) to the UI — log it server-side instead.
   const { data, error } = await supabase.from("organizations").update({ name }).eq("id", orgId).select("id");
-  if (error) return { error: GENERIC_ERROR };
+  if (error) {
+    console.error("[settings] organizations name update failed", { orgId, error });
+    return { error: GENERIC_ERROR };
+  }
   if (!data || data.length === 0) return { error: GENERIC_ERROR };
 
   revalidatePath("/settings");

@@ -19,10 +19,20 @@ export const getMyRoles = cache(async (): Promise<MyRoles | null> => {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
-  // .order() so PostgREST's row order is never load-bearing for anything
-  // below — the org-resolution logic reads every row and picks explicitly,
-  // it does not rely on which row the database happened to return first.
-  const { data, error } = await supabase.from("user_roles").select("role, org_id").order("role");
+  // .order() does NOT make row order irrelevant to org selection — that's
+  // done below by the explicit two-step `find(admin) ?? find(editor)`,
+  // which already guarantees an admin row wins over an editor row
+  // regardless of scan order (ascending-by-role just happens to put "admin"
+  // before "editor" too, so this is belt-and-suspenders for that choice,
+  // not the mechanism the security fix depends on). What .order() actually
+  // buys: a stable, non-arbitrary value for the `rows[0]` fallback used
+  // below for `role` when the caller has no admin/editor row, and a
+  // secondary key (org_id) so that if the caller holds an `admin` row in
+  // TWO orgs, which one wins is at least deterministic rather than
+  // whatever order Postgres feels like today. See the resolvedRow comment
+  // for why a stable *choice* still isn't the same as a *correct* one in
+  // that two-admin-orgs case.
+  const { data, error } = await supabase.from("user_roles").select("role, org_id").order("role").order("org_id");
   if (error) throw error;
 
   const rows = data ?? [];
@@ -38,9 +48,22 @@ export const getMyRoles = cache(async (): Promise<MyRoles | null> => {
   // whose Y row sorted first, that returned `{orgId: "Y", isOrgAdmin:
   // true}" — "admin of Y" — when the user is only an editor of Y. Every
   // downstream isOrgAdmin gate (Team, Settings) trusted that false signal
-  // for org Y. Fix: resolve a single `resolvedRow` FIRST (preferring an
-  // `admin` row over an `editor` row, deterministically, regardless of scan
-  // order), then derive every other field from that same row.
+  // for org Y. Fix: resolve a single `resolvedRow` FIRST — the explicit
+  // `find(role === "admin") ?? find(role === "editor")` below is what
+  // guarantees an admin row always wins over an editor row, independent of
+  // row order — then derive every other field from that same row.
+  //
+  // KNOWN LIMITATION, not fixed here: a user holding `admin` rows in TWO
+  // different orgs (also a legitimate, supported state) still has no way to
+  // pick between them — `find(role === "admin")` returns whichever admin
+  // row is first after the `.order("role").order("org_id")` above, which
+  // only makes that choice STABLE (same org every call), not a considered
+  // one. That user is silently pinned to one org across Events,
+  // Registrations, Payments, Team and Settings, with no org switcher and no
+  // indication the other org exists. This is not a privilege-escalation bug
+  // (both orgs are legitimately theirs) so it's out of scope here — an org
+  // switcher is a product decision beyond this PR — but a future reader
+  // should not mistake the `.order()` above for having solved it.
   const resolvedRow = rows.find((r) => r.role === "admin") ?? rows.find((r) => r.role === "editor");
 
   return {
