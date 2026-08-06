@@ -1,9 +1,11 @@
+"use client";
+
 import { useState } from "react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { refundRegistration } from "../lib/registrations";
+import { refundRegistrationAction } from "@/lib/actions/registrations";
 
 export function RefundModal({ registration, onClose, onDone }: {
   registration: { id: string; full_name: string | null; total_amount: number };
@@ -17,7 +19,7 @@ export function RefundModal({ registration, onClose, onDone }: {
 
   async function submit() {
     setBusy(true); setError(null);
-    const res = await refundRegistration(registration.id, note || undefined);
+    const res = await refundRegistrationAction(registration.id, note || undefined);
     setBusy(false);
     if (!res.ok) { setError(res.error ?? "Refund failed."); return; }
     toast.success(`Refunded ${peso}`);
