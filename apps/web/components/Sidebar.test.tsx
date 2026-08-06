@@ -14,7 +14,12 @@ function roles(overrides: Partial<MyRoles> = {}): MyRoles {
 function renderSidebar(r: MyRoles) {
   return render(
     <SidebarProvider>
-      <Sidebar roles={r} email="admin@racepace.test" />
+      <Sidebar
+        roles={r}
+        email="admin@racepace.test"
+        orgName="Race Pace Events"
+        counts={{ events: 12, registrations: 847 }}
+      />
     </SidebarProvider>,
   );
 }
@@ -42,13 +47,13 @@ it("shows the Team link to an org admin", () => {
 // never see it, regardless of isOrgAdmin.
 it("hides the PLATFORM super-admin group from a regular org admin", () => {
   renderSidebar(roles({ isSuperAdmin: false, isOrgAdmin: true }));
-  expect(screen.queryByText("PLATFORM · SUPER ADMIN")).not.toBeInTheDocument();
+  expect(screen.queryByText("PLATFORM")).not.toBeInTheDocument();
   expect(screen.queryByText("Organizations")).not.toBeInTheDocument();
 });
 
 it("shows the PLATFORM super-admin group to a super_admin", () => {
   renderSidebar(roles({ isSuperAdmin: true }));
-  expect(screen.getByText("PLATFORM · SUPER ADMIN")).toBeInTheDocument();
+  expect(screen.getByText("PLATFORM")).toBeInTheDocument();
   expect(screen.getByText("Organizations")).toBeInTheDocument();
   expect(screen.getByText("Commission")).toBeInTheDocument();
   expect(screen.getByText("Payouts")).toBeInTheDocument();
@@ -58,4 +63,24 @@ it("shows the caller's email-derived name and role label", () => {
   renderSidebar(roles({ isSuperAdmin: true }));
   expect(screen.getByText("admin")).toBeInTheDocument();
   expect(screen.getByText("Super admin")).toBeInTheDocument();
+});
+
+it("shows nav-count pills for Events and Registrations when counts are provided", () => {
+  renderSidebar(roles());
+  expect(screen.getByText("12")).toBeInTheDocument();
+  expect(screen.getByText("847")).toBeInTheDocument();
+});
+
+// requireOrgId() returns null for a bare super_admin with no org-scoped row
+// — the (admin) layout passes counts: null in that case rather than 0s,
+// which would misleadingly read as "zero events". Sidebar must render the
+// nav without pills, not crash on a missing counts object.
+it("renders the nav without count pills when counts is null (no org scope)", () => {
+  render(
+    <SidebarProvider>
+      <Sidebar roles={roles({ isSuperAdmin: true, orgId: null })} email="admin@racepace.test" orgName={null} counts={null} />
+    </SidebarProvider>,
+  );
+  expect(screen.getByText("Events")).toBeInTheDocument();
+  expect(screen.queryByText("12")).not.toBeInTheDocument();
 });

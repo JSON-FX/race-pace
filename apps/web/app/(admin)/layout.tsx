@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getMyRoles, requireOrgId } from "@/lib/queries/roles";
 import { getOrg } from "@/lib/queries/org";
+import { getOrgEventCount } from "@/lib/queries/events";
+import { getOrgRegistrationCount } from "@/lib/queries/registrations";
 import { AppShell } from "@/components/AppShell";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -22,9 +24,18 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // within this request, this doesn't cost a second query.
   const orgId = requireOrgId(roles);
   const orgName = orgId ? (await getOrg(orgId)).name : null;
+  // Sidebar nav-count pills (Events, Registrations) are real data, not
+  // props threaded from a page. A bare super_admin with orgId: null has no
+  // org to count against — counts stays null and Sidebar renders the nav
+  // without pills rather than showing a misleading 0.
+  const counts = orgId
+    ? await Promise.all([getOrgEventCount(orgId), getOrgRegistrationCount(orgId)]).then(
+        ([events, registrations]) => ({ events, registrations }),
+      )
+    : null;
 
   return (
-    <AppShell roles={roles} email={user.email ?? ""} orgName={orgName}>
+    <AppShell roles={roles} email={user.email ?? ""} orgName={orgName} counts={counts}>
       {children}
     </AppShell>
   );

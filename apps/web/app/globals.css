@@ -43,6 +43,12 @@
   --radius: 0.6875rem;    /* 11px — handover --radius */
   --radius-card: 1rem;    /* 16px */
   --radius-pill: 9999px;
+
+  /* Soft single-layer elevation for rounded-xl cards (mockup's --shadow).
+     Unlike --primary etc. above, this is already a full box-shadow value,
+     not an RGB channel triple, so it does NOT get wrapped in rgb() below —
+     it's exposed to @theme inline as-is. */
+  --shadow-card: 0 1px 2px rgb(16 24 40/.04), 0 1px 3px rgb(16 24 40/.06);
 }
 
 .dark {
@@ -72,6 +78,10 @@
   --paid: 53 192 110;   --paid-tint: 19 37 28;
   --info: 10 132 255;   --info-tint: 16 35 58;
   --amber: 224 163 69;  --amber-tint: 42 33 19;
+
+  /* Dark surfaces need a darker, more opaque shadow to read against — same
+     ratio as the mockup's dark-mode --shadow. */
+  --shadow-card: 0 1px 2px rgb(0 0 0/.4), 0 1px 3px rgb(0 0 0/.3);
 
   --sidebar: 20 25 22;
   --sidebar-foreground: 245 245 247;
@@ -140,6 +150,11 @@
   --radius-lg: var(--radius);
   --radius-xl: var(--radius-card);
   --radius-pill: var(--radius-pill);
+  /* Already a full box-shadow value (see :root/.dark) — pass through
+     as-is, unlike the --color-* entries above which wrap a channel triple
+     in rgb(). This is the Tailwind v4 `--shadow-<name>` convention, which
+     enables the `shadow-card` utility used by components/ui/card.tsx. */
+  --shadow-card: var(--shadow-card);
   --font-sans: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, monospace;
 }

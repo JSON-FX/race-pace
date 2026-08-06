@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import type { TableParams } from "@/lib/table-params";
 
@@ -53,3 +54,17 @@ export async function listOrgEvents(
   if (error) throw error;
   return { rows: (data ?? []) as AdminEventRow[], total: count ?? 0 };
 }
+
+/** Sidebar nav-count pill for Events. head:true skips fetching rows and
+ *  returns only the exact count. Cached per-request so the (admin) layout
+ *  can call it without duplicating the sidebar's own query if a future page
+ *  needs the same number. */
+export const getOrgEventCount = cache(async (orgId: string): Promise<number> => {
+  const supabase = await createClient();
+  const { count, error } = await supabase
+    .from("events")
+    .select("id", { count: "exact", head: true })
+    .eq("org_id", orgId);
+  if (error) throw error;
+  return count ?? 0;
+});

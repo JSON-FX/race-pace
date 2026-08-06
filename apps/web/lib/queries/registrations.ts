@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import type { TableParams } from "@/lib/table-params";
 import { quotePostgrestValue } from "./events";
@@ -70,6 +71,20 @@ export async function listOrgEventOptions(orgId: string): Promise<{ id: string; 
   const byId = new Map((counts.data ?? []).map((c) => [c.event_id as string, c.reg_count as number]));
   return (events.data ?? []).map((e) => ({ id: e.id as string, name: e.name as string, count: byId.get(e.id as string) ?? 0 }));
 }
+
+/** Sidebar nav-count pill for Registrations — org-wide, not scoped to a
+ *  single event (unlike listEventRegistrations). admin_registrations_v
+ *  carries org_id directly (see supabase/migrations/20260804120000_admin_list_views.sql)
+ *  so this is a single head:true count query, not a full list read. */
+export const getOrgRegistrationCount = cache(async (orgId: string): Promise<number> => {
+  const supabase = await createClient();
+  const { count, error } = await supabase
+    .from("admin_registrations_v")
+    .select("id", { count: "exact", head: true })
+    .eq("org_id", orgId);
+  if (error) throw error;
+  return count ?? 0;
+});
 
 export async function listEventCategories(eventId: string): Promise<{ id: string; label: string }[]> {
   const supabase = await createClient();

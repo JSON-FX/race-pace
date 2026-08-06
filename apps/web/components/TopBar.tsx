@@ -1,9 +1,9 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { Search } from "lucide-react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { Badge } from "@/components/ui/badge";
-import type { MyRoles } from "@/lib/queries/roles";
+import { Breadcrumb, BreadcrumbList, BreadcrumbItem, BreadcrumbPage } from "@/components/ui/breadcrumb";
 
 const TITLES: Record<string, string> = {
   "/dashboard": "Dashboard", "/events": "Events", "/registrations": "Registrations",
@@ -11,24 +11,40 @@ const TITLES: Record<string, string> = {
   "/organizations": "Organizations", "/commission": "Commission", "/payouts": "Payout statements",
 };
 
-export function TopBar({ roles, orgName }: { roles: MyRoles; orgName: string | null }) {
+export function TopBar({ orgName }: { orgName: string | null }) {
   const pathname = usePathname();
   const title = pathname === "/events/new" ? "Create event"
     : /^\/events\/[^/]+\/edit$/.test(pathname) ? "Edit event"
     : TITLES[pathname] ?? "Dashboard";
-  const roleLabel = roles.isSuperAdmin ? "Super admin" : "Admin";
 
   return (
-    <header className="flex h-[66px] shrink-0 items-center gap-4 border-b border-border bg-card px-4 md:px-[30px]">
+    <header className="flex h-[66px] shrink-0 items-center gap-3 border-b border-border bg-card px-4 md:px-[22px]">
       <SidebarTrigger />
-      <div className="text-lg font-bold tracking-tight">{title}</div>
-      <div className="ml-auto flex items-center gap-2">
-        {/* orgName is null for a bare super_admin with no org-scoped row
-            (see requireOrgId) — render just the role badge, not an empty gap. */}
-        {orgName ? <span className="text-[13px] font-medium text-muted-foreground">{orgName}</span> : null}
-        <Badge variant="secondary" className="text-[13px] font-semibold text-muted-foreground">
-          {roleLabel}
-        </Badge>
+      <Breadcrumb>
+        <BreadcrumbList className="flex-nowrap gap-1.5 text-xs text-muted-foreground sm:gap-1.5">
+          {/* orgName is null for a bare super_admin with no org-scoped row
+              (see requireOrgId) — fall back to just the current page. */}
+          {orgName ? (
+            <BreadcrumbItem className="whitespace-nowrap">{orgName}</BreadcrumbItem>
+          ) : null}
+          {orgName ? <BreadcrumbItem className="text-muted-foreground">/</BreadcrumbItem> : null}
+          <BreadcrumbItem>
+            <BreadcrumbPage className="text-xs font-semibold text-foreground">{title}</BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
+      <div className="ml-auto flex items-center">
+        <button
+          type="button"
+          aria-label="Open search (command palette)"
+          className="flex min-w-[180px] items-center gap-2 rounded-lg border border-border bg-card px-[11px] py-2 text-[13px] text-muted-foreground transition-colors hover:bg-muted"
+        >
+          <Search className="size-[15px] shrink-0" strokeWidth={2} />
+          <span className="flex-1 text-left">Search…</span>
+          <kbd className="rounded-md border border-border px-[5px] py-px font-mono text-[11px] text-muted-foreground">
+            ⌘K
+          </kbd>
+        </button>
       </div>
     </header>
   );
