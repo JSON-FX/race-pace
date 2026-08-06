@@ -181,10 +181,24 @@ confirmation, so changing an organization's commission applies from the next reg
 onward. Correct for money, but must be stated on the page — an operator changing a rate
 will otherwise assume it applies to existing payments.
 
-**A refund reverses the commission too.** The runner gets the full amount back: Race Pace
-returns its `platform_fee` alongside the organizer's `net_to_org`. So commission earned is
-always net of refunds, and a refunded entry contributes nothing to either party. How that
-interacts with an already-transferred payout is the subtlest part of this spec — see §9.1.
+**A refund reverses the commission too.** Race Pace returns its `platform_fee` alongside
+the organizer's `net_to_org` — neither party keeps anything from a fully refunded entry.
+How that interacts with an already-transferred payout is the subtlest part of this spec —
+see §9.1.
+
+**How much comes back is a per-org policy.** Three options (§9.6):
+
+| Policy | Runner receives | Effect |
+| --- | --- | --- |
+| `full` | everything | current behaviour; entry contributes nothing to anyone |
+| `none` | nothing | refund is refused; the entry stands as a normal paid sale |
+| `flat_fee` | `amount − refund_fee_cents` | the retained amount becomes a smaller sale |
+
+**A retained fee is treated as a smaller sale.** The org's normal commission rule is
+applied to the retained amount, exactly as if the runner had paid that much: ₱300 retained
+at 10% leaves ₱30 to Race Pace and ₱270 to the organizer. This needs no new rule — it is
+the same per-registration commission, against a smaller number — and the payout arithmetic
+in §9.1 then follows without a special case.
 
 **The payout unit is an event, not a calendar month.** This supersedes the earlier
 "monthly periods" decision. A month boundary would split one race weekend's money across
@@ -235,6 +249,18 @@ existing payments keep the 10.0% they were charged at."*
 
 **Commission by event** — where the fee actually came from: event, org, paid count, gross,
 fee charged (`10.0% each` / `₱75 flat each`), commission.
+
+**Refund policy per organization** — same page, below the fee table. One org's commercial
+terms belong on one screen; splitting fee and refund terms across two pages means an
+operator negotiating with an organizer visits two places. Three options (§5) with a
+retention amount when `flat_fee` is selected, and a worked example rendered live from the
+org's own numbers: *"A runner cancelling a ₱2,000 entry gets ₱1,700 back. Of the ₱300
+retained, ₱30 is commission and ₱270 goes to the organizer."* Abstract policy names hide
+the arithmetic that actually matters to both parties.
+
+**Defaults are flat on both** — new orgs get a flat commission and a flat-fee refund
+policy. Both flag red at ₱0, since a ₱0 flat commission earns nothing and a ₱0 retention is
+indistinguishable from a full refund (§9.5, §9.6).
 
 Writes need a super-admin UPDATE policy on the commission columns (§9.3).
 `20260724140000_scope_org_update_grant.sql` scoped the column grant; verify with
@@ -387,19 +413,38 @@ Service role. Creates the org, invites the first admin via
 `auth.admin.inviteUserByEmail`, assigns an `admin` role bound to the new `org_id`. Rejects
 non-super-admin callers. Returns the action link so provisioning works before SMTP exists.
 
+**Commercial terms are required inputs, not defaults.** The call takes commission type and
+value, and refund policy and retention. Both new-org defaults are flat with a ₱0 amount
+(§9.5, §9.6), and ₱0 is never what anyone means — so the function rejects a flat commission
+of ₱0 rather than creating an organization Race Pace earns nothing from.
+
 ### 9.5 Percentage-or-flat commission (new)
 
 ```sql
 alter table organizations
-  add column commission_type text not null default 'percent'
+  add column commission_type text not null default 'fixed'
     check (commission_type in ('percent', 'fixed')),
   add column commission_flat_cents integer not null default 0
     check (commission_flat_cents >= 0);
+
+-- Existing orgs keep the percentage they are ALREADY being charged.
+update organizations set commission_type = 'percent';
 ```
 
 `commission_rate` stays as-is and keeps its meaning for `commission_type = 'percent'`.
-Existing rows default to `'percent'`, so behaviour is unchanged until a rate is edited —
-no backfill, no migration risk to live money.
+
+**The column default and the backfill deliberately disagree.** New organizations default to
+a flat fee, as decided. Existing organizations are explicitly set back to `'percent'`,
+because they are currently operating at 10% and the new `commission_flat_cents` default is
+₱0 — inheriting the column default would silently drop Race Pace's revenue on those orgs to
+zero. A default is for rows that do not exist yet; live rows get their current behaviour
+preserved.
+
+**₱0 is not a usable flat fee**, so it must never be reached silently:
+
+- `org-provision` (§9.4) **requires** a commission value; there is no create-then-forget path.
+- The Commission page flags any org sitting at a ₱0 flat fee in red — "this organization is
+  charged nothing per registration".
 
 `_shared/confirm.ts` branches on the type:
 
@@ -421,7 +466,59 @@ The `select` in `confirm.ts:18` must be widened to fetch the two new columns —
 it requests only `organizations(commission_rate)`, so a missed edit here fails silently
 into the `?? 0.10` percent default rather than erroring.
 
-### 9.6 Super-admin org context (blocking prerequisite)
+### 9.6 Refund policy (new)
+
+```sql
+alter table organizations
+  add column refund_policy text not null default 'flat_fee'
+    check (refund_policy in ('full', 'none', 'flat_fee')),
+  add column refund_fee_cents integer not null default 0
+    check (refund_fee_cents >= 0);
+
+-- Existing orgs keep today's behaviour: refunds return everything.
+update organizations set refund_policy = 'full';
+
+alter type payment_status add value 'partially_refunded';
+alter table payments add column refunded_amount integer not null default 0;
+```
+
+Same default-versus-backfill split as §9.5, for the same reason: `flat_fee` with a ₱0
+retention behaves exactly like a full refund, so inheriting the default would be a silent
+no-op rather than the intended policy. The Commission page flags a `flat_fee` org at ₱0.
+
+Adding an enum value is additive and safe. It cannot run inside the same transaction as
+statements that use it, so it needs its own migration file ahead of the rest.
+
+**Partial refunds are supported by the provider.** `_shared/refund.ts:39` currently passes
+`pay.amount` unconditionally; PayMongo's refund API accepts a partial amount, so this
+becomes a policy calculation before the call rather than a new integration.
+
+**`refund_registration_tx` rewrites the split.** On a `flat_fee` refund it sets
+`status = 'partially_refunded'`, records `refunded_amount`, and rewrites `amount`,
+`platform_fee` and `net_to_org` to the **retained** values — the retention re-run through
+the org's commission rule. The row then describes a smaller sale, and every downstream sum
+keeps working without knowing a refund happened.
+
+`none` refuses the refund outright: `refund_registration_tx` returns `policy_forbids` and
+the admin UI disables the action with the reason, rather than offering a button the server
+will reject.
+
+**Every existing money aggregate must widen its filter.** This is the largest ripple in
+this spec — a `partially_refunded` row represents real retained revenue and must not vanish
+from the totals:
+
+| Object | Change |
+| --- | --- |
+| `admin_org_totals_v` | `filter (where p.status = 'paid')` → `in ('paid','partially_refunded')` |
+| `admin_event_totals_v` | same |
+| `admin_registration_aggregates` | same, and `refund_count` should count both refund kinds |
+| `admin_payment_aggregates` | same |
+| `payout_open_statement` (§9.1) | the **earn** set becomes `status in ('paid','partially_refunded')` |
+
+Missing any one of these makes a KPI disagree with the table beneath it — the exact failure
+`20260806190000_admin_kpi_aggregates.sql` was written to prevent.
+
+### 9.7 Super-admin org context (blocking prerequisite)
 
 The org switcher exists only on the stale Vite worktree. In the Next.js admin,
 `admin@racepace.test` currently gets "No organization on this account" on every org-scoped
@@ -507,6 +604,12 @@ remains the portable path.
 - **RPCs, pgTAP:** `payout_open_statement` excludes already-stamped payments; a second open
   statement for the same event violates the partial unique index; `payout_mark_paid` stamps
   every covered row; `checkin_undo` refuses a caller without `auth_can_check_in_event`
+- **Refund policy, pgTAP:** `none` refuses the refund and leaves the payment untouched;
+  `flat_fee` sets `partially_refunded`, records `refunded_amount`, and rewrites the split so
+  `platform_fee + net_to_org == amount` still holds on the retained figures; a retention
+  **larger than the entry** clamps rather than inverting the refund; every widened aggregate
+  (§9.6) counts a `partially_refunded` row — a regression test per view, since a missed one
+  is silent
 - **Refund/payout interaction, pgTAP** — the arithmetic most likely to be wrong, and the
   most expensive to get wrong:
   - refund **before** any payout contributes nothing — statement net is as if the entry

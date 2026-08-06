@@ -128,10 +128,14 @@ unit an <b>event</b>, not a calendar month, which is a change from what we agree
     <div class="amt" style="color:var(--paid)">₱1,800</div></div>
 </div>
 <div class="note bad" style="margin-top:0;border-radius:0 0 9px 9px;border-top:0">
-  <b>A refund reverses the whole ₱2,000 — commission included.</b> Race Pace returns its ₱200
-  as well as the organizer's ₱1,800. Where that lands depends entirely on whether step 4 has
-  already happened: <b>before</b> payout the entry simply never counts, <b>after</b> payout the
-  ₱1,800 is clawed back from the event's next statement. Never both.</div>
+  <b>A refund reverses the commission too — how much depends on the org's policy.</b> On a
+  <b>full</b> refund Race Pace returns its ₱200 alongside the organizer's ₱1,800 and nobody
+  keeps anything. On a <b>flat fee</b> of ₱300, the runner gets ₱1,700 back and the retained
+  ₱300 is treated as a smaller sale — ₱30 commission, ₱270 to the organizer. <b>None</b>
+  refuses the refund and the entry stands as a normal paid sale.<br><br>
+  Where the reversal lands depends entirely on whether step 4 has already happened:
+  <b>before</b> payout the adjustment simply changes what the next statement owes;
+  <b>after</b> payout it becomes a clawback. Never both.</div>
 <div class="note"><b>Commission is per registration, not per batch.</b> This is already how it
 works — <code>_shared/confirm.ts:26</code> computes the fee against a single registration's
 <code>total_amount</code> at confirmation. What is new is the <b>flat-amount</b> option: today
@@ -196,6 +200,40 @@ be visible on the page or an operator will assume a change is retroactive.</div>
         nothing — the fee is clamped to the entry total and never makes <code>net_to_org</code>
         negative. Shown here because a silent clamp is worse than a visible one.</span></div>
     </div>
+    <div class="card" style="margin-top:12px">
+      <div class="hd"><b>Refund policy</b><div class="spacer"></div>
+        <span class="mini">What a cancelling runner gets back</span></div>
+      <table>
+        <tr><th>Organization</th><th>Policy</th><th>Retained</th><th>Worked example</th><th></th></tr>
+        <tr><td><div class="row"><span class="avat">M</span>Muspo</div></td>
+          <td><span class="seg"><b class="on">Flat fee</b><b>Full</b><b>None</b></span></td>
+          <td><span class="rateinput">
+            <span style="padding:5px 2px 5px 8px;background:transparent;border:0;border-right:1px solid var(--border);margin-right:2px">₱</span>
+            <input value="300" style="width:48px"></span></td>
+          <td style="font-size:12px;color:var(--mutedfg);line-height:1.5">
+            A runner cancelling a <b style="color:var(--fg)">₱2,000</b> entry gets
+            <b style="color:var(--fg)">₱1,700</b> back.<br>Of the ₱300 retained,
+            <b style="color:var(--fg)">₱30</b> is commission and
+            <b style="color:var(--paid)">₱270</b> goes to Muspo.</td>
+          <td class="num"><button class="btn sm">Save</button></td></tr>
+        <tr style="background:#fbfdfc"><td><div class="row"><span class="avat">R</span>RunWithPoint</div></td>
+          <td><span class="seg"><b>Flat fee</b><b class="on">Full</b><b>None</b></span></td>
+          <td><span style="color:var(--mutedfg);font-size:12.5px">—</span></td>
+          <td style="font-size:12px;color:var(--mutedfg);line-height:1.5">
+            A runner cancelling a <b style="color:var(--fg)">₱1,500</b> entry gets all
+            <b style="color:var(--fg)">₱1,500</b> back.<br>Neither RunWithPoint nor Race Pace
+            keeps anything.</td>
+          <td class="num"><button class="btn sm ghost" style="opacity:.45">Save</button></td></tr>
+      </table>
+      <div style="padding:11px 14px;background:var(--infotint);border-top:1px solid var(--divider);
+        font-size:12.5px;color:var(--info);font-weight:600;display:flex;gap:8px;align-items:flex-start">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" style="flex:none;margin-top:1px"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8v.01"/></svg>
+        <span><b>A retained fee is just a smaller sale.</b> The org's normal commission rule runs
+        against the retained amount, so nothing new has to be decided per refund — and the payout
+        statement picks it up with no special case. <b>None</b> refuses the refund outright, and
+        the org admin's refund button is disabled with the reason rather than failing on submit.</span></div>
+    </div>
+
     <div class="card" style="margin-top:12px">
       <div class="hd"><b>Commission by event</b><div class="spacer"></div><span class="mini">Where the fee actually came from</span></div>
       <table>
