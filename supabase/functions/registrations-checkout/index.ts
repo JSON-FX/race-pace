@@ -18,6 +18,10 @@ Deno.serve(async (req) => {
     const raw = await req.json();
     // The app passes its deep-link so PayMongo's hosted checkout can redirect back.
     const returnUrl = typeof raw?.return_url === "string" && raw.return_url ? raw.return_url : "racepace://pay-callback";
+    // Logged because this value is computed on the device by Linking.createURL() from the
+    // Metro dev-server host — a stale host here sends the post-payment redirect to an
+    // unreachable IP, and it is otherwise never persisted anywhere.
+    console.log(`[checkout] return_url=${returnUrl}${raw?.return_url ? "" : " (DEFAULTED — app sent none)"}`);
     const parsed = registrationInputSchema.safeParse(raw);
     if (!parsed.success) return json({ error: "invalid_input", details: parsed.error.flatten() }, 400);
     const input = parsed.data;

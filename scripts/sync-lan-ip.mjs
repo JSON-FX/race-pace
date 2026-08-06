@@ -1,11 +1,23 @@
-// LOCAL/OFFLINE DOCKER WORKFLOW ONLY — not needed for normal cloud dev.
-// The app now targets hosted Supabase (see apps/*/.env); that URL has no ":port", so it is
-// intentionally NOT a target below and can never be auto-rewritten to a LAN IP — mobile
-// always stays on cloud. This only refreshes the LAN IP for `supabase functions serve`
-// (supabase/functions/.env) when you run the OPTIONAL local Docker stack and reach it from a
-// physical device on the same network. To deliberately point mobile at local Supabase for
-// offline work, edit apps/mobile/.env by hand.
-// Run: `node scripts/sync-lan-ip.mjs`
+// LOCAL/OFFLINE DOCKER WORKFLOW ONLY — not needed when targeting hosted Supabase.
+//
+// Refreshes this Mac's LAN IP everywhere a physical device has to reach the local Docker
+// stack: `supabase functions serve` (supabase/functions/.env) and the mobile app
+// (apps/mobile/.env). We build to a real iPhone via `expo run:ios --device`, where
+// 127.0.0.1 would mean the phone itself — hence the LAN IP.
+//
+// SAFE ON HOSTED URLS: every pattern below requires an explicit ":port", and the hosted
+// Supabase URL (https://<ref>.supabase.co) has none — so a checkout that is pointed at
+// cloud can never be silently rewritten to a LAN IP. Commented-out lines are skipped too,
+// since the key must sit at the start of the line.
+//
+// apps/web/.env is deliberately NOT a target: those vars are inlined into client-side JS
+// and the request is made by the browser on this host, where http://127.0.0.1 is exempt
+// from mixed-content blocking but http://<lan-ip> from https://admin.racepace.lan is not.
+//
+// NOTE: this only rewrites files. The values are read at process start — restart Metro
+// (EXPO_PUBLIC_* is inlined at bundle time) and `supabase functions serve` afterwards.
+//
+// Run: `node scripts/sync-lan-ip.mjs`  (alias: `sync-ip`)
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -27,20 +39,32 @@ function replaceHost(content, key, ip) {
   return content.replace(re, `$1${ip}$2`);
 }
 
-// apps/mobile/.env (EXPO_PUBLIC_SUPABASE_URL) is deliberately NOT here — mobile targets
-// hosted Supabase and must never be repointed at local Docker automatically.
 const files = [
   { path: `${ROOT}supabase/functions/.env`, keys: ["PUBLIC_APP_URL", "PUBLIC_FUNCTIONS_URL"] },
+  { path: `${ROOT}apps/mobile/.env`, keys: ["EXPO_PUBLIC_SUPABASE_URL"] },
 ];
 
 const ip = currentLanIp();
 console.log(`Detected LAN IP: ${ip}`);
 
 for (const { path, keys } of files) {
-  let content = readFileSync(path, "utf8");
-  for (const key of keys) content = replaceHost(content, key, ip);
-  writeFileSync(path, content);
-  console.log(`Updated ${path.replace(ROOT, "")}`);
+  const before = readFileSync(path, "utf8");
+  let content = before;
+  const skipped = [];
+  for (const key of keys) {
+    const next = replaceHost(content, key, ip);
+    if (next === content && !new RegExp(`^${key}=https?://[^:/\\s]+:\\d+`, "m").test(content)) skipped.push(key);
+    content = next;
+  }
+  const name = path.replace(ROOT, "");
+  if (content === before) {
+    if (skipped.length < keys.length) console.log(`  ${name} — already current`);
+  } else {
+    writeFileSync(path, content);
+    console.log(`  ${name} — rewrote ${keys.filter((k) => !skipped.includes(k)).join(", ")}`);
+  }
+  // A key with no ":port" is a hosted URL we must not touch — say so rather than stay silent.
+  if (skipped.length) console.log(`  ${name} — left alone (no :port, so not a local URL): ${skipped.join(", ")}`);
 }
 
-console.log("Done. Restart Metro and `supabase functions serve` to pick up the change.");
+console.log("Done. Restart Metro (EXPO_PUBLIC_* is inlined at bundle time) and `supabase functions serve`.");

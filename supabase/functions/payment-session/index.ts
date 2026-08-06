@@ -24,6 +24,9 @@ Deno.serve(async (req) => {
     const registrationId = typeof raw?.registration_id === "string" ? raw.registration_id : "";
     const method = typeof raw?.method === "string" ? raw.method : "";
     const returnUrl = typeof raw?.return_url === "string" && raw.return_url ? raw.return_url : "racepace://pay-callback";
+    // See registrations-checkout: this is the method-scoped session the pay screen actually
+    // opens, so this is the return_url that drives the post-payment redirect.
+    console.log(`[payment-session] method=${method} return_url=${returnUrl}${raw?.return_url ? "" : " (DEFAULTED — app sent none)"}`);
     const pmMethod = METHOD_MAP[method];
     if (!registrationId || !pmMethod) return json({ error: "invalid_input" }, 400);
 
