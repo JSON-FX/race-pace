@@ -1,0 +1,191 @@
+<meta charset="utf-8">
+<title>Loading states — three directions</title>
+<style>
+  :root{
+    --bg:#f5f5f7;--fg:#1d1d1f;--card:#fff;--muted:#f5f5f7;--mutedfg:#7a7a7a;
+    --border:#e0e0e0;--divider:#efeff1;--primary:#159a55;--forest:#0f2a20;
+    --accent:#eaf3ee;--shadow:0 1px 2px rgb(16 24 40/.04),0 1px 3px rgb(16 24 40/.06);
+    --r:11px;--rc:16px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+    font:400 15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1080px;margin:0 auto;padding:28px 20px 70px}
+  h1{font-size:25px;font-weight:800;letter-spacing:-.03em;margin:0 0 6px}
+  .sub{color:var(--mutedfg);font-size:14.5px;margin:0 0 6px;max-width:76ch}
+  .pagelabel{display:flex;align-items:center;gap:9px;margin:30px 0 12px;
+    font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--mutedfg)}
+  .pagelabel::after{content:"";flex:1;height:1px;background:var(--border)}
+  .note{background:var(--card);border:1px solid var(--border);border-left:3px solid var(--primary);
+    border-radius:9px;padding:11px 14px;font-size:13px;color:#3a3a3c;margin-top:12px}
+  .note b{color:var(--fg)}
+  .note.warn{border-left-color:#b45309}
+
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
+  .sk{background:var(--accent);border-radius:6px;animation:pulse 1.6s cubic-bezier(.4,0,.6,1) infinite}
+
+  /* app frame */
+  .app{display:grid;grid-template-columns:186px 1fr;border:1px solid var(--border);
+    border-radius:var(--rc);overflow:hidden;background:var(--card);box-shadow:var(--shadow);position:relative}
+  .side{background:#fff;border-right:1px solid var(--border);padding:14px 10px}
+  .brand{display:flex;align-items:center;gap:8px;padding:4px 8px 14px;font-weight:800;font-size:14px}
+  .dot{width:18px;height:18px;border-radius:6px;background:var(--primary)}
+  .nav{display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:8px;font-size:13px;color:#3a3a3c}
+  .nav.on{background:#f1f7f4;font-weight:650;color:var(--fg)}
+  .nav.pend{background:#f1f7f4;font-weight:650;color:var(--fg)}
+  .spin{width:12px;height:12px;border-radius:50%;border:2px solid rgba(21,154,85,.25);
+    border-top-color:var(--primary);margin-left:auto;animation:rot .7s linear infinite}
+  @keyframes rot{to{transform:rotate(360deg)}}
+  .main{background:var(--bg);padding:18px 20px 24px;min-height:300px}
+
+  /* top progress bar */
+  .topbar{position:absolute;top:0;left:186px;right:0;height:2.5px;background:transparent;overflow:hidden;z-index:5}
+  .topbar i{display:block;height:100%;background:var(--primary);width:38%;
+    animation:slide 1.15s cubic-bezier(.4,0,.2,1) infinite;box-shadow:0 0 8px rgba(21,154,85,.5)}
+  @keyframes slide{0%{transform:translateX(-100%)}100%{transform:translateX(320%)}}
+
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:11px;margin-bottom:14px}
+  .kpi{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:13px 14px;box-shadow:var(--shadow)}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden}
+  .hd{padding:12px 14px;border-bottom:1px solid var(--divider)}
+  .rowline{display:flex;align-items:center;gap:12px;padding:11px 14px;border-bottom:1px solid var(--divider)}
+  .rowline:last-child{border-bottom:0}
+  .grid2{display:grid;grid-template-columns:1.5fr 1fr;gap:12px}
+  .spinner-only{display:grid;place-items:center;min-height:260px}
+  .bigspin{width:30px;height:30px;border-radius:50%;border:3px solid rgba(21,154,85,.2);border-top-color:var(--primary);animation:rot .7s linear infinite}
+  @media (max-width:820px){.app{grid-template-columns:1fr}.side{display:none}.topbar{left:0}
+    .kpis{grid-template-columns:repeat(2,1fr)}.grid2{grid-template-columns:1fr}}
+</style>
+
+<div class="wrap">
+<h1>Loading states — three directions</h1>
+<p class="sub">Why the five new pages feel dead on click, and three ways to fix it. All are
+reduced-motion safe.</p>
+
+<div class="note warn"><b>The cause is not slowness — it's silence.</b> Four routes already ship a
+<code>loading.tsx</code> (payments, registrations, events, team). App Router renders that file the
+INSTANT a navigation starts, so those pages feel responsive. The five pages added in this branch —
+dashboard, check-in, organizations, commission, payouts — have none, so the browser sits on the old
+screen with no acknowledgement until the server replies. Same server, same latency; the difference
+is entirely feedback.</div>
+
+<!-- ============ A ============ -->
+<div class="pagelabel">A · Route skeletons — match the existing pattern</div>
+<div class="app">
+  <aside class="side">
+    <div class="brand"><span class="dot"></span>Race Pace</div>
+    <div class="nav">Dashboard</div><div class="nav on">Events</div>
+    <div class="nav">Registrations</div><div class="nav">Payments</div><div class="nav">Check-in</div>
+  </aside>
+  <div class="main">
+    <div class="sk" style="width:150px;height:26px;margin-bottom:16px"></div>
+    <div class="kpis">
+      <div class="kpi"><div class="sk" style="width:60%;height:10px"></div><div class="sk" style="width:75%;height:22px;margin-top:9px"></div></div>
+      <div class="kpi"><div class="sk" style="width:55%;height:10px"></div><div class="sk" style="width:80%;height:22px;margin-top:9px"></div></div>
+      <div class="kpi"><div class="sk" style="width:62%;height:10px"></div><div class="sk" style="width:70%;height:22px;margin-top:9px"></div></div>
+      <div class="kpi"><div class="sk" style="width:58%;height:10px"></div><div class="sk" style="width:65%;height:22px;margin-top:9px"></div></div>
+    </div>
+    <div class="grid2">
+      <div class="card"><div class="hd"><div class="sk" style="width:130px;height:13px"></div></div>
+        <div style="padding:14px"><div class="sk" style="width:100%;height:110px"></div></div></div>
+      <div class="card"><div class="hd"><div class="sk" style="width:80px;height:13px"></div></div>
+        <div style="padding:12px 14px">
+          <div class="sk" style="width:100%;height:9px;margin-bottom:12px"></div>
+          <div class="sk" style="width:100%;height:9px;margin-bottom:12px"></div>
+          <div class="sk" style="width:100%;height:9px;margin-bottom:12px"></div>
+          <div class="sk" style="width:100%;height:9px"></div>
+        </div></div>
+    </div>
+  </div>
+</div>
+<div class="note"><b>Smallest change, and already the house style.</b> One
+<code>loading.tsx</code> per new route, shaped like that page's real layout — four KPI tiles for
+the dashboard, two tables for check-in, and so on. The page doesn't jump when data arrives, because
+the skeleton already occupies the right boxes. Downside: it only covers the main pane, so the click
+itself still has no immediate acknowledgement in the sidebar.</div>
+
+<!-- ============ B ============ -->
+<div class="pagelabel">B · Top progress bar — instant, global</div>
+<div class="app">
+  <div class="topbar"><i></i></div>
+  <aside class="side">
+    <div class="brand"><span class="dot"></span>Race Pace</div>
+    <div class="nav">Dashboard</div><div class="nav">Events</div>
+    <div class="nav pend">Payouts <span class="spin"></span></div>
+    <div class="nav">Payments</div><div class="nav">Check-in</div>
+  </aside>
+  <div class="main" style="opacity:.5">
+    <div style="font-size:19px;font-weight:750;margin-bottom:14px">Payments</div>
+    <div class="kpis">
+      <div class="kpi"><div style="font-size:10px;font-weight:700;color:var(--mutedfg)">GROSS</div>
+        <div style="font-size:21px;font-weight:700;margin-top:6px">₱5,900</div></div>
+      <div class="kpi"><div style="font-size:10px;font-weight:700;color:var(--mutedfg)">PLATFORM FEES</div>
+        <div style="font-size:21px;font-weight:700;margin-top:6px">₱590</div></div>
+      <div class="kpi"><div style="font-size:10px;font-weight:700;color:var(--mutedfg)">NET TO ORG</div>
+        <div style="font-size:21px;font-weight:700;margin-top:6px">₱5,310</div></div>
+      <div class="kpi"><div style="font-size:10px;font-weight:700;color:var(--mutedfg)">REFUNDED</div>
+        <div style="font-size:21px;font-weight:700;margin-top:6px">₱0</div></div>
+    </div>
+    <div class="card"><div class="rowline"><div class="sk" style="width:150px;height:11px"></div></div>
+      <div class="rowline"><div class="sk" style="width:190px;height:11px"></div></div></div>
+  </div>
+</div>
+<div class="note"><b>Acknowledges the click itself.</b> The bar starts the moment a link is pressed,
+the pressed nav item shows a spinner, and the outgoing page dims rather than vanishing — so the
+operator keeps their context instead of staring at an empty frame. Covers every route at once,
+including ones with no <code>loading.tsx</code>. Needs Next's <code>useLinkStatus</code>
+(15.3+; this project is on 15.1, so it would be a version bump or a small router-event hook).</div>
+
+<!-- ============ C ============ -->
+<div class="pagelabel">C · Both — bar for the click, skeleton for the page</div>
+<div class="app">
+  <div class="topbar"><i></i></div>
+  <aside class="side">
+    <div class="brand"><span class="dot"></span>Race Pace</div>
+    <div class="nav">Dashboard</div><div class="nav">Events</div>
+    <div class="nav pend">Payouts <span class="spin"></span></div>
+    <div class="nav">Payments</div><div class="nav">Check-in</div>
+  </aside>
+  <div class="main">
+    <div class="sk" style="width:120px;height:26px;margin-bottom:16px"></div>
+    <div class="kpis">
+      <div class="kpi"><div class="sk" style="width:60%;height:10px"></div><div class="sk" style="width:72%;height:22px;margin-top:9px"></div></div>
+      <div class="kpi"><div class="sk" style="width:55%;height:10px"></div><div class="sk" style="width:80%;height:22px;margin-top:9px"></div></div>
+      <div class="kpi"><div class="sk" style="width:62%;height:10px"></div><div class="sk" style="width:68%;height:22px;margin-top:9px"></div></div>
+      <div class="kpi"><div class="sk" style="width:58%;height:10px"></div><div class="sk" style="width:74%;height:22px;margin-top:9px"></div></div>
+    </div>
+    <div class="card">
+      <div class="hd"><div class="sk" style="width:110px;height:13px"></div></div>
+      <div class="rowline"><div class="sk" style="width:26px;height:26px;border-radius:7px"></div><div class="sk" style="flex:1;height:11px"></div><div class="sk" style="width:70px;height:11px"></div></div>
+      <div class="rowline"><div class="sk" style="width:26px;height:26px;border-radius:7px"></div><div class="sk" style="flex:1;height:11px"></div><div class="sk" style="width:70px;height:11px"></div></div>
+      <div class="rowline"><div class="sk" style="width:26px;height:26px;border-radius:7px"></div><div class="sk" style="flex:1;height:11px"></div><div class="sk" style="width:70px;height:11px"></div></div>
+    </div>
+  </div>
+</div>
+<div class="note"><b>Recommended.</b> The two solve different halves. The bar answers "did my click
+register?" in under 100ms — the question the operator is actually asking. The skeleton answers
+"what am I getting?" and reserves the layout so nothing jumps. Together they cover both the
+navigation and the render, and the bar keeps working on routes that never get a bespoke
+skeleton.</div>
+
+<!-- ============ REJECTED ============ -->
+<div class="pagelabel">Rejected · Centred spinner</div>
+<div class="app">
+  <aside class="side">
+    <div class="brand"><span class="dot"></span>Race Pace</div>
+    <div class="nav">Dashboard</div><div class="nav on">Payouts</div><div class="nav">Payments</div>
+  </aside>
+  <div class="main"><div class="spinner-only"><div class="bigspin"></div></div></div>
+</div>
+<div class="note warn"><b>Why not.</b> A spinner blanks the whole pane, so the layout jumps when
+content lands, and it conveys nothing about what is coming — a one-row table and a full dashboard
+look identical while loading. It also reads as slower than a skeleton of the same duration, which
+is the opposite of the goal here.</div>
+
+<div class="note"><b>Accessibility, applies to all three.</b> The bar and skeletons must respect
+<code>prefers-reduced-motion</code> — pulsing and sliding become a static tinted block, still
+visible, just not animated. The progress bar needs
+<code>role="progressbar"</code> with an accessible name, and the loading region an
+<code>aria-busy</code>, so a screen-reader user is told the page is working rather than being left
+on a silent screen.</div>
+</div>

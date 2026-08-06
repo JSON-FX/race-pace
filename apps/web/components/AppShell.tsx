@@ -1,6 +1,7 @@
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
+import { NavProgressProvider, NavProgressBar } from "./NavProgress";
 import type { MyRoles } from "@/lib/queries/roles";
 import type { OrgContext } from "@/lib/org-context";
 // Re-exported for callers that historically imported NavCounts from here;
@@ -21,11 +22,20 @@ export function AppShell({
 }) {
   return (
     <SidebarProvider>
-      <Sidebar roles={roles} email={email} orgName={orgName} counts={counts} />
-      <SidebarInset className="bg-muted">
-        <TopBar roles={roles} orgName={orgName} orgContext={orgContext} />
-        <main className="rp-scroll flex-1 overflow-y-auto bg-muted">{children}</main>
-      </SidebarInset>
+      {/* The provider wraps BOTH the sidebar (where links report pending) and
+          the inset (where the bar renders) — a shared ancestor is required, and
+          putting it lower would leave the bar unable to see the links. */}
+      <NavProgressProvider>
+        <Sidebar roles={roles} email={email} orgName={orgName} counts={counts} />
+        {/* `relative` anchors the absolutely-positioned bar to the content pane
+            rather than the viewport, so it spans the content and not the
+            sidebar — matching where the navigation actually lands. */}
+        <SidebarInset className="relative bg-muted">
+          <NavProgressBar />
+          <TopBar roles={roles} orgName={orgName} orgContext={orgContext} />
+          <main className="rp-scroll flex-1 overflow-y-auto bg-muted">{children}</main>
+        </SidebarInset>
+      </NavProgressProvider>
     </SidebarProvider>
   );
 }

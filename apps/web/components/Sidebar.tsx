@@ -10,6 +10,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "./ThemeToggle";
+import { LinkPending } from "./NavProgress";
 import { signOutAction } from "@/lib/actions/auth";
 import type { MyRoles } from "@/lib/queries/roles";
 import { visibleOrgItems, visibleSuperItems, type NavCounts, type NavItem as Item } from "@/lib/nav-items";
@@ -28,13 +29,20 @@ function NavItem({ to, label, icon: Icon, count }: Item & { count?: number }) {
           {count != null ? (
             <span
               className={cn(
-                "ml-auto rounded-pill px-[7px] py-px text-[11px] font-semibold tabular",
+                "rounded-pill px-[7px] py-px text-[11px] font-semibold tabular",
+                // `ml-auto` moved to the pending spinner's wrapper below so the
+                // two can't both claim it and fight over the right edge.
+                count != null && "ml-auto",
                 isActive ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
               )}
             >
               {count}
             </span>
           ) : null}
+          {/* Marks WHICH destination is loading. The top bar says a navigation
+              is happening; this says which one, which matters when a mis-click
+              is the reason the wait feels wrong. */}
+          <LinkPending className={count != null ? "ml-1.5" : undefined} />
         </Link>
       </SidebarMenuButton>
     </SidebarMenuItem>

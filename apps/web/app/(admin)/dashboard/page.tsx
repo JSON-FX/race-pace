@@ -153,7 +153,12 @@ export default async function DashboardPage() {
               {events.upcoming.map((e) => (
                 <TableRow key={e.id}>
                   <TableCell className="font-medium">
-                    <Link href={`/events/${e.id}`} className="hover:underline">{e.name}</Link>
+                    {/* `/events/[id]` does not exist — the only per-event route
+                        is the editor. Linking to the bare id 404s, and because
+                        Next prefetches these on render it 404s in the console
+                        before anyone even clicks. Matches events-table.tsx's
+                        rowHref. */}
+                    <Link href={`/events/${e.id}/edit`} className="hover:underline">{e.name}</Link>
                   </TableCell>
                   <TableCell className="tabular-nums text-muted-foreground">
                     {e.eventDate ? fmtDate(e.eventDate) : "—"}
