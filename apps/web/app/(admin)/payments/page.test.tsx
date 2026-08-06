@@ -9,7 +9,7 @@ import { tableParamsMockReturn, resetTableParamsSpies } from "@/lib/test-utils/m
 // other DataTable-rendering test in this app does.
 vi.mock("@/lib/use-table-params", () => ({ useTableParams: () => tableParamsMockReturn }));
 
-const { listOrgPayments, getPaymentAggregates, getMyRoles } = vi.hoisted(() => ({
+const { listOrgPayments, getPaymentAggregates, listOrgPaymentMethods, getMyRoles } = vi.hoisted(() => ({
   // Explicit return-type annotations, not inference, on these throwing
   // defaults: an arrow function whose body is only `throw` infers `never`,
   // which then rejects every later `.mockResolvedValue(...)` call below with
@@ -20,10 +20,13 @@ const { listOrgPayments, getPaymentAggregates, getMyRoles } = vi.hoisted(() => (
   getPaymentAggregates: vi.fn((): Promise<PaymentAggregates> => {
     throw new Error("must not be called");
   }),
+  listOrgPaymentMethods: vi.fn((): Promise<string[]> => {
+    throw new Error("must not be called");
+  }),
   getMyRoles: vi.fn(),
 }));
 
-vi.mock("@/lib/queries/payments", () => ({ listOrgPayments, getPaymentAggregates }));
+vi.mock("@/lib/queries/payments", () => ({ listOrgPayments, getPaymentAggregates, listOrgPaymentMethods }));
 
 vi.mock("@/lib/queries/roles", async () => {
   const actual = await vi.importActual<typeof import("@/lib/queries/roles")>("@/lib/queries/roles");
@@ -46,12 +49,14 @@ describe("PaymentsPage", () => {
     expect(screen.getByText("No organization on this account")).toBeInTheDocument();
     expect(listOrgPayments).not.toHaveBeenCalled();
     expect(getPaymentAggregates).not.toHaveBeenCalled();
+    expect(listOrgPaymentMethods).not.toHaveBeenCalled();
   });
 
   it("renders the KPI row from the aggregates reader, scoped to the same org and filters as the table", async () => {
     getMyRoles.mockResolvedValue({ role: "admin", orgId: "org-1", isSuperAdmin: false, isAdmin: true, isOrgAdmin: true });
     listOrgPayments.mockResolvedValue({ rows: [], total: 3 });
     getPaymentAggregates.mockResolvedValue({ grossCents: 600000, feeCents: 30000, netCents: 456000, refundedCents: 120000 });
+    listOrgPaymentMethods.mockResolvedValue(["gcash", "card"]);
 
     const ui = await PaymentsPage({ searchParams: Promise.resolve({}) });
     render(ui);
@@ -81,10 +86,31 @@ describe("PaymentsPage", () => {
     getMyRoles.mockResolvedValue({ role: "admin", orgId: "org-1", isSuperAdmin: false, isAdmin: true, isOrgAdmin: true });
     listOrgPayments.mockResolvedValue({ rows: [], total: 0 });
     getPaymentAggregates.mockResolvedValue({ grossCents: 0, feeCents: 0, netCents: 0, refundedCents: 0 });
+    listOrgPaymentMethods.mockResolvedValue([]);
 
     const ui = await PaymentsPage({ searchParams: Promise.resolve({}) });
     render(ui);
 
     expect(screen.getAllByText("₱0").length).toBe(4);
+  });
+
+  // The Method filter's options come from the data, so the page has to read
+  // them separately — and read them UNFILTERED. Passing `params` here would
+  // make selecting GCash collapse the list to GCash alone, with no way back to
+  // the other methods.
+  it("reads the method options scoped to the org only, ignoring the active filters", async () => {
+    getMyRoles.mockResolvedValue({ role: "admin", orgId: "org-1", isSuperAdmin: false, isAdmin: true, isOrgAdmin: true });
+    listOrgPayments.mockResolvedValue({ rows: [], total: 0 });
+    getPaymentAggregates.mockResolvedValue({ grossCents: 0, feeCents: 0, netCents: 0, refundedCents: 0 });
+    listOrgPaymentMethods.mockResolvedValue(["gcash"]);
+
+    const ui = await PaymentsPage({ searchParams: Promise.resolve({ method: "gcash" }) });
+    render(ui);
+
+    // `lastCall`, not `toHaveBeenCalledWith` — the whole argument list has to
+    // be exactly `["org-1"]`. `toHaveBeenCalledWith("org-1")` would still pass
+    // if a second `params` argument were added, which is the mistake this test
+    // exists to catch.
+    expect(listOrgPaymentMethods.mock.lastCall).toEqual(["org-1"]);
   });
 });
