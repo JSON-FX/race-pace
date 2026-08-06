@@ -33,14 +33,25 @@ const STATUS_FILTER: FilterDef = {
 //     payment, which for this checkout is one of "card" | "gcash" |
 //     "paymaya" (falling back to the literal "paymongo" if PayMongo ever
 //     omits it).
-//   - supabase/functions/payment-verify/index.ts (the "Check again" /
+//   - supabase/functions/payment-verify/index.ts:52 (the "Check again" /
 //     return-from-checkout fallback path, used when the webhook hasn't
 //     landed yet) calls confirmPayment(id, "paymongo", ...) with a
 //     hardcoded literal — so some real rows can legitimately read
 //     method = "paymongo" even though the runner paid via GCash or a card.
+//     "paymongo" is NOT redundant with the other three options: it is the
+//     one method value this fallback path can produce regardless of which
+//     PayMongo method the runner actually used, so dropping it would
+//     silently exclude real rows again.
 // Confirmed against real data: local Supabase has exactly one payments row,
 // method = "gcash" (`select method, status, count(*) from payments group by
 // 1,2` via `docker exec supabase_db_race-pace psql`).
+// One thing this list can NOT claim to be: a closed set. The webhook path
+// stores PayMongo's own `source.type` verbatim (payments-webhook/index.ts:
+// 28), which is an external API value this repo does not control and can't
+// fully enumerate. This option list is "every value our own code writes",
+// not "every value PayMongo could ever send" — if an unexpected method
+// string shows up in `admin_payments_v` in production, re-check PayMongo's
+// source-type docs before assuming it's a bug here.
 const METHOD_FILTER: FilterDef = {
   key: "method",
   label: "Method",
