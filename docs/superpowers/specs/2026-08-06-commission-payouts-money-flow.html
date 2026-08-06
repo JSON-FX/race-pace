@@ -1,0 +1,313 @@
+<meta charset="utf-8">
+<title>Commission, event-based payouts, payment method</title>
+<style>
+  :root{
+    --bg:#f5f5f7;--fg:#1d1d1f;--card:#fff;--muted:#f5f5f7;--mutedfg:#7a7a7a;
+    --border:#e0e0e0;--divider:#efeff1;--primary:#159a55;--forest:#0f2a20;
+    --paid:#0f7a42;--paidtint:#eaf3ee;--info:#0066cc;--infotint:#e8f0fb;
+    --amber:#b45309;--ambertint:#fbefe3;--destructive:#ff3b30;--desttint:#fdecea;
+    --shadow:0 1px 2px rgb(16 24 40/.04),0 1px 3px rgb(16 24 40/.06);--r:11px;--rc:16px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+    font:400 15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1150px;margin:0 auto;padding:28px 20px 70px}
+  h1{font-size:25px;font-weight:800;letter-spacing:-.03em;margin:0 0 6px}
+  .sub{color:var(--mutedfg);font-size:14.5px;margin:0 0 22px;max-width:78ch}
+  .pagelabel{display:flex;align-items:center;gap:9px;margin:30px 0 11px;
+    font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--mutedfg)}
+  .pagelabel::after{content:"";flex:1;height:1px;background:var(--border)}
+  .app{display:grid;grid-template-columns:196px 1fr;border:1px solid var(--border);
+    border-radius:var(--rc);overflow:hidden;background:var(--card);box-shadow:var(--shadow)}
+  .side{background:#fff;border-right:1px solid var(--border);padding:14px 10px}
+  .brand{display:flex;align-items:center;gap:8px;padding:4px 8px 14px;font-weight:800;font-size:14.5px;letter-spacing:-.02em}
+  .dot{width:19px;height:19px;border-radius:6px;background:var(--primary);flex:none}
+  .navsec{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--mutedfg);padding:12px 8px 5px}
+  .nav{display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:8px;font-size:13px;font-weight:500;color:#3a3a3c}
+  .nav.on{background:#f1f7f4;font-weight:650;color:var(--fg)}
+  .main{background:var(--bg);padding:18px 22px 26px}
+  .top{display:flex;align-items:center;gap:11px;margin-bottom:14px}
+  .h{font-size:21px;font-weight:800;letter-spacing:-.02em}
+  .spacer{flex:1}
+  .chip{display:inline-flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--border);
+    border-radius:8px;padding:5px 10px;font-size:12.5px;font-weight:600}
+  .btn{display:inline-flex;align-items:center;gap:6px;background:var(--primary);color:#fff;border:0;
+    border-radius:9px;padding:8px 13px;font-size:13px;font-weight:650;cursor:pointer}
+  .btn.ghost{background:var(--card);color:var(--fg);border:1px solid var(--border)}
+  .btn.sm{padding:4px 10px;font-size:11.5px;border-radius:7px}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden}
+  .hd{display:flex;align-items:center;gap:9px;padding:12px 15px;border-bottom:1px solid var(--divider)}
+  .hd b{font-size:13.5px;font-weight:700;letter-spacing:-.01em}
+  .hd .mini{font-size:11.5px;color:var(--mutedfg);font-weight:600}
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:11px;margin-bottom:14px}
+  .kpi{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:13px 14px;box-shadow:var(--shadow)}
+  .kpi .lab{font-size:10.5px;font-weight:700;color:var(--mutedfg)}
+  .kpi .val{margin-top:6px;font-size:23px;font-weight:650;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  .kpi .d{margin-top:4px;font-size:11px;font-weight:650;color:var(--mutedfg)}
+  .kpi .d.up{color:var(--paid)}
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th{text-align:left;font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+    color:var(--mutedfg);padding:9px 14px;border-bottom:1px solid var(--divider);background:#fcfcfd}
+  td{padding:10px 14px;border-bottom:1px solid var(--divider)}
+  tr:last-child td{border-bottom:0}
+  .num{font-variant-numeric:tabular-nums;text-align:right}
+  .st{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:999px;font-size:10.5px;font-weight:700}
+  .st.paid{background:var(--paidtint);color:var(--paid)}
+  .st.pend{background:var(--ambertint);color:var(--amber)}
+  .st.info{background:var(--infotint);color:var(--info)}
+  .st.off{background:var(--muted);color:var(--mutedfg)}
+  .avat{width:24px;height:24px;border-radius:7px;background:var(--forest);color:#fff;flex:none;
+    display:inline-flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:800}
+  .row{display:flex;align-items:center;gap:9px}
+  .band{background:var(--forest);color:#fff;border-radius:var(--r);padding:13px 16px;display:flex;align-items:center;gap:11px;margin-bottom:13px}
+  .band b{font-size:13.5px;font-weight:700}
+  .band .dimw{color:rgba(255,255,255,.6);font-size:12px;font-weight:600}
+  .pill{background:rgba(255,255,255,.14);border-radius:999px;padding:3px 9px;font-size:11px;font-weight:700}
+  .note{background:var(--card);border:1px solid var(--border);border-left:3px solid var(--primary);
+    border-radius:9px;padding:11px 14px;font-size:13px;color:#3a3a3c;margin-top:12px}
+  .note b{color:var(--fg)}
+  .note.warn{border-left-color:var(--amber)}
+  .note.bad{border-left-color:var(--destructive)}
+
+  /* flow */
+  .flow{display:grid;grid-template-columns:repeat(4,1fr);gap:0;align-items:stretch;margin-bottom:6px}
+  .step{background:var(--card);border:1px solid var(--border);padding:14px 15px;position:relative}
+  .step:first-child{border-radius:var(--r) 0 0 var(--r)}
+  .step:last-child{border-radius:0 var(--r) var(--r) 0}
+  .step+.step{border-left:0}
+  .step .k{font-size:10px;font-weight:800;letter-spacing:.09em;color:var(--mutedfg)}
+  .step .t{font-size:14px;font-weight:700;margin-top:6px;letter-spacing:-.01em}
+  .step .m{font-size:12px;color:var(--mutedfg);margin-top:5px;line-height:1.45}
+  .step .amt{font-size:17px;font-weight:750;font-variant-numeric:tabular-nums;margin-top:8px;letter-spacing:-.02em}
+  .step.plat{background:var(--forest);border-color:var(--forest);color:#fff}
+  .step.plat .k{color:rgba(255,255,255,.55)}
+  .step.plat .m{color:rgba(255,255,255,.66)}
+  .arrow{position:absolute;right:-9px;top:50%;transform:translateY(-50%);z-index:2;
+    width:18px;height:18px;border-radius:50%;background:var(--card);border:1px solid var(--border);
+    display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--mutedfg)}
+
+  /* method cell */
+  .meth{display:inline-flex;align-items:center;gap:7px;font-weight:600}
+  .mk{width:30px;height:19px;border-radius:4px;flex:none;display:flex;align-items:center;justify-content:center;
+    font-size:7.5px;font-weight:800;letter-spacing:.02em;color:#fff}
+  .mk.gcash{background:#0070e0}.mk.maya{background:#0f7a42}
+  .mk.visa{background:#1a1f71}.mk.mc{background:#eb001b}
+  .rateinput{display:inline-flex;align-items:center;gap:0;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--card)}
+  .rateinput input{border:0;width:56px;padding:5px 8px;font:650 13px/1 inherit;text-align:right;
+    font-variant-numeric:tabular-nums;background:transparent;color:var(--fg)}
+  .rateinput span{padding:5px 8px 5px 2px;font-size:12.5px;font-weight:650;color:var(--mutedfg);background:var(--muted);border-left:1px solid var(--border)}
+  .seg{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--muted)}
+  .seg b{padding:5px 10px;font-size:12px;font-weight:700;color:var(--mutedfg);cursor:pointer;background:transparent}
+  .seg b.on{background:var(--forest);color:#fff}
+  .eff{font-size:11px;color:var(--mutedfg);font-weight:600;margin-top:3px}
+  @media (max-width:900px){.app{grid-template-columns:1fr}.side{display:none}
+    .kpis{grid-template-columns:repeat(2,1fr)}.flow{grid-template-columns:1fr}
+    .step{border-radius:var(--r)!important;border-left:1px solid var(--border)!important;margin-bottom:8px}.arrow{display:none}}
+</style>
+
+<div class="wrap">
+<h1>Commission, event-based payouts, and payment method</h1>
+<p class="sub">Race Pace is the merchant of record — every peso lands in the platform's PayMongo
+account, and the organizer is paid afterwards, per event, net of commission. That makes the payout
+unit an <b>event</b>, not a calendar month, which is a change from what we agreed earlier.</p>
+
+<div class="pagelabel">The money flow, as you described it</div>
+<div class="flow">
+  <div class="step"><div class="k">1 · RUNNER</div><div class="t">Pays for an entry</div>
+    <div class="m">GCash, Maya or card through PayMongo hosted checkout.</div>
+    <div class="amt">₱2,000</div><span class="arrow">→</span></div>
+  <div class="step plat"><div class="k">2 · RACE PACE</div><div class="t">Receives the full amount</div>
+    <div class="m">One platform PayMongo account. The organizer never touches the funds.</div>
+    <div class="amt">₱2,000</div><span class="arrow">→</span></div>
+  <div class="step"><div class="k">3 · PER REGISTRATION</div><div class="t">Commission is struck</div>
+    <div class="m">A percentage <b>or</b> a flat amount, read once per entry and frozen onto that
+    payment row as <code>platform_fee</code> and <code>net_to_org</code>.</div>
+    <div class="amt">₱200 <span style="font-size:12px;font-weight:600;color:var(--mutedfg)">fee · 10%</span></div><span class="arrow">→</span></div>
+  <div class="step"><div class="k">4 · AFTER THE EVENT</div><div class="t">Super admin pays the org</div>
+    <div class="m">One statement per event. Bank transfer happens off-platform; the console records it.</div>
+    <div class="amt" style="color:var(--paid)">₱1,800</div></div>
+</div>
+<div class="note"><b>Commission is per registration, not per batch.</b> This is already how it
+works — <code>_shared/confirm.ts:26</code> computes the fee against a single registration's
+<code>total_amount</code> at confirmation. What is new is the <b>flat-amount</b> option: today
+<code>organizations.commission_rate</code> is a lone percentage
+(<code>numeric default 0.10</code>), so a fixed peso fee cannot be expressed.</div>
+<div class="note"><b>The rate is frozen per payment.</b> Because the fee is struck and written
+onto the payment row at confirmation, changing an organization's commission <b>never rewrites
+past payments</b> — it applies to the next registration onward. Correct for money, but it must
+be visible on the page or an operator will assume a change is retroactive.</div>
+
+<!-- ============ COMMISSION ============ -->
+<div class="pagelabel">Commission — the page that was missing</div>
+<div class="app">
+  <aside class="side"><div class="brand"><span class="dot"></span>Race Pace</div>
+    <div class="navsec">Platform</div><div class="nav">Organizations</div>
+    <div class="nav on">Commission</div><div class="nav">Payouts</div></aside>
+  <div class="main">
+    <div class="band"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/></svg>
+      <b>Platform scope</b><span class="dimw">All organizations · super admin</span>
+      <span class="spacer"></span><span class="pill">2 orgs</span></div>
+    <div class="top"><div class="h">Commission</div><div class="spacer"></div><span class="chip">All time ▾</span></div>
+    <div class="kpis">
+      <div class="kpi"><div class="lab">COMMISSION EARNED</div><div class="val">₱218,040</div><div class="d up">↗ ₱45,880 this month</div></div>
+      <div class="kpi"><div class="lab">PLATFORM GMV</div><div class="val">₱2,180,400</div><div class="d">1,986 paid entries</div></div>
+      <div class="kpi"><div class="lab">EFFECTIVE RATE</div><div class="val">10.0%</div><div class="d">weighted across orgs</div></div>
+      <div class="kpi"><div class="lab">PASSED TO ORGS</div><div class="val">₱1,962,360</div><div class="d">₱412,900 not yet paid out</div></div>
+    </div>
+    <div class="card">
+      <div class="hd"><b>Rate per organization</b><div class="spacer"></div>
+        <span class="mini">Applies to future registrations only</span></div>
+      <table>
+        <tr><th>Organization</th><th class="num">Paid entries</th><th class="num">GMV</th>
+          <th class="num">Commission earned</th><th>Type</th><th>Per registration</th><th></th></tr>
+        <tr><td><div class="row"><span class="avat">M</span><div><div style="font-weight:600">Muspo</div>
+          <div style="font-size:11px;color:var(--mutedfg)">10 events · since Jul 2026</div></div></div></td>
+          <td class="num">1,284</td><td class="num">₱1,412,500</td><td class="num"><b>₱141,250</b></td>
+          <td><span class="seg"><b class="on">%</b><b>₱</b></span></td>
+          <td><span class="rateinput"><input value="10.0" readonly><span>%</span></span>
+            <div class="eff">≈ ₱110 on a ₱1,100 average entry</div></td>
+          <td class="num"><button class="btn sm ghost" style="opacity:.45">Save</button></td></tr>
+        <tr style="background:#fbfdfc"><td><div class="row"><span class="avat">R</span><div><div style="font-weight:600">RunWithPoint</div>
+          <div style="font-size:11px;color:var(--mutedfg)">10 events · since Jul 2026</div></div></div></td>
+          <td class="num">702</td><td class="num">₱767,900</td><td class="num"><b>₱76,790</b></td>
+          <td><span class="seg"><b>%</b><b class="on">₱</b></span></td>
+          <td><span class="rateinput" style="border-color:var(--primary);box-shadow:0 0 0 3px rgba(21,154,85,.13)">
+            <span style="padding:5px 2px 5px 8px;background:transparent;border:0;border-right:1px solid var(--border);margin-right:2px">₱</span>
+            <input value="75" style="width:48px"></span>
+            <div class="eff">≈ 6.9% of a ₱1,094 average entry</div></td>
+          <td class="num"><button class="btn sm">Save</button></td></tr>
+      </table>
+      <div style="padding:11px 14px;background:var(--ambertint);border-top:1px solid var(--divider);
+        font-size:12.5px;color:var(--amber);font-weight:600;display:flex;gap:8px;align-items:flex-start">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" style="flex:none;margin-top:1px"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/></svg>
+        <span>Switching RunWithPoint to a flat ₱75 per registration affects entries paid from now on.
+        Their 702 existing payments keep the 10.0% they were charged at, and the two open payout
+        statements below are unchanged.</span></div>
+      <div style="padding:11px 14px;background:var(--desttint);border-top:1px solid var(--divider);
+        font-size:12.5px;color:var(--destructive);font-weight:600;display:flex;gap:8px;align-items:flex-start">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" style="flex:none;margin-top:1px"><path d="M12 9v4M12 17v.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+        <span><b>Flat fee vs. cheap entries.</b> RunWithPoint's cheapest category is the
+        Pulangi 5K at ₱60. A ₱75 flat fee exceeds it, so that entry would earn the organizer
+        nothing — the fee is clamped to the entry total and never makes <code>net_to_org</code>
+        negative. Shown here because a silent clamp is worse than a visible one.</span></div>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <div class="hd"><b>Commission by event</b><div class="spacer"></div><span class="mini">Where the fee actually came from</span></div>
+      <table>
+        <tr><th>Event</th><th>Organization</th><th class="num">Paid</th><th class="num">Gross</th><th>Fee charged</th><th class="num">Commission</th></tr>
+        <tr><td>Kitanglad Skyrace 50K</td><td>Muspo</td><td class="num">184</td><td class="num">₱368,000</td>
+          <td><span class="st info">10.0% each</span></td><td class="num">₱36,800</td></tr>
+        <tr><td>Dumalinao Trail 21K</td><td>Muspo</td><td class="num">142</td><td class="num">₱213,000</td>
+          <td><span class="st info">10.0% each</span></td><td class="num">₱21,300</td></tr>
+        <tr><td>Pulangi Road Challenge</td><td>RunWithPoint</td><td class="num">61</td><td class="num">₱91,500</td>
+          <td><span class="st off">₱75 flat each</span></td><td class="num">₱4,575</td></tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ============ PAYOUTS ============ -->
+<div class="pagelabel">Payouts — now per event, not per month</div>
+<div class="app">
+  <aside class="side"><div class="brand"><span class="dot"></span>Race Pace</div>
+    <div class="navsec">Platform</div><div class="nav">Organizations</div>
+    <div class="nav">Commission</div><div class="nav on">Payouts</div></aside>
+  <div class="main">
+    <div class="band"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/></svg>
+      <b>Platform scope</b><span class="dimw">All organizations · super admin</span>
+      <span class="spacer"></span><span class="pill">₱412,900 owed</span></div>
+    <div class="top"><div class="h">Payouts</div><div class="spacer"></div>
+      <span class="chip">All organizations ▾</span><span class="chip">Ready to pay ▾</span></div>
+    <div class="kpis">
+      <div class="kpi"><div class="lab">READY TO PAY</div><div class="val">2</div><div class="d">events finished, unpaid</div></div>
+      <div class="kpi"><div class="lab">TOTAL OWED</div><div class="val">₱412,900</div><div class="d">net of commission</div></div>
+      <div class="kpi"><div class="lab">HELD (LIVE EVENTS)</div><div class="val">₱289,400</div><div class="d">3 events not finished</div></div>
+      <div class="kpi"><div class="lab">PAID THIS MONTH</div><div class="val">₱212,400</div><div class="d">1 statement settled</div></div>
+    </div>
+    <div class="card">
+      <table>
+        <tr><th>Event</th><th>Organization</th><th class="num">Gross</th><th class="num">Commission</th>
+          <th class="num">Refunds</th><th class="num">Net owed</th><th>Status</th><th></th></tr>
+        <tr><td><div><div style="font-weight:600">Kitanglad Skyrace 50K</div>
+          <div style="font-size:11px;color:var(--mutedfg)">Finished Aug 24 · 184 paid</div></div></td>
+          <td><div class="row"><span class="avat">M</span>Muspo</div></td>
+          <td class="num">₱368,000</td><td class="num">−₱36,800</td><td class="num">₱0</td>
+          <td class="num"><b>₱331,200</b></td><td><span class="st pend">Ready</span></td>
+          <td class="num"><button class="btn sm">Mark paid</button></td></tr>
+        <tr><td><div><div style="font-weight:600">Pulangi Road Challenge</div>
+          <div style="font-size:11px;color:var(--mutedfg)">Finished Aug 17 · 61 paid · Quezon</div></div></td>
+          <td><div class="row"><span class="avat">R</span>RunWithPoint</div></td>
+          <td class="num">₱91,500</td><td class="num">−₱9,150</td><td class="num">−₱600</td>
+          <td class="num"><b>₱81,750</b></td><td><span class="st pend">Ready</span></td>
+          <td class="num"><button class="btn sm">Mark paid</button></td></tr>
+        <tr style="opacity:.72"><td><div><div style="font-weight:600">Dumalinao Trail 21K</div>
+          <div style="font-size:11px;color:var(--mutedfg)">Runs Sep 07 · 142 paid so far</div></div></td>
+          <td><div class="row"><span class="avat">M</span>Muspo</div></td>
+          <td class="num">₱213,000</td><td class="num">−₱21,300</td><td class="num">₱0</td>
+          <td class="num">₱191,700</td><td><span class="st off">Held · event not finished</span></td>
+          <td class="num"><button class="btn sm ghost" style="opacity:.5">Locked</button></td></tr>
+        <tr><td><div><div style="font-weight:600">Malaybalay Night Run</div>
+          <div style="font-size:11px;color:var(--mutedfg)">Finished Jul 20 · 168 paid</div></div></td>
+          <td><div class="row"><span class="avat">M</span>Muspo</div></td>
+          <td class="num">₱236,000</td><td class="num">−₱23,600</td><td class="num">₱0</td>
+          <td class="num">₱212,400</td><td><span class="st paid">Paid Aug 3</span></td>
+          <td class="num" style="font-size:11px;color:var(--mutedfg)">ref BPI‑4471</td></tr>
+      </table>
+    </div>
+    <div class="note"><b>Why "Held" rather than hidden.</b> An event still taking registrations has a
+    growing net figure, so paying it early means paying twice. Showing it greyed with the reason
+    beats hiding it — the organizer asking "where's my money for Dumalinao?" gets an answer the
+    operator can read off the screen.</div>
+    <div class="note warn"><b>Decide: what makes an event payable?</b> The mockup gates on the event
+    being finished (<code>event_date</code> in the past, or status <code>completed</code>). The
+    alternative is gating on registration being closed, which would let you pay before race day.
+    I'd hold until finished, because a refund after a payout is money you have to claw back.</div>
+  </div>
+</div>
+
+<!-- ============ PAYMENTS METHOD ============ -->
+<div class="pagelabel">Payments — the method column</div>
+<div class="app">
+  <aside class="side"><div class="brand"><span class="dot"></span>Race Pace</div>
+    <div class="navsec">Organization</div><div class="nav">Dashboard</div><div class="nav">Events</div>
+    <div class="nav">Registrations</div><div class="nav on">Payments</div><div class="nav">Check-in</div></aside>
+  <div class="main">
+    <div class="top"><div class="h">Payments</div><div class="spacer"></div>
+      <span class="chip">Kitanglad Skyrace 50K ▾</span><span class="chip">All methods ▾</span></div>
+    <div class="card">
+      <table>
+        <tr><th>Runner</th><th>Method</th><th class="num">Amount</th><th class="num">Fee</th>
+          <th class="num">Net to org</th><th>Status</th><th class="num">Paid</th></tr>
+        <tr><td style="font-weight:600">Aleth Ramos</td>
+          <td><span class="meth"><span class="mk gcash">GCash</span>GCash</span></td>
+          <td class="num">₱2,000</td><td class="num">₱200</td><td class="num">₱1,800</td>
+          <td><span class="st paid">Paid</span></td><td class="num">Aug 2</td></tr>
+        <tr><td style="font-weight:600">Miguel Cruz</td>
+          <td><span class="meth"><span class="mk visa">VISA</span>Card · Visa</span></td>
+          <td class="num">₱2,000</td><td class="num">₱200</td><td class="num">₱1,800</td>
+          <td><span class="st paid">Paid</span></td><td class="num">Aug 2</td></tr>
+        <tr><td style="font-weight:600">Rina Tan</td>
+          <td><span class="meth"><span class="mk maya">Maya</span>Maya</span></td>
+          <td class="num">₱1,500</td><td class="num">₱150</td><td class="num">₱1,350</td>
+          <td><span class="st paid">Paid</span></td><td class="num">Aug 1</td></tr>
+        <tr><td style="font-weight:600">Dana Lim</td>
+          <td><span class="meth"><span class="mk" style="background:var(--muted);color:var(--mutedfg)">—</span>
+            <span style="color:var(--mutedfg);font-weight:500">Not yet paid</span></span></td>
+          <td class="num">₱900</td><td class="num">—</td><td class="num">—</td>
+          <td><span class="st pend">Pending</span></td><td class="num">—</td></tr>
+      </table>
+    </div>
+    <div class="note bad"><b>This column needs a backend fix first.</b>
+    <code>admin_payments_v</code> already selects <code>p.method</code>, so the view is fine — but
+    <code>payment-verify/index.ts:52</code> writes the literal <code>"paymongo"</code> instead of the
+    instrument. The webhook gets it right (<code>payments-webhook/index.ts:28</code> reads
+    <code>payments[0].attributes.source.type</code>), and <code>payment-verify</code> already fetches
+    that same session — so it is a small extraction fix in one function. Without it this column reads
+    "paymongo" on every redirect-confirmed row.</div>
+    <div class="note"><b>Backfill.</b> Rows already written as <code>"paymongo"</code> can't be
+    recovered from the DB alone, but each one stores the PayMongo session in <code>payments.raw</code>,
+    so a one-off migration can re-read <code>source.type</code> from there and correct the history.
+    Worth doing while the table is small.</div>
+  </div>
+</div>
+</div>

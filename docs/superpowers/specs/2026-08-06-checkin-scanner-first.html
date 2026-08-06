@@ -1,0 +1,224 @@
+<meta charset="utf-8">
+<title>Check-in — scanner-first, with roster</title>
+<style>
+  :root{
+    --bg:#f5f5f7;--fg:#1d1d1f;--card:#fff;--muted:#f5f5f7;--mutedfg:#7a7a7a;
+    --border:#e0e0e0;--divider:#efeff1;--primary:#159a55;--forest:#0f2a20;
+    --paid:#0f7a42;--paidtint:#eaf3ee;--info:#0066cc;--infotint:#e8f0fb;
+    --amber:#b45309;--ambertint:#fbefe3;--destructive:#ff3b30;--desttint:#fdecea;
+    --shadow:0 1px 2px rgb(16 24 40/.04),0 1px 3px rgb(16 24 40/.06);--r:11px;--rc:16px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+    font:400 15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased}
+  .wrap{max-width:1140px;margin:0 auto;padding:28px 20px 70px}
+  h1{font-size:25px;font-weight:800;letter-spacing:-.03em;margin:0 0 6px}
+  .sub{color:var(--mutedfg);font-size:14.5px;margin:0 0 20px;max-width:76ch}
+  .pagelabel{display:flex;align-items:center;gap:9px;margin:28px 0 10px;
+    font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--mutedfg)}
+  .pagelabel::after{content:"";flex:1;height:1px;background:var(--border)}
+  .app{display:grid;grid-template-columns:196px 1fr;border:1px solid var(--border);
+    border-radius:var(--rc);overflow:hidden;background:var(--card);box-shadow:var(--shadow)}
+  .side{background:#fff;border-right:1px solid var(--border);padding:14px 10px}
+  .brand{display:flex;align-items:center;gap:8px;padding:4px 8px 14px;font-weight:800;font-size:14.5px;letter-spacing:-.02em}
+  .dot{width:19px;height:19px;border-radius:6px;background:var(--primary);flex:none}
+  .navsec{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--mutedfg);padding:12px 8px 5px}
+  .nav{display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:8px;font-size:13px;font-weight:500;color:#3a3a3c}
+  .nav.on{background:#f1f7f4;font-weight:650;color:var(--fg)}
+  .main{background:var(--bg);padding:18px 22px 26px}
+  .top{display:flex;align-items:center;gap:11px;margin-bottom:14px}
+  .h{font-size:21px;font-weight:800;letter-spacing:-.02em}
+  .spacer{flex:1}
+  .chip{display:inline-flex;align-items:center;gap:6px;background:var(--card);
+    border:1px solid var(--border);border-radius:8px;padding:5px 10px;font-size:12.5px;font-weight:600}
+  .btn{display:inline-flex;align-items:center;gap:6px;background:var(--primary);color:#fff;border:0;
+    border-radius:9px;padding:8px 13px;font-size:13px;font-weight:650;cursor:pointer}
+  .btn.ghost{background:var(--card);color:var(--fg);border:1px solid var(--border)}
+  .btn.sm{padding:4px 10px;font-size:11.5px;border-radius:7px}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden}
+  .hd{display:flex;align-items:center;gap:9px;padding:11px 14px;border-bottom:1px solid var(--divider)}
+  .hd b{font-size:13.5px;font-weight:700;letter-spacing:-.01em}
+  .hd .mini{font-size:11.5px;color:var(--mutedfg);font-weight:600}
+
+  /* ---- scan bar ---- */
+  .scanbar{background:var(--forest);border-radius:var(--r);padding:16px 18px;color:#fff;
+    display:grid;grid-template-columns:1fr auto;gap:20px;align-items:center;margin-bottom:13px}
+  .dim{color:rgba(255,255,255,.6);font-size:11px;font-weight:700;letter-spacing:.07em}
+  .inputrow{display:flex;align-items:center;gap:9px;margin-bottom:11px}
+  .live{width:8px;height:8px;border-radius:50%;background:#35c06e;flex:none;
+    box-shadow:0 0 0 3px rgba(53,192,110,.22)}
+  .srcpill{background:rgba(255,255,255,.13);border-radius:999px;padding:3px 10px;
+    font-size:11px;font-weight:700;color:rgba(255,255,255,.9)}
+  .srcpill.off{background:transparent;border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.5)}
+  .ok{display:flex;align-items:center;gap:13px;background:rgba(53,192,110,.14);
+    border:1px solid rgba(53,192,110,.4);border-radius:12px;padding:13px 15px}
+  .tick{width:36px;height:36px;border-radius:50%;background:#35c06e;color:#06120b;flex:none;
+    display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:800}
+  .counts{display:flex;gap:24px;text-align:right}
+  .counts .n{font-size:28px;font-weight:750;font-variant-numeric:tabular-nums;letter-spacing:-.03em;line-height:1.1}
+  .vpmini{width:96px;height:96px;border-radius:11px;background:linear-gradient(135deg,#16362a,#0b1f18);
+    position:relative;flex:none;border:1px solid rgba(255,255,255,.12)}
+  .corner{position:absolute;width:17px;height:17px;border:2.5px solid #35c06e}
+  .corner.tl{top:12px;left:12px;border-right:0;border-bottom:0;border-radius:5px 0 0 0}
+  .corner.tr{top:12px;right:12px;border-left:0;border-bottom:0;border-radius:0 5px 0 0}
+  .corner.bl{bottom:12px;left:12px;border-right:0;border-top:0;border-radius:0 0 0 5px}
+  .corner.br{bottom:12px;right:12px;border-left:0;border-top:0;border-radius:0 0 5px 0}
+
+  /* ---- roster ---- */
+  .cols{display:grid;grid-template-columns:1.32fr 1fr;gap:13px}
+  .filters{display:flex;align-items:center;gap:7px;padding:10px 14px;border-bottom:1px solid var(--divider);flex-wrap:wrap}
+  .search{flex:1;min-width:130px;display:flex;align-items:center;gap:7px;background:var(--muted);
+    border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:12.5px;color:var(--mutedfg)}
+  .fchip{border:1px solid var(--border);background:var(--card);border-radius:999px;
+    padding:4px 10px;font-size:11.5px;font-weight:650;color:#3a3a3c;cursor:pointer}
+  .fchip.on{background:var(--forest);border-color:var(--forest);color:#fff}
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th{text-align:left;font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+    color:var(--mutedfg);padding:8px 14px;border-bottom:1px solid var(--divider);background:#fcfcfd}
+  td{padding:9px 14px;border-bottom:1px solid var(--divider)}
+  tr:last-child td{border-bottom:0}
+  .num{font-variant-numeric:tabular-nums;text-align:right}
+  .st{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:999px;font-size:10.5px;font-weight:700}
+  .st.paid{background:var(--paidtint);color:var(--paid)}
+  .st.pend{background:var(--ambertint);color:var(--amber)}
+  .avat{width:24px;height:24px;border-radius:7px;background:var(--forest);color:#fff;flex:none;
+    display:inline-flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:800}
+  .row{display:flex;align-items:center;gap:9px}
+  .nm{font-weight:600}
+  .meta{font-size:11px;color:var(--mutedfg)}
+  .note{background:var(--card);border:1px solid var(--border);border-left:3px solid var(--primary);
+    border-radius:9px;padding:11px 14px;font-size:13px;color:#3a3a3c;margin-top:13px}
+  .note b{color:var(--fg)}
+  .note.warn{border-left-color:var(--amber)}
+  .ladder{display:grid;grid-template-columns:repeat(3,1fr);gap:11px;margin:14px 0 0}
+  .rung{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:13px 15px;box-shadow:var(--shadow)}
+  .rung .k{font-size:10.5px;font-weight:700;letter-spacing:.06em;color:var(--mutedfg)}
+  .rung .t{font-size:14.5px;font-weight:700;margin-top:5px;letter-spacing:-.01em}
+  .rung .d{font-size:12px;color:var(--mutedfg);margin-top:4px;line-height:1.45}
+  .rung.p1{border-left:3px solid var(--primary)}
+  .rung.p2{border-left:3px solid var(--info)}
+  .rung.p3{border-left:3px solid var(--mutedfg)}
+  @media (max-width:900px){.app{grid-template-columns:1fr}.side{display:none}
+    .cols{grid-template-columns:1fr}.scanbar{grid-template-columns:1fr}.ladder{grid-template-columns:1fr}}
+</style>
+
+<div class="wrap">
+<h1>Check-in — scanner-first, with roster</h1>
+<p class="sub">Revised from Direction B. A hardware 2D imager is the primary input; the camera and the
+roster are fallbacks that are always present rather than modes you switch into. The two tables you
+asked for sit below the scan bar, both searchable and filterable by category.</p>
+
+<div class="ladder">
+  <div class="rung p1"><div class="k">PRIMARY</div><div class="t">USB / Bluetooth 2D imager</div>
+    <div class="d">Acts as a keyboard — types the 188-char token and presses Enter into a
+    permanently focused field. No driver, no decode library, no camera permission.</div></div>
+  <div class="rung p2"><div class="k">FALLBACK</div><div class="t">Device camera</div>
+    <div class="d">Phone rear camera, laptop or USB webcam. Needs jsQR + a camera grant. Fixed-focus
+    webcams struggle at 10–20 cm against screen glare.</div></div>
+  <div class="rung p3"><div class="k">ALWAYS AVAILABLE</div><div class="t">Manual tap in roster</div>
+    <div class="d">Dead phone, cracked screen, runner who never opened the app. One tap on the row
+    checks them in — the only path that works with no hardware at all.</div></div>
+</div>
+
+<div class="pagelabel">The page</div>
+<div class="app">
+  <aside class="side">
+    <div class="brand"><span class="dot"></span>Race Pace</div>
+    <div class="navsec">Organization</div>
+    <div class="nav">Dashboard</div><div class="nav">Events</div>
+    <div class="nav">Registrations</div><div class="nav">Payments</div>
+    <div class="nav on">Check-in</div>
+  </aside>
+  <div class="main">
+    <div class="top"><div class="h">Kitanglad Skyrace 50K</div><div class="spacer"></div>
+      <span class="chip">Aug 24 · Bukidnon</span><span class="chip">Switch event ▾</span></div>
+
+    <div class="scanbar">
+      <div>
+        <div class="inputrow">
+          <span class="live"></span>
+          <span class="dim" style="letter-spacing:.09em">READY TO SCAN</span>
+          <span class="srcpill">Scanner connected</span>
+          <span class="srcpill off">Camera off</span>
+        </div>
+        <div class="ok">
+          <span class="tick">✓</span>
+          <div><div style="font-size:19px;font-weight:750;letter-spacing:-.02em">Aleth Ramos</div>
+            <div style="color:rgba(255,255,255,.62);font-size:12px;font-weight:600;margin-top:2px">
+              50K · Bib ALETH · checked in 08:14</div></div>
+          <span class="spacer"></span>
+          <button class="btn ghost sm" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.28)">Undo</button>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:20px">
+        <div class="counts">
+          <div><div class="dim">IN</div><div class="n">148</div></div>
+          <div><div class="dim">LEFT</div><div class="n">36</div></div>
+          <div><div class="dim">RATE</div><div class="n">80%</div></div>
+        </div>
+        <div class="vpmini"><span class="corner tl"></span><span class="corner tr"></span>
+          <span class="corner bl"></span><span class="corner br"></span></div>
+      </div>
+    </div>
+
+    <div class="cols">
+      <div class="card">
+        <div class="hd"><b>Not yet checked in</b><span class="mini">36 runners</span></div>
+        <div class="filters">
+          <div class="search"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Search name or bib</div>
+          <span class="fchip on">All</span><span class="fchip">50K</span>
+          <span class="fchip">21K</span><span class="fchip">10K</span>
+        </div>
+        <table>
+          <tr><th>Runner</th><th>Category</th><th>Status</th><th></th></tr>
+          <tr><td><div class="row"><span class="avat">MC</span><div><div class="nm">Miguel Cruz</div><div class="meta">Bib MIGGY</div></div></div></td>
+            <td>50K</td><td><span class="st paid">Paid</span></td><td class="num"><button class="btn sm">Check in</button></td></tr>
+          <tr><td><div class="row"><span class="avat">RT</span><div><div class="nm">Rina Tan</div><div class="meta">Bib RINA</div></div></div></td>
+            <td>21K</td><td><span class="st paid">Paid</span></td><td class="num"><button class="btn sm">Check in</button></td></tr>
+          <tr><td><div class="row"><span class="avat">PS</span><div><div class="nm">Paolo Sy</div><div class="meta">Bib PAOLO</div></div></div></td>
+            <td>50K</td><td><span class="st paid">Paid</span></td><td class="num"><button class="btn sm">Check in</button></td></tr>
+          <tr><td><div class="row"><span class="avat">DL</span><div><div class="nm">Dana Lim</div><div class="meta">Bib DANA</div></div></div></td>
+            <td>10K</td><td><span class="st pend">Unpaid</span></td><td class="num"><button class="btn sm ghost" style="opacity:.55">Blocked</button></td></tr>
+          <tr><td><div class="row"><span class="avat">JA</span><div><div class="nm">Jorge Alba</div><div class="meta">Bib JORGE</div></div></div></td>
+            <td>21K</td><td><span class="st paid">Paid</span></td><td class="num"><button class="btn sm">Check in</button></td></tr>
+        </table>
+      </div>
+
+      <div class="card">
+        <div class="hd"><b>Recently checked in</b><span class="mini">148 total</span></div>
+        <div class="filters">
+          <div class="search"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Search name or bib</div>
+          <span class="fchip on">All</span><span class="fchip">50K</span><span class="fchip">21K</span>
+        </div>
+        <table>
+          <tr><th>Runner</th><th>Cat</th><th class="num">Time</th><th></th></tr>
+          <tr><td><div class="row"><span class="avat">AR</span><div><div class="nm">Aleth Ramos</div><div class="meta">Scanner</div></div></div></td>
+            <td>50K</td><td class="num">08:14</td><td class="num"><button class="btn sm ghost">Undo</button></td></tr>
+          <tr><td><div class="row"><span class="avat">BM</span><div><div class="nm">Bea Molina</div><div class="meta">Scanner</div></div></div></td>
+            <td>21K</td><td class="num">08:13</td><td class="num"><button class="btn sm ghost">Undo</button></td></tr>
+          <tr><td><div class="row"><span class="avat">CV</span><div><div class="nm">Carlo Vega</div><div class="meta">Manual</div></div></div></td>
+            <td>50K</td><td class="num">08:11</td><td class="num"><button class="btn sm ghost">Undo</button></td></tr>
+          <tr><td><div class="row"><span class="avat">EN</span><div><div class="nm">Elena Naga</div><div class="meta">Camera</div></div></div></td>
+            <td>21K</td><td class="num">08:10</td><td class="num"><button class="btn sm ghost">Undo</button></td></tr>
+          <tr><td><div class="row"><span class="avat">FS</span><div><div class="nm">Femi Solis</div><div class="meta">Scanner</div></div></div></td>
+            <td>50K</td><td class="num">08:08</td><td class="num"><button class="btn sm ghost">Undo</button></td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="note"><b>One roster query feeds both tables.</b> <code>checkin_roster(event_id)</code>
+    already returns runner, bib, category, status and <code>checked_in_at</code> for every paid or
+    pending entry — the two tables are just that one result split on whether
+    <code>checked_in_at</code> is null. Search and the category chips filter client-side over rows
+    already in memory, so they stay instant with no round trip.</div>
+
+    <div class="note warn"><b>Two rules worth confirming.</b> An unpaid entry shows as
+    <b>Blocked</b> rather than checkable — the existing Edge Function already returns
+    <code>not_paid</code> (409) and refuses it, so the row reflects a rule the server enforces
+    rather than inventing a new one. And a re-scan of someone already in returns
+    <code>already: true</code>, which surfaces as an amber "already checked in at 08:14" instead of
+    a green tick, so a double-scan never reads as a fresh success.</div>
+  </div>
+</div>
+</div>
