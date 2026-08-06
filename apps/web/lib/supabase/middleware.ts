@@ -29,15 +29,19 @@ export async function updateSession(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user && isProtectedPath(request.nextUrl.pathname)) {
-    // `user` is null on this branch, so there is no refreshed session cookie
-    // on `supabaseResponse` to carry forward — a plain redirect is safe here.
     const target = signInRedirectPath(request.nextUrl.pathname, request.nextUrl.search);
-    return NextResponse.redirect(new URL(target, request.url));
+    const redirectResponse = NextResponse.redirect(new URL(target, request.url));
+    // getUser() can call setAll() even when it returns a null user: a stale
+    // or revoked session makes it clear the cookie via _removeSession()
+    // before resolving. That write lands on `supabaseResponse`, not on this
+    // redirect response, so it must be copied over explicitly — otherwise
+    // the dead cookie is never cleared and gets resent on every request.
+    supabaseResponse.cookies.getAll().forEach((cookie) => redirectResponse.cookies.set(cookie));
+    return redirectResponse;
   }
 
-  // Every other path below this point may have a refreshed session cookie
-  // written onto `supabaseResponse` by `setAll` above. Always return
-  // `supabaseResponse` itself here — constructing a fresh NextResponse
+  // Always return `supabaseResponse` as-is (or, on the redirect branch above,
+  // a response carrying its cookies). Constructing a fresh NextResponse
   // without copying its cookies silently desyncs the session and logs the
   // admin out at random.
   return supabaseResponse;
