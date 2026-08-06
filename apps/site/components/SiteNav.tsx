@@ -4,8 +4,8 @@ import * as React from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { Menu, X, LogOut } from "lucide-react";
+import { motion, useReducedMotion } from "motion/react";
+import { LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { signOut } from "@/lib/auth";
 
@@ -14,10 +14,23 @@ import { signOut } from "@/lib/auth";
  * read auth; everything that needs the current route or a menu toggle lives
  * here, behind a single `signedIn` boolean.
  *
- * Two things the previous header didn't do at all:
- *  - marks where you are (`aria-current` plus a spring-animated pill), and
- *  - has any mobile affordance. Four flat links wrapped onto two rows at
- *    375px and the tap targets sat under the minimum.
+ * Marks where you are — `aria-current` plus a spring-animated pill.
+ *
+ * MOBILE NAVIGATION LIVES IN RunnerTabBar, not here. This header used to carry a
+ * hamburger opening a full-screen sheet; it was removed for two reasons.
+ *
+ * It was redundant: the bottom bar offers the same four destinations, one tap
+ * each, in the thumb arc.
+ *
+ * And it was visibly broken. The sheet was `fixed inset-0`, but SiteHeader wraps
+ * this component in a `backdrop-blur` element — and `backdrop-filter` creates a
+ * containing block for fixed descendants, so `inset-0` resolved against the 65px
+ * header instead of the viewport. The forest background painted only that strip
+ * while the 30px menu labels spilled over the page beneath, unreadable against
+ * the event cards.
+ *
+ * Log out is not lost with the sheet: it already lives on the Profile page
+ * (app/profile/ProfileForm.tsx), which the tab bar reaches in one tap.
  */
 
 type Item = { href: string; label: string };
@@ -45,7 +58,6 @@ function isActive(pathname: string, href: string): boolean {
 export function SiteNav({ signedIn }: { signedIn: boolean }) {
   const pathname = usePathname() ?? "/";
   const items = signedIn ? RUNNER_ITEMS : PUBLIC_ITEMS;
-  const [open, setOpen] = React.useState(false);
   const [leaving, setLeaving] = React.useState(false);
   const reduced = useReducedMotion();
 
@@ -61,33 +73,7 @@ export function SiteNav({ signedIn }: { signedIn: boolean }) {
     }
   }, []);
 
-  // A route change with the sheet open must close it, or the runner lands on
-  // the new page behind a menu they already dismissed in their head.
-  React.useEffect(() => setOpen(false), [pathname]);
-
-  // The sheet is a full-screen overlay; leaving the page scrollable behind it
-  // means a swipe moves the wrong layer.
-  React.useEffect(() => {
-    if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [open]);
-
-  // Escape closes, per the modal-escape rule — the sheet is a dialog.
-  React.useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open]);
-
   return (
-    <>
       <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between gap-4 px-5 sm:px-6">
         <Link href="/" aria-label="Race Pace home" className="flex shrink-0 items-center">
           {/* The mark alone — the asset's own wordmark is the footer's job.
@@ -105,7 +91,19 @@ export function SiteNav({ signedIn }: { signedIn: boolean }) {
 
         {/* Desktop: a segmented control. The active pill is a shared layout
             element, so switching tabs slides it rather than cutting. */}
-        <nav aria-label="Main" className="hidden items-center gap-1 rounded-pill bg-muted p-1 sm:flex">
+        <nav
+          aria-label="Main"
+          className={cn(
+            "items-center gap-1 rounded-pill bg-muted p-1 sm:flex",
+            // Signed IN, the bottom tab bar owns mobile navigation, so showing
+            // these here would be the same four destinations twice.
+            //
+            // Signed OUT there is no bar (two tabs reads as broken, and Sign in
+            // is a call to action rather than a destination) — so the pills stay
+            // visible. Home + Races fit a 375px row comfortably.
+            signedIn ? "hidden" : "flex",
+          )}
+        >
           {items.map((item) => {
             const active = isActive(pathname, item.href);
             return (
@@ -155,100 +153,8 @@ export function SiteNav({ signedIn }: { signedIn: boolean }) {
             </Link>
           )}
 
-          <button
-            type="button"
-            onClick={() => setOpen(true)}
-            aria-label="Open menu"
-            aria-expanded={open}
-            aria-controls="site-menu"
-            className="-mr-1 flex size-11 items-center justify-center rounded-pill text-foreground transition-colors hover:bg-muted sm:hidden"
-          >
-            <Menu size={22} aria-hidden="true" />
-          </button>
         </div>
       </div>
 
-      <AnimatePresence>
-        {open ? (
-          <motion.div
-            id="site-menu"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Menu"
-            className="fixed inset-0 z-50 flex flex-col bg-forest text-white sm:hidden"
-            initial={reduced ? false : { opacity: 0 }}
-            animate={{ opacity: 1 }}
-            // Exits run at ~65% of the entrance so dismissing feels immediate.
-            exit={reduced ? { opacity: 1 } : { opacity: 0, transition: { duration: 0.16 } }}
-            transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
-          >
-            <div className="flex h-16 items-center justify-between px-5">
-              <Image
-                src="/topnav-logo.png"
-                alt="Race Pace"
-                width={64}
-                height={34}
-                className="h-[30px] w-auto brightness-0 invert"
-              />
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                aria-label="Close menu"
-                autoFocus
-                className="-mr-1 flex size-11 items-center justify-center rounded-pill text-white transition-colors hover:bg-white/10"
-              >
-                <X size={22} aria-hidden="true" />
-              </button>
-            </div>
-
-            <nav aria-label="Main" className="flex flex-col px-5 pt-2">
-              {items.map((item, i) => {
-                const active = isActive(pathname, item.href);
-                return (
-                  <motion.div
-                    key={item.href}
-                    initial={reduced ? false : { opacity: 0, y: 14 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3, delay: reduced ? 0 : 0.04 + i * 0.04, ease: [0.16, 1, 0.3, 1] }}
-                  >
-                    <Link
-                      href={item.href}
-                      aria-current={active ? "page" : undefined}
-                      className={cn(
-                        "block border-b border-white/10 py-4 font-display text-[30px] font-black uppercase leading-none tracking-[-1.2px]",
-                        active ? "text-[#7FE0A6]" : "text-white",
-                      )}
-                    >
-                      {item.label}
-                    </Link>
-                  </motion.div>
-                );
-              })}
-            </nav>
-
-            <div className="px-5 pt-7">
-              {signedIn ? (
-                <button
-                  type="button"
-                  onClick={logOut}
-                  disabled={leaving}
-                  className="flex w-full items-center justify-center gap-2 rounded-pill border border-white/20 py-4 text-[15px] font-semibold text-white disabled:opacity-60"
-                >
-                  <LogOut size={17} aria-hidden="true" />
-                  {leaving ? "Logging out…" : "Log out"}
-                </button>
-              ) : (
-                <Link
-                  href="/sign-in"
-                  className="block rounded-pill bg-primary py-4 text-center text-[15px] font-semibold text-primary-foreground"
-                >
-                  Sign in
-                </Link>
-              )}
-            </div>
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
-    </>
   );
 }

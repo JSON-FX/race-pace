@@ -36,8 +36,21 @@ function SignInForm() {
     setError(null);
     const { error } = await signInWithPassword(email, password);
     setBusy(false);
-    if (error) setError(error);
-    else router.replace(next);
+    if (error) {
+      setError(error);
+      return;
+    }
+    router.replace(next);
+    // LAYOUTS SURVIVE A CLIENT NAVIGATION. The root layout reads auth (for the
+    // mobile tab bar) and so does each page (for the header) — without this
+    // refresh only the PAGE re-renders, so a runner who just signed in gets the
+    // signed-in header above a layout that still thinks they are anonymous, and
+    // the tab bar simply never appears until a hard reload.
+    //
+    // refresh() re-fetches the RSC payload for the whole tree including
+    // layouts, which is cheaper than the hard navigation SiteNav#logOut uses
+    // and enough here, because nothing needs the JS bundle re-evaluated.
+    router.refresh();
   }
 
   return (

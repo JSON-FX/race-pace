@@ -74,7 +74,11 @@ export function OrgSwitcher({
         <button
           type="button"
           aria-label={`Organization: ${active?.name ?? "none"}. Switch organization`}
-          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-secondary px-2.5 py-1.5 text-[13px] font-semibold text-secondary-foreground transition-colors hover:bg-accent disabled:opacity-60"
+          // min-h-11 (44px) on touch sizes, back to the compact 34px on desktop
+          // where a mouse makes the extra height wasted chrome. `max-w` +
+          // truncate so a long organization name can't push the header wide —
+          // the switcher is the last thing that should cost a sideways scroll.
+          className="inline-flex min-h-11 max-w-[42vw] items-center gap-1.5 truncate rounded-md border border-border bg-secondary px-2.5 py-1.5 text-[13px] font-semibold text-secondary-foreground transition-colors hover:bg-accent disabled:opacity-60 md:min-h-0 md:max-w-none"
           disabled={isPending}
         >
           {active?.name ?? "…"}

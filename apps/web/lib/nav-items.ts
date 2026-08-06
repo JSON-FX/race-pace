@@ -53,3 +53,44 @@ export function visibleOrgItems(roles: MyRoles): NavItem[] {
 export function visibleSuperItems(roles: MyRoles): NavItem[] {
   return roles.isSuperAdmin ? SUPER_ITEMS : [];
 }
+
+/**
+ * The four destinations that earn a slot in the mobile bottom bar.
+ *
+ * Chosen by what someone actually does on a phone, not by sidebar order:
+ * check-in is on the list because it is the one page used outdoors and
+ * one-handed at a start line, while Settings and Team — configuration done
+ * sitting down — are not.
+ *
+ * Four, not five: the fifth slot is always "More". The documented maximum is
+ * five items total, and this console has ten destinations, so a More tab is
+ * unavoidable — spending one of the five on it is the cost of the other nine
+ * remaining reachable.
+ */
+const BOTTOM_BAR_PATHS = ["/dashboard", "/events", "/registrations", "/check-in"] as const;
+
+/** Bottom-bar destinations, gated exactly as the sidebar gates them. */
+export function primaryMobileItems(roles: MyRoles): NavItem[] {
+  const visible = visibleOrgItems(roles);
+  return BOTTOM_BAR_PATHS.map((p) => visible.find((it) => it.to === p)).filter(
+    (it): it is NavItem => it !== undefined,
+  );
+}
+
+/**
+ * Everything not in the bottom bar, still grouped the way the sidebar groups it.
+ *
+ * Derived by subtraction rather than listed separately: a destination added to
+ * ORG_ITEMS or SUPER_ITEMS shows up here automatically, so a new page can never
+ * be silently unreachable on mobile — which is what a hand-maintained second
+ * list would eventually cause.
+ */
+export function moreMobileItems(roles: MyRoles): { label: string; items: NavItem[] }[] {
+  const inBar = new Set<string>(BOTTOM_BAR_PATHS);
+  const org = visibleOrgItems(roles).filter((it) => !inBar.has(it.to));
+  const platform = visibleSuperItems(roles);
+  return [
+    { label: "Organization", items: org },
+    { label: "Platform", items: platform },
+  ].filter((g) => g.items.length > 0);
+}

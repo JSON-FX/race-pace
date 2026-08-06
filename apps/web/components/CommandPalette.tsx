@@ -98,11 +98,14 @@ export function CommandPalette({ roles }: { roles: MyRoles }) {
         type="button"
         aria-label="Open search (command palette)"
         onClick={() => setOpen(true)}
-        className="flex min-w-[180px] items-center gap-2 rounded-lg border border-border bg-card px-[11px] py-2 text-[13px] text-muted-foreground transition-colors hover:bg-muted"
+        // Collapses to a 44×44 icon below md. The 180px box was the single
+        // largest contributor to the mobile header's 86px overflow, and the ⌘K
+        // hint inside it is meaningless on a device with no ⌘ key.
+        className="flex size-11 shrink-0 items-center justify-center gap-2 rounded-lg border border-border bg-card text-[13px] text-muted-foreground transition-colors hover:bg-muted md:size-auto md:min-w-[180px] md:justify-start md:px-[11px] md:py-2"
       >
-        <Search className="size-[15px] shrink-0" strokeWidth={2} />
-        <span className="flex-1 text-left">Search…</span>
-        <kbd className="rounded-md border border-border px-[5px] py-px font-mono text-[11px] text-muted-foreground">
+        <Search className="size-[17px] shrink-0 md:size-[15px]" strokeWidth={2} />
+        <span className="hidden flex-1 text-left md:inline">Search…</span>
+        <kbd className="hidden rounded-md border border-border px-[5px] py-px font-mono text-[11px] text-muted-foreground md:inline">
           ⌘K
         </kbd>
       </button>

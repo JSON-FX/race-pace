@@ -2,6 +2,7 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 import { NavProgressProvider, NavProgressBar } from "./NavProgress";
+import { BottomNav } from "./BottomNav";
 import type { MyRoles } from "@/lib/queries/roles";
 import type { OrgContext } from "@/lib/org-context";
 // Re-exported for callers that historically imported NavCounts from here;
@@ -34,6 +35,11 @@ export function AppShell({
           <NavProgressBar />
           <TopBar roles={roles} orgName={orgName} orgContext={orgContext} />
           <main className="rp-scroll flex-1 overflow-y-auto bg-muted">{children}</main>
+          {/* Outside <main>, so it does not scroll with the content and the
+              scroll container's own height already accounts for it — a fixed
+              bar over a scrolling region would hide the last row of every
+              table instead. */}
+          <BottomNav roles={roles} />
         </SidebarInset>
       </NavProgressProvider>
     </SidebarProvider>

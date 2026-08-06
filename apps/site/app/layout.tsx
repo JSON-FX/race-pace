@@ -3,6 +3,7 @@ import { Archivo, Archivo_Narrow, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import { SiteFooter } from "@/components/SiteFooter";
+import { RunnerTabBarSlot } from "@/components/RunnerTabBarSlot";
 
 // Archivo carries the editorial-magazine headlines (oversized, tight
 // tracking) while body copy stays on the system stack in globals.css —
@@ -29,6 +30,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {/* Rendered here, not per page: six routes had silently shipped
               without it, and every new route would have had to remember. */}
           <SiteFooter />
+          {/* After the footer, so it is the last element in the document and
+              `sticky bottom-0` pins it to the viewport without taking the page
+              out of normal flow — content still scrolls past it rather than
+              ending underneath it. Renders nothing for a signed-out visitor. */}
+          <RunnerTabBarSlot />
         </Providers>
       </body>
     </html>
