@@ -13,10 +13,9 @@ import { SignInForm } from "./SignInForm";
  * belonged to any product, while the rest of the site speaks in 40px Archivo
  * headlines over forest slabs. Now it sounds like the thing they are joining.
  *
- * The contour lines are drawn inline from `--forest` and the primary green —
- * no photography to source or licence, and nothing new to ship. That matters:
- * a stock trail photo would be the only image on this site that is not a real
- * Mindanao race.
+ * The canvas is a REAL Muspo night flag-off, not stock photography — the one
+ * thing a licensed trail photo could never be, and the whole argument for
+ * giving the pane an image at all.
  *
  * A Server Component so the stats below are real. See fetchSeasonStats.
  */
@@ -29,52 +28,64 @@ export default async function SignInPage() {
       {/* BRAND CANVAS — a full pane on desktop, a header band on mobile, so the
           brand survives the breakpoint instead of degrading to a bare form. */}
       <section className="relative flex flex-col justify-between overflow-hidden bg-forest px-6 py-7 text-white md:w-[52%] md:px-12 md:py-12">
-        <svg
-          className="pointer-events-none absolute inset-0 h-full w-full opacity-70"
-          viewBox="0 0 400 470"
-          preserveAspectRatio="none"
-          aria-hidden="true"
-        >
-          {/* Contour lines — the same visual idea as components/TopoPattern,
-              inlined here so this pane needs no client JS at all. */}
-          <g fill="none" stroke="rgb(53 192 110 / 0.30)" strokeWidth="1.1">
-            <path d="M-20 300 C 60 250, 120 330, 200 285 S 340 230, 420 275" />
-            <path d="M-20 330 C 60 280, 120 360, 200 315 S 340 260, 420 305" />
-            <path d="M-20 360 C 60 310, 120 390, 200 345 S 340 290, 420 335" />
-            <path d="M-20 392 C 60 342, 120 422, 200 377 S 340 322, 420 367" />
-            <path d="M-20 424 C 60 374, 120 454, 200 409 S 340 354, 420 399" />
-          </g>
-          <g fill="none" stroke="rgb(53 192 110 / 0.16)" strokeWidth="1">
-            <path d="M-20 120 C 70 90, 130 150, 210 118 S 350 80, 420 110" />
-            <path d="M-20 155 C 70 125, 130 185, 210 153 S 350 115, 420 145" />
-          </g>
-        </svg>
+        {/* A REAL race — a Muspo night flag-off, hands up on the line. This is
+            the one thing a stock trail photo could never be, and it is the whole
+            argument for the pane: a runner arriving from a shared link sees the
+            event they are about to join, not a mood board.
 
-        {/* Clicking the mark returns to the catalog — an auth page with no way
-            out is a dead end for anyone who landed here by accident.
+            `fill` + `object-cover` rather than a CSS background so Next serves a
+            sized, modern-format image; `priority` because it is the LCP element
+            on this route. */}
+        <Image
+          src="/login-background.jpg"
+          alt=""
+          aria-hidden
+          fill
+          priority
+          sizes="(min-width: 768px) 52vw, 100vw"
+          className="object-cover object-center"
+        />
+        {/* Two layers, doing different jobs. The forest wash ties the photo to
+            the brand instead of leaving a neutral greyscale rectangle; the
+            gradient darkens the bottom, where the headline and stats sit, so
+            white text clears 4.5:1 over the brightest part of the frame — the
+            head-torches. Without it the copy sat on a blown highlight. */}
+        <div aria-hidden className="absolute inset-0 bg-forest/72" />
+        <div
+          aria-hidden
+          className="absolute inset-0 bg-gradient-to-t from-forest via-forest/55 to-forest/25"
+        />
 
-            The logo sits on a WHITE PLATE rather than being knocked out with
-            `brightness-0 invert`. The artwork is slate grey plus green on a
-            white background baked into the PNG, so inverting it flattens all
-            three into one white silhouette — which is not the logo. The plate
-            shows it exactly as drawn and doubles as the clear space a lockup is
-            meant to keep. */}
-        <Link
-          href="/"
-          aria-label="Race Pace home"
-          className="relative z-10 inline-flex w-fit items-center rounded-xl bg-white px-3 py-2"
-        >
-          <Image
-            src="/topnav-logo.png"
-            alt="Race Pace"
-            width={700}
-            height={372}
-            priority
-            className="h-[26px] w-auto md:h-[30px]"
-          />
-        </Link>
-
-        <div className="relative z-10 mt-6 md:mt-0">
+        {/* Logo, eyebrow, headline and blurb are ONE block: the lockup reads as
+            the mark on the statement rather than a separate badge parked in the
+            corner. `my-auto` centres the whole group in the space left over
+            after the stats claim the bottom. */}
+        <div className="relative z-10 my-auto">
+          {/* Clicking the mark returns to the catalog — an auth page with no
+              way out is a dead end for anyone who landed here by accident. */}
+          <Link
+            href="/"
+            aria-label="Race Pace home"
+            className="mx-auto mb-6 flex w-fit items-center"
+          >
+            <Image
+              src="/topnav-logo.png"
+              alt="Race Pace"
+              width={700}
+              height={372}
+              priority
+              // No plate. The artwork is 34% transparent and carries its own
+              // white fill plus the green mark, so it reads directly on the
+              // photo — the white rectangle it used to sit on was covering a
+              // real race with a sticker.
+              //
+              // The drop shadow is doing work, not decoration: the lockup's
+              // darkest strokes are slate (#404A54) and would otherwise sink
+              // into the dark frame. A soft shadow separates them from the
+              // photo without recolouring the logo.
+              className="h-[54px] w-auto drop-shadow-[0_2px_10px_rgba(0,0,0,0.55)] md:h-[72px]"
+            />
+          </Link>
           <p className="font-eyebrow text-[10.5px] font-bold uppercase tracking-[0.15em] text-[#7FE0A6]">
             Mindanao · 2026 season
           </p>

@@ -23,7 +23,7 @@ export function InclusionsEditor({ rows, onChange }: { rows: string[]; onChange:
   return (
     <Card className="gap-0 p-5">
       <div className="flex items-center justify-between">
-        <div className="text-sm font-semibold">What's included</div>
+        <h2 className="text-[15px] font-bold tracking-[-0.01em]">What's included</h2>
         <Button variant="ghost" size="sm" onClick={add} className="h-auto p-0 text-xs font-semibold text-primary hover:bg-transparent">+ Add</Button>
       </div>
       {rows.length === 0 ? (

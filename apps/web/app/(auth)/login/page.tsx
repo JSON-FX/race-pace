@@ -19,6 +19,10 @@ import { LoginForm } from "./login-form";
  * literally, so the lockup was squashed into a square — the mangled mark in the
  * bug report. This uses `login-logo.png` (1177x760, the full lockup, already in
  * public/ and previously unused) at its true ratio.
+ *
+ * The band carries a real race photo, shared with the runner site's sign-in, so
+ * the console and the public site read as one product. Scoped to the band
+ * rather than the page: full-bleed, it swamped the card the screen exists for.
  */
 export default async function LoginPage() {
   // Never show a bare sign-in form to someone who is ALREADY signed in.
@@ -43,22 +47,38 @@ export default async function LoginPage() {
   return (
     <main className="grid min-h-dvh place-items-center bg-muted p-6">
       <Card className="w-full max-w-sm overflow-hidden rounded-xl p-0 shadow-lg">
-        <div className="bg-forest px-6 pb-[18px] pt-[22px]">
-          {/* The lockup is slate grey (#404A54) plus green (#13C663) on a WHITE
-              background baked into the PNG — it is not transparent, and there is
-              no reversed variant in the repo.
+        {/* The photo lives INSIDE the band, not behind the page.
 
-              So it cannot sit directly on the forest band: its own white
-              rectangle would show as a hard-edged block. The previous attempt,
-              `brightness-0 invert`, avoided that by flattening grey, green AND
-              the white backdrop to a single white silhouette — which is not the
-              logo at all.
+            A real Muspo night flag-off, scoped to the one surface that was
+            already forest. Full-bleed it swamped a 400px sign-in card and made
+            the form the least interesting thing on screen; here it gives the
+            band depth while the card stays the subject. */}
+        <div className="relative overflow-hidden bg-forest px-6 pb-5 pt-6">
+          <Image
+            src="/login-background.jpg"
+            alt=""
+            aria-hidden
+            fill
+            priority
+            sizes="384px"
+            className="object-cover object-center"
+          />
+          {/* Heavy wash: this band carries white text at 12.5px, and the frame's
+              head-torches are blown highlights. Without it the subtitle drops
+              below 4.5:1 exactly where the photo is brightest. */}
+          <div aria-hidden className="absolute inset-0 bg-forest/80" />
+          {/* No plate. login-logo.png is 36% transparent and carries its own
+              white fill plus the green mark, so it reads directly on the forest
+              band — the white rectangle it used to sit on read as a sticker
+              stuck onto the brand surface.
 
-              A rounded white plate is the honest fix: it matches the artwork's
-              own background, shows the mark exactly as drawn, and doubles as the
-              clear space a lockup is meant to keep. Replace this with a proper
-              reversed asset if one is ever produced. */}
-          <span className="inline-flex items-center rounded-lg bg-white px-3 py-2">
+              `brightness-0 invert` was the earlier attempt and was worse: it
+              flattened the slate, the green AND the white into one silhouette,
+              which is not the logo at all.
+
+              The drop shadow separates the darkest strokes (#404A54) from the
+              forest behind them without recolouring anything. */}
+          <span className="relative z-10 flex justify-center">
             <Image
               src="/login-logo.png"
               alt="Race Pace"
@@ -70,13 +90,13 @@ export default async function LoginPage() {
               // NOT the rendered size. Passing 40x40 here was the original bug:
               // both numbers are applied literally, crushing a 1177x760 lockup
               // into a square.
-              className="h-[30px] w-auto"
+              className="h-[58px] w-auto drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)]"
             />
           </span>
-          <h1 className="mt-[13px] text-[16px] font-bold tracking-[-0.02em] text-white">
+          <h1 className="relative z-10 mt-3.5 text-center text-[16px] font-bold tracking-[-0.02em] text-white">
             Race Pace Admin
           </h1>
-          <p className="mt-[3px] text-[12.5px] text-white/60">
+          <p className="relative z-10 mt-[3px] text-center text-[12.5px] text-white/70">
             Race directors, marshals and platform staff
           </p>
         </div>

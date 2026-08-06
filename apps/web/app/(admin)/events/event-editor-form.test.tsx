@@ -107,7 +107,10 @@ it("on an edit-mode partial save, refreshes so the reseed effect reconciles chil
 it("carries hero_image_url + gallery through to save", async () => {
   render(<EventEditorForm initial={editorData({ hero_image_url: "https://cdn/hero.png", gallery: ["https://cdn/g1.png"] })} orgId="a1" />);
   // the images editor replaced the old hero-URL text field
-  expect(await screen.findByText("Images")).toBeInTheDocument();
+  // The section rail also has an "Images" entry, so a bare text query is now
+  // ambiguous. Target the editor's own heading — which is what this assertion
+  // was always about.
+  expect(await screen.findByRole("heading", { name: "Images" })).toBeInTheDocument();
   expect(screen.queryByLabelText("Hero image URL")).not.toBeInTheDocument();
   fireEvent.click(screen.getByText("Save event"));
   await waitFor(() => expect(mockSaveEventAction).toHaveBeenCalled());

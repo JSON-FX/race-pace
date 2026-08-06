@@ -66,7 +66,7 @@ export function EventImagesEditor({ orgId, heroUrl, gallery, onChange }: {
   return (
     <Card className="gap-0 p-[22px]">
       <div className="flex items-center justify-between">
-        <span className="text-[15px] font-semibold">Images</span>
+        <h2 className="text-[15px] font-bold tracking-[-0.01em]">Images</h2>
         <span className="text-xs text-muted-foreground">{urls.length}/{MAX} · ★ = featured</span>
       </div>
 

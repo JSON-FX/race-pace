@@ -9,13 +9,13 @@ import { EVENT_DISCIPLINES, DISCIPLINE_LABELS, disciplineLayout } from "@race-pa
 import type { EditorData } from "@/lib/queries/event-editor";
 import { saveEventAction, type CategoryDraft, type AddonDraft, type EventDraft, type EditorState } from "@/lib/actions/events";
 import { eventInputSchema, categoryInputSchema, addonInputSchema, sanitizeListFields, coordPairError, EVENT_STATUSES } from "@/lib/validation";
-import { CategoryEditor } from "@/components/CategoryEditor";
+import { CategoryEditor, addCategory } from "@/components/CategoryEditor";
 import { AddonEditor } from "@/components/AddonEditor";
 import { ScheduleEditor } from "@/components/ScheduleEditor";
 import { InclusionsEditor } from "@/components/InclusionsEditor";
 import { EventImagesEditor } from "@/components/EventImagesEditor";
 import { PsgcAddressField } from "@/components/PsgcAddressField";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { FormSection, Field, SectionRail, StickySaveBar, type SectionMeta } from "@/components/form-section";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -63,6 +63,22 @@ export function EventEditorForm({ initial, orgId }: { initial: EditorData | null
   const [error, setError] = useState<string | null>(null);
   const [qc] = useState(() => new QueryClient());
 
+  // A snapshot of what the SERVER last handed us, so "unsaved changes" means
+  // exactly that rather than "you touched something". Reset by the reseed effect
+  // below, so a successful partial save clears the warning instead of leaving it
+  // stuck on for work that did land.
+  const [baseline, setBaseline] = useState(() =>
+    JSON.stringify({
+      event: initial ? { ...initial.event, inclusions: initial.event.inclusions ?? [] } : blankDraft(orgId ?? ""),
+      cats: initial ? seedCats(initial) : [],
+      addons: initial ? seedAddons(initial) : [],
+    }));
+
+  // Structural comparison, not a touched-flag: typing a character and deleting
+  // it again leaves the form clean, which is what an operator expects when they
+  // decide whether it is safe to navigate away.
+  const dirty = JSON.stringify({ event, cats, addons }) !== baseline;
+
   // Data now arrives as a prop, not a query — reseed local state whenever the
   // server hands us a NEW `initial` object (a genuine reference change: the
   // first mount, or a later router.refresh()/navigation after a partial save
@@ -77,6 +93,11 @@ export function EventEditorForm({ initial, orgId }: { initial: EditorData | null
       setAddons(seedAddons(initial));
       setOrigCats(initial.categories.map((c) => ({ id: c.id })));
       setOrigAddons(initial.addons.map((a) => ({ id: a.id })));
+      setBaseline(JSON.stringify({
+        event: { ...initial.event, inclusions: initial.event.inclusions ?? [] },
+        cats: seedCats(initial),
+        addons: seedAddons(initial),
+      }));
     }
   }, [initial]);
 
@@ -142,118 +163,154 @@ export function EventEditorForm({ initial, orgId }: { initial: EditorData | null
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
 
+  // Rail state. `done` marks a section as having real content, so the dots
+  // answer "what still needs doing?" without scrolling — the one thing the old
+  // single-scroll form could not tell you at any zoom level.
+  const sections: SectionMeta[] = [
+    { id: "sec-basics", label: "Basics", done: !!event.name && !!event.event_date },
+    { id: "sec-location", label: "Location", done: !!event.city_psgc_code || !!event.venue },
+    { id: "sec-course", label: "Course", done: event.start_lat != null || (event.route?.length ?? 0) > 0 },
+    { id: "sec-categories", label: "Categories", count: cats.length, done: cats.length > 0 },
+    { id: "sec-images", label: "Images", done: !!event.hero_image_url || (event.gallery?.length ?? 0) > 0 },
+    { id: "sec-schedule", label: "Schedule", count: event.schedule?.length ?? 0, done: (event.schedule?.length ?? 0) > 0 },
+    { id: "sec-inclusions", label: "Inclusions", count: event.inclusions?.length ?? 0, done: (event.inclusions?.length ?? 0) > 0 },
+    { id: "sec-addons", label: "Add-ons", count: addons.length, done: addons.length > 0 },
+  ];
+
+  const inputCls = "h-11 rounded-lg text-[13.5px]";
+
   return (
-    <div className="px-4 pt-6 pb-10 md:px-[30px]">
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.4fr_1fr]">
-        <Card className="gap-0 p-[22px]">
-          <CardHeader className="p-0">
-            <CardTitle className="text-[15px] font-semibold">Event details</CardTitle>
-          </CardHeader>
-          <CardContent className="mt-4 flex flex-col gap-3.5 p-0">
-            <div>
-              <Label className={fieldLabel}>EVENT NAME</Label>
-              <Input aria-label="Event name" value={event.name} onChange={(e) => set({ name: e.target.value })} />
-            </div>
-            <QueryClientProvider client={qc}>
-              <PsgcAddressField
-                value={{ city_psgc_code: event.city_psgc_code, city_name: event.city_name, province_name: event.province_name, region_name: event.region_name }}
-                onChange={(a) => set(a)}
-              />
-            </QueryClientProvider>
-            <div>
-              <Label className={fieldLabel}>VENUE</Label>
-              <Input aria-label="Venue" value={event.venue ?? ""} onChange={(e) => set({ venue: e.target.value || null })} />
-            </div>
-            <div>
-              <Label className={fieldLabel}>DISCIPLINE — CHOOSES THE PUBLIC PAGE LAYOUT</Label>
-              <Select value={event.discipline} onValueChange={(v) => set({ discipline: v as EventDraft["discipline"] })}>
-                <SelectTrigger aria-label="Discipline" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {EVENT_DISCIPLINES.map((d) => <SelectItem key={d} value={d}>{DISCIPLINE_LABELS[d]}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              <p className="mt-1 text-[11px] text-muted-foreground">
-                {disciplineLayout(event.discipline) === "profile"
-                  ? "This shows an elevation profile on the public page."
-                  : "This shows a route ribbon on the public page (no elevation profile)."}
-              </p>
-            </div>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <div>
-                <Label className={fieldLabel}>DATE</Label>
-                <Input aria-label="Date" type="date" value={event.event_date ?? ""} onChange={(e) => set({ event_date: e.target.value || null })} />
+    <div className="px-4 pb-4 pt-6 md:px-[30px]">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[190px_minmax(0,1fr)]">
+        <SectionRail sections={sections} />
+
+        <div className="min-w-0 space-y-4">
+          <FormSection id="sec-basics" title="Basics" hint="Shown on the public race page">
+            <div className="space-y-3.5">
+              <Field label="Event name" required>
+                <Input aria-label="Event name" className={inputCls} value={event.name} onChange={(e) => set({ name: e.target.value })} />
+              </Field>
+              <div className="grid gap-3.5 sm:grid-cols-2">
+                <Field
+                  label="Discipline"
+                  required
+                  hint={disciplineLayout(event.discipline) === "profile"
+                    ? "Shows an elevation profile on the public page."
+                    : "Shows a route ribbon on the public page (no elevation profile)."}
+                >
+                  <Select value={event.discipline} onValueChange={(v) => set({ discipline: v as EventDraft["discipline"] })}>
+                    <SelectTrigger aria-label="Discipline" className={`w-full ${inputCls}`}><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {EVENT_DISCIPLINES.map((d) => <SelectItem key={d} value={d}>{DISCIPLINE_LABELS[d]}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field label="Status" required>
+                  <Select value={event.status} onValueChange={(v) => set({ status: v })}>
+                    <SelectTrigger aria-label="Status" className={`w-full ${inputCls}`}><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {EVENT_STATUSES.map((st) => <SelectItem key={st} value={st}>{st}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </Field>
               </div>
-              <div>
-                <Label className={fieldLabel}>END DATE</Label>
-                <Input aria-label="End date" type="date" value={event.end_date ?? ""} onChange={(e) => set({ end_date: e.target.value || null })} />
+              <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-3">
+                <Field label="Date" required>
+                  <Input aria-label="Date" type="date" className={inputCls} value={event.event_date ?? ""} onChange={(e) => set({ event_date: e.target.value || null })} />
+                </Field>
+                <Field label="End date" hint="Only for multi-day races">
+                  <Input aria-label="End date" type="date" className={inputCls} value={event.end_date ?? ""} onChange={(e) => set({ end_date: e.target.value || null })} />
+                </Field>
+                <Field label="Flag-off">
+                  <Input aria-label="Flag-off" type="time" className={inputCls} value={event.flag_off ?? ""} onChange={(e) => set({ flag_off: e.target.value || null })} />
+                </Field>
               </div>
-              <div>
-                <Label className={fieldLabel}>FLAG-OFF</Label>
-                <Input aria-label="Flag-off" type="time" value={event.flag_off ?? ""} onChange={(e) => set({ flag_off: e.target.value || null })} />
-              </div>
-              <div>
-                <Label className={fieldLabel}>STATUS</Label>
-                <Select value={event.status} onValueChange={(v) => set({ status: v })}>
-                  <SelectTrigger aria-label="Status" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {EVENT_STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
+              <Field label="Description">
+                <Textarea aria-label="Description" className="min-h-[92px] resize-y rounded-lg text-[13.5px]" value={event.description ?? ""} onChange={(e) => set({ description: e.target.value || null })} />
+              </Field>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className={fieldLabel}>ELEVATION GAIN (M)</Label>
-                <Input aria-label="Elevation gain" type="number" value={event.elevation_gain_m ?? ""} onChange={(e) => set({ elevation_gain_m: num(e.target.value) })} />
-              </div>
-              <div>
-                <Label className={fieldLabel}>CUTOFF (HOURS)</Label>
-                <Input aria-label="Cutoff hours" type="number" value={event.cutoff_hours ?? ""} onChange={(e) => set({ cutoff_hours: num(e.target.value) })} />
-              </div>
+          </FormSection>
+
+          <FormSection id="sec-location" title="Location">
+            <div className="space-y-3.5">
+              <QueryClientProvider client={qc}>
+                <PsgcAddressField
+                  value={{ city_psgc_code: event.city_psgc_code, city_name: event.city_name, province_name: event.province_name, region_name: event.region_name }}
+                  onChange={(a) => set(a)}
+                />
+              </QueryClientProvider>
+              <Field label="Venue" hint="Where runners assemble — e.g. Barangay Songco covered court">
+                <Input aria-label="Venue" className={inputCls} value={event.venue ?? ""} onChange={(e) => set({ venue: e.target.value || null })} />
+              </Field>
             </div>
-            {/* Course locator. Optional — an event with no coordinates simply
-                omits the map on the public page. `step` allows the 6 decimals
-                the numeric(9,6) column stores; the browser's default step of 1
-                would reject 6.771900 as invalid. */}
-            <div>
-              <Label className={fieldLabel}>START (LAT, LNG)</Label>
-              <div className="grid grid-cols-2 gap-3">
-                <Input aria-label="Start latitude" type="number" step="any" placeholder="6.771900" value={event.start_lat ?? ""} onChange={(e) => set({ start_lat: num(e.target.value) })} />
-                <Input aria-label="Start longitude" type="number" step="any" placeholder="125.279400" value={event.start_lng ?? ""} onChange={(e) => set({ start_lng: num(e.target.value) })} />
+          </FormSection>
+
+          <FormSection id="sec-course" title="Course" hint="Optional — an event with no coordinates simply omits the map">
+            <div className="space-y-3.5">
+              <div className="grid gap-3.5 sm:grid-cols-2">
+                <Field label="Elevation gain (m)">
+                  <Input aria-label="Elevation gain" type="number" inputMode="numeric" className={inputCls} value={event.elevation_gain_m ?? ""} onChange={(e) => set({ elevation_gain_m: num(e.target.value) })} />
+                </Field>
+                <Field label="Cut-off (hours)">
+                  <Input aria-label="Cutoff hours" type="number" inputMode="decimal" className={inputCls} value={event.cutoff_hours ?? ""} onChange={(e) => set({ cutoff_hours: num(e.target.value) })} />
+                </Field>
               </div>
+              {/* step="any" allows the 6 decimals the numeric(9,6) column stores;
+                  the browser default of 1 rejects 6.771900 as invalid. */}
+              <Field label="Start (lat, lng)" hint="Right-click a spot in Google Maps and copy the coordinates.">
+                <div className="grid grid-cols-2 gap-3">
+                  <Input aria-label="Start latitude" type="number" step="any" placeholder="6.771900" className={inputCls} value={event.start_lat ?? ""} onChange={(e) => set({ start_lat: num(e.target.value) })} />
+                  <Input aria-label="Start longitude" type="number" step="any" placeholder="125.279400" className={inputCls} value={event.start_lng ?? ""} onChange={(e) => set({ start_lng: num(e.target.value) })} />
+                </div>
+              </Field>
+              <Field label="Finish (lat, lng)" hint="Leave blank for a loop that finishes where it starts.">
+                <div className="grid grid-cols-2 gap-3">
+                  <Input aria-label="Finish latitude" type="number" step="any" placeholder="same as start" className={inputCls} value={event.finish_lat ?? ""} onChange={(e) => set({ finish_lat: num(e.target.value) })} />
+                  <Input aria-label="Finish longitude" type="number" step="any" className={inputCls} value={event.finish_lng ?? ""} onChange={(e) => set({ finish_lng: num(e.target.value) })} />
+                </div>
+              </Field>
+              {/* Full width of the section now, instead of sharing a squeezed
+                  column with every other field. */}
+              <RouteEditor route={event.route} onChange={(route) => set({ route })} startLat={event.start_lat} startLng={event.start_lng} />
             </div>
-            <div>
-              <Label className={fieldLabel}>FINISH (LAT, LNG)</Label>
-              <div className="grid grid-cols-2 gap-3">
-                <Input aria-label="Finish latitude" type="number" step="any" placeholder="same as start for a loop" value={event.finish_lat ?? ""} onChange={(e) => set({ finish_lat: num(e.target.value) })} />
-                <Input aria-label="Finish longitude" type="number" step="any" value={event.finish_lng ?? ""} onChange={(e) => set({ finish_lng: num(e.target.value) })} />
-              </div>
-              <p className="mt-1.5 text-[11px] text-muted-foreground">
-                Right-click a spot in Google Maps and choose the coordinates to copy them. Leave blank to hide the map.
-              </p>
-            </div>
-            <RouteEditor route={event.route} onChange={(route) => set({ route })} startLat={event.start_lat} startLng={event.start_lng} />
-            <div>
-              <Label className={fieldLabel}>DESCRIPTION</Label>
-              <Textarea aria-label="Description" className="h-[82px] resize-y" value={event.description ?? ""} onChange={(e) => set({ description: e.target.value || null })} />
-            </div>
-          </CardContent>
-        </Card>
-        <div className="flex flex-col gap-4">
-          <EventImagesEditor orgId={event.org_id || orgId || ""} heroUrl={event.hero_image_url} gallery={event.gallery} onChange={(v) => set(v)} />
-          <ScheduleEditor rows={event.schedule} onChange={(schedule) => set({ schedule })} />
-          <InclusionsEditor rows={event.inclusions} onChange={(inclusions) => set({ inclusions })} />
-          <CategoryEditor rows={cats} onChange={setCats} />
-          <AddonEditor rows={addons} onChange={setAddons} />
-        </div>
-        <div className="col-span-full flex items-center justify-end gap-3">
-          {error ? <span className="mr-auto text-[13px] text-destructive">{error}</span> : null}
-          <Button variant="outline" className="rounded-pill" onClick={() => router.push("/events")}>Cancel</Button>
-          <Button className="rounded-pill" onClick={onSave} disabled={pending}>{pending ? "Saving…" : "Save event"}</Button>
+          </FormSection>
+
+          <FormSection
+            id="sec-categories"
+            title="Categories"
+            hint="The distances runners choose between"
+            action={
+              <Button variant="outline" size="sm" className="rounded-pill" onClick={() => setCats(addCategory(cats))}>
+                + Add distance
+              </Button>
+            }
+          >
+            <CategoryEditor rows={cats} onChange={setCats} />
+          </FormSection>
+
+          <FormSection id="sec-images" title="Images" hideTitle>
+            <EventImagesEditor orgId={event.org_id || orgId || ""} heroUrl={event.hero_image_url} gallery={event.gallery} onChange={(v) => set(v)} />
+          </FormSection>
+
+          <FormSection id="sec-schedule" title="Race-morning schedule" hideTitle>
+            <ScheduleEditor rows={event.schedule} onChange={(schedule) => set({ schedule })} />
+          </FormSection>
+
+          <FormSection id="sec-inclusions" title="What's included" hideTitle>
+            <InclusionsEditor rows={event.inclusions} onChange={(inclusions) => set({ inclusions })} />
+          </FormSection>
+
+          <FormSection id="sec-addons" title="Add-ons" hideTitle>
+            <AddonEditor rows={addons} onChange={setAddons} />
+          </FormSection>
+
+          <StickySaveBar
+            dirty={dirty}
+            pending={pending}
+            error={error}
+            onSave={onSave}
+            onCancel={() => router.push("/events")}
+          />
         </div>
       </div>
     </div>
