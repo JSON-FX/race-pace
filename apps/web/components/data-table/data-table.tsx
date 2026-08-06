@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   flexRender, getCoreRowModel, useReactTable,
@@ -21,6 +21,14 @@ import { TableEmptyState } from "./empty-state";
 import type { FilterDef } from "./faceted-filter";
 import { cn } from "@/lib/utils";
 
+/** `bulkActions` needs a stable id per row to report back on `onSelect`, and
+ *  a selection checkbox column with nothing to key off is a bug, not a
+ *  feature — so the two are required together, or omitted together. A
+ *  caller cannot typecheck with one but not the other. */
+type DataTableSelectionProps<TData> =
+  | { bulkActions: BulkAction[]; getRowId: (row: TData) => string }
+  | { bulkActions?: undefined; getRowId?: undefined };
+
 export type DataTableProps<TData> = {
   columns: ColumnDef<TData, unknown>[];
   data: TData[];
@@ -30,18 +38,25 @@ export type DataTableProps<TData> = {
   sort: SortState[];
   filterDefs: FilterDef[];
   activeFilters: Record<string, string>;
-  q?: string;
+  /** Required, not just defaulted: it's load-bearing state. Omitting it by
+   *  accident used to render an empty toolbar and no chip while the server
+   *  kept filtering by whatever `?q=` was already in the URL — silently
+   *  showing the admin a filtered list with no visible cause. */
+  q: string;
   searchPlaceholder?: string;
-  bulkActions?: BulkAction[];
-  getRowId?: (row: TData) => string;
   rowHref?: (row: TData) => string;
+  /** Query-param keys "Clear all" must NOT remove, beyond the `sort`/`per`
+   *  it already preserves — e.g. Registrations passes `["event"]` so
+   *  clearing filters can't navigate the admin off the event they're
+   *  scoped to. Forwarded verbatim to `useTableParams().clearFilters`. */
+  preserveOnClear?: string[];
   emptyState?: { title: string; description: string; action?: React.ReactNode };
   isError?: boolean;
-};
+} & DataTableSelectionProps<TData>;
 
 export function DataTable<TData>({
-  columns, data, total, page, per, sort, filterDefs, activeFilters,
-  q = "", searchPlaceholder = "Search…", bulkActions = [],
+  columns, data, total, page, per, sort, filterDefs, activeFilters, q,
+  searchPlaceholder = "Search…", bulkActions = [], preserveOnClear,
   getRowId, rowHref, emptyState, isError,
 }: DataTableProps<TData>) {
   const params = useTableParams();
@@ -49,6 +64,15 @@ export function DataTable<TData>({
   const [visibility, setVisibility] = useState<VisibilityState>({});
 
   const selectable = bulkActions.length > 0 && !!getRowId;
+
+  // The fix for stale selection surviving a page/filter/search change: drop
+  // it the moment any of those change. (See the intersection below for the
+  // seatbelt — this effect firing is not itself relied on for correctness.)
+  const filtersKey = useMemo(() => JSON.stringify(activeFilters), [activeFilters]);
+  useEffect(() => {
+    setSelected({});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, per, q, filtersKey]);
 
   const allColumns = useMemo<ColumnDef<TData, unknown>[]>(() => {
     if (!selectable) return columns;
@@ -80,7 +104,20 @@ export function DataTable<TData>({
     getCoreRowModel: getCoreRowModel(),
   });
 
-  const selectedIds = Object.keys(selected).filter((k) => selected[k]);
+  // The seatbelt: even if the reset effect above hasn't flushed yet (or ran
+  // for a reason that isn't page/per/q/filters — e.g. the caller mutated
+  // `data` in place after a refund), a selected id that isn't in the
+  // *current* `data` never reaches an action handler.
+  const currentIds = useMemo(
+    () => new Set(getRowId ? data.map(getRowId) : []),
+    [data, getRowId],
+  );
+  const selectedIds = Object.keys(selected).filter((k) => selected[k] && currentIds.has(k));
+
+  const firstDataColumnId = useMemo(
+    () => table.getVisibleFlatColumns().find((c) => c.id !== "__select")?.id,
+    [table],
+  );
 
   const columnToggles = table
     .getAllColumns()
@@ -102,7 +139,7 @@ export function DataTable<TData>({
 
       <ActiveFilters defs={filterDefs} active={activeFilters} q={q}
         onRemove={(key) => (key === "q" ? params.setQ("") : params.setFilter(key, "all"))}
-        onClearAll={params.clearFilters} />
+        onClearAll={() => params.clearFilters(preserveOnClear)} />
 
       {/* Announced after every filter change so screen-reader users learn the
           result count without hunting for it. */}
@@ -139,16 +176,42 @@ export function DataTable<TData>({
               </TableHeader>
               <TableBody>
                 {table.getRowModel().rows.map((row) => (
-                  <TableRow key={row.id} className={cn(rowHref && "cursor-pointer")}>
+                  <TableRow
+                    key={row.id}
+                    className={cn(rowHref && "cursor-pointer")}
+                    onClick={
+                      rowHref
+                        ? (e) => {
+                            // Only the first data cell renders a real <a> (see
+                            // below) — clicking anywhere else in the row
+                            // delegates to it, so the row acts clickable
+                            // without turning every cell into its own link.
+                            // Clicks that already landed on an interactive
+                            // element (the link itself, the select checkbox,
+                            // a future row action) are left alone so we don't
+                            // double-navigate or eat their own click.
+                            const target = e.target as HTMLElement;
+                            if (target.closest("a,button,input,[role='checkbox']")) return;
+                            (e.currentTarget.querySelector("a") as HTMLAnchorElement | null)?.click();
+                          }
+                        : undefined
+                    }
+                  >
                     {row.getVisibleCells().map((cell) => {
                       const body = flexRender(cell.column.columnDef.cell, cell.getContext());
+                      const isPrimaryLink = !!rowHref && cell.column.id === firstDataColumnId;
                       return (
                         <TableCell key={cell.id} className="py-3 text-[13px]">
-                          {/* Link wraps the cell, not the row: an <a> cannot
-                              legally contain <td>, and this keeps the row
-                              keyboard-navigable and middle-clickable. */}
-                          {rowHref && cell.column.id !== "__select" ? (
-                            <Link href={rowHref(row.original)} className="block">{body}</Link>
+                          {/* Exactly one real <a> per row, in the first data
+                              cell — not one per cell. An <a> cannot legally
+                              contain a <td>, so it wraps the cell instead of
+                              the row; the row's onClick above (and this
+                              being a real link) is what keeps the rest of
+                              the row clickable, keyboard-reachable and
+                              middle-clickable without turning a 6-column
+                              table into 150 tab stops for 25 destinations. */}
+                          {isPrimaryLink ? (
+                            <Link href={rowHref!(row.original)} className="block">{body}</Link>
                           ) : body}
                         </TableCell>
                       );

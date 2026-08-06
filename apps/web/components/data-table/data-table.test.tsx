@@ -1,14 +1,14 @@
-// Must be the first import: vitest hoists `vi.mock`/`vi.hoisted` calls to the
-// top of the module graph, and this module's `vi.hoisted` spies need to be
-// established before anything else in this file is evaluated.
-import { mockUseTableParams, tableParamsSpies, resetTableParamsSpies } from "@/lib/test-utils/mock-table-params";
-
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ColumnDef } from "@tanstack/react-table";
+import { tableParamsSpies, tableParamsMockReturn, resetTableParamsSpies } from "@/lib/test-utils/mock-table-params";
 
-mockUseTableParams();
+// Copy this exact one-liner into every test that renders <DataTable> (or
+// anything else calling useTableParams()) — see the header comment in
+// mock-table-params.ts for why it must be written directly in this file
+// rather than delegated to a helper function.
+vi.mock("@/lib/use-table-params", () => ({ useTableParams: () => tableParamsMockReturn }));
 
 import { DataTable, type DataTableProps } from "./data-table";
 
@@ -24,9 +24,9 @@ const rows: Row[] = [
   { id: "2", name: "Ramon Cruz", amount: 1950 },
 ];
 
-const base: Pick<DataTableProps<Row>, "columns" | "data" | "total" | "page" | "per" | "sort" | "filterDefs" | "activeFilters"> = {
+const base: Pick<DataTableProps<Row>, "columns" | "data" | "total" | "page" | "per" | "sort" | "filterDefs" | "activeFilters" | "q"> = {
   columns, data: rows, total: 2, page: 1, per: 25,
-  sort: [], filterDefs: [], activeFilters: {},
+  sort: [], filterDefs: [], activeFilters: {}, q: "",
 };
 
 describe("DataTable", () => {
@@ -68,7 +68,11 @@ describe("DataTable", () => {
         activeFilters={{ status: "paid" }} />,
     );
     await userEvent.click(screen.getByLabelText("Remove Status filter"));
-    expect(tableParamsSpies.patch).toHaveBeenCalledWith({ status: null, page: null });
+    // Assert on what DataTable itself calls (setFilter with the "all"
+    // sentinel), not on the mock's own re-implementation of the "all" -> null
+    // translation — that translation is real product logic now covered
+    // directly in lib/use-table-params.test.ts.
+    expect(tableParamsSpies.setFilter).toHaveBeenCalledWith("status", "all");
   });
 
   it("reveals bulk actions once rows are selected", async () => {
@@ -79,5 +83,51 @@ describe("DataTable", () => {
     expect(screen.getByText("1 selected")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Send email" }));
     expect(onSelect).toHaveBeenCalledWith(["1"]);
+  });
+
+  // C2 regression: a bulk action must never receive an id that isn't in the
+  // *current* data, even if the selection state hasn't been reset yet — the
+  // reset effect (keyed on page/per/q/filters) is the fix, this intersection
+  // is the seatbelt that must hold independently of it. Simulated here by
+  // rerendering with different data while a row is selected, which is what
+  // happens in practice on a filter change or after a mutation shrinks the
+  // list, whether or not the reset effect has flushed yet.
+  it("never hands a bulk action an id absent from the current data", async () => {
+    const onSelect = vi.fn();
+    const { rerender } = render(
+      <DataTable {...base} bulkActions={[{ label: "Send email", onSelect }]} getRowId={(r) => r.id} />,
+    );
+    await userEvent.click(screen.getAllByLabelText("Select row")[0]); // selects id "1"
+    expect(screen.getByText("1 selected")).toBeInTheDocument();
+
+    // Row "1" drops out of view (e.g. a filter change) without any of
+    // page/per/q/activeFilters literally changing on this particular
+    // rerender — data alone changed.
+    rerender(
+      <DataTable {...base} data={[rows[1]]} total={1}
+        bulkActions={[{ label: "Send email", onSelect }]} getRowId={(r) => r.id} />,
+    );
+
+    // The stale selection must not be reported as "1 selected" for a row
+    // that's no longer on screen.
+    expect(screen.queryByText("1 selected")).not.toBeInTheDocument();
+  });
+
+  // I6 regression: rowHref must produce exactly one <a> per row (the first
+  // data cell), not one per cell — a 6-column table must not become 150 tab
+  // stops / 150 announced links for 25 destinations.
+  it("renders exactly one link per row when rowHref is set, and the rest of the row still delegates to it", async () => {
+    render(<DataTable {...base} rowHref={(r) => `/registrations/${r.id}`} />);
+    const links = screen.getAllByRole("link");
+    expect(links).toHaveLength(rows.length);
+    expect(links[0]).toHaveAttribute("href", "/registrations/1");
+
+    // Clicking a non-link cell in the row (the Amount cell) should delegate
+    // to that row's single anchor rather than doing nothing.
+    const amountCell = screen.getByText("2850");
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click");
+    await userEvent.click(amountCell);
+    expect(clickSpy).toHaveBeenCalledTimes(1);
+    clickSpy.mockRestore();
   });
 });

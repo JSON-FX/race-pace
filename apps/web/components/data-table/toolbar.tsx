@@ -23,14 +23,37 @@ export function DataTableToolbar({
 }) {
   const [draft, setDraft] = useState(q);
 
-  // Debounce so typing does not push a history entry per keystroke. The
-  // mounted ref stops the initial value echoing straight back into the URL.
-  const mounted = useRef(false);
+  // `lastSyncedRef` holds whichever value the draft and the outside world
+  // last agreed on — either the last thing we sent via onSearchChange, or
+  // the last external `q` we adopted (chip removal, Back button, a filter
+  // reset that also clears q). Comparing against it lets the two effects
+  // below tell "the user typed something new" apart from "our own update
+  // echoed back down as a prop", so they don't ping-pong each other.
+  const lastSyncedRef = useRef(q);
   const onSearchRef = useRef(onSearchChange);
   onSearchRef.current = onSearchChange;
+
+  // Re-sync when q changes for a reason other than our own debounced send
+  // (DataTable stays mounted across soft navigation, so this prop can change
+  // under us at any time).
   useEffect(() => {
-    if (!mounted.current) { mounted.current = true; return; }
-    const id = setTimeout(() => onSearchRef.current(draft), 300);
+    if (q !== lastSyncedRef.current) {
+      lastSyncedRef.current = q;
+      setDraft(q);
+    }
+  }, [q]);
+
+  // Debounce so typing does not push a history entry per keystroke. Skips
+  // when draft already matches the last synced value — true on mount, and
+  // true right after the effect above pulls draft back in line with an
+  // external q change, which is what stops that change from bouncing
+  // straight back out as a redundant onSearchChange call.
+  useEffect(() => {
+    if (draft === lastSyncedRef.current) return;
+    const id = setTimeout(() => {
+      lastSyncedRef.current = draft;
+      onSearchRef.current(draft);
+    }, 300);
     return () => clearTimeout(id);
   }, [draft]);
 
