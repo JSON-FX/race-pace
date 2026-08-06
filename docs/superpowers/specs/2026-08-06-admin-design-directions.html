@@ -1,0 +1,639 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Race Pace Admin — 3 Design Directions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --g:#159A55; --g-dk:#0F7A42; --g-tint:#EAF3EE; --forest:#0F2A20;
+  --info:#0066CC; --info-t:#E8F0FB; --amber:#B45309; --amber-t:#FBEFE3;
+  --red:#D92D20; --red-t:#FDECEA;
+  --bg:#FFFFFF; --fg:#1D1D1F; --mut:#F5F5F7; --mutfg:#7A7A7A;
+  --bd:#E0E0E0; --div:#EFEFF1; --card:#FFFFFF;
+  --shadow:0 1px 2px rgb(16 24 40/.04), 0 1px 3px rgb(16 24 40/.06);
+  --shadow-lg:0 4px 16px rgb(16 24 40/.08);
+}
+body.dark{
+  --bg:#0B0F0D; --fg:#F5F5F7; --mut:#141916; --mutfg:#A1A1A6; --bd:#262B28;
+  --div:#262B28; --card:#141916; --g:#2FB56A; --g-tint:#13251C; --g-dk:#1E9E5C;
+  --info-t:#10233A; --amber-t:#2A2113; --red-t:#2A1414; --forest:#0A1410;
+  --shadow:0 1px 2px rgb(0 0 0/.4); --shadow-lg:0 6px 24px rgb(0 0 0/.5);
+}
+body{font-family:Inter,-apple-system,system-ui,sans-serif;background:var(--mut);color:var(--fg);
+  -webkit-font-smoothing:antialiased;font-size:14px;line-height:1.5}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}
+svg{display:block}
+
+/* ---------- chrome ---------- */
+.page{max-width:1400px;margin:0 auto;padding:28px 20px 80px}
+.masthead{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;justify-content:space-between;margin-bottom:22px}
+.masthead h1{font-size:26px;font-weight:700;letter-spacing:-.02em}
+.masthead p{color:var(--mutfg);font-size:14px;margin-top:6px;max-width:62ch}
+.ctrls{display:flex;gap:8px;align-items:center}
+.tabs{display:flex;gap:6px;background:var(--card);border:1px solid var(--bd);padding:5px;border-radius:12px;flex-wrap:wrap}
+.tab{border:0;background:transparent;color:var(--mutfg);font:inherit;font-weight:600;font-size:13px;
+  padding:8px 14px;border-radius:8px;cursor:pointer;transition:all .18s ease;white-space:nowrap}
+.tab:hover{color:var(--fg);background:var(--mut)}
+.tab[aria-selected=true]{background:var(--g);color:#fff}
+.toggle{border:1px solid var(--bd);background:var(--card);color:var(--fg);font:inherit;font-size:13px;font-weight:600;
+  padding:9px 14px;border-radius:10px;cursor:pointer;display:flex;gap:7px;align-items:center}
+.toggle:hover{border-color:var(--g)}
+
+.panel{display:none}
+.panel.on{display:block;animation:fade .28s ease}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.panel.on{animation:none}}
+
+.blurb{display:grid;grid-template-columns:1fr;gap:14px;margin-bottom:18px}
+@media(min-width:820px){.blurb{grid-template-columns:1.25fr 1fr 1fr}}
+.blurb .b{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:14px 16px}
+.blurb h3{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--mutfg);margin-bottom:7px;font-weight:700}
+.blurb p{font-size:13px;line-height:1.55}
+.blurb .lead p{font-size:13.5px}
+.tagrow{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+.tag{font-size:11px;font-weight:600;padding:3px 9px;border-radius:999px;background:var(--mut);color:var(--mutfg);border:1px solid var(--bd)}
+.tag.good{background:var(--g-tint);color:var(--g-dk);border-color:transparent}
+body.dark .tag.good{color:#7FE0A6}
+
+/* ---------- shared app frame ---------- */
+.frame{border:1px solid var(--bd);border-radius:16px;overflow:hidden;background:var(--bg);box-shadow:var(--shadow-lg)}
+.frame-bar{display:flex;align-items:center;gap:7px;padding:10px 14px;background:var(--card);border-bottom:1px solid var(--div)}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--bd)}
+.frame-url{margin-left:10px;font-size:11.5px;color:var(--mutfg)}
+.app{display:grid;grid-template-columns:216px 1fr;min-height:660px}
+@media(max-width:900px){.app{grid-template-columns:1fr}.sb{display:none}}
+
+/* sidebar */
+.sb{border-right:1px solid var(--div);padding:14px 10px;display:flex;flex-direction:column;gap:3px;background:var(--card)}
+.sb-brand{display:flex;align-items:center;gap:9px;padding:6px 8px 14px}
+.logo{width:28px;height:28px;border-radius:8px;background:var(--g);display:grid;place-items:center;color:#fff;font-weight:700;font-size:13px;flex:none}
+.sb-brand b{font-size:14px;letter-spacing:-.01em}
+.sb-brand small{display:block;font-size:10.5px;color:var(--mutfg);font-weight:500}
+.sb-lbl{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--mutfg);font-weight:700;padding:14px 10px 6px}
+.nav{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:9px;font-size:13.5px;font-weight:500;color:var(--mutfg);cursor:pointer;transition:background .15s}
+.nav:hover{background:var(--mut);color:var(--fg)}
+.nav.on{background:var(--g-tint);color:var(--fg);font-weight:600}
+.nav.on svg{color:var(--g)}
+.nav svg{width:16px;height:16px;flex:none;stroke-width:1.9}
+.nav .cnt{margin-left:auto;font-size:11px;font-weight:600;color:var(--mutfg);background:var(--mut);padding:1px 7px;border-radius:999px}
+.nav.on .cnt{background:var(--g);color:#fff}
+.sb-foot{margin-top:auto;border-top:1px solid var(--div);padding-top:11px;display:flex;align-items:center;gap:9px}
+.ava{width:30px;height:30px;border-radius:50%;background:var(--g-tint);color:var(--g-dk);display:grid;place-items:center;font-size:11.5px;font-weight:700;flex:none}
+body.dark .ava{color:#7FE0A6}
+.sb-foot b{font-size:12.5px;display:block}
+.sb-foot small{font-size:10.5px;color:var(--mutfg)}
+
+/* topbar */
+.top{display:flex;align-items:center;gap:12px;padding:12px 22px;border-bottom:1px solid var(--div);background:var(--bg)}
+.crumb{font-size:12px;color:var(--mutfg)}
+.crumb b{color:var(--fg);font-weight:600}
+.spacer{flex:1}
+.kbd{font-size:11px;font-family:'JetBrains Mono',monospace;border:1px solid var(--bd);border-radius:5px;padding:1px 5px;color:var(--mutfg)}
+
+/* main */
+.main{background:var(--mut);padding:22px;overflow:auto}
+.h-row{display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap;margin-bottom:18px}
+.h-row h2{font-size:21px;font-weight:700;letter-spacing:-.02em}
+.h-row p{font-size:13px;color:var(--mutfg);margin-top:3px}
+
+/* buttons / inputs */
+.btn{display:inline-flex;align-items:center;gap:7px;font:inherit;font-size:13px;font-weight:600;padding:8px 14px;
+  border-radius:9px;border:1px solid var(--bd);background:var(--card);color:var(--fg);cursor:pointer;transition:.15s;white-space:nowrap}
+.btn:hover{border-color:var(--g);color:var(--g-dk)}
+body.dark .btn:hover{color:var(--g)}
+.btn.pri{background:var(--g);border-color:var(--g);color:#fff}
+.btn.pri:hover{background:var(--g-dk);color:#fff}
+.btn.sm{padding:5px 10px;font-size:12px;border-radius:7px}
+.btn svg{width:15px;height:15px;stroke-width:2}
+.btn.sm svg{width:13px;height:13px}
+.inp{display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--bd);border-radius:9px;padding:8px 11px;font-size:13px;color:var(--mutfg);min-width:210px}
+.inp svg{width:15px;height:15px;flex:none;stroke-width:2}
+.sel{display:inline-flex;align-items:center;gap:7px;background:var(--card);border:1px solid var(--bd);border-radius:9px;padding:8px 11px;font-size:12.5px;font-weight:500;cursor:pointer}
+.sel:hover{border-color:var(--g)}
+.sel svg{width:13px;height:13px;stroke-width:2;color:var(--mutfg)}
+.sel .n{background:var(--g);color:#fff;font-size:10.5px;font-weight:700;border-radius:999px;padding:1px 6px}
+.dash{border-style:dashed}
+
+/* chips / badges */
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:999px;
+  background:var(--g-tint);color:var(--g-dk);border:1px solid transparent}
+body.dark .chip{color:#7FE0A6}
+.chip .x{opacity:.55;font-weight:700;cursor:pointer}
+.bdg{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;padding:2.5px 9px;border-radius:999px;white-space:nowrap}
+.bdg::before{content:"";width:5px;height:5px;border-radius:50%;background:currentColor}
+.paid{background:var(--g-tint);color:var(--g-dk)} body.dark .paid{color:#35C06E}
+.pend{background:var(--amber-t);color:var(--amber)} body.dark .pend{color:#E0A345}
+.ref{background:var(--info-t);color:var(--info)} body.dark .ref{color:#0A84FF}
+.canc{background:var(--red-t);color:var(--red)} body.dark .canc{color:#FF453A}
+
+/* table */
+.card{background:var(--card);border:1px solid var(--bd);border-radius:14px;overflow:hidden}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--mutfg);font-weight:700;
+  padding:10px 16px;background:var(--mut);border-bottom:1px solid var(--div);white-space:nowrap}
+th .s{display:inline-flex;align-items:center;gap:4px;cursor:pointer}
+th svg{width:11px;height:11px;opacity:.5;stroke-width:2.5}
+th.act{opacity:1}
+td{padding:12px 16px;border-bottom:1px solid var(--div);font-size:13px;vertical-align:middle}
+tr:last-child td{border-bottom:0}
+tbody tr{cursor:pointer;transition:background .12s}
+tbody tr:hover{background:var(--mut)}
+.who{display:flex;align-items:center;gap:9px}
+.who b{font-weight:600;display:block;font-size:13px}
+.who small{color:var(--mutfg);font-size:11.5px}
+.cb{width:15px;height:15px;border:1.5px solid var(--bd);border-radius:4px;flex:none;display:grid;place-items:center;background:var(--card)}
+.cb.on{background:var(--g);border-color:var(--g)}
+.cb.on svg{width:10px;height:10px;color:#fff;stroke-width:3.5}
+.dim{color:var(--mutfg)}
+
+/* pagination */
+.pag{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:11px 16px;border-top:1px solid var(--div);flex-wrap:wrap}
+.pag-l{font-size:12.5px;color:var(--mutfg);display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.pag-r{display:flex;align-items:center;gap:5px}
+.pg{min-width:29px;height:29px;display:grid;place-items:center;border:1px solid var(--bd);background:var(--card);
+  border-radius:7px;font-size:12.5px;font-weight:600;cursor:pointer;color:var(--fg);padding:0 8px}
+.pg:hover{border-color:var(--g)}
+.pg.on{background:var(--g);border-color:var(--g);color:#fff}
+.pg.off{opacity:.4;cursor:not-allowed}
+.pg svg{width:13px;height:13px;stroke-width:2.5}
+
+/* kpi */
+.kpis{display:grid;gap:12px;grid-template-columns:repeat(2,1fr);margin-bottom:18px}
+@media(min-width:760px){.kpis{grid-template-columns:repeat(4,1fr)}}
+.kpi{background:var(--card);border:1px solid var(--bd);border-radius:13px;padding:14px 15px}
+.kpi .k{font-size:11px;color:var(--mutfg);font-weight:600;display:flex;align-items:center;gap:6px}
+.kpi .k svg{width:13px;height:13px;stroke-width:2}
+.kpi .v{font-size:23px;font-weight:700;letter-spacing:-.03em;margin-top:7px}
+.kpi .d{font-size:11.5px;font-weight:600;margin-top:4px;display:flex;align-items:center;gap:4px}
+.up{color:var(--g-dk)} body.dark .up{color:#35C06E}
+.dn{color:var(--red)}
+.spark{margin-top:9px}
+
+/* bulk bar */
+.bulk{display:flex;align-items:center;gap:11px;padding:9px 16px;background:var(--g-tint);border-bottom:1px solid var(--div);font-size:12.5px;font-weight:600}
+.bulk .c{color:var(--g-dk)} body.dark .bulk .c{color:#7FE0A6}
+
+/* ============ DIRECTION B : DENSE OPS ============ */
+#b .app{grid-template-columns:196px 1fr}
+#b .sb{background:var(--forest);border-right-color:rgba(255,255,255,.07)}
+#b .sb .sb-brand b{color:#fff} #b .sb .sb-brand small{color:rgba(255,255,255,.45)}
+#b .nav{color:rgba(255,255,255,.62);border-radius:7px;padding:6.5px 10px;font-size:13px}
+#b .nav:hover{background:rgba(255,255,255,.07);color:#fff}
+#b .nav.on{background:rgba(47,181,106,.16);color:#fff}
+#b .nav.on svg{color:#35C06E}
+#b .nav .cnt{background:rgba(255,255,255,.1);color:rgba(255,255,255,.7)}
+#b .nav.on .cnt{background:#159A55;color:#fff}
+#b .sb-lbl{color:rgba(255,255,255,.32);padding:13px 10px 5px}
+#b .sb-foot{border-top-color:rgba(255,255,255,.08)}
+#b .sb-foot b{color:#fff} #b .sb-foot small{color:rgba(255,255,255,.45)}
+#b .ava{background:rgba(47,181,106,.2);color:#7FE0A6}
+#b .main{padding:16px}
+#b .card{border-radius:9px}
+#b .kpi{border-radius:9px;padding:11px 13px}
+#b .kpi .v{font-size:21px}
+#b .kpis{gap:9px;margin-bottom:13px}
+#b td{padding:7px 13px;font-size:12.5px}
+#b th{padding:7px 13px;font-size:10px}
+#b .btn,#b .sel,#b .inp{border-radius:7px;padding:6px 10px;font-size:12.5px}
+#b .h-row{margin-bottom:13px}
+#b .h-row h2{font-size:18px}
+#b tbody tr:nth-child(even){background:color-mix(in srgb,var(--mut) 45%,transparent)}
+#b tbody tr:hover{background:var(--g-tint)}
+#b .toolbar{position:sticky;top:0;z-index:2;background:var(--card);border-bottom:1px solid var(--div);padding:9px 13px;
+  display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+#b .who small{display:none}
+#b .pag{padding:7px 13px}
+
+/* ============ DIRECTION C : BENTO ============ */
+#c .main{padding:24px;background:var(--mut)}
+#c .card,#c .kpi{border-radius:18px}
+#c .kpi{padding:17px 18px}
+#c .kpi .v{font-size:28px}
+#c th{background:transparent;border-bottom:1.5px solid var(--div);padding:12px 20px}
+#c td{padding:14px 20px}
+#c .bento{display:grid;gap:14px;grid-template-columns:1fr;margin-bottom:16px}
+@media(min-width:900px){#c .bento{grid-template-columns:2fr 1fr}}
+#c .btn,#c .sel,#c .inp{border-radius:999px;padding:9px 16px}
+#c .btn.sm{padding:5px 12px}
+#c .segs{display:inline-flex;background:var(--mut);border:1px solid var(--bd);padding:3.5px;border-radius:999px;gap:3px}
+#c .seg{font-size:12.5px;font-weight:600;padding:5.5px 14px;border-radius:999px;color:var(--mutfg);cursor:pointer;border:0;background:transparent;font-family:inherit}
+#c .seg.on{background:var(--card);color:var(--fg);box-shadow:var(--shadow)}
+#c .split{display:grid;grid-template-columns:1fr;gap:14px}
+@media(min-width:1050px){#c .split{grid-template-columns:1fr 300px}}
+#c .drawer{background:var(--card);border:1px solid var(--bd);border-radius:18px;padding:18px;height:fit-content}
+#c .drawer h4{font-size:15px;font-weight:700;letter-spacing:-.01em}
+#c .drow{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--div);font-size:12.5px}
+#c .drow:last-of-type{border-bottom:0}
+#c .drow span{color:var(--mutfg)}
+#c .drow b{font-weight:600}
+#c tbody tr:hover{background:var(--g-tint)}
+.sec-t{font-size:13px;font-weight:700;letter-spacing:-.01em;display:flex;align-items:center;gap:8px}
+.sec-t .sub{font-weight:500;color:var(--mutfg);font-size:12px}
+.cardhead{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 20px;border-bottom:1px solid var(--div);flex-wrap:wrap}
+.toolbar2{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:13px 20px;border-bottom:1px solid var(--div)}
+.note{font-size:12px;color:var(--mutfg);margin-top:12px;display:flex;gap:7px;align-items:flex-start}
+.note svg{width:14px;height:14px;flex:none;margin-top:2px;stroke-width:2}
+</style>
+</head>
+<body>
+<svg style="display:none">
+<symbol id="i-dash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></symbol>
+<symbol id="i-cal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></symbol>
+<symbol id="i-list" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h3"/></symbol>
+<symbol id="i-card" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></symbol>
+<symbol id="i-qr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v3M14 20h6"/></symbol>
+<symbol id="i-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M17 5.5a3 3 0 0 1 0 5.6M18 20a6 6 0 0 0-2-4.4"/></symbol>
+<symbol id="i-cog" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 7 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0-1.1-2.7H1a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 2.6 7a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H7a1.6 1.6 0 0 0 1-1.5V1a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 2.7 1.1 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V7a1.6 1.6 0 0 0 1.5 1H23a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z" transform="scale(.86) translate(2 2)"/></symbol>
+<symbol id="i-bld" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="10" height="18" rx="1"/><path d="M14 8h6v13H4M7 7h4M7 11h4M7 15h4M17 12h1M17 16h1"/></symbol>
+<symbol id="i-pct" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M19 5 5 19"/><circle cx="7.5" cy="7.5" r="2.5"/><circle cx="16.5" cy="16.5" r="2.5"/></symbol>
+<symbol id="i-bank" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10h18M5 10v8M10 10v8M14 10v8M19 10v8M3 21h18M12 3l9 5H3z"/></symbol>
+<symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></symbol>
+<symbol id="i-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></symbol>
+<symbol id="i-l" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"/></symbol>
+<symbol id="i-r" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></symbol>
+<symbol id="i-sort" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5M7 9l5-5 5 5"/></symbol>
+<symbol id="i-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v14M6 13l6 6 6-6"/></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></symbol>
+<symbol id="i-filter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18l-7 8v6l-4 2v-8z"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5 9-10"/></symbol>
+<symbol id="i-tr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17 10 11l4 4 6-7M15 8h5v5"/></symbol>
+<symbol id="i-cols" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M15 4v16"/></symbol>
+<symbol id="i-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></symbol>
+<symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+<symbol id="i-money" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M14.5 9.5A2.5 2.5 0 0 0 12 8c-1.4 0-2.5.9-2.5 2s1.1 2 2.5 2 2.5.9 2.5 2-1.1 2-2.5 2a2.5 2.5 0 0 1-2.5-1.5"/></symbol>
+</svg>
+
+<div class="page">
+  <div class="masthead">
+    <div>
+      <h1>Race Pace Admin — 3 design directions</h1>
+      <p>Same page (Registrations) rendered three ways, so the comparison is apples-to-apples. All three are Next.js App Router + shadcn/ui + Tailwind v4 on your existing <b>trail-green #159A55</b> tokens — only the density, surface, and layout language differ.</p>
+    </div>
+    <div class="ctrls">
+      <button class="toggle" id="dm">◐ Dark</button>
+    </div>
+  </div>
+
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" aria-selected="true" data-p="a">A · Refined Console</button>
+    <button class="tab" role="tab" aria-selected="false" data-p="b">B · Dense Ops Deck</button>
+    <button class="tab" role="tab" aria-selected="false" data-p="c">C · Bento Command Center</button>
+  </div>
+
+<!-- ============================ A ============================ -->
+<div class="panel on" id="a" style="margin-top:18px">
+  <div class="blurb">
+    <div class="b lead"><h3>The idea</h3><p>A calm, Apple-flavoured evolution of what you already have. White sidebar, 14–16px radii, generous row height, soft one-layer shadows. It reads as a <b>premium product</b> rather than an internal tool — and it's the closest visual sibling to your mobile app and the public site.</p>
+      <div class="tagrow"><span class="tag good">Lowest risk</span><span class="tag">Matches handover</span><span class="tag">Brand-consistent</span></div></div>
+    <div class="b"><h3>Tables</h3><p>Roomy 44px rows with avatar + secondary line. Filters live in a toolbar above the card as dropdown buttons; active filters appear as removable chips. Page-size selector, range label, numbered pager.</p></div>
+    <div class="b"><h3>Trade-off</h3><p>Least data per screen — ~10 rows visible at 900px. Best when organisers work one event at a time; weaker for scanning 500 registrations.</p></div>
+  </div>
+
+  <div class="frame">
+    <div class="frame-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="frame-url">admin.racepace.ph/registrations?status=paid&event=dahilayan&page=3</span></div>
+    <div class="app">
+      <aside class="sb">
+        <div class="sb-brand"><div class="logo">RP</div><div><b>Race Pace</b><small>Race Pace Events</small></div></div>
+        <div class="nav"><svg><use href="#i-dash"/></svg>Dashboard</div>
+        <div class="nav"><svg><use href="#i-cal"/></svg>Events<span class="cnt">12</span></div>
+        <div class="nav on"><svg><use href="#i-list"/></svg>Registrations<span class="cnt">847</span></div>
+        <div class="nav"><svg><use href="#i-card"/></svg>Payments</div>
+        <div class="nav"><svg><use href="#i-qr"/></svg>Check-in</div>
+        <div class="nav"><svg><use href="#i-users"/></svg>Team</div>
+        <div class="nav"><svg><use href="#i-cog"/></svg>Settings</div>
+        <div class="sb-lbl">Platform</div>
+        <div class="nav"><svg><use href="#i-bld"/></svg>Organizations</div>
+        <div class="nav"><svg><use href="#i-pct"/></svg>Commission</div>
+        <div class="nav"><svg><use href="#i-bank"/></svg>Payouts</div>
+        <div class="sb-foot"><div class="ava">AD</div><div><b>admin</b><small>Super admin</small></div></div>
+      </aside>
+      <div style="display:flex;flex-direction:column;min-width:0">
+        <div class="top">
+          <span class="crumb">Race Pace Events&nbsp; / &nbsp;<b>Registrations</b></span>
+          <span class="spacer"></span>
+          <div class="inp" style="min-width:180px"><svg><use href="#i-search"/></svg>Search… <span class="spacer"></span><span class="kbd">⌘K</span></div>
+        </div>
+        <div class="main">
+          <div class="h-row">
+            <div><h2>Registrations</h2><p>847 total across 12 events · 23 pending payment</p></div>
+            <span class="spacer"></span>
+            <button class="btn"><svg><use href="#i-down"/></svg>Export CSV</button>
+            <button class="btn pri"><svg><use href="#i-plus"/></svg>Manual entry</button>
+          </div>
+
+          <div class="kpis">
+            <div class="kpi"><div class="k"><svg><use href="#i-list"/></svg>Total</div><div class="v mono">847</div><div class="d up"><svg style="width:12px;height:12px" ><use href="#i-tr"/></svg>+64 this week</div></div>
+            <div class="kpi"><div class="k"><svg><use href="#i-check"/></svg>Paid</div><div class="v mono">791</div><div class="d dim">93.4% conversion</div></div>
+            <div class="kpi"><div class="k"><svg><use href="#i-money"/></svg>Gross revenue</div><div class="v mono">₱1.42M</div><div class="d up"><svg style="width:12px;height:12px"><use href="#i-tr"/></svg>+12.8% MoM</div></div>
+            <div class="kpi"><div class="k"><svg><use href="#i-card"/></svg>Refunds</div><div class="v mono">₱38.4K</div><div class="d dim">9 requests · 2 pending</div></div>
+          </div>
+
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+            <div class="inp"><svg><use href="#i-search"/></svg>Search name, email, bib…</div>
+            <div class="sel">Event: Dahilayan Sky Ultra <svg><use href="#i-chev"/></svg></div>
+            <div class="sel">Status <span class="n">1</span> <svg><use href="#i-chev"/></svg></div>
+            <div class="sel">Category <svg><use href="#i-chev"/></svg></div>
+            <div class="sel dash"><svg style="color:currentColor"><use href="#i-plus"/></svg> Add filter</div>
+            <span class="spacer"></span>
+            <div class="sel"><svg><use href="#i-cols"/></svg> Columns</div>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+            <span class="chip">Status: Paid <span class="x">✕</span></span>
+            <span class="chip">Event: Dahilayan Sky Ultra <span class="x">✕</span></span>
+            <button class="btn sm" style="border:0;background:transparent;color:var(--mutfg)">Clear all</button>
+          </div>
+
+          <div class="card">
+            <table>
+              <thead><tr>
+                <th style="width:38px"><span class="cb"></span></th>
+                <th><span class="s">Runner <svg><use href="#i-sort"/></svg></span></th>
+                <th><span class="s">Category <svg><use href="#i-sort"/></svg></span></th>
+                <th><span class="s">Bib <svg><use href="#i-sort"/></svg></span></th>
+                <th><span class="s" style="color:var(--g)">Registered <svg style="opacity:1"><use href="#i-down"/></svg></span></th>
+                <th>Amount</th><th>Status</th><th></th>
+              </tr></thead>
+              <tbody>
+                <tr><td><span class="cb on"><svg><use href="#i-check"/></svg></span></td>
+                  <td><div class="who"><div class="ava">MJ</div><div><b>Maria Josefa Santos</b><small>maria.santos@gmail.com</small></div></div></td>
+                  <td>50K Ultra</td><td class="mono">D-1042</td><td class="dim mono">Aug 3, 09:14</td><td class="mono">₱2,850</td><td><span class="bdg paid">Paid</span></td><td class="dim">›</td></tr>
+                <tr><td><span class="cb on"><svg><use href="#i-check"/></svg></span></td>
+                  <td><div class="who"><div class="ava" style="background:var(--info-t);color:var(--info)">RC</div><div><b>Ramon Cruz</b><small>rcruz@outlook.com</small></div></div></td>
+                  <td>25K</td><td class="mono">D-0318</td><td class="dim mono">Aug 3, 08:52</td><td class="mono">₱1,950</td><td><span class="bdg paid">Paid</span></td><td class="dim">›</td></tr>
+                <tr><td><span class="cb"></span></td>
+                  <td><div class="who"><div class="ava" style="background:var(--amber-t);color:var(--amber)">AL</div><div><b>Angelo Lim</b><small>angelo.lim@yahoo.com</small></div></div></td>
+                  <td>50K Ultra</td><td class="dim">—</td><td class="dim mono">Aug 3, 08:31</td><td class="mono">₱2,850</td><td><span class="bdg pend">Pending</span></td><td class="dim">›</td></tr>
+                <tr><td><span class="cb"></span></td>
+                  <td><div class="who"><div class="ava">KT</div><div><b>Kristine Tolentino</b><small>ktolentino@gmail.com</small></div></div></td>
+                  <td>11K</td><td class="mono">D-2201</td><td class="dim mono">Aug 2, 21:07</td><td class="mono">₱1,200</td><td><span class="bdg paid">Paid</span></td><td class="dim">›</td></tr>
+                <tr><td><span class="cb"></span></td>
+                  <td><div class="who"><div class="ava" style="background:var(--red-t);color:var(--red)">JB</div><div><b>Jomar Bautista</b><small>jomar.b@protonmail.com</small></div></div></td>
+                  <td>25K</td><td class="dim">—</td><td class="dim mono">Aug 2, 19:44</td><td class="mono">₱1,950</td><td><span class="bdg ref">Refunded</span></td><td class="dim">›</td></tr>
+                <tr><td><span class="cb"></span></td>
+                  <td><div class="who"><div class="ava">PV</div><div><b>Paolo Villanueva</b><small>pvillanueva@gmail.com</small></div></div></td>
+                  <td>50K Ultra</td><td class="mono">D-1077</td><td class="dim mono">Aug 2, 17:22</td><td class="mono">₱2,850</td><td><span class="bdg paid">Paid</span></td><td class="dim">›</td></tr>
+                <tr><td><span class="cb"></span></td>
+                  <td><div class="who"><div class="ava" style="background:var(--info-t);color:var(--info)">SR</div><div><b>Sofia Reyes</b><small>sofia.reyes@gmail.com</small></div></div></td>
+                  <td>11K</td><td class="mono">D-2340</td><td class="dim mono">Aug 2, 15:03</td><td class="mono">₱1,200</td><td><span class="bdg paid">Paid</span></td><td class="dim">›</td></tr>
+              </tbody>
+            </table>
+            <div class="pag">
+              <div class="pag-l"><span>Rows per page</span><span class="sel" style="padding:4px 9px">25 <svg><use href="#i-chev"/></svg></span><span>·</span><span>Showing <b class="mono">51–75</b> of <b class="mono">791</b></span></div>
+              <div class="pag-r">
+                <span class="pg"><svg><use href="#i-l"/></svg></span>
+                <span class="pg">1</span><span class="pg">2</span><span class="pg on">3</span><span class="pg">4</span><span class="pg">…</span><span class="pg">32</span>
+                <span class="pg"><svg><use href="#i-r"/></svg></span>
+              </div>
+            </div>
+          </div>
+          <div class="note"><svg><use href="#i-info"/></svg><span>Filters, sort, page and page-size all live in the URL as searchParams — the page is server-rendered from them, so a filtered view is a shareable link and back/forward restores state.</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================ B ============================ -->
+<div class="panel" id="b" style="margin-top:18px">
+  <div class="blurb">
+    <div class="b lead"><h3>The idea</h3><p>Built for the person who lives in this tool on race week. Dark forest sidebar rail that never changes with theme, <b>~34px rows</b>, monospaced tabular figures, zebra striping, a sticky filter toolbar inside the table card, and ⌘K everywhere. Roughly <b>2× the rows per screen</b> vs. A.</p>
+      <div class="tagrow"><span class="tag good">Most data visible</span><span class="tag">Keyboard-first</span><span class="tag">Ops/race-day</span></div></div>
+    <div class="b"><h3>Tables</h3><p>The toolbar is pinned to the top of the table card and stays visible while you scroll. Bulk-select reveals an inline action bar. Numbers are mono + tabular so columns never jitter between pages.</p></div>
+    <div class="b"><h3>Trade-off</h3><p>Reads more "enterprise tool" than "premium brand". Denser type needs care at 4.5:1 contrast, and it diverges visually from the mobile app and public site.</p></div>
+  </div>
+
+  <div class="frame">
+    <div class="frame-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="frame-url">admin.racepace.ph/registrations?status=paid&event=dahilayan&page=3</span></div>
+    <div class="app">
+      <aside class="sb">
+        <div class="sb-brand"><div class="logo">RP</div><div><b>Race Pace</b><small>Race Pace Events</small></div></div>
+        <div class="nav"><svg><use href="#i-dash"/></svg>Dashboard</div>
+        <div class="nav"><svg><use href="#i-cal"/></svg>Events<span class="cnt">12</span></div>
+        <div class="nav on"><svg><use href="#i-list"/></svg>Registrations<span class="cnt">847</span></div>
+        <div class="nav"><svg><use href="#i-card"/></svg>Payments</div>
+        <div class="nav"><svg><use href="#i-qr"/></svg>Check-in</div>
+        <div class="nav"><svg><use href="#i-users"/></svg>Team</div>
+        <div class="nav"><svg><use href="#i-cog"/></svg>Settings</div>
+        <div class="sb-lbl">Platform</div>
+        <div class="nav"><svg><use href="#i-bld"/></svg>Organizations</div>
+        <div class="nav"><svg><use href="#i-pct"/></svg>Commission</div>
+        <div class="nav"><svg><use href="#i-bank"/></svg>Payouts</div>
+        <div class="sb-foot"><div class="ava">AD</div><div><b>admin</b><small>Super admin</small></div></div>
+      </aside>
+      <div style="display:flex;flex-direction:column;min-width:0">
+        <div class="top" style="padding:9px 16px">
+          <span class="crumb">Race Pace Events&nbsp;/&nbsp;<b>Registrations</b></span>
+          <span class="spacer"></span>
+          <div class="inp" style="min-width:220px"><svg><use href="#i-search"/></svg>Jump to anything… <span class="spacer"></span><span class="kbd">⌘K</span></div>
+        </div>
+        <div class="main">
+          <div class="h-row">
+            <div><h2>Registrations</h2><p>847 total · 23 pending · live</p></div>
+            <span class="spacer"></span>
+            <button class="btn"><svg><use href="#i-down"/></svg>Export</button>
+            <button class="btn pri"><svg><use href="#i-plus"/></svg>Manual entry</button>
+          </div>
+
+          <div class="kpis">
+            <div class="kpi"><div class="k">TOTAL</div><div class="v mono">847</div><div class="d up">+64 wk</div><svg class="spark" viewBox="0 0 100 20" width="100%" height="18" preserveAspectRatio="none"><polyline points="0,17 12,15 24,16 36,11 48,12 60,7 72,8 84,4 100,2" fill="none" stroke="var(--g)" stroke-width="1.8"/></svg></div>
+            <div class="kpi"><div class="k">PAID</div><div class="v mono">791</div><div class="d dim">93.4%</div><svg class="spark" viewBox="0 0 100 20" width="100%" height="18" preserveAspectRatio="none"><polyline points="0,18 12,16 24,14 36,13 48,10 60,9 72,6 84,5 100,3" fill="none" stroke="var(--g)" stroke-width="1.8"/></svg></div>
+            <div class="kpi"><div class="k">GROSS</div><div class="v mono">₱1.42M</div><div class="d up">+12.8%</div><svg class="spark" viewBox="0 0 100 20" width="100%" height="18" preserveAspectRatio="none"><polyline points="0,16 12,17 24,12 36,13 48,9 60,10 72,5 84,6 100,2" fill="none" stroke="var(--g)" stroke-width="1.8"/></svg></div>
+            <div class="kpi"><div class="k">REFUNDS</div><div class="v mono">₱38.4K</div><div class="d dim">9 · 2 pending</div><svg class="spark" viewBox="0 0 100 20" width="100%" height="18" preserveAspectRatio="none"><polyline points="0,6 12,8 24,7 36,10 48,9 60,12 72,11 84,14 100,13" fill="none" stroke="var(--mutfg)" stroke-width="1.8"/></svg></div>
+          </div>
+
+          <div class="card">
+            <div class="toolbar">
+              <div class="inp" style="min-width:190px"><svg><use href="#i-search"/></svg>name, email, bib…</div>
+              <div class="sel">Event: Dahilayan <svg><use href="#i-chev"/></svg></div>
+              <div class="sel">Status <span class="n">1</span> <svg><use href="#i-chev"/></svg></div>
+              <div class="sel">Category <svg><use href="#i-chev"/></svg></div>
+              <div class="sel">Date range <svg><use href="#i-chev"/></svg></div>
+              <div class="sel dash"><svg><use href="#i-filter"/></svg></div>
+              <span class="chip">Paid <span class="x">✕</span></span>
+              <span class="spacer"></span>
+              <div class="sel"><svg><use href="#i-cols"/></svg> Columns</div>
+            </div>
+            <div class="bulk"><span class="cb on"><svg><use href="#i-check"/></svg></span><span class="c">2 selected</span>
+              <button class="btn sm">Send email</button><button class="btn sm">Assign bibs</button>
+              <button class="btn sm">Mark checked-in</button><button class="btn sm" style="color:var(--red);border-color:var(--red)">Cancel</button>
+              <span class="spacer"></span><span class="dim" style="font-size:11.5px;cursor:pointer">Clear</span></div>
+            <table>
+              <thead><tr>
+                <th style="width:34px"><span class="cb on"><svg><use href="#i-check"/></svg></span></th>
+                <th><span class="s">Runner <svg><use href="#i-sort"/></svg></span></th>
+                <th><span class="s">Email <svg><use href="#i-sort"/></svg></span></th>
+                <th><span class="s">Cat <svg><use href="#i-sort"/></svg></span></th>
+                <th><span class="s">Bib <svg><use href="#i-sort"/></svg></span></th>
+                <th><span class="s" style="color:var(--g)">Registered <svg style="opacity:1"><use href="#i-down"/></svg></span></th>
+                <th>Amount</th><th>Method</th><th>Status</th>
+              </tr></thead>
+              <tbody>
+                <tr><td><span class="cb on"><svg><use href="#i-check"/></svg></span></td><td><b>Maria Josefa Santos</b></td><td class="dim">maria.santos@gmail.com</td><td>50K</td><td class="mono">D-1042</td><td class="dim mono">Aug 3 09:14</td><td class="mono">₱2,850</td><td class="dim">GCash</td><td><span class="bdg paid">Paid</span></td></tr>
+                <tr><td><span class="cb on"><svg><use href="#i-check"/></svg></span></td><td><b>Ramon Cruz</b></td><td class="dim">rcruz@outlook.com</td><td>25K</td><td class="mono">D-0318</td><td class="dim mono">Aug 3 08:52</td><td class="mono">₱1,950</td><td class="dim">Card</td><td><span class="bdg paid">Paid</span></td></tr>
+                <tr><td><span class="cb"></span></td><td><b>Angelo Lim</b></td><td class="dim">angelo.lim@yahoo.com</td><td>50K</td><td class="dim">—</td><td class="dim mono">Aug 3 08:31</td><td class="mono">₱2,850</td><td class="dim">GCash</td><td><span class="bdg pend">Pending</span></td></tr>
+                <tr><td><span class="cb"></span></td><td><b>Kristine Tolentino</b></td><td class="dim">ktolentino@gmail.com</td><td>11K</td><td class="mono">D-2201</td><td class="dim mono">Aug 2 21:07</td><td class="mono">₱1,200</td><td class="dim">Maya</td><td><span class="bdg paid">Paid</span></td></tr>
+                <tr><td><span class="cb"></span></td><td><b>Jomar Bautista</b></td><td class="dim">jomar.b@protonmail.com</td><td>25K</td><td class="dim">—</td><td class="dim mono">Aug 2 19:44</td><td class="mono">₱1,950</td><td class="dim">Card</td><td><span class="bdg ref">Refunded</span></td></tr>
+                <tr><td><span class="cb"></span></td><td><b>Paolo Villanueva</b></td><td class="dim">pvillanueva@gmail.com</td><td>50K</td><td class="mono">D-1077</td><td class="dim mono">Aug 2 17:22</td><td class="mono">₱2,850</td><td class="dim">GCash</td><td><span class="bdg paid">Paid</span></td></tr>
+                <tr><td><span class="cb"></span></td><td><b>Sofia Reyes</b></td><td class="dim">sofia.reyes@gmail.com</td><td>11K</td><td class="mono">D-2340</td><td class="dim mono">Aug 2 15:03</td><td class="mono">₱1,200</td><td class="dim">Card</td><td><span class="bdg paid">Paid</span></td></tr>
+                <tr><td><span class="cb"></span></td><td><b>Dennis Ocampo</b></td><td class="dim">dennis.ocampo@gmail.com</td><td>25K</td><td class="mono">D-0402</td><td class="dim mono">Aug 2 12:41</td><td class="mono">₱1,950</td><td class="dim">GCash</td><td><span class="bdg paid">Paid</span></td></tr>
+                <tr><td><span class="cb"></span></td><td><b>Liza Mercado</b></td><td class="dim">liza.mercado@gmail.com</td><td>50K</td><td class="mono">D-1103</td><td class="dim mono">Aug 2 11:18</td><td class="mono">₱2,850</td><td class="dim">Card</td><td><span class="bdg paid">Paid</span></td></tr>
+                <tr><td><span class="cb"></span></td><td><b>Nathaniel Fajardo</b></td><td class="dim">nfajardo@gmail.com</td><td>11K</td><td class="dim">—</td><td class="dim mono">Aug 2 10:55</td><td class="mono">₱1,200</td><td class="dim">GCash</td><td><span class="bdg pend">Pending</span></td></tr>
+                <tr><td><span class="cb"></span></td><td><b>Grace Domingo</b></td><td class="dim">grace.d@yahoo.com</td><td>25K</td><td class="mono">D-0517</td><td class="dim mono">Aug 1 22:30</td><td class="mono">₱1,950</td><td class="dim">Maya</td><td><span class="bdg paid">Paid</span></td></tr>
+                <tr><td><span class="cb"></span></td><td><b>Miguel Alcantara</b></td><td class="dim">miguel.alc@gmail.com</td><td>50K</td><td class="mono">D-1188</td><td class="dim mono">Aug 1 20:12</td><td class="mono">₱2,850</td><td class="dim">Card</td><td><span class="bdg paid">Paid</span></td></tr>
+                <tr><td><span class="cb"></span></td><td><b>Bea Salvador</b></td><td class="dim">bsalvador@outlook.com</td><td>11K</td><td class="dim">—</td><td class="dim mono">Aug 1 18:03</td><td class="mono">₱1,200</td><td class="dim">GCash</td><td><span class="bdg canc">Cancelled</span></td></tr>
+                <tr><td><span class="cb"></span></td><td><b>Tomas Rivera</b></td><td class="dim">tomas.rivera@gmail.com</td><td>25K</td><td class="mono">D-0630</td><td class="dim mono">Aug 1 16:47</td><td class="mono">₱1,950</td><td class="dim">Card</td><td><span class="bdg paid">Paid</span></td></tr>
+              </tbody>
+            </table>
+            <div class="pag">
+              <div class="pag-l"><span>Rows</span><span class="sel" style="padding:3px 8px">50 <svg><use href="#i-chev"/></svg></span><span>·</span><span><b class="mono">101–150</b> of <b class="mono">791</b></span></div>
+              <div class="pag-r"><span class="pg off"><svg><use href="#i-l"/></svg></span><span class="pg">1</span><span class="pg">2</span><span class="pg on">3</span><span class="pg">4</span><span class="pg">…</span><span class="pg">16</span><span class="pg"><svg><use href="#i-r"/></svg></span></div>
+            </div>
+          </div>
+          <div class="note"><svg><use href="#i-info"/></svg><span>Same URL-as-state model as A. The extra density comes purely from spacing tokens (<code>--space-*</code> at density 8) — the components are identical shadcn primitives, so A and B can even ship as a user-toggleable "Comfortable / Compact" preference later.</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================ C ============================ -->
+<div class="panel" id="c" style="margin-top:18px">
+  <div class="blurb">
+    <div class="b lead"><h3>The idea</h3><p>A bento-grid command center. Large pill controls, 18px radii, an inline <b>detail pane</b> beside the table so clicking a row never navigates away, and segmented status tabs instead of a status dropdown. The most modern-feeling and the most expressive of the three.</p>
+      <div class="tagrow"><span class="tag good">Best for the Dashboard</span><span class="tag">No page-jump detail</span><span class="tag">Most distinctive</span></div></div>
+    <div class="b"><h3>Tables</h3><p>Status becomes a segmented tab strip with live counts (the filter you use 90% of the time), leaving the dropdowns for event/category/date. Selecting a row fills the right pane; the pane collapses under 1050px.</p></div>
+    <div class="b"><h3>Trade-off</h3><p>Most new UI to build and maintain — the split pane and bento layout are custom compositions, not stock shadcn. The narrower table means fewer columns before horizontal scroll.</p></div>
+  </div>
+
+  <div class="frame">
+    <div class="frame-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="frame-url">admin.racepace.ph/registrations?status=paid&event=dahilayan&page=3&row=1042</span></div>
+    <div class="app">
+      <aside class="sb">
+        <div class="sb-brand"><div class="logo">RP</div><div><b>Race Pace</b><small>Race Pace Events</small></div></div>
+        <div class="nav"><svg><use href="#i-dash"/></svg>Dashboard</div>
+        <div class="nav"><svg><use href="#i-cal"/></svg>Events<span class="cnt">12</span></div>
+        <div class="nav on"><svg><use href="#i-list"/></svg>Registrations<span class="cnt">847</span></div>
+        <div class="nav"><svg><use href="#i-card"/></svg>Payments</div>
+        <div class="nav"><svg><use href="#i-qr"/></svg>Check-in</div>
+        <div class="nav"><svg><use href="#i-users"/></svg>Team</div>
+        <div class="nav"><svg><use href="#i-cog"/></svg>Settings</div>
+        <div class="sb-lbl">Platform</div>
+        <div class="nav"><svg><use href="#i-bld"/></svg>Organizations</div>
+        <div class="nav"><svg><use href="#i-pct"/></svg>Commission</div>
+        <div class="nav"><svg><use href="#i-bank"/></svg>Payouts</div>
+        <div class="sb-foot"><div class="ava">AD</div><div><b>admin</b><small>Super admin</small></div></div>
+      </aside>
+      <div style="display:flex;flex-direction:column;min-width:0">
+        <div class="top">
+          <span class="crumb">Race Pace Events&nbsp; / &nbsp;<b>Registrations</b></span>
+          <span class="spacer"></span>
+          <div class="inp" style="min-width:180px;border-radius:999px"><svg><use href="#i-search"/></svg>Search… <span class="spacer"></span><span class="kbd">⌘K</span></div>
+        </div>
+        <div class="main">
+          <div class="h-row">
+            <div><h2>Registrations</h2><p>847 total across 12 events</p></div>
+            <span class="spacer"></span>
+            <button class="btn"><svg><use href="#i-down"/></svg>Export CSV</button>
+            <button class="btn pri"><svg><use href="#i-plus"/></svg>Manual entry</button>
+          </div>
+
+          <div class="bento">
+            <div class="kpi" style="display:flex;flex-direction:column">
+              <div class="k" style="justify-content:space-between"><span>Registrations · last 30 days</span><span class="dim" style="font-weight:500">Dahilayan Sky Ultra</span></div>
+              <div style="display:flex;align-items:baseline;gap:12px;margin-top:6px"><div class="v mono" style="font-size:30px">847</div><div class="d up"><svg style="width:13px;height:13px"><use href="#i-tr"/></svg>+12.8% vs. prev 30d</div></div>
+              <svg viewBox="0 0 320 74" width="100%" height="86" preserveAspectRatio="none" style="margin-top:10px">
+                <defs><linearGradient id="gr" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--g)" stop-opacity=".26"/><stop offset="1" stop-color="var(--g)" stop-opacity="0"/></linearGradient></defs>
+                <path d="M0,62 L26,58 L52,60 L78,49 L104,52 L130,40 L156,44 L182,30 L208,34 L234,22 L260,26 L286,14 L320,8 L320,74 L0,74 Z" fill="url(#gr)"/>
+                <polyline points="0,62 26,58 52,60 78,49 104,52 130,40 156,44 182,30 208,34 234,22 260,26 286,14 320,8" fill="none" stroke="var(--g)" stroke-width="2.2" stroke-linejoin="round"/>
+                <circle cx="320" cy="8" r="3.5" fill="var(--g)"/>
+              </svg>
+            </div>
+            <div style="display:grid;gap:14px;grid-template-rows:1fr 1fr">
+              <div class="kpi"><div class="k"><svg><use href="#i-money"/></svg>Gross revenue</div><div class="v mono">₱1.42M</div><div class="d dim">₱38.4K refunded · ₱71K commission</div></div>
+              <div class="kpi"><div class="k"><svg><use href="#i-check"/></svg>Paid conversion</div><div class="v mono">93.4%</div>
+                <div style="height:6px;border-radius:999px;background:var(--mut);margin-top:9px;overflow:hidden"><div style="width:93.4%;height:100%;background:var(--g);border-radius:999px"></div></div></div>
+            </div>
+          </div>
+
+          <div class="split">
+            <div class="card">
+              <div class="cardhead">
+                <div class="segs">
+                  <button class="seg on">All · 847</button><button class="seg">Paid · 791</button>
+                  <button class="seg">Pending · 23</button><button class="seg">Refunded · 9</button><button class="seg">Cancelled · 24</button>
+                </div>
+              </div>
+              <div class="toolbar2">
+                <div class="inp"><svg><use href="#i-search"/></svg>Search name, email, bib…</div>
+                <div class="sel">Dahilayan Sky Ultra <svg><use href="#i-chev"/></svg></div>
+                <div class="sel">Category <svg><use href="#i-chev"/></svg></div>
+                <div class="sel">Last 30 days <svg><use href="#i-chev"/></svg></div>
+                <span class="spacer"></span>
+                <div class="sel"><svg><use href="#i-cols"/></svg></div>
+              </div>
+              <table>
+                <thead><tr>
+                  <th style="width:40px"><span class="cb"></span></th>
+                  <th><span class="s">Runner <svg><use href="#i-sort"/></svg></span></th>
+                  <th><span class="s">Cat <svg><use href="#i-sort"/></svg></span></th>
+                  <th><span class="s" style="color:var(--g)">Registered <svg style="opacity:1"><use href="#i-down"/></svg></span></th>
+                  <th>Amount</th><th>Status</th>
+                </tr></thead>
+                <tbody>
+                  <tr style="background:var(--g-tint)"><td><span class="cb"></span></td><td><div class="who"><div class="ava">MJ</div><div><b>Maria Josefa Santos</b><small>D-1042</small></div></div></td><td>50K</td><td class="dim mono">Aug 3, 09:14</td><td class="mono">₱2,850</td><td><span class="bdg paid">Paid</span></td></tr>
+                  <tr><td><span class="cb"></span></td><td><div class="who"><div class="ava" style="background:var(--info-t);color:var(--info)">RC</div><div><b>Ramon Cruz</b><small>D-0318</small></div></div></td><td>25K</td><td class="dim mono">Aug 3, 08:52</td><td class="mono">₱1,950</td><td><span class="bdg paid">Paid</span></td></tr>
+                  <tr><td><span class="cb"></span></td><td><div class="who"><div class="ava" style="background:var(--amber-t);color:var(--amber)">AL</div><div><b>Angelo Lim</b><small>no bib</small></div></div></td><td>50K</td><td class="dim mono">Aug 3, 08:31</td><td class="mono">₱2,850</td><td><span class="bdg pend">Pending</span></td></tr>
+                  <tr><td><span class="cb"></span></td><td><div class="who"><div class="ava">KT</div><div><b>Kristine Tolentino</b><small>D-2201</small></div></div></td><td>11K</td><td class="dim mono">Aug 2, 21:07</td><td class="mono">₱1,200</td><td><span class="bdg paid">Paid</span></td></tr>
+                  <tr><td><span class="cb"></span></td><td><div class="who"><div class="ava" style="background:var(--red-t);color:var(--red)">JB</div><div><b>Jomar Bautista</b><small>no bib</small></div></div></td><td>25K</td><td class="dim mono">Aug 2, 19:44</td><td class="mono">₱1,950</td><td><span class="bdg ref">Refunded</span></td></tr>
+                  <tr><td><span class="cb"></span></td><td><div class="who"><div class="ava">PV</div><div><b>Paolo Villanueva</b><small>D-1077</small></div></div></td><td>50K</td><td class="dim mono">Aug 2, 17:22</td><td class="mono">₱2,850</td><td><span class="bdg paid">Paid</span></td></tr>
+                </tbody>
+              </table>
+              <div class="pag">
+                <div class="pag-l"><span>Rows per page</span><span class="sel" style="padding:4px 11px">25 <svg><use href="#i-chev"/></svg></span><span>·</span><span><b class="mono">51–75</b> of <b class="mono">791</b></span></div>
+                <div class="pag-r"><span class="pg" style="border-radius:999px"><svg><use href="#i-l"/></svg></span><span class="pg" style="border-radius:999px">2</span><span class="pg on" style="border-radius:999px">3</span><span class="pg" style="border-radius:999px">4</span><span class="pg" style="border-radius:999px"><svg><use href="#i-r"/></svg></span></div>
+              </div>
+            </div>
+
+            <aside class="drawer">
+              <div style="display:flex;gap:11px;align-items:center;margin-bottom:14px">
+                <div class="ava" style="width:42px;height:42px;font-size:14px">MJ</div>
+                <div><h4>Maria Josefa Santos</h4><div class="dim" style="font-size:12px">maria.santos@gmail.com</div></div>
+              </div>
+              <div style="display:flex;gap:6px;margin-bottom:14px"><span class="bdg paid">Paid</span><span class="bdg" style="background:var(--mut);color:var(--mutfg)">Checked in</span></div>
+              <div class="drow"><span>Bib</span><b class="mono">D-1042</b></div>
+              <div class="drow"><span>Category</span><b>50K Ultra</b></div>
+              <div class="drow"><span>Registered</span><b class="mono">Aug 3, 09:14</b></div>
+              <div class="drow"><span>Amount</span><b class="mono">₱2,850.00</b></div>
+              <div class="drow"><span>Add-ons</span><b>Jersey (M), Finisher tee</b></div>
+              <div class="drow"><span>Method</span><b>GCash · PayMongo</b></div>
+              <div class="drow"><span>Emergency</span><b>+63 917 555 0142</b></div>
+              <div style="display:flex;gap:7px;margin-top:16px;flex-wrap:wrap">
+                <button class="btn sm pri" style="flex:1">Edit</button>
+                <button class="btn sm" style="flex:1">Resend receipt</button>
+                <button class="btn sm" style="flex:1;color:var(--red);border-color:var(--red)">Refund</button>
+              </div>
+            </aside>
+          </div>
+          <div class="note"><svg><use href="#i-info"/></svg><span>The selected row lives in the URL too (<code>?row=1042</code>), so the detail pane is deep-linkable and survives refresh — and on mobile the same route renders as a full-screen sheet instead of a pane.</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+<script>
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.setAttribute('aria-selected',x===t));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('on',p.id===t.dataset.p));
+});
+const dm=document.getElementById('dm');
+dm.onclick=()=>{const d=document.body.classList.toggle('dark');dm.textContent=d?'◑ Light':'◐ Dark';};
+</script>
+</body>
+</html>
