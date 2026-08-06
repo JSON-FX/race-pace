@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { safeNextPath } from "@/lib/routes";
 
 export type AuthState = { error?: string };
 
@@ -23,7 +24,7 @@ export async function signInAction(_prev: AuthState, formData: FormData): Promis
 
   revalidatePath("/", "layout");
   // redirect() throws internally; it must be outside any try/catch.
-  redirect(next.startsWith("/") ? next : "/events");
+  redirect(safeNextPath(next));
 }
 
 export async function signOutAction(): Promise<void> {

@@ -29,11 +29,15 @@ export async function updateSession(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user && isProtectedPath(request.nextUrl.pathname)) {
+    // `user` is null on this branch, so there is no refreshed session cookie
+    // on `supabaseResponse` to carry forward — a plain redirect is safe here.
     const target = signInRedirectPath(request.nextUrl.pathname, request.nextUrl.search);
     return NextResponse.redirect(new URL(target, request.url));
   }
 
-  // Return `supabaseResponse` as-is. Constructing a fresh NextResponse here
+  // Every other path below this point may have a refreshed session cookie
+  // written onto `supabaseResponse` by `setAll` above. Always return
+  // `supabaseResponse` itself here — constructing a fresh NextResponse
   // without copying its cookies silently desyncs the session and logs the
   // admin out at random.
   return supabaseResponse;

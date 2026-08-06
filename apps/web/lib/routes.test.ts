@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isProtectedPath, signInRedirectPath } from "./routes";
+import { isProtectedPath, signInRedirectPath, safeNextPath } from "./routes";
 
 describe("isProtectedPath", () => {
   it("protects admin pages", () => {
@@ -24,5 +24,47 @@ describe("signInRedirectPath", () => {
 
   it("omits next for a bare root request", () => {
     expect(signInRedirectPath("/", "")).toBe("/login");
+  });
+});
+
+describe("safeNextPath", () => {
+  it("rejects protocol-relative URLs disguised as a path", () => {
+    expect(safeNextPath("//evil.com")).toBe("/events");
+  });
+
+  it("rejects absolute URLs with a scheme", () => {
+    expect(safeNextPath("https://evil.com")).toBe("/events");
+  });
+
+  it("rejects backslash variants that browsers treat as protocol-relative", () => {
+    expect(safeNextPath("/\\evil.com")).toBe("/events");
+  });
+
+  it("allows an ordinary internal path with a query string", () => {
+    expect(safeNextPath("/events?status=paid")).toBe("/events?status=paid");
+  });
+
+  it("allows the bare root path", () => {
+    expect(safeNextPath("/")).toBe("/");
+  });
+
+  it("falls back for an empty string", () => {
+    expect(safeNextPath("")).toBe("/events");
+  });
+
+  it("falls back for null", () => {
+    expect(safeNextPath(null)).toBe("/events");
+  });
+
+  it("falls back for a value containing a backslash anywhere", () => {
+    expect(safeNextPath("/events\\..\\evil")).toBe("/events");
+  });
+
+  it("falls back for a value containing a control character", () => {
+    expect(safeNextPath("/events\n.evil.com")).toBe("/events");
+  });
+
+  it("honors a custom fallback", () => {
+    expect(safeNextPath(undefined, "/login")).toBe("/login");
   });
 });
