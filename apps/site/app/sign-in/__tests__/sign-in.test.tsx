@@ -1,7 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import SignIn from "../page";
+import { SignInForm as SignIn } from "../SignInForm";
+
+// The page is now an async Server Component — it reads the season stats for the
+// brand canvas — so these tests target SignInForm, which holds every behaviour
+// they assert. Aliased to `SignIn` so the cases below read unchanged.
 
 // vitest.setup.ts's next/navigation mock returns a fresh `replace` fn per
 // `useRouter()` call, so there is no stable reference to assert navigation
