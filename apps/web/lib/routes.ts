@@ -1,5 +1,19 @@
-/** Pages reachable without a session. Everything else is admin-only. */
-const PUBLIC_PATHS = ["/login", "/no-access"];
+/**
+ * Pages reachable without a session. Everything else is admin-only.
+ *
+ * This console is default-DENY: anything not listed here is protected. That is
+ * the right posture for an admin surface, but it means every new
+ * unauthenticated entry point must be added deliberately.
+ *
+ * `/auth/callback` is the one that is easy to miss, and it fails in a way that
+ * looks like the sign-in button is broken rather than like a routing bug. It is
+ * the request that CREATES the session, so it necessarily arrives without one:
+ * omitting it made the middleware bounce Google's return leg to
+ * `/login?next=%2Fauth%2Fcallback%3Fcode%3D…`, the code was never exchanged, and
+ * the operator ended up back on a login form with no error anywhere — no failed
+ * exchange, no rejected account, nothing to see in a log.
+ */
+const PUBLIC_PATHS = ["/login", "/no-access", "/auth/callback"];
 
 export function isProtectedPath(pathname: string): boolean {
   return !PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));

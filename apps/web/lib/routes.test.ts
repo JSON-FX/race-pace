@@ -2,6 +2,23 @@ import { describe, it, expect } from "vitest";
 import { isProtectedPath, signInRedirectPath, safeNextPath } from "./routes";
 
 describe("isProtectedPath", () => {
+  it("leaves the OAuth callback PUBLIC — it is the request that creates the session", () => {
+    // The regression: with /auth/callback protected, middleware bounced Google's
+    // return leg to /login?next=%2Fauth%2Fcallback%3Fcode%3D…, so the code was
+    // never exchanged. No session was created, no error surfaced, and the sign-in
+    // button simply appeared to do nothing. Guarding the one route that cannot
+    // possibly carry a session makes OAuth impossible.
+    expect(isProtectedPath("/auth/callback")).toBe(false);
+  });
+
+  it("still protects anything else under /auth", () => {
+    // Default-deny is the point: making the whole /auth prefix public would open
+    // any future route added there without anyone deciding to.
+    expect(isProtectedPath("/auth")).toBe(true);
+    expect(isProtectedPath("/auth/admin-tools")).toBe(true);
+  });
+
+
   it("protects admin pages", () => {
     expect(isProtectedPath("/events")).toBe(true);
     expect(isProtectedPath("/registrations")).toBe(true);
