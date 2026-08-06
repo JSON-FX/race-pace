@@ -14,7 +14,7 @@ export default async function SettingsPage() {
     return (
       <div className="px-4 pb-10 pt-6 md:px-[30px]">
         <div className="mb-5">
-          <h1 className="text-xl font-bold tracking-tight">Settings</h1>
+          <h1 className="text-[21px] font-bold tracking-[-0.02em]">Settings</h1>
         </div>
         <NoOrgScope />
       </div>
@@ -26,8 +26,8 @@ export default async function SettingsPage() {
   return (
     <div className="px-4 pb-10 pt-6 md:px-[30px]">
       <div className="mb-5">
-        <h1 className="text-xl font-bold tracking-tight">Settings</h1>
-        <p className="mt-0.5 text-sm text-muted-foreground">Your organization&apos;s profile and branding.</p>
+        <h1 className="text-[21px] font-bold tracking-[-0.02em]">Settings</h1>
+        <p className="mt-0.5 text-[13px] text-muted-foreground">Your organization&apos;s profile and branding.</p>
       </div>
       <SettingsForm org={org} canEdit={roles!.isOrgAdmin} />
     </div>
