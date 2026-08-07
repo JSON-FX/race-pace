@@ -14,7 +14,10 @@ const TINTS = [
   { bg: "bg-destructive-tint", fg: "text-destructive" },
 ];
 
-function tintFor(key: string) {
+/** Exported so the detail modal's larger avatar lands on the SAME tint as the
+ *  row the admin clicked — a runner changing colour between the table and their
+ *  own detail view reads as a different person. */
+export function avatarTint(key: string) {
   let hash = 0;
   for (let i = 0; i < key.length; i++) hash = (hash * 31 + key.charCodeAt(i)) >>> 0;
   return TINTS[hash % TINTS.length];
@@ -27,7 +30,7 @@ function tintFor(key: string) {
 export function RunnerAvatar({ id, name, email, className }: {
   id: string; name: string | null; email: string | null; className?: string;
 }) {
-  const tint = tintFor(id);
+  const tint = avatarTint(id);
   return (
     <div className={cn("flex items-center gap-2.5", className)}>
       <Avatar className="size-[30px]">
