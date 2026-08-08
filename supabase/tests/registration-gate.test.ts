@@ -309,7 +309,11 @@ describe("expiry of unpaid entries", () => {
     await svc.from("registrations")
       .update({ expires_at: new Date(Date.now() - 60_000).toISOString() }).eq("id", reg.data!.id);
 
-    await svc.rpc("expire_stale_registrations");
+    const swept = await svc.rpc("expire_stale_registrations");
+    expect(swept.error).toBeNull();
+
+    const after = await svc.from("registrations").select("status").eq("id", reg.data!.id).single();
+    expect(after.data!.status, "the sweep must actually have expired this row").toBe("expired");
 
     const cat = await svc.from("categories").select("slots_taken").eq("id", f.categoryId).single();
     expect(cat.data!.slots_taken).toBe(4);
@@ -325,7 +329,8 @@ describe("expiry of unpaid entries", () => {
       .update({ status: "paid", expires_at: new Date(Date.now() - 86_400_000).toISOString() })
       .eq("id", reg.data!.id);
 
-    await svc.rpc("expire_stale_registrations");
+    const swept = await svc.rpc("expire_stale_registrations");
+    expect(swept.error).toBeNull();
 
     const after = await svc.from("registrations").select("status").eq("id", reg.data!.id).single();
     expect(after.data!.status).toBe("paid");
