@@ -29,13 +29,13 @@ const rows: RegistrationRow[] = [
     id: "r1", user_id: "u1", category_id: "c1", category_label: "50K Ultra",
     full_name: "Maria Josefa Santos", bib_name: "D-1042", email: "maria.santos@gmail.com",
     total_amount: 285000, payment_status: "paid", payment_method: "gcash",
-    created_at: "2026-08-03T09:14:00Z", custom_data: {},
+    created_at: "2026-08-03T09:14:00Z", custom_data: {}, addons: [],
   },
   {
     id: "r2", user_id: "u2", category_id: "c1", category_label: "25K",
     full_name: "Angelo Lim", bib_name: null, email: "angelo.lim@yahoo.com",
     total_amount: 195000, payment_status: "pending", payment_method: null,
-    created_at: "2026-08-03T08:31:00Z", custom_data: {},
+    created_at: "2026-08-03T08:31:00Z", custom_data: {}, addons: [],
   },
 ];
 
@@ -92,18 +92,23 @@ describe("RegistrationsTable", () => {
     expect(screen.queryByRole("button", { name: "Clear all" })).not.toBeInTheDocument();
   });
 
-  it("closing the sheet clears ?reg= via setFilter, not local state", async () => {
+  // Was "... via setFilter, not local state" — closeReg now routes through
+  // `patch` directly (setFilter unconditionally clears `page`, which is wrong
+  // for a modal address; see the page-2 bug tests below), so a name pinning
+  // the old mechanism would be actively misleading to the next reader.
+  it("closing the sheet clears ?reg=, not local state", async () => {
     const user = userEvent.setup();
     render(<RegistrationsTable {...props} activeFilters={{ reg: "r1" }} />);
     await user.click(screen.getByRole("button", { name: "Close" }));
-    expect(tableParamsSpies.setFilter).toHaveBeenCalledWith("reg", "all");
+    expect(tableParamsSpies.patch).toHaveBeenCalledWith({ reg: null });
   });
 
-  it("clicking a runner name opens the sheet by setting ?reg= via setFilter", async () => {
+  // Was "... by setting ?reg= via setFilter" — same rename reason as above.
+  it("clicking a runner name opens the sheet by setting ?reg=", async () => {
     const user = userEvent.setup();
     render(<RegistrationsTable {...props} />);
     await user.click(screen.getByText("Maria Josefa Santos"));
-    expect(tableParamsSpies.setFilter).toHaveBeenCalledWith("reg", "r1");
+    expect(tableParamsSpies.patch).toHaveBeenCalledWith({ reg: "r1" });
   });
 
   // Table cell composition (visual parity V3): the Runner cell is now an
@@ -177,7 +182,7 @@ describe("RegistrationsTable", () => {
 
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
     // Still syncs the URL behind the modal, so the registration stays linkable.
-    expect(tableParamsSpies.setFilter).toHaveBeenCalledWith("reg", "r1");
+    expect(tableParamsSpies.patch).toHaveBeenCalledWith({ reg: "r1" });
   });
 
   it("closes the modal without waiting for the URL either", async () => {
@@ -194,6 +199,45 @@ describe("RegistrationsTable", () => {
     await user.click(screen.getByRole("button", { name: "Close" }));
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(tableParamsSpies.setFilter).toHaveBeenCalledWith("reg", "all");
+    expect(tableParamsSpies.patch).toHaveBeenCalledWith({ reg: null });
+  });
+
+  // THE page-2 bug: `reg` is a modal address, not a filter, so opening one must
+  // NOT reset pagination. setFilter unconditionally patches `page: null`, which
+  // sent the server back to page 1, replaced `rows` with page-1 rows, and left
+  // rows.find(selectedId) with nothing to find — the modal silently never
+  // appeared and the admin lost their place in the list.
+  it("does not reset pagination when opening a registration", async () => {
+    const user = userEvent.setup();
+    render(
+      <RegistrationsTable
+        rows={rows} total={60} page={2} per={25} sort={[]}
+        activeFilters={{}} q="" categories={[]}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /View Maria Josefa Santos/ }));
+
+    expect(tableParamsSpies.patch).toHaveBeenCalledWith({ reg: "r1" });
+    // Assert the absence explicitly: a patch carrying `page: null` is exactly
+    // the bug, and a test that only checked `reg` would still pass with it.
+    const [arg] = tableParamsSpies.patch.mock.calls.at(-1) as [Record<string, unknown>];
+    expect(arg).not.toHaveProperty("page");
+  });
+
+  it("does not reset pagination when closing a registration", async () => {
+    const user = userEvent.setup();
+    render(
+      <RegistrationsTable
+        rows={rows} total={60} page={2} per={25} sort={[]}
+        activeFilters={{ reg: "r1" }} q="" categories={[]}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Close" }));
+
+    expect(tableParamsSpies.patch).toHaveBeenCalledWith({ reg: null });
+    const [arg] = tableParamsSpies.patch.mock.calls.at(-1) as [Record<string, unknown>];
+    expect(arg).not.toHaveProperty("page");
   });
 });

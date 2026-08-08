@@ -50,6 +50,7 @@ function row(overrides: Partial<RegistrationRow> = {}): RegistrationRow {
     payment_method: "card",
     created_at: "2026-08-04T11:35:15.624Z",
     custom_data: {},
+    addons: [],
     ...overrides,
   };
 }

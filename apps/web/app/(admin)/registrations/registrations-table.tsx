@@ -41,7 +41,7 @@ export function RegistrationsTable({
   // it can't affect the query. And because `reg` isn't in
   // `preserveOnClear`, "Clear all" closes the sheet along with every other
   // non-`event` param.
-  const { setFilter } = useTableParams();
+  const { setFilter, patch } = useTableParams();
 
   // The URL stays the source of truth — `?reg=<id>` is what makes a
   // registration linkable, and a cold load of that URL still resolves
@@ -65,15 +65,18 @@ export function RegistrationsTable({
   const selected = selectedId ? rows.find((r) => r.id === selectedId) ?? null : null;
 
   const openReg = useCallback((id: string) => {
-    setOverride({ id });        // paints this frame
-    setFilter("reg", id);       // catches the URL up in the background
-  }, [setFilter]);
+    setOverride({ id });     // paints this frame
+    // `patch`, NOT setFilter: setFilter unconditionally clears `page`, which is
+    // right for a real filter and wrong for `reg`. `reg` addresses a modal, not
+    // a subset of rows — resetting pagination sent the admin back to page 1 and
+    // left the clicked row outside `rows` entirely, so the modal never rendered.
+    patch({ reg: id });      // catches the URL up in the background
+  }, [patch]);
 
   const closeReg = useCallback(() => {
     setOverride({ id: null });
-    // "all" is setFilter's own sentinel for "remove this key".
-    setFilter("reg", "all");
-  }, [setFilter]);
+    patch({ reg: null });    // null removes the key — same reason as openReg
+  }, [patch]);
 
   // Ids the admin has confirmed for a bulk cancel — null when the dialog is
   // closed. Kept separate from DataTable's own selection state (which is
@@ -134,9 +137,9 @@ export function RegistrationsTable({
       enableSorting: false,
       cell: () => <span aria-hidden="true" className="text-[12px] text-muted-foreground">›</span>,
     },
-  // `setFilter` is stable across renders (see use-table-params.ts — every
+  // `patch` is stable across renders (see use-table-params.ts — every
   // setter is wrapped in useCallback), and `openReg` is itself
-  // useCallback-wrapped over that already-stable `setFilter`, so depending
+  // useCallback-wrapped over that already-stable `patch`, so depending
   // on it here both keeps the Runner cell's onClick correct (it always
   // calls the current openReg, never a stale closure over an old
   // `searchParams`) AND lets this memo genuinely memoize instead of

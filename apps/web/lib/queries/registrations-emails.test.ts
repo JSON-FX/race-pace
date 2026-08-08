@@ -4,6 +4,14 @@ import type { TableParams } from "@/lib/table-params";
 // A dedicated mock (rather than reusing registrations-aggregates.test.ts's,
 // whose `from()` always resolves empty) so these tests can exercise the
 // email merge against actual rows.
+//
+// "in" is in the chainable list alongside the row-query verbs: every
+// non-empty-rows call into listEventRegistrations now also fires
+// getRegistrationAddons' `.from(...).select(...).in(...)` in parallel with
+// the email RPC, and this mock's `from()` isn't table-aware, so that second
+// call needs the same chain shape or it throws before either promise
+// resolves. It's harmless here — these tests don't assert on `.addons`, only
+// `.email`.
 const rpcMock = vi.fn();
 const listData = vi.fn();
 vi.mock("@/lib/supabase/server", () => ({
@@ -11,7 +19,7 @@ vi.mock("@/lib/supabase/server", () => ({
     rpc: rpcMock,
     from: () => {
       const builder: Record<string, unknown> = {};
-      ["select", "eq", "order", "range", "or"].forEach((m) => { builder[m] = () => builder; });
+      ["select", "eq", "order", "range", "or", "in"].forEach((m) => { builder[m] = () => builder; });
       (builder as { then: unknown }).then = (resolve: (v: unknown) => unknown) => resolve(listData());
       return builder;
     },
