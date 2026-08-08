@@ -16,7 +16,15 @@ vi.mock("@/lib/actions/search", () => ({
 }));
 
 function roles(overrides: Partial<MyRoles> = {}): MyRoles {
-  return { role: "admin", isSuperAdmin: false, isAdmin: true, isOrgAdmin: true, orgId: "a1", ...overrides };
+  return {
+    role: "admin",
+    isSuperAdmin: false,
+    isAdmin: true,
+    isOrgAdmin: true,
+    orgId: "a1",
+    capabilities: [],
+    ...overrides,
+  };
 }
 
 beforeEach(() => {

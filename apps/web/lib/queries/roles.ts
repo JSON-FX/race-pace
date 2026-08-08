@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { getOrgContext } from "@/lib/org-context";
+import { capabilitiesFor, type Capability } from "@/lib/capabilities";
 
 export type MyRoles = {
   role: string | null;
@@ -8,6 +9,10 @@ export type MyRoles = {
   isSuperAdmin: boolean;
   isAdmin: boolean;
   isOrgAdmin: boolean;
+  /** What this caller may do IN THE RESOLVED ORG. An array, not a Set: MyRoles
+   *  is passed as a prop into AppShell and must cross the server→client
+   *  boundary, which a Set does not survive. */
+  capabilities: Capability[];
 };
 
 /** Resolve the caller's roles server-side. Returns null when unauthenticated.
@@ -65,7 +70,13 @@ export const getMyRoles = cache(async (): Promise<MyRoles | null> => {
   // (both orgs are legitimately theirs) so it's out of scope here — an org
   // switcher is a product decision beyond this PR — but a future reader
   // should not mistake the `.order()` above for having solved it.
-  const resolvedRow = rows.find((r) => r.role === "admin") ?? rows.find((r) => r.role === "editor");
+  // Marshal last, after admin and editor, so a user holding both keeps the
+  // stronger row. Without this a marshal-only account resolves to no row at
+  // all, orgId stays null, and every org-scoped page renders <NoOrgScope />.
+  const resolvedRow =
+    rows.find((r) => r.role === "admin")
+    ?? rows.find((r) => r.role === "editor")
+    ?? rows.find((r) => r.role === "marshal");
 
   // A super admin legitimately has no org-scoped admin/editor row. Rather than
   // leaving orgId null — which sends every org-scoped page to <NoOrgScope /> —
@@ -90,6 +101,9 @@ export const getMyRoles = cache(async (): Promise<MyRoles | null> => {
     // from the same row `orgId` came from, or the two fields can describe
     // different organizations.
     isOrgAdmin: isSuperAdmin || resolvedRow?.role === "admin",
+    // From resolvedRow's role, NOT from a scan across rows — same reason
+    // isOrgAdmin is computed this way. See the resolvedRow comment above.
+    capabilities: capabilitiesFor(resolvedRow?.role ?? null, isSuperAdmin),
   };
 });
 

@@ -20,7 +20,15 @@ vi.mock("@/lib/queries/payments", () => ({
 import { GET } from "./route";
 
 function roles(overrides: Partial<MyRoles> = {}): MyRoles {
-  return { role: "admin", orgId: "org-1", isSuperAdmin: false, isAdmin: true, isOrgAdmin: false, ...overrides };
+  return {
+    role: "admin",
+    orgId: "org-1",
+    isSuperAdmin: false,
+    isAdmin: true,
+    isOrgAdmin: false,
+    capabilities: [],
+    ...overrides,
+  };
 }
 
 function row(overrides: Partial<PaymentRow> = {}): PaymentRow {

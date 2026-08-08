@@ -28,7 +28,15 @@ vi.mock("@/lib/queries/registrations", () => ({
 import { GET } from "./route";
 
 function roles(overrides: Partial<MyRoles> = {}): MyRoles {
-  return { role: "admin", orgId: "org-1", isSuperAdmin: false, isAdmin: true, isOrgAdmin: false, ...overrides };
+  return {
+    role: "admin",
+    orgId: "org-1",
+    isSuperAdmin: false,
+    isAdmin: true,
+    isOrgAdmin: false,
+    capabilities: [],
+    ...overrides,
+  };
 }
 
 // email is never read off the row by the route anymore (it's looked up from

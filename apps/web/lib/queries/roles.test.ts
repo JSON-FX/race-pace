@@ -2,7 +2,15 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { requireOrgId, type MyRoles } from "./roles";
 
 function roles(overrides: Partial<MyRoles>): MyRoles {
-  return { role: "admin", orgId: "org-1", isSuperAdmin: false, isAdmin: true, isOrgAdmin: false, ...overrides };
+  return {
+    role: "admin",
+    orgId: "org-1",
+    isSuperAdmin: false,
+    isAdmin: true,
+    isOrgAdmin: false,
+    capabilities: [],
+    ...overrides,
+  };
 }
 
 describe("requireOrgId", () => {
@@ -129,5 +137,53 @@ describe("getMyRoles", () => {
       ]);
       expect((await second())?.orgId).toBe("org-A");
     });
+  });
+
+  it("resolves an org and check_in for a marshal-only account", async () => {
+    const getMyRoles = await loadGetMyRoles([{ role: "marshal", org_id: "org-M" }]);
+    const r = await getMyRoles();
+    // Both halves matter: without the orgId the console renders NoOrgScope on
+    // every page, which is the bug that made the shipped check-in station
+    // unreachable rather than merely unlisted.
+    expect(r!.orgId).toBe("org-M");
+    expect(r!.capabilities).toEqual(["check_in"]);
+  });
+
+  it("keeps an editor out of manage_team", async () => {
+    const getMyRoles = await loadGetMyRoles([{ role: "editor", org_id: "org-E" }]);
+    const r = await getMyRoles();
+    expect(r!.capabilities).toContain("manage_org");
+    expect(r!.capabilities).not.toContain("manage_team");
+  });
+
+  it("derives capabilities from the SAME row orgId came from", async () => {
+    // admin in X, editor in Y, adversarial order — the same shape as the
+    // regression test above this one. Capabilities must describe X (the
+    // resolved org), never a union across both rows.
+    const getMyRoles = await loadGetMyRoles([
+      { role: "editor", org_id: "org-Y" },
+      { role: "admin", org_id: "org-X" },
+    ]);
+    const r = await getMyRoles();
+    expect(r!.orgId).toBe("org-X");
+    expect(r!.capabilities).toContain("manage_team");
+  });
+
+  it("does not let a marshal row in another org add capabilities to the resolved org", async () => {
+    const getMyRoles = await loadGetMyRoles([
+      { role: "editor", org_id: "org-E" },
+      { role: "marshal", org_id: "org-M" },
+    ]);
+    const r = await getMyRoles();
+    expect(r!.orgId).toBe("org-E");
+    expect(r!.capabilities).toEqual(expect.arrayContaining(["manage_org", "check_in"]));
+    expect(r!.capabilities).not.toContain("manage_team");
+  });
+
+  it("gives a bare super admin every capability", async () => {
+    const getMyRoles = await loadGetMyRoles([{ role: "super_admin", org_id: "" }]);
+    const r = await getMyRoles();
+    expect(r!.capabilities).toContain("manage_platform");
+    expect(r!.capabilities).toContain("manage_team");
   });
 });

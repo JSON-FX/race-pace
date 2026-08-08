@@ -8,7 +8,15 @@ vi.mock("@/lib/actions/auth", () => ({ signOutAction: vi.fn() }));
 import { Sidebar } from "./Sidebar";
 
 function roles(overrides: Partial<MyRoles> = {}): MyRoles {
-  return { role: "admin", isSuperAdmin: false, isAdmin: true, isOrgAdmin: true, orgId: "a1", ...overrides };
+  return {
+    role: "admin",
+    isSuperAdmin: false,
+    isAdmin: true,
+    isOrgAdmin: true,
+    orgId: "a1",
+    capabilities: [],
+    ...overrides,
+  };
 }
 
 function renderSidebar(r: MyRoles) {
