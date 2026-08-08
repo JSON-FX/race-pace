@@ -1,12 +1,22 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { getEventForEditor } from "@/lib/queries/event-editor";
 import { getMyRoles, requireOrgId } from "@/lib/queries/roles";
+import { hasCapability } from "@/lib/capabilities";
 import { EventEditorForm } from "../../event-editor-form";
 
 export default async function EditEventPage({ params }: { params: Promise<{ id: string }> }) {
   // params is a Promise in Next 15 and must be awaited.
   const { id } = await params;
   const [data, roles] = await Promise.all([getEventForEditor(id), getMyRoles()]);
+
+  // See app/(admin)/dashboard/page.tsx's identical guard: the (admin)
+  // layout only asserts SOME capability (check_in included), so a marshal
+  // clears it — this page must assert manage_org itself. redirect(), not
+  // notFound(): unlike the org-mismatch check below, this isn't about
+  // whether THIS event exists for the caller, so it doesn't belong to the
+  // same "this event doesn't exist for you" signal.
+  if (!hasCapability(roles?.capabilities ?? [], "manage_org")) redirect("/no-access");
+
   if (!data) notFound();
 
   // getEventForEditor has no org filter of its own — it can load ANY

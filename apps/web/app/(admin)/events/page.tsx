@@ -1,8 +1,10 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { parseTableParams } from "@/lib/table-params";
 import { getMyRoles, requireOrgId } from "@/lib/queries/roles";
+import { hasCapability } from "@/lib/capabilities";
 import { listOrgEvents } from "@/lib/queries/events";
 import { NoOrgScope } from "@/components/no-org-scope";
 import { EventsTable } from "./events-table";
@@ -15,6 +17,11 @@ export default async function EventsPage({
   // searchParams is a Promise in Next 15 and must be awaited.
   const params = parseTableParams(await searchParams, DEFAULTS);
   const roles = await getMyRoles();
+  // The (admin) layout only asserts SOME capability (check_in included, so
+  // /check-in stays reachable for a marshal) — see dashboard/page.tsx's
+  // identical guard for why this and every other manage_org page must
+  // assert manage_org itself, and redirect() rather than notFound().
+  if (!hasCapability(roles?.capabilities ?? [], "manage_org")) redirect("/no-access");
   // The (admin) layout only guarantees `isAdmin` — a super_admin with no
   // org-scoped admin/editor row clears that guard with `orgId: null`. See
   // requireOrgId's doc comment: querying with a null id 500s, it doesn't

@@ -244,6 +244,33 @@ describe("getMyRoles", () => {
     expect(r!.isOrgAdmin).toBe(true);
   });
 
+  // Regression test for the bug Fix 1 addresses: `isAdmin` used to be
+  // `isSuperAdmin || !!resolvedRow`, and once resolvedRow's fallthrough grew
+  // to admit marshal (`find(admin) ?? find(editor) ?? find(marshal)`),
+  // isAdmin silently started being true for a marshal too — even though
+  // every consumer (assertCanWriteEvent, the events-table write controls,
+  // login routing) still means "admin, editor or super_admin" when it reads
+  // isAdmin. Defining isAdmin via the `manage_org` capability — which
+  // marshal never holds — is what keeps the set correct regardless of what
+  // resolvedRow's fallthrough grows to include next.
+  it("keeps isAdmin false for a marshal-only account", async () => {
+    const getMyRoles = await loadGetMyRoles([{ role: "marshal", org_id: "org-M" }]);
+    const r = await getMyRoles();
+    expect(r!.isAdmin).toBe(false);
+  });
+
+  it.each(["admin", "editor"])("keeps isAdmin true for a resolved %s row", async (role) => {
+    const getMyRoles = await loadGetMyRoles([{ role, org_id: "org-1" }]);
+    const r = await getMyRoles();
+    expect(r!.isAdmin).toBe(true);
+  });
+
+  it("keeps isAdmin true for a bare super admin", async () => {
+    const getMyRoles = await loadGetMyRoles([{ role: "super_admin", org_id: "" }]);
+    const r = await getMyRoles();
+    expect(r!.isAdmin).toBe(true);
+  });
+
   it("gives a bare super admin every capability", async () => {
     const getMyRoles = await loadGetMyRoles([{ role: "super_admin", org_id: "" }]);
     const r = await getMyRoles();

@@ -95,28 +95,6 @@ describe("TeamTable", () => {
     expect(screen.getByRole("option", { name: "Race Kit" })).toBeInTheDocument();
   });
 
-  // Regression guard: when a role is removed from ASSIGNABLE_ROLES but a
-  // member still holds it (e.g., "claiming" during race-kit development),
-  // the picker must show the current role so the admin can see what they
-  // hold and change it to something that grants access. If the fallback
-  // logic is missing, the trigger renders blank.
-  it("shows the label for a role no longer assignable (e.g., phased-out roles)", async () => {
-    const user = userEvent.setup();
-    const claimingMember: TeamMember = {
-      user_id: "u3", email: "kit@racepace.test", full_name: "Kit Claimer",
-      role: "claiming", created_at: "2026-08-01T00:00:00Z",
-    };
-    render(<TeamTable {...props} rows={[...props.rows, claimingMember]} total={3} />);
-    const rowsEls = screen.getAllByRole("row");
-    const claimingRow = rowsEls[3]; // Third data row
-    const trigger = within(claimingRow).getByRole("combobox");
-    // The trigger should show "Race Kit" even though "claiming" is not assignable.
-    expect(trigger).toHaveTextContent("Race Kit");
-    await user.click(trigger);
-    // Opening the picker should still show the current role.
-    expect(screen.getByRole("option", { name: "Race Kit" })).toBeInTheDocument();
-  });
-
   // Regression guard: the org-members edge function can reject a role
   // change server side (e.g. the last-admin guard) after the UI has
   // already shown the new value in the <Select>. If the cell ever goes

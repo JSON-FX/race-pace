@@ -36,7 +36,10 @@ describe("EventsPage", () => {
   });
 
   it("renders NoOrgScope and never queries events when the caller has no org", async () => {
-    getMyRoles.mockResolvedValue({ role: "super_admin", orgId: null, isSuperAdmin: true, isAdmin: true, isOrgAdmin: true });
+    getMyRoles.mockResolvedValue({
+      role: "super_admin", orgId: null, isSuperAdmin: true, isAdmin: true, isOrgAdmin: true,
+      capabilities: ["manage_platform", "manage_team", "manage_org", "check_in"],
+    });
 
     const ui = await EventsPage({ searchParams: Promise.resolve({}) });
     render(ui);
@@ -45,8 +48,25 @@ describe("EventsPage", () => {
     expect(listOrgEvents).not.toHaveBeenCalled();
   });
 
+  // Fix 2 regression test: only organizations/commission/payouts/team
+  // asserted a capability before this fix — every manage_org route (Events
+  // included) was reachable by a marshal typing the URL directly, past the
+  // (admin) layout's "some capability" gate.
+  it("redirects a marshal to /no-access and never queries events", async () => {
+    getMyRoles.mockResolvedValue({
+      role: "marshal", orgId: "org-1", isSuperAdmin: false, isAdmin: false, isOrgAdmin: false,
+      capabilities: ["check_in"],
+    });
+
+    await expect(EventsPage({ searchParams: Promise.resolve({}) })).rejects.toThrow("NEXT_REDIRECT");
+    expect(listOrgEvents).not.toHaveBeenCalled();
+  });
+
   it("renders the events table on the happy path", async () => {
-    getMyRoles.mockResolvedValue({ role: "admin", orgId: "org-1", isSuperAdmin: false, isAdmin: true, isOrgAdmin: true });
+    getMyRoles.mockResolvedValue({
+      role: "admin", orgId: "org-1", isSuperAdmin: false, isAdmin: true, isOrgAdmin: true,
+      capabilities: ["manage_team", "manage_org", "check_in"],
+    });
     listOrgEvents.mockResolvedValue({
       rows: [{
         id: "e1", name: "Dahilayan Sky Ultra", place: null, city_name: null, province_name: null,
@@ -68,7 +88,10 @@ describe("EventsPage", () => {
   // with the table. Catching it here means those keep working and only the
   // table area degrades.
   it("keeps the header and 'New event' button usable, and shows a retryable table error, when listOrgEvents throws", async () => {
-    getMyRoles.mockResolvedValue({ role: "admin", orgId: "org-1", isSuperAdmin: false, isAdmin: true, isOrgAdmin: true });
+    getMyRoles.mockResolvedValue({
+      role: "admin", orgId: "org-1", isSuperAdmin: false, isAdmin: true, isOrgAdmin: true,
+      capabilities: ["manage_team", "manage_org", "check_in"],
+    });
     listOrgEvents.mockRejectedValue(new Error("connection reset"));
 
     const ui = await EventsPage({ searchParams: Promise.resolve({}) });

@@ -1,7 +1,7 @@
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { getOrgContext } from "@/lib/org-context";
-import { capabilitiesFor, type Capability } from "@/lib/capabilities";
+import { capabilitiesFor, hasCapability, type Capability } from "@/lib/capabilities";
 
 export type MyRoles = {
   role: string | null;
@@ -89,13 +89,28 @@ export const getMyRoles = cache(async (): Promise<MyRoles | null> => {
   // calls getOrgContext (the TopBar switcher does) shares this one call.
   const orgCtx = isSuperAdmin ? await getOrgContext() : null;
 
+  // Computed once so `isAdmin` and `capabilities` below can't drift apart —
+  // isAdmin IS "holds manage_org", not a second, independently-maintained
+  // definition of the same set.
+  const capabilities = capabilitiesFor(resolvedRow?.role ?? null, isSuperAdmin);
+
   return {
     role: isSuperAdmin ? "super_admin" : resolvedRow?.role ?? rows[0]?.role ?? null,
     // resolvedRow first: a super admin who ALSO holds a real org-scoped admin
     // row keeps that org, so the fallback only fires when there is nothing else.
     orgId: resolvedRow?.org_id ?? orgCtx?.activeOrgId ?? null,
     isSuperAdmin,
-    isAdmin: isSuperAdmin || !!resolvedRow,
+    // "Admin, editor or super_admin" — NOT "cleared the (admin) layout
+    // gate": the layout only requires SOME capability (marshal included, so
+    // /check-in stays reachable), and resolvedRow now matches a marshal row
+    // too (see the "Marshal last" comment above). `!!resolvedRow` used to be
+    // the right test for this set; once marshal joined the fallthrough it
+    // silently started admitting marshals as well. Defining isAdmin via
+    // `manage_org` — which marshal never holds — is what keeps this the same
+    // set marshal joined resolvedRow WITHOUT touching: consumers (event
+    // writes, the events-table write controls, login routing) that still
+    // mean "admin, editor or super_admin" when they read isAdmin.
+    isAdmin: isSuperAdmin || hasCapability(capabilities, "manage_org"),
     // "admin of the resolved org" — NOT "admin of any org the caller
     // belongs to". See the resolvedRow comment above: this must be computed
     // from the same row `orgId` came from, or the two fields can describe
@@ -103,7 +118,7 @@ export const getMyRoles = cache(async (): Promise<MyRoles | null> => {
     isOrgAdmin: isSuperAdmin || resolvedRow?.role === "admin",
     // From resolvedRow's role, NOT from a scan across rows — same reason
     // isOrgAdmin is computed this way. See the resolvedRow comment above.
-    capabilities: capabilitiesFor(resolvedRow?.role ?? null, isSuperAdmin),
+    capabilities,
   };
 });
 
