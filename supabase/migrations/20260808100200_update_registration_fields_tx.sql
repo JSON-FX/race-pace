@@ -25,6 +25,7 @@ declare
   v_is_admin   boolean;
   v_kit_closes timestamptz;
   v_key        text;
+  v_val        jsonb;
   v_new        text;
   v_policy     text;
   v_changed    jsonb := '{}'::jsonb;
@@ -43,9 +44,24 @@ begin
 
   select kit_edit_closes_at into v_kit_closes from public.events where id = v_reg.event_id;
 
+  -- p_changes must be a JSON object for jsonb_each below; an array or scalar makes it raise
+  -- "cannot call jsonb_each on a non-object", surfacing as a raw 500 instead of one of this
+  -- function's seven documented return codes. p_changes = NULL is already safe: jsonb_each is
+  -- strict, so the loop body never runs and we fall through to 'no_change'.
+  if p_changes is not null and jsonb_typeof(p_changes) <> 'object' then return 'invalid_value'; end if;
+
   -- Validation pass. Any rejection returns before a single write, so a batch containing
   -- one bad key changes nothing.
-  for v_key, v_new in select key, value #>> '{}' from jsonb_each(p_changes) loop
+  for v_key, v_val in select key, value from jsonb_each(p_changes) loop
+    -- `#>>'{}'` silently stringifies non-string JSON: an object/array becomes its serialized
+    -- text (so {"emergency_contact":{"a":1}} would store the literal string '{"a": 1}'), and a
+    -- JSON null becomes SQL NULL, which defeats every `not in (...)` guard below (NULL NOT IN
+    -- (...) evaluates to NULL, not TRUE, so neither the shirt_size nor blood_type canonical-list
+    -- check fires and the null sails through to the change-detection step). Reject anything
+    -- that isn't a JSON string before extracting text, so neither bypass is reachable.
+    if jsonb_typeof(v_val) <> 'string' then return 'invalid_value'; end if;
+    v_new := v_val #>> '{}';
+
     v_policy := case
       when v_key = 'shirt_size' then 'kit'
       when v_key in ('blood_type', 'emergency_contact') then 'safety'
@@ -67,6 +83,12 @@ begin
     end if;
     if v_key = 'blood_type'
        and v_new not in ('A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-', 'Unknown') then
+      return 'invalid_value';
+    end if;
+    -- emergency_contact is free text with no canonical list; bound its length instead, so a
+    -- signed-in runner can't push a multi-megabyte string into custom_data (and into an audit
+    -- row) on every call.
+    if v_key = 'emergency_contact' and length(v_new) > 200 then
       return 'invalid_value';
     end if;
 
