@@ -52,7 +52,9 @@ export async function RegistrationsKpiSection({ eventId, params }: {
           // transition straight to 'refunded' — the queue is Payments A2, not
           // yet built). "0 pending" would assert the system tracks pending
           // refunds and found none; it doesn't track them at all, so the
-          // question is unanswerable, not answered-zero.
+          // question is unanswerable, not answered-zero. Same judgment already
+          // applied to the omitted MoM delta above — don't invent a number a
+          // reader can't tell "we checked" from "we have no idea" on.
           text: `${aggregates.refundCount.toLocaleString()} request${aggregates.refundCount === 1 ? "" : "s"}`,
           tone: "neutral",
         }}

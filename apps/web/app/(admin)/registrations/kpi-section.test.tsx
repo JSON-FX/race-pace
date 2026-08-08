@@ -24,8 +24,19 @@ describe("RegistrationsKpiSection", () => {
     );
     expect(screen.getByText("Total")).toBeInTheDocument();
     expect(screen.getByText("+2 this week")).toBeInTheDocument();
+    expect(screen.getByText("Paid")).toBeInTheDocument();
     expect(screen.getByText("50.0% conversion")).toBeInTheDocument();
+    expect(screen.getByText("Gross revenue")).toBeInTheDocument();
     expect(screen.getByText("₱4,800")).toBeInTheDocument();
+    expect(screen.getByText("Refunds")).toBeInTheDocument();
+    expect(screen.getByText("₱1,200")).toBeInTheDocument();
+    // "1 request", NOT "1 request · 0 pending" — there is no refund-approval
+    // queue backing a pending count, so asserting "0 pending" would claim an
+    // answer the system doesn't have. See IMPORTANT 3 in the V2 review. (The
+    // page header subtitle DOES say "pending payment" — that's the org-wide
+    // payment_status='pending' count, a real query, not the same "no data"
+    // case as the refund queue.)
+    expect(screen.getByText("1 request")).toBeInTheDocument();
   });
 
   // Pins the degrade-gracefully posture: getRegistrationAggregates returns
@@ -39,7 +50,14 @@ describe("RegistrationsKpiSection", () => {
 
     render(await RegistrationsKpiSection({ eventId: "ev-1", params }));
 
-    expect(screen.getAllByText("₱0").length).toBe(2);
+    expect(screen.getByText("+0 this week")).toBeInTheDocument();
     expect(screen.getByText("0.0% conversion")).toBeInTheDocument();
+    expect(screen.getAllByText("₱0").length).toBe(2);
+    // Refunds delta stays "0 requests" (not "0 requests · 0 pending" — no
+    // refund-approval queue exists to answer that question, see the test
+    // above). The header subtitle's "0 pending payment" is a different,
+    // real figure (org-wide payment_status='pending' count) and lives in
+    // page.test.tsx, not here.
+    expect(screen.getByText("0 requests")).toBeInTheDocument();
   });
 });

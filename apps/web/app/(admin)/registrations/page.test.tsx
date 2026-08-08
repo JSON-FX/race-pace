@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { Suspense, isValidElement, type ReactNode } from "react";
 import RegistrationsPage from "./page";
 import { tableParamsMockReturn, resetTableParamsSpies } from "@/lib/test-utils/mock-table-params";
 
@@ -59,6 +60,27 @@ vi.mock("@/lib/queries/roles", async () => {
   return { ...actual, getMyRoles };
 });
 
+// Walks the React element tree RegistrationsPage returns (WITHOUT rendering
+// it — `key` isn't a DOM attribute, so it can't be recovered from `render()`
+// output) to collect the `key` of every <Suspense> boundary, in document
+// order. This is what lets the "keying" test below assert on the boundary
+// key directly, the one thing that makes a skeleton reappear on a
+// searchParams-only navigation (see page.tsx's `sectionKey` comment).
+function findSuspenseKeys(node: ReactNode): (string | null)[] {
+  const keys: (string | null)[] = [];
+  function walk(n: ReactNode) {
+    if (Array.isArray(n)) {
+      n.forEach(walk);
+      return;
+    }
+    if (!isValidElement(n)) return;
+    if (n.type === Suspense) keys.push(n.key);
+    walk((n.props as { children?: ReactNode })?.children ?? null);
+  }
+  walk(node);
+  return keys;
+}
+
 describe("RegistrationsPage", () => {
   beforeEach(() => {
     resetTableParamsSpies();
@@ -94,15 +116,24 @@ describe("RegistrationsPage", () => {
     const ui = await RegistrationsPage({ searchParams: Promise.resolve({}) });
     render(ui);
 
-    // Same event id reaches both sections — the "structural, not
-    // remembered" filter parity the KPI row and table depend on (see
-    // kpi-section.test.tsx / table-section.test.tsx for what each section
-    // does with it).
+    // Same event id AND the same (default) filters reach both sections —
+    // the "structural, not remembered" filter parity the KPI row and table
+    // depend on (see kpi-section.test.tsx / table-section.test.tsx for what
+    // each section does with them). Asserting eventId alone would miss the
+    // page handing a section a mismatched or empty `params`.
     expect(RegistrationsKpiSection).toHaveBeenCalledWith(
-      expect.objectContaining({ eventId: "event-1" }), undefined,
+      expect.objectContaining({
+        eventId: "event-1",
+        params: expect.objectContaining({ filters: expect.objectContaining({ status: "all", category: "all" }) }),
+      }),
+      undefined,
     );
     expect(RegistrationsTableSection).toHaveBeenCalledWith(
-      expect.objectContaining({ eventId: "event-1" }), undefined,
+      expect.objectContaining({
+        eventId: "event-1",
+        params: expect.objectContaining({ filters: expect.objectContaining({ status: "all", category: "all" }) }),
+      }),
+      undefined,
     );
     // The subtitle's figures each live in their own `<span>` (for
     // `font-mono tabular`), so its full text is split across sibling nodes —
@@ -129,5 +160,37 @@ describe("RegistrationsPage", () => {
         (_, element) => element?.tagName === "P" && element.textContent === "0 total across 1 event · 0 pending payment",
       ),
     ).toBeInTheDocument();
+  });
+
+  it("keys both Suspense boundaries on the resolved params, so the key changes with every param that changes what a section renders", async () => {
+    getMyRoles.mockResolvedValue({ role: "admin", orgId: "org-1", isSuperAdmin: false, isAdmin: true, isOrgAdmin: true });
+    listOrgEventOptions.mockResolvedValue([
+      { id: "event-1", name: "Dahilayan Sky Ultra", count: 4 },
+      { id: "event-9", name: "Some Other Event", count: 1 },
+    ]);
+    getOrgRegistrationCount.mockResolvedValue(4);
+    getOrgPendingRegistrationCount.mockResolvedValue(1);
+
+    // Each case pairs a raw searchParams input with the serialized suffix
+    // `sectionKey` must produce for it (per serializeTableParams — page,
+    // per and q are only emitted when non-default; sort and filters always
+    // come after; `event` is always pinned to the resolved eventId). Every
+    // param family Tasks 1-3 make pending (event switch, paging, search,
+    // sort, a status/category filter) is covered so a boundary that stops
+    // changing key on any ONE of them regresses here, not just "no key at
+    // all".
+    const cases: [Record<string, string>, string][] = [
+      [{}, "sort=created_at%3Adesc&event=event-1"],
+      [{ page: "2" }, "page=2&sort=created_at%3Adesc&event=event-1"],
+      [{ q: "maria" }, "q=maria&sort=created_at%3Adesc&event=event-1"],
+      [{ event: "event-9" }, "sort=created_at%3Adesc&event=event-9"],
+      [{ sort: "full_name:asc" }, "sort=full_name%3Aasc&event=event-1"],
+      [{ status: "paid" }, "sort=created_at%3Adesc&status=paid&event=event-1"],
+    ];
+
+    for (const [searchParams, suffix] of cases) {
+      const ui = await RegistrationsPage({ searchParams: Promise.resolve(searchParams) });
+      expect(findSuspenseKeys(ui)).toEqual([`kpi-${suffix}`, `table-${suffix}`]);
+    }
   });
 });
