@@ -90,6 +90,10 @@ it("accepts ISO deadline strings and rejects a non-ISO value", () => {
 it("kitCutoffError mirrors events_kit_edit_after_reg_close: kit cutoff must not be earlier than registration close when both are set", () => {
   expect(kitCutoffError({ registration_closes_at: null, kit_edit_closes_at: null })).toBeNull();
   expect(kitCutoffError({ registration_closes_at: "2026-09-01T00:00:00.000Z", kit_edit_closes_at: null })).toBeNull();
+  // The DB CHECK constraint (events_kit_edit_after_reg_close) only fires
+  // when BOTH columns are set — a kit-edit cutoff with no registration
+  // cutoff at all must be allowed, not flagged.
+  expect(kitCutoffError({ registration_closes_at: null, kit_edit_closes_at: "2026-09-06T00:00:00.000Z" })).toBeNull();
   expect(kitCutoffError({ registration_closes_at: "2026-09-06T00:00:00.000Z", kit_edit_closes_at: "2026-09-01T00:00:00.000Z" })).toMatch(/kit edits cannot close before registration/i);
   expect(kitCutoffError({ registration_closes_at: "2026-09-01T00:00:00.000Z", kit_edit_closes_at: "2026-09-06T00:00:00.000Z" })).toBeNull();
 });
