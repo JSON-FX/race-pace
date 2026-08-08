@@ -70,4 +70,50 @@ describe("registration_audit", () => {
     expect(rows.data!.length).toBe(0);
     await cleanup(s, org.id, uid);
   });
+
+  it("does not let an unrelated runner read another runner's audit rows", async () => {
+    const { s, uid, org, ev, reg } = await fixture("cross");
+    await s.from("registration_audit").insert({
+      registration_id: reg.id, org_id: org.id, event_id: ev.id,
+      action: "field_changed", detail: { field: "shirt_size", from: "M", to: "L" },
+      actor_id: uid, actor_role: "runner",
+    });
+
+    const otherEmail = `audit_cross_other_${Date.now()}@test.dev`;
+    const otherUid = (await s.auth.admin.createUser({ email: otherEmail, password: "password123", email_confirm: true })).data.user!.id;
+
+    const asOther = createClient(url, anonKey, { auth: { persistSession: false } });
+    await asOther.auth.signInWithPassword({ email: otherEmail, password: "password123" });
+
+    const read = await asOther.from("registration_audit").select("*").eq("registration_id", reg.id);
+    expect(read.error).toBeNull();
+    expect(read.data!.length).toBe(0);
+
+    await s.auth.admin.deleteUser(otherUid);
+    await cleanup(s, org.id, uid);
+  });
+
+  it("lets an org admin read a runner's audit rows via auth_can_admin_org", async () => {
+    const { s, uid, org, ev, reg } = await fixture("admin");
+    await s.from("registration_audit").insert({
+      registration_id: reg.id, org_id: org.id, event_id: ev.id,
+      action: "field_changed", detail: { field: "shirt_size", from: "M", to: "L" },
+      actor_id: uid, actor_role: "runner",
+    });
+
+    const adminEmail = `audit_admin_${Date.now()}@test.dev`;
+    const adminUid = (await s.auth.admin.createUser({ email: adminEmail, password: "password123", email_confirm: true })).data.user!.id;
+    await s.from("user_roles").insert({ user_id: adminUid, role: "admin", org_id: org.id });
+
+    const asAdmin = createClient(url, anonKey, { auth: { persistSession: false } });
+    await asAdmin.auth.signInWithPassword({ email: adminEmail, password: "password123" });
+
+    const read = await asAdmin.from("registration_audit").select("*").eq("registration_id", reg.id);
+    expect(read.error).toBeNull();
+    expect(read.data!.length).toBe(1);
+
+    await s.from("user_roles").delete().eq("user_id", adminUid);
+    await s.auth.admin.deleteUser(adminUid);
+    await cleanup(s, org.id, uid);
+  });
 });
