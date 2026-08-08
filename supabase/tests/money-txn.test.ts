@@ -116,3 +116,46 @@ describe("refund_registration_tx", () => {
     await cleanup(s, org.id, reg.id, uid);
   });
 });
+
+describe("money RPCs write to registration_audit", () => {
+  it("records a paid row on confirm and a refunded row on refund", async () => {
+    const { s, uid, org, reg } = await fixture("audit");
+
+    await s.rpc("confirm_payment_tx", {
+      p_registration_id: reg.id, p_method: "gcash", p_fee: 10000,
+      p_net: 90000, p_token: "tok.sig", p_raw: {},
+    });
+
+    const afterPaid = (await s.from("registration_audit").select("*").eq("registration_id", reg.id)).data!;
+    expect(afterPaid.length).toBe(1);
+    expect(afterPaid[0].action).toBe("paid");
+    expect(afterPaid[0].actor_role).toBe("system");
+
+    // Seven arguments — the four-arg form in older migrations was superseded by
+    // 20260807090400_refund_policy_tx.sql. Confirm the live parameter names and order with
+    // pg_get_function_identity_arguments before writing this call; a wrong arg list fails
+    // as "function does not exist", which reads like a missing migration.
+    await s.rpc("refund_registration_tx", {
+      p_registration_id: reg.id, p_refunded_by: uid, p_note: "duplicate entry",
+      p_provider_refund: {}, p_refunded_amount: 100000, p_retained_fee: 0, p_retained_net: 0,
+    });
+
+    const afterRefund = (await s.from("registration_audit").select("*").eq("registration_id", reg.id).order("created_at", { ascending: true })).data!;
+    expect(afterRefund.length).toBe(2);
+    expect(afterRefund[1].action).toBe("refunded");
+    expect(afterRefund[1].actor_id).toBe(uid);
+    expect(afterRefund[1].detail.note).toBe("duplicate entry");
+
+    await cleanup(s, org.id, reg.id, uid);
+  });
+
+  it("does not write an audit row when confirm is a replayed no-op", async () => {
+    const { s, uid, org, reg } = await fixture("auditreplay");
+    const args = { p_registration_id: reg.id, p_method: "gcash", p_fee: 0, p_net: 0, p_token: "t", p_raw: {} };
+    await s.rpc("confirm_payment_tx", args);
+    await s.rpc("confirm_payment_tx", args);
+    const rows = (await s.from("registration_audit").select("id").eq("registration_id", reg.id)).data!;
+    expect(rows.length).toBe(1);
+    await cleanup(s, org.id, reg.id, uid);
+  });
+});
