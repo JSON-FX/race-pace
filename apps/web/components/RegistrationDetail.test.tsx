@@ -9,6 +9,20 @@ import { RegistrationDetail } from "./RegistrationDetail";
 // call or NEXT_PUBLIC_SUPABASE_* env vars. Add-ons no longer need a mock —
 // they arrive on `row.addons` (see getRegistrationAddons in
 // @/lib/queries/registrations), so tests set them directly on the fixture.
+//
+// The browser client mock survives that change for ONE remaining reader:
+// RegistrationHistory (added on main) still queries `registration_audit` from
+// the browser, with an `.order()` step the old add-ons query never had. The
+// add-ons branch this mock used to carry is gone with the fetch it served —
+// keeping it would stub a call nothing makes any more.
+vi.mock("@/lib/supabase/client", () => ({
+  createClient: () => ({
+    from: () => ({
+      select: () => ({ eq: () => ({ order: () => Promise.resolve({ data: [], error: null }) }) }),
+    }),
+  }),
+}));
+
 const refundRegistrationAction = vi.fn((..._args: unknown[]) => Promise.resolve({ ok: true }));
 vi.mock("@/lib/actions/registrations", () => ({
   refundRegistrationAction: (...a: unknown[]) => refundRegistrationAction(...a),

@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getMyRoles, type MyRoles } from "@/lib/queries/roles";
 import type { EventDiscipline, RoutePoint } from "@race-pace/shared";
 import type { ScheduleItem } from "@/lib/validation";
-import { eventInputSchema, categoryInputSchema, addonInputSchema, sanitizeListFields, coordPairError, EVENT_STATUSES } from "@/lib/validation";
+import { eventInputSchema, categoryInputSchema, addonInputSchema, sanitizeListFields, coordPairError, kitCutoffError, EVENT_STATUSES } from "@/lib/validation";
 import { reconcileChildren } from "@/lib/reconcile-children";
 
 const GENERIC_ERROR = "Something went wrong. Please try again.";
@@ -21,6 +21,7 @@ export type EventDraft = {
   id?: string; org_id: string; name: string;
   city_psgc_code: string | null; region_name: string | null; province_name: string | null; city_name: string | null; venue: string | null;
   event_date: string | null; end_date: string | null; flag_off: string | null; status: string; discipline: EventDiscipline;
+  registration_closes_at: string | null; kit_edit_closes_at: string | null;
   elevation_gain_m: number | null; cutoff_hours: number | null; description: string | null;
   start_lat: number | null; start_lng: number | null; finish_lat: number | null; finish_lng: number | null;
   route: RoutePoint[] | null;
@@ -31,6 +32,7 @@ const EVENT_COLS = (e: EventDraft) => ({
   org_id: e.org_id, name: e.name,
   city_psgc_code: e.city_psgc_code, region_name: e.region_name, province_name: e.province_name, city_name: e.city_name, venue: e.venue,
   event_date: e.event_date, end_date: e.end_date, flag_off: e.flag_off, status: e.status, discipline: e.discipline,
+  registration_closes_at: e.registration_closes_at, kit_edit_closes_at: e.kit_edit_closes_at,
   elevation_gain_m: e.elevation_gain_m, cutoff_hours: e.cutoff_hours,
   start_lat: e.start_lat, start_lng: e.start_lng, finish_lat: e.finish_lat, finish_lng: e.finish_lng,
   route: e.route,
@@ -123,6 +125,8 @@ export async function saveEventAction(_prev: EditorState, formData: FormData): P
   if (sanitized.end_date && sanitized.event_date && sanitized.end_date < sanitized.event_date) {
     return { error: "End date can't be before the start date." };
   }
+  const kitError = kitCutoffError(sanitized);
+  if (kitError) return { error: kitError };
   for (const c of payload.categories.current) {
     if (!categoryInputSchema.safeParse(c).success) {
       return { error: "Fix the category rows (code, label, non-negative price/slots, gain 0-30000m, cut-off 0-240h)." };

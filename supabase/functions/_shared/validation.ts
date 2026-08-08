@@ -42,3 +42,15 @@ export const registrationInputSchema = z.object({
   waiver_accepted: z.boolean(),
   idempotency_key: z.string().min(8),
 });
+
+/** Mirrors packages/shared/src/index.ts — see the note at the top of this file for why
+ *  this is a copy rather than an import. */
+export const KIT_KEYS = ["shirt_size"] as const;
+export const SAFETY_KEYS = ["blood_type", "emergency_contact"] as const;
+export type FieldEditPolicy = "kit" | "safety" | "immutable";
+
+export function fieldEditPolicy(key: string): FieldEditPolicy {
+  if ((KIT_KEYS as readonly string[]).includes(key)) return "kit";
+  if ((SAFETY_KEYS as readonly string[]).includes(key)) return "safety";
+  return "immutable";
+}

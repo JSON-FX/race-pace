@@ -17,7 +17,7 @@ import type { EventRow } from "@/lib/events";
  * "empty" is a deliberate no-races state — it can still happen with a full
  * events table if everything in it is cancelled/closed/completed.
  */
-export function homeMode(events: Pick<EventRow, "status">[]): "multi" | "empty" {
-  const registerable = events.filter((e) => !isRegistrationClosed(e.status));
+export function homeMode(events: Pick<EventRow, "status" | "registration_closes_at">[]): "multi" | "empty" {
+  const registerable = events.filter((e) => !isRegistrationClosed(e.status, e.registration_closes_at));
   return registerable.length > 0 ? "multi" : "empty";
 }

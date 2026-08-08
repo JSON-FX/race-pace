@@ -14,6 +14,7 @@ import { MethodBadge } from "./MethodBadge";
 import { RefundModal } from "./RefundModal";
 import { CopyButton } from "./CopyButton";
 import { avatarTint } from "./RunnerAvatar";
+import { RegistrationHistory } from "./RegistrationHistory";
 
 /**
  * What the money band says, per payment status.
@@ -213,6 +214,11 @@ export function RegistrationDetail({ row, onClose, onRefunded }: {
               ))}
             </Section>
           ) : null}
+
+          {/* ── Change history ─────────────────────────────────────────── */}
+          <Section title="History">
+            <RegistrationHistory registrationId={row.id} />
+          </Section>
         </div>
 
         {/* ── Refund ─────────────────────────────────────────────────────── */}

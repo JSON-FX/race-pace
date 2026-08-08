@@ -6,11 +6,14 @@ import { Printer } from "lucide-react";
 import { useRegistration } from "@/lib/registration";
 import { getProfile } from "@/lib/profile";
 import { TicketCard } from "@/components/TicketCard";
+import { RaceKitCard } from "@/components/RaceKitCard";
+import { ShirtSizeSheet } from "@/components/ShirtSizeSheet";
 import { Button } from "@/components/ui/button";
 
 export function TicketPanel({ registrationId, userId }: { registrationId: string; userId: string }) {
   const reg = useRegistration(registrationId);
   const [profile, setProfile] = useState<{ full_name: string | null; bib_name: string | null } | null>(null);
+  const [editingSize, setEditingSize] = useState(false);
 
   useEffect(() => {
     getProfile(userId).then((p) => p && setProfile(p));
@@ -51,6 +54,24 @@ export function TicketPanel({ registrationId, userId }: { registrationId: string
         bibName={profile?.bib_name ?? null}
         distanceKm={reg.data.categoryDistance}
       />
+
+      <RaceKitCard
+        shirtSize={reg.data.shirtSize}
+        kitEditClosesAt={reg.data.kitEditClosesAt}
+        onChange={() => setEditingSize(true)}
+      />
+
+      {editingSize ? (
+        <ShirtSizeSheet
+          registrationId={registrationId}
+          current={reg.data.shirtSize}
+          onClose={() => setEditingSize(false)}
+          onSaved={() => {
+            setEditingSize(false);
+            reg.refetch();
+          }}
+        />
+      ) : null}
 
       <div className="no-print mt-6 flex flex-col gap-3">
         <Button

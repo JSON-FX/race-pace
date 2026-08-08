@@ -27,6 +27,7 @@ function editorData(orgId: string): EditorData {
     event: {
       id: "e1", org_id: orgId, name: "Apo", city_psgc_code: null, region_name: null, province_name: null,
       city_name: null, venue: null, event_date: null, end_date: null, flag_off: null, status: "open",
+      registration_closes_at: null, kit_edit_closes_at: null,
       discipline: "trail", elevation_gain_m: null, cutoff_hours: null, start_lat: null, start_lng: null,
       finish_lat: null, finish_lng: null, route: null, description: null, hero_image_url: null,
       gallery: [], schedule: [], inclusions: [],

@@ -39,9 +39,15 @@ Deno.serve(async (req) => {
     // nicety only, not a boundary — a cancelled/closed/completed event must
     // never accept a new registration or checkout, even via a direct call
     // with a stale category id already in hand.
-    const { data: event } = await db.from("events").select("status").eq("id", category.event_id).single();
+    const { data: event } = await db
+      .from("events")
+      .select("status, registration_closes_at")
+      .eq("id", category.event_id)
+      .single();
     if (!event) return json({ error: "category_not_found" }, 404);
-    if (isRegistrationClosed(event.status)) return json({ error: "registration_closed" }, 409);
+    if (isRegistrationClosed(event.status, event.registration_closes_at)) {
+      return json({ error: "registration_closed" }, 409);
+    }
 
     if (category.slots_taken >= category.slots_total) return json({ error: "sold_out" }, 409);
 

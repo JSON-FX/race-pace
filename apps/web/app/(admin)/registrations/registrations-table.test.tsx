@@ -25,6 +25,19 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => mockSearchParams,
 }));
 
+// A SECOND, separate mock — not an alternative to the one above. Opening the
+// sheet mounts RegistrationHistory (added on main), which queries
+// registration_audit from the browser with an `.order()` step. Add-ons no
+// longer need stubbing here: they arrive on `row.addons`, so the fixtures
+// below set them directly.
+vi.mock("@/lib/supabase/client", () => ({
+  createClient: () => ({
+    from: () => ({
+      select: () => ({ eq: () => ({ order: () => Promise.resolve({ data: [], error: null }) }) }),
+    }),
+  }),
+}));
+
 beforeEach(() => {
   resetTableParamsSpies();
   mockSearchParams = new URLSearchParams();

@@ -20,6 +20,7 @@ const baseEvent: EventRow = {
   joined_count: 18, distances: [60, 30], org_name: "Race Pace",
   discipline: "trail", schedule: [],
   start_lat: null, start_lng: null, finish_lat: null, finish_lng: null, route: null,
+  registration_closes_at: null,
 };
 
 const cat = (over: Partial<CategoryRow> = {}): CategoryRow => ({
@@ -29,9 +30,21 @@ const cat = (over: Partial<CategoryRow> = {}): CategoryRow => ({
   ...over,
 });
 
-function renderBody(event: Partial<EventRow> = {}, categories = [cat()], addons: AddonRow[] = [], closed = false) {
+function renderBody(
+  event: Partial<EventRow> = {},
+  categories = [cat()],
+  addons: AddonRow[] = [],
+  closed = false,
+  registrationClosesAt: string | null = null,
+) {
   return render(
-    <EventPageBody event={{ ...baseEvent, ...event }} categories={categories} addons={addons} closed={closed} />,
+    <EventPageBody
+      event={{ ...baseEvent, ...event }}
+      categories={categories}
+      addons={addons}
+      closed={closed}
+      registrationClosesAt={registrationClosesAt}
+    />,
   );
 }
 
@@ -152,6 +165,30 @@ describe("EventPageBody — sections appear only when they have data", () => {
   it("omits the gallery when there are no photos", () => {
     renderBody({ gallery: [] });
     expect(screen.queryByText("Last year")).not.toBeInTheDocument();
+  });
+});
+
+describe("EventPageBody — deadline notice", () => {
+  it("shows the deadline near the register CTA while registration is open", () => {
+    const soon = new Date(Date.now() + 3 * 86_400_000).toISOString();
+    renderBody({}, [cat()], [], false, soon);
+    expect(screen.getByText("Closes in 3 days")).toBeInTheDocument();
+  });
+
+  // Uses a FUTURE deadline while closed=true, not an already-passed one, so this
+  // isolates the `!closed &&` render gate itself: deadlineNotice() alone would
+  // happily return "Closes in 3 days" here, since the date hasn't passed. If the
+  // gate were dropped from EventPageBody, this is the only test that would catch
+  // a countdown appearing on a closed race.
+  it("does not show a countdown once registration is closed, even with a future deadline", () => {
+    const soon = new Date(Date.now() + 3 * 86_400_000).toISOString();
+    renderBody({ status: "closed" }, [cat()], [], true, soon);
+    expect(screen.queryByText(/closes in/i)).not.toBeInTheDocument();
+  });
+
+  it("shows nothing when the event has no registration deadline", () => {
+    renderBody({}, [cat()], [], false, null);
+    expect(screen.queryByText(/closes/i)).not.toBeInTheDocument();
   });
 });
 
