@@ -362,3 +362,58 @@ describe("expiry of unpaid entries", () => {
     expect(again.error).toBeNull();
   });
 });
+
+describe("late capture on an expired registration", () => {
+  const confirmArgs = (id: string) => ({
+    p_registration_id: id, p_method: "gcash", p_fee: 0, p_net: 100000,
+    p_token: `tok_${id}`, p_raw: {},
+  });
+
+  it("resurrects an expired registration when the runner has no other entry", async () => {
+    const svc = service();
+    const f = await makeEvent(`resurrect${Date.now()}`);
+    const runner = await makeUser(`gate_res_${Date.now()}@test.dev`);
+
+    const reg = await svc.from("registrations").insert(regRow(f, runner.id)).select().single();
+    await svc.from("payments").insert({ org_id: f.orgId, registration_id: reg.data!.id, amount: 100000, status: "pending" });
+    await svc.from("registrations").update({ status: "expired", expires_at: null }).eq("id", reg.data!.id);
+
+    const res = await svc.rpc("confirm_payment_tx", confirmArgs(reg.data!.id));
+    expect(res.data).toBe("paid");
+
+    const after = await svc.from("registrations").select("status").eq("id", reg.data!.id).single();
+    expect(after.data!.status).toBe("paid");
+  });
+
+  it("returns 'conflict' instead of confirming when a live entry already exists", async () => {
+    const svc = service();
+    const f = await makeEvent(`conflict${Date.now()}`);
+    const runner = await makeUser(`gate_conf_${Date.now()}@test.dev`);
+
+    const stale = await svc.from("registrations").insert(regRow(f, runner.id)).select().single();
+    await svc.from("payments").insert({ org_id: f.orgId, registration_id: stale.data!.id, amount: 100000, status: "pending" });
+    await svc.from("registrations").update({ status: "expired", expires_at: null }).eq("id", stale.data!.id);
+
+    // The runner gave up and registered again; that new entry is the live one.
+    const fresh = await svc.from("registrations").insert(regRow(f, runner.id)).select().single();
+    expect(fresh.error).toBeNull();
+
+    const res = await svc.rpc("confirm_payment_tx", confirmArgs(stale.data!.id));
+    expect(res.data).toBe("conflict");
+
+    const after = await svc.from("registrations").select("status").eq("id", stale.data!.id).single();
+    expect(after.data!.status).toBe("expired");
+  });
+
+  it("still refuses to re-confirm a refunded registration", async () => {
+    const svc = service();
+    const f = await makeEvent(`replay${Date.now()}`);
+    const runner = await makeUser(`gate_replay_${Date.now()}@test.dev`);
+
+    const reg = await svc.from("registrations").insert(regRow(f, runner.id)).select().single();
+    await svc.from("registrations").update({ status: "refunded" }).eq("id", reg.data!.id);
+
+    const res = await svc.rpc("confirm_payment_tx", confirmArgs(reg.data!.id));
+    expect(res.data).toBe("not_pending");
+  });
+});
