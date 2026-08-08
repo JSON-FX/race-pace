@@ -96,3 +96,27 @@ describe("NOTIFICATION_TYPE", () => {
     ]);
   });
 });
+
+import { fieldEditPolicy, KIT_KEYS, SAFETY_KEYS } from "./index";
+
+describe("fieldEditPolicy", () => {
+  it("classifies shirt_size as a kit field that freezes before printing", () => {
+    expect(fieldEditPolicy("shirt_size")).toBe("kit");
+  });
+
+  it.each(["blood_type", "emergency_contact"])("keeps %s a safety field with no deadline", (k) => {
+    expect(fieldEditPolicy(k)).toBe("safety");
+  });
+
+  it.each(["running_club", "category_id", "total_amount", "status", ""])(
+    "treats %s as immutable",
+    (k) => {
+      expect(fieldEditPolicy(k)).toBe("immutable");
+    },
+  );
+
+  it("keeps kit and safety key sets disjoint", () => {
+    const overlap = KIT_KEYS.filter((k) => (SAFETY_KEYS as readonly string[]).includes(k));
+    expect(overlap).toEqual([]);
+  });
+});
