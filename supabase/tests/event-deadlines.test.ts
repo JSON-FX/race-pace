@@ -94,17 +94,28 @@ describe("checkout enforces registration_closes_at", () => {
       const session = await asUser.auth.signInWithPassword({ email, password: "password123" });
       const jwt = session.data.session!.access_token;
 
+      const idempotencyKey = `dl-${Date.now()}`;
       const res = await fetch(`${url}/functions/v1/registrations-checkout`, {
         method: "POST",
         headers: { authorization: `Bearer ${jwt}`, "content-type": "application/json" },
         body: JSON.stringify({
           event_id: ev.id, category_id: cat.id, addon_ids: [],
-          custom_data: {}, waiver_accepted: true, idempotency_key: `dl-${Date.now()}`,
+          custom_data: {}, waiver_accepted: true, idempotency_key: idempotencyKey,
         }),
       });
 
       expect(res.status).toBe(409);
       expect((await res.json()).error).toBe("registration_closed");
+
+      // Verify no registration row was created despite the 409 response.
+      // If the deadline check runs before the upsert (as it should), neither
+      // registrations nor payments rows should exist.
+      const regResult = await s.from("registrations")
+        .select("id")
+        .eq("user_id", uid)
+        .eq("event_id", ev.id);
+      expect(regResult.error).toBeNull();
+      expect(regResult.data ?? []).toHaveLength(0);
     } finally {
       // org delete cascades event/category; the auth user is separate and only cleaned up
       // if creation got far enough to produce one.
