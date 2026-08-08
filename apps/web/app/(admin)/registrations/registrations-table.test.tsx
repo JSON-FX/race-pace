@@ -8,15 +8,16 @@ import { tableParamsSpies, tableParamsMockReturn, resetTableParamsSpies } from "
 vi.mock("@/lib/use-table-params", () => ({ useTableParams: () => tableParamsMockReturn }));
 
 // RegistrationDetail fetches add-ons via the browser Supabase client on
-// mount — stub it so opening the sheet in these tests doesn't require real
+// mount, and (since it now mounts RegistrationHistory too) a second table,
+// registration_audit, with an extra `.order()` step the add-ons query never
+// had — stub both so opening the sheet in these tests doesn't require real
 // NEXT_PUBLIC_SUPABASE_* env vars or a network call.
 vi.mock("@/lib/supabase/client", () => ({
   createClient: () => ({
-    from: () => ({
-      select: () => ({
-        eq: () => Promise.resolve({ data: [], error: null }),
-      }),
-    }),
+    from: (table: string) =>
+      table === "registration_audit"
+        ? { select: () => ({ eq: () => ({ order: () => Promise.resolve({ data: [], error: null }) }) }) }
+        : { select: () => ({ eq: () => Promise.resolve({ data: [], error: null }) }) },
   }),
 }));
 

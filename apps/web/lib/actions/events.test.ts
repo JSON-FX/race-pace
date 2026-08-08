@@ -41,6 +41,7 @@ function baseEvent(overrides: Partial<EventDraft> = {}): EventDraft {
   return {
     org_id: "a1", name: "Apo Sky Ultra", city_psgc_code: null, region_name: null, province_name: null, city_name: null, venue: null,
     event_date: null, end_date: null, flag_off: null, status: "draft", discipline: "trail",
+    registration_closes_at: null, kit_edit_closes_at: null,
     elevation_gain_m: null, cutoff_hours: null, start_lat: null, start_lng: null, finish_lat: null, finish_lng: null,
     route: null, description: null, hero_image_url: null, gallery: [], schedule: [], inclusions: [],
     ...overrides,
@@ -131,6 +132,46 @@ describe("saveEventAction", () => {
     expect(res.error).toBeUndefined();
     expect(revalidatePath).toHaveBeenCalledWith("/events");
     expect(revalidatePath).toHaveBeenCalledWith("/events/e9/edit");
+  });
+
+  // EVENT_COLS is a hand-maintained object builder (not a type-checked
+  // pass-through of EventDraft), so nothing but a runtime assertion on the
+  // actual payload handed to `.insert(...)`/`.update(...)` would catch
+  // registration_closes_at / kit_edit_closes_at silently going missing from
+  // it — every other test in this file asserts on `res` (the return value),
+  // never on the write payload, so none of them would notice that
+  // regression either. Asserting the payload object directly, not the
+  // return value, is the point of these two tests.
+  it("carries registration_closes_at and kit_edit_closes_at through EVENT_COLS on insert", async () => {
+    getMyRoles.mockResolvedValue(roles({}));
+    const insertChain = chain({ data: { id: "e9" }, error: null });
+    from.mockReturnValueOnce(insertChain);
+    const res = await saveEventAction({}, savePayload({
+      registration_closes_at: "2026-09-01T00:00:00.000Z",
+      kit_edit_closes_at: "2026-09-05T00:00:00.000Z",
+    }));
+    expect(res.error).toBeUndefined();
+    expect(insertChain.insert).toHaveBeenCalledWith(expect.objectContaining({
+      registration_closes_at: "2026-09-01T00:00:00.000Z",
+      kit_edit_closes_at: "2026-09-05T00:00:00.000Z",
+    }));
+  });
+
+  it("carries registration_closes_at and kit_edit_closes_at through EVENT_COLS on update", async () => {
+    getMyRoles.mockResolvedValue(roles({}));
+    const statusChain = chain({ data: { status: "draft" }, error: null });
+    const updateChain = chain({ data: [{ id: "e1" }], error: null });
+    from.mockReturnValueOnce(statusChain).mockReturnValueOnce(updateChain);
+    const res = await saveEventAction({}, savePayload({
+      id: "e1",
+      registration_closes_at: "2026-09-01T00:00:00.000Z",
+      kit_edit_closes_at: "2026-09-05T00:00:00.000Z",
+    }));
+    expect(res.error).toBeUndefined();
+    expect(updateChain.update).toHaveBeenCalledWith(expect.objectContaining({
+      registration_closes_at: "2026-09-01T00:00:00.000Z",
+      kit_edit_closes_at: "2026-09-05T00:00:00.000Z",
+    }));
   });
 
   it("reports failure, not success, when the update silently affects zero rows", async () => {

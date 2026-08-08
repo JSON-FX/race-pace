@@ -1,0 +1,35 @@
+-- Drop registration_audit_actor_id_fkey (registration_audit.actor_id -> auth.users(id) on
+-- delete set null, added by 20260808100100_registration_audit.sql).
+--
+-- The `on delete set null` clause only protects a row that already exists: it nulls actor_id
+-- on rows already in the table when the referenced user is deleted. It does nothing for an
+-- INSERT that names a user who has ALREADY been deleted by the time the insert runs — Postgres
+-- has no way to "set null in advance", so that insert raises a plain 23503 foreign_key_violation
+-- instead.
+--
+-- That is exactly the shape of the refund path. supabase/functions/payments-webhook/index.ts
+-- calls refund_registration_tx with p_refunded_by taken from `payments.raw.refund.refunded_by`
+-- — a uuid parked in that jsonb blob when the refund was REQUESTED (see
+-- supabase/functions/_shared/refund.ts), which can be days before the provider's async
+-- `refund.updated` webhook fires and this RPC actually runs. If the admin who requested the
+-- refund has since been offboarded (auth.users row deleted), the registration_audit insert this
+-- branch added (20260808140000_money_txn_audit.sql, 20260808150000_partial_refund_audit.sql)
+-- aborts the whole refund_registration_tx transaction with 23503. The webhook returns 500,
+-- PayMongo retries indefinitely, and the end state is: money already moved at the provider, the
+-- registration still 'paid', the slot still taken, and no refund ever recorded. Before this
+-- branch that same uuid only ever went into payments.raw jsonb, which has no FK and thus no
+-- failure mode — the audit table's stricter typing is what turned a historical-cleanup detail
+-- into a wedged transaction.
+--
+-- Fix: drop the FK rather than defensively coalesce p_refunded_by to null at each call site.
+-- actor_id is informational only (nothing joins through it at query time; the admin timeline
+-- reads it purely for display), only security-definer RPCs ever write this table (see the
+-- table's own comment in 20260808100100), and a historical row pointing at a deleted user is
+-- exactly what an audit trail is supposed to tolerate — the alternative (nulling it defensively
+-- before every insert) just relocates the same "can this abort the transaction it's recording"
+-- risk to every future call site instead of removing it. `on delete set null` semantics become
+-- moot once there's no constraint to enforce them: dropping the FK doesn't touch the column type
+-- or any existing data, and existing rows (however they got their actor_id) are untouched by
+-- this migration.
+alter table public.registration_audit
+  drop constraint registration_audit_actor_id_fkey;

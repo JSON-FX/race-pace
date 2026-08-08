@@ -8,6 +8,7 @@ export type EditorEvent = {
   city_name: string | null; venue: string | null;
   event_date: string | null; end_date: string | null; flag_off: string | null;
   status: string; discipline: EventDiscipline;
+  registration_closes_at: string | null; kit_edit_closes_at: string | null;
   elevation_gain_m: number | null; cutoff_hours: number | null; description: string | null;
   start_lat: number | null; start_lng: number | null; finish_lat: number | null; finish_lng: number | null;
   route: RoutePoint[] | null;
@@ -22,7 +23,7 @@ export type EditorAddon = { id: string; name: string; price: number };
 export type EditorData = { event: EditorEvent; categories: EditorCategory[]; addons: EditorAddon[] };
 
 const EVENT_SELECT =
-  "id,org_id,name,city_psgc_code,region_name,province_name,city_name,venue,event_date,end_date,flag_off,status,discipline,elevation_gain_m,cutoff_hours,start_lat,start_lng,finish_lat,finish_lng,route,description,hero_image_url,gallery,schedule,inclusions";
+  "id,org_id,name,city_psgc_code,region_name,province_name,city_name,venue,event_date,end_date,flag_off,status,discipline,elevation_gain_m,cutoff_hours,start_lat,start_lng,finish_lat,finish_lng,route,description,hero_image_url,gallery,schedule,inclusions,registration_closes_at,kit_edit_closes_at";
 
 /** Loads one event plus its categories and add-ons for the editor. Ported
  *  verbatim (query shape and column lists) from the old useEventForEditor

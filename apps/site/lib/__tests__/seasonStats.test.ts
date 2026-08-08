@@ -15,7 +15,12 @@ function db(events: unknown, categories: unknown, opts: { error?: boolean } = {}
   } as never;
 }
 
-const ev = (id: string, status: string, org_id: string) => ({ id, status, org_id });
+const ev = (
+  id: string,
+  status: string,
+  org_id: string,
+  registration_closes_at: string | null = null,
+) => ({ id, status, org_id, registration_closes_at });
 const cat = (event_id: string, distance_km: number) => ({ event_id, distance_km });
 
 describe("fetchSeasonStats", () => {
@@ -69,6 +74,35 @@ describe("fetchSeasonStats", () => {
   it("returns null for longest when nothing has a distance", async () => {
     const s = await fetchSeasonStats(db([ev("a", "open", "o1")], []));
     expect(s.longestKm).toBeNull();
+  });
+
+  it("excludes an open-status event whose registration_closes_at has passed", async () => {
+    // The events select has no generic type param, so this field is `any` —
+    // a dropped column or a broken pass-through would not be a compile
+    // error. This is the only thing that would catch it at runtime.
+    const s = await fetchSeasonStats(db(
+      [ev("a", "open", "o1", "2020-01-01T00:00:00Z")],
+      [],
+    ));
+    expect(s.racesOpen).toBe(0);
+  });
+
+  it("includes an open-status event whose registration_closes_at is in the future", async () => {
+    const s = await fetchSeasonStats(db(
+      [ev("a", "open", "o1", "2099-01-01T00:00:00Z")],
+      [],
+    ));
+    expect(s.racesOpen).toBe(1);
+  });
+
+  it("includes an open-status event with no registration_closes_at at all", async () => {
+    // Must not regress: most events have no deadline, and those must keep
+    // counting as open.
+    const s = await fetchSeasonStats(db(
+      [ev("a", "open", "o1", null)],
+      [],
+    ));
+    expect(s.racesOpen).toBe(1);
   });
 
   it("fails soft — a query error must not block the sign-in form", async () => {

@@ -11,6 +11,7 @@ const event: EventRow = {
   city_psgc_code: null, region_name: "Davao Region", province_name: "Davao Del Sur",
   city_name: "City of Digos", venue: "Kapatagan Base Camp",
   joined_count: 47, distances: [100, 50], org_name: "Race Pace", org_color: "#159A55", org_logo_url: null,
+  registration_closes_at: null,
 };
 
 describe("EventCard", () => {

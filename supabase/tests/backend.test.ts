@@ -23,33 +23,46 @@ const refundEvent = (refundId: string, status: string) => ({ data: { attributes:
 describe("organizations RLS", () => {
   it("anon can read an active org but not an inactive one", async () => {
     const svc = service();
-    const active = await svc.from("organizations").insert({ name: "Active Org", slug: "active-org" }).select().single();
-    const inactive = await svc.from("organizations").insert({ name: "Hidden Org", slug: "hidden-org", is_active: false }).select().single();
-    expect(active.error).toBeNull();
+    // Cleanup thunks are pushed the instant each row exists, so a throw anywhere below —
+    // including inside the second insert — still tears down whatever was already created.
+    const cleanups: Array<() => Promise<unknown>> = [];
+    try {
+      const active = await svc.from("organizations").insert({ name: "Active Org", slug: "active-org" }).select().single();
+      expect(active.error).toBeNull();
+      cleanups.push(() => svc.from("organizations").delete().eq("id", active.data!.id));
 
-    const { data } = await anon().from("organizations").select("slug");
-    const slugs = (data ?? []).map((o) => o.slug);
-    expect(slugs).toContain("active-org");
-    expect(slugs).not.toContain("hidden-org");
+      const inactive = await svc.from("organizations").insert({ name: "Hidden Org", slug: "hidden-org", is_active: false }).select().single();
+      cleanups.push(() => svc.from("organizations").delete().eq("id", inactive.data!.id));
 
-    await svc.from("organizations").delete().in("id", [active.data!.id, inactive.data!.id]);
+      const { data } = await anon().from("organizations").select("slug");
+      const slugs = (data ?? []).map((o) => o.slug);
+      expect(slugs).toContain("active-org");
+      expect(slugs).not.toContain("hidden-org");
+    } finally {
+      for (const fn of cleanups.reverse()) await fn();
+    }
   });
 });
 
 describe("events catalog RLS", () => {
   it("hides draft events from anon, shows open ones", async () => {
     const svc = service();
-    const org = await svc.from("organizations").insert({ name: "Cat Org", slug: "cat-org" }).select().single();
-    const draft = await svc.from("events").insert({ org_id: org.data!.id, name: "Draft Race", status: "draft" }).select().single();
-    const open = await svc.from("events").insert({ org_id: org.data!.id, name: "Open Race", status: "open" }).select().single();
+    const cleanups: Array<() => Promise<unknown>> = [];
+    try {
+      const org = await svc.from("organizations").insert({ name: "Cat Org", slug: "cat-org" }).select().single();
+      // org delete cascades its events, so one thunk covers the whole tree below it.
+      cleanups.push(() => svc.from("organizations").delete().eq("id", org.data!.id));
 
-    const { data } = await anon().from("events").select("name");
-    const names = (data ?? []).map((e) => e.name);
-    expect(names).toContain("Open Race");
-    expect(names).not.toContain("Draft Race");
+      await svc.from("events").insert({ org_id: org.data!.id, name: "Draft Race", status: "draft" });
+      await svc.from("events").insert({ org_id: org.data!.id, name: "Open Race", status: "open" });
 
-    await svc.from("events").delete().in("id", [draft.data!.id, open.data!.id]);
-    await svc.from("organizations").delete().eq("id", org.data!.id);
+      const { data } = await anon().from("events").select("name");
+      const names = (data ?? []).map((e) => e.name);
+      expect(names).toContain("Open Race");
+      expect(names).not.toContain("Draft Race");
+    } finally {
+      for (const fn of cleanups.reverse()) await fn();
+    }
   });
 });
 
@@ -63,26 +76,31 @@ async function makeUser(email: string) {
 describe("registrations RLS", () => {
   it("a user reads only their own registration", async () => {
     const svc = service();
-    const org = await svc.from("organizations").insert({ name: "Reg Org", slug: "reg-org" }).select().single();
-    const ev = await svc.from("events").insert({ org_id: org.data!.id, name: "Reg Race", status: "open" }).select().single();
-    const cat = await svc.from("categories").insert({ org_id: org.data!.id, event_id: ev.data!.id, code: "10k", label: "10K", base_price: 100000, slots_total: 10 }).select().single();
+    const cleanups: Array<() => Promise<unknown>> = [];
+    try {
+      // status doesn't matter — Alice/Bob read via the authenticated role and the
+      // registrations table's own RLS, not the events-catalog anon policy.
+      const org = await svc.from("organizations").insert({ name: "Reg Org", slug: "reg-org" }).select().single();
+      cleanups.push(() => svc.from("organizations").delete().eq("id", org.data!.id));
+      const ev = await svc.from("events").insert({ org_id: org.data!.id, name: "Reg Race", status: "draft" }).select().single();
+      const cat = await svc.from("categories").insert({ org_id: org.data!.id, event_id: ev.data!.id, code: "10k", label: "10K", base_price: 100000, slots_total: 10 }).select().single();
 
-    const alice = await makeUser(`alice_${Date.now()}@test.dev`);
-    const bob = await makeUser(`bob_${Date.now()}@test.dev`);
-    const reg = await svc.from("registrations").insert({ org_id: org.data!.id, event_id: ev.data!.id, category_id: cat.data!.id, user_id: alice.id, total_amount: 100000 }).select().single();
+      const alice = await makeUser(`alice_${Date.now()}@test.dev`);
+      cleanups.push(() => svc.auth.admin.deleteUser(alice.id));
+      const bob = await makeUser(`bob_${Date.now()}@test.dev`);
+      cleanups.push(() => svc.auth.admin.deleteUser(bob.id));
+      const reg = await svc.from("registrations").insert({ org_id: org.data!.id, event_id: ev.data!.id, category_id: cat.data!.id, user_id: alice.id, total_amount: 100000 }).select().single();
 
-    const asAlice = createClient(url, anonKey, { global: { headers: { Authorization: `Bearer ${alice.token}` } }, auth: { persistSession: false } });
-    const asBob = createClient(url, anonKey, { global: { headers: { Authorization: `Bearer ${bob.token}` } }, auth: { persistSession: false } });
+      const asAlice = createClient(url, anonKey, { global: { headers: { Authorization: `Bearer ${alice.token}` } }, auth: { persistSession: false } });
+      const asBob = createClient(url, anonKey, { global: { headers: { Authorization: `Bearer ${bob.token}` } }, auth: { persistSession: false } });
 
-    const aliceView = await asAlice.from("registrations").select("id").eq("id", reg.data!.id);
-    const bobView = await asBob.from("registrations").select("id").eq("id", reg.data!.id);
-    expect(aliceView.data).toHaveLength(1);
-    expect(bobView.data).toHaveLength(0); // RLS hides Alice's row from Bob
-
-    await svc.from("registrations").delete().eq("id", reg.data!.id);
-    await svc.auth.admin.deleteUser(alice.id);
-    await svc.auth.admin.deleteUser(bob.id);
-    await svc.from("organizations").delete().eq("id", org.data!.id);
+      const aliceView = await asAlice.from("registrations").select("id").eq("id", reg.data!.id);
+      const bobView = await asBob.from("registrations").select("id").eq("id", reg.data!.id);
+      expect(aliceView.data).toHaveLength(1);
+      expect(bobView.data).toHaveLength(0); // RLS hides Alice's row from Bob
+    } finally {
+      for (const fn of cleanups.reverse()) await fn();
+    }
   });
 });
 
