@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { withFraming, parsePhotoUrl, framedImageStyle, FULL_FRAME } from "@/lib/profileImage";
+import { withFraming, parsePhotoUrl, framedImageStyle, FULL_FRAME } from "./photo";
 
 const URL_ = "https://cdn.test/u1/avatar-1.png";
 

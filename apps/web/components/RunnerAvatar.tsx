@@ -1,4 +1,4 @@
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { PhotoAvatar } from "@/components/PhotoAvatar";
 import { initials } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -23,21 +23,23 @@ export function avatarTint(key: string) {
   return TINTS[hash % TINTS.length];
 }
 
-/** The mockup's `.who` cell: a 30px initials avatar beside name-over-email.
+/** The mockup's `.who` cell: a 30px avatar beside name-over-email — the runner's
+ *  own photo when they have set one, the tinted monogram when they haven't.
  *  `name`/`email` render "—" when absent rather than an empty cell — an
  *  admin scanning the column shouldn't see a blank and wonder if the data
  *  failed to load. */
-export function RunnerAvatar({ id, name, email, className }: {
-  id: string; name: string | null; email: string | null; className?: string;
+export function RunnerAvatar({ id, name, email, avatarUrl, className }: {
+  id: string; name: string | null; email: string | null; avatarUrl?: string | null; className?: string;
 }) {
   const tint = avatarTint(id);
   return (
     <div className={cn("flex items-center gap-2.5", className)}>
-      <Avatar className="size-[30px]">
-        <AvatarFallback className={cn("text-[11.5px] font-bold", tint.bg, tint.fg)}>
-          {initials(name)}
-        </AvatarFallback>
-      </Avatar>
+      <PhotoAvatar
+        url={avatarUrl}
+        className="size-[30px]"
+        fallbackClassName={cn("text-[11.5px] font-bold", tint.bg, tint.fg)}
+        fallback={initials(name)}
+      />
       <div className="min-w-0">
         <div className="truncate text-[13px] font-semibold">{name ?? "—"}</div>
         <div className="truncate text-[11.5px] text-muted-foreground">{email ?? "—"}</div>

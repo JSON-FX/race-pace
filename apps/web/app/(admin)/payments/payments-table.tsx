@@ -5,7 +5,10 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { DataTable, type FilterDef } from "@/components/data-table";
 import { PaymentStatusBadge } from "@/components/StatusBadge";
 import { MethodBadge, methodFilterOptions } from "@/components/MethodBadge";
-import { peso, fmtDate } from "@/lib/format";
+import { PhotoAvatar } from "@/components/PhotoAvatar";
+import { avatarTint } from "@/components/RunnerAvatar";
+import { peso, fmtDate, initials } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import type { PaymentRow } from "@/lib/queries/payments";
 import type { SortState } from "@/lib/table-params";
 
@@ -43,9 +46,17 @@ export function PaymentsTable({ rows, total, page, per, sort, activeFilters, q, 
       accessorKey: "full_name",
       header: "Runner",
       cell: ({ row }) => (
-        <div>
-          <div className="font-semibold">{row.original.full_name ?? "—"}</div>
-          <div className="text-xs text-muted-foreground">{row.original.event_name ?? "—"}</div>
+        <div className="flex items-center gap-2.5">
+          <PhotoAvatar
+            url={row.original.avatar_url}
+            className="size-[30px]"
+            fallbackClassName={cn("text-[11.5px] font-bold", avatarTint(row.original.registration_id).bg, avatarTint(row.original.registration_id).fg)}
+            fallback={initials(row.original.full_name)}
+          />
+          <div className="min-w-0">
+            <div className="truncate font-semibold">{row.original.full_name ?? "—"}</div>
+            <div className="truncate text-xs text-muted-foreground">{row.original.event_name ?? "—"}</div>
+          </div>
         </div>
       ),
     },

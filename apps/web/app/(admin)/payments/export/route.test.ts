@@ -30,6 +30,7 @@ function row(overrides: Partial<PaymentRow> = {}): PaymentRow {
     event_name: "Dahilayan Sky Ultra",
     user_id: "u-1",
     full_name: "Ana Cruz",
+    avatar_url: null,
     amount: 150000,
     platform_fee: 4500,
     net_to_org: 145500,

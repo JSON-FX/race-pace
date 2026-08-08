@@ -12,11 +12,12 @@ export type { NavCounts } from "@/lib/nav-items";
 import type { NavCounts } from "@/lib/nav-items";
 
 export function AppShell({
-  roles, email, orgName, counts, orgContext, children,
+  roles, email, orgName, orgLogoUrl, counts, orgContext, children,
 }: {
   roles: MyRoles;
   email: string;
   orgName: string | null;
+  orgLogoUrl?: string | null;
   counts: NavCounts;
   orgContext: OrgContext;
   children: React.ReactNode;
@@ -27,7 +28,7 @@ export function AppShell({
           the inset (where the bar renders) — a shared ancestor is required, and
           putting it lower would leave the bar unable to see the links. */}
       <NavProgressProvider>
-        <Sidebar roles={roles} email={email} orgName={orgName} counts={counts} />
+        <Sidebar roles={roles} email={email} orgName={orgName} orgLogoUrl={orgLogoUrl} counts={counts} />
         {/* `relative` anchors the absolutely-positioned bar to the content pane
             rather than the viewport, so it spans the content and not the
             sidebar — matching where the navigation actually lands. */}

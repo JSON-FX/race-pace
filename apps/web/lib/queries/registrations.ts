@@ -29,6 +29,9 @@ export type RegistrationRow = {
   category_label: string | null;
   full_name: string | null;
   bib_name: string | null;
+  /** The runner's own profile photo, set on the runner site. Carries its framing
+   *  as a URL fragment; render it through PhotoAvatar rather than as a bare src. */
+  avatar_url: string | null;
   /** From `admin_registration_emails` (see
    *  supabase/migrations/20260806200000_admin_registration_emails_rpc.sql),
    *  NOT `admin_registrations_v` — `auth.users.email` has no RLS policy
@@ -46,7 +49,7 @@ export type RegistrationRow = {
 };
 
 const SELECT =
-  "id,user_id,category_id,category_label,full_name,bib_name,total_amount,payment_status,payment_method,custom_data,created_at";
+  "id,user_id,category_id,category_label,full_name,bib_name,avatar_url,total_amount,payment_status,payment_method,custom_data,created_at";
 
 /** The email side-lookup from `listEventRegistrations`, split out so a
  *  caller paging through MANY batches (the CSV export route) can fetch it

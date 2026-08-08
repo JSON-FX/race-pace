@@ -183,3 +183,4 @@ export function fieldEditPolicy(key: string): FieldEditPolicy {
   return "immutable";
 }
 export * from "./route";
+export * from "./photo";

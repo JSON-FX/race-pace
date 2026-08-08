@@ -20,6 +20,8 @@ export type PaymentRow = {
   event_name: string | null;
   user_id: string | null;
   full_name: string | null;
+  /** Runner's profile photo; framing rides on the URL fragment. */
+  avatar_url: string | null;
   amount: number;
   platform_fee: number;
   net_to_org: number;
@@ -29,7 +31,7 @@ export type PaymentRow = {
 };
 
 const SELECT =
-  "registration_id,event_id,event_name,user_id,full_name,amount,platform_fee,net_to_org,method,status,created_at";
+  "registration_id,event_id,event_name,user_id,full_name,avatar_url,amount,platform_fee,net_to_org,method,status,created_at";
 
 export async function listOrgPayments(
   orgId: string,

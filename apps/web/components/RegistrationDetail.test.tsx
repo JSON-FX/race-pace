@@ -30,7 +30,7 @@ vi.mock("@/lib/actions/registrations", () => ({
 
 const paidRow: RegistrationRow = {
   id: "r1", user_id: "u1", category_id: "c4", category_label: "10K",
-  full_name: "Ana Cruz", bib_name: "ANA", email: "ana@example.com",
+  full_name: "Ana Cruz", bib_name: "ANA", avatar_url: null, email: "ana@example.com",
   total_amount: 100000, payment_status: "paid", payment_method: "gcash",
   created_at: "2026-07-01T00:00:00Z", custom_data: { blood_type: "O", first_ultra: true },
   addons: [{ name: "Singlet", price: 60000 }],

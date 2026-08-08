@@ -10,6 +10,7 @@ export type TeamMember = {
   user_id: string;
   email: string | null;
   full_name: string | null;
+  avatar_url: string | null;
   role: string;
   created_at: string;
   // No invite/confirmation status field here (deliberately, not an
@@ -28,7 +29,9 @@ export type TeamMember = {
   // does not claim to know a member's invite status.
 };
 
-type RawMember = { user_id: string; email: string | null; full_name: string | null; role: string; created_at: string };
+// avatar_url is optional: a deployed org-members function that predates the
+// change forwarding it should mean monograms, not a type lie.
+type RawMember = { user_id: string; email: string | null; full_name: string | null; avatar_url?: string | null; role: string; created_at: string };
 
 /** Mirrors the old useOrgMembers()'s error mapping verbatim (lib/team.ts). */
 function errorMessage(error: unknown): string {
@@ -82,7 +85,9 @@ export async function listTeam(
 
   const total = sorted.length;
   const from = (params.page - 1) * params.per;
-  const rows = sorted.slice(from, from + params.per);
+  // Normalise the optional avatar_url to null so the table doesn't have to know
+  // whether the deployed edge function forwards it yet.
+  const rows = sorted.slice(from, from + params.per).map((m) => ({ ...m, avatar_url: m.avatar_url ?? null }));
 
   return { rows, total };
 }

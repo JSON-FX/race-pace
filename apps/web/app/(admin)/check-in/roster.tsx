@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { PhotoAvatar } from "@/components/PhotoAvatar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -25,11 +25,12 @@ export function hhmm(iso: string | null): string {
 function RunnerCell({ row, meta }: { row: RosterRow; meta: string }) {
   return (
     <div className="flex items-center gap-2.5">
-      <Avatar className="size-6 rounded-[7px]">
-        <AvatarFallback className="rounded-[7px] bg-forest text-[9.5px] font-bold text-white">
-          {initials(row.runner)}
-        </AvatarFallback>
-      </Avatar>
+      <PhotoAvatar
+        url={row.avatar_url}
+        className="size-6 rounded-[7px]"
+        fallbackClassName="rounded-[7px] bg-forest text-[9.5px] font-bold text-white"
+        fallback={initials(row.runner)}
+      />
       <div className="min-w-0">
         <div className="truncate text-[12.5px] font-semibold">{row.runner}</div>
         <div className="truncate text-[11px] text-muted-foreground">{meta}</div>

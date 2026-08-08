@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { X } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { PhotoAvatar } from "@/components/PhotoAvatar";
 import { Button } from "@/components/ui/button";
 import { peso, fmtDateTime, initials } from "@/lib/format";
 import { fieldLabel, fieldValue } from "@/lib/field-labels";
@@ -113,11 +113,12 @@ export function RegistrationDetail({ row, onClose, onRefunded }: {
       >
         {/* ── Who ───────────────────────────────────────────────────────── */}
         <div className="flex shrink-0 items-start gap-3 px-[18px] pb-3.5 pt-4">
-          <Avatar className="size-[38px]">
-            <AvatarFallback className={cn("text-[13px] font-bold", tint.bg, tint.fg)}>
-              {initials(row.full_name)}
-            </AvatarFallback>
-          </Avatar>
+          <PhotoAvatar
+            url={row.avatar_url}
+            className="size-[38px]"
+            fallbackClassName={cn("text-[13px] font-bold", tint.bg, tint.fg)}
+            fallback={initials(row.full_name)}
+          />
 
           <div className="min-w-0 flex-1">
             <DialogTitle className="text-[15px] font-semibold leading-tight">
