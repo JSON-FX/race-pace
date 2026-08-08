@@ -8,6 +8,9 @@ const dateStr = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD").nullab
 const timeStr = z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/, "Use HH:MM").nullable();
 const scheduleTimeStr = z.string().regex(/^\d{2}:\d{2}$/, "Use HH:MM");
 const intNonNeg = z.number().int().min(0);
+// fromLocalInput (lib/deadlines.ts) always produces `new Date(...).toISOString()` output —
+// UTC, `Z`-suffixed, millisecond precision — so the default (non-offset) `.datetime()` matches.
+const isoDateTimeStr = z.string().datetime().nullable();
 
 /** One race-morning timeline row. Both fields required — a fully blank row
  *  isn't a meaningful entry, so it's dropped from the array by
@@ -44,6 +47,8 @@ export const eventInputSchema = z.object({
   flag_off: timeStr,
   status: z.enum(EVENT_STATUSES),
   discipline: z.enum(EVENT_DISCIPLINES),
+  registration_closes_at: isoDateTimeStr,
+  kit_edit_closes_at: isoDateTimeStr,
   elevation_gain_m: intNonNeg.nullable(),
   cutoff_hours: intNonNeg.nullable(),
   // Course locator. Ranges mirror the DB check constraints so a transposed
@@ -83,6 +88,22 @@ export const eventInputSchema = z.object({
 export function coordPairError(e: { start_lat: number | null; start_lng: number | null; finish_lat: number | null; finish_lng: number | null }): string | null {
   if ((e.start_lat === null) !== (e.start_lng === null)) return "Enter both start latitude and longitude, or leave both blank.";
   if ((e.finish_lat === null) !== (e.finish_lng === null)) return "Enter both finish latitude and longitude, or leave both blank.";
+  return null;
+}
+
+/**
+ * Mirrors the DB CHECK constraint events_kit_edit_after_reg_close (a kit cutoff may not be
+ * earlier than a registration close when both are set) — it does not replace it. Without this,
+ * an organizer who sets the invalid combination would only find out from a raw Postgres error
+ * after Save, via saveEventAction's generic "Something went wrong" (the constraint violation
+ * carries no field-specific detail worth surfacing). Kept as a standalone function, like
+ * coordPairError above, so both call sites (the form's live warning/block and
+ * saveEventAction's server-side re-check) share one definition.
+ */
+export function kitCutoffError(e: { registration_closes_at: string | null; kit_edit_closes_at: string | null }): string | null {
+  if (e.registration_closes_at && e.kit_edit_closes_at && new Date(e.kit_edit_closes_at) < new Date(e.registration_closes_at)) {
+    return "Kit edits cannot close before registration does.";
+  }
   return null;
 }
 

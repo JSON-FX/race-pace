@@ -2,6 +2,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { EVENT_DISCIPLINES, DISCIPLINE_LABELS } from "@race-pace/shared";
 import type { EditorData } from "@/lib/queries/event-editor";
+import { fromLocalInput } from "@/lib/deadlines";
 
 vi.mock("@/lib/imageUpload", () => ({ uploadEventImage: vi.fn() }));
 vi.mock("@/lib/psgc", () => ({
@@ -43,6 +44,7 @@ function editorData(overrides: Partial<EditorData["event"]> = {}): EditorData {
       id: "e1", org_id: "a1", name: "Apo",
       city_psgc_code: null, region_name: null, province_name: null, city_name: null, venue: null,
       event_date: null, end_date: null, flag_off: null, status: "open",
+      registration_closes_at: null, kit_edit_closes_at: null,
       discipline: "trail", elevation_gain_m: null, cutoff_hours: null, start_lat: null, start_lng: null,
       finish_lat: null, finish_lng: null, route: null, description: null, hero_image_url: null,
       gallery: [], schedule: [], inclusions: [],
@@ -216,6 +218,34 @@ it("adds, edits, reorders, and removes inclusion rows, saving the final order", 
 
   fireEvent.click(screen.getAllByLabelText("Remove inclusion")[0]!);
   expect(screen.getAllByLabelText("Inclusion")).toHaveLength(1);
+});
+
+describe("event deadlines", () => {
+  it("offers registration close and kit edit close inputs", () => {
+    render(<EventEditorForm initial={editorData({})} orgId="a1" />);
+    expect(screen.getByLabelText("Registration closes")).toBeInTheDocument();
+    expect(screen.getByLabelText("Kit edits close")).toBeInTheDocument();
+  });
+
+  it("warns when the kit cutoff is earlier than the registration close", () => {
+    render(<EventEditorForm initial={editorData({})} orgId="a1" />);
+    fireEvent.change(screen.getByLabelText("Registration closes"), { target: { value: "2026-09-06T23:59" } });
+    fireEvent.change(screen.getByLabelText("Kit edits close"), { target: { value: "2026-09-01T23:59" } });
+    expect(screen.getByText(/kit edits cannot close before registration/i)).toBeInTheDocument();
+  });
+
+  it("accepts a kit cutoff after the registration close", () => {
+    render(<EventEditorForm initial={editorData({})} orgId="a1" />);
+    fireEvent.change(screen.getByLabelText("Registration closes"), { target: { value: "2026-09-01T23:59" } });
+    fireEvent.change(screen.getByLabelText("Kit edits close"), { target: { value: "2026-09-06T23:59" } });
+    expect(screen.queryByText(/kit edits cannot close before registration/i)).not.toBeInTheDocument();
+  });
+
+  it("loads an existing deadline back into the input", () => {
+    const iso = fromLocalInput("2026-09-01T23:59")!;
+    render(<EventEditorForm initial={editorData({ registration_closes_at: iso })} orgId="a1" />);
+    expect(screen.getByLabelText("Registration closes")).toHaveValue("2026-09-01T23:59");
+  });
 });
 
 it("a blank inclusion row left alongside a real one is dropped rather than saved as ''", async () => {

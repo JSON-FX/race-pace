@@ -8,7 +8,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { EVENT_DISCIPLINES, DISCIPLINE_LABELS, disciplineLayout } from "@race-pace/shared";
 import type { EditorData } from "@/lib/queries/event-editor";
 import { saveEventAction, type CategoryDraft, type AddonDraft, type EventDraft, type EditorState } from "@/lib/actions/events";
-import { eventInputSchema, categoryInputSchema, addonInputSchema, sanitizeListFields, coordPairError, EVENT_STATUSES } from "@/lib/validation";
+import { toLocalInput, fromLocalInput } from "@/lib/deadlines";
+import { eventInputSchema, categoryInputSchema, addonInputSchema, sanitizeListFields, coordPairError, kitCutoffError, EVENT_STATUSES } from "@/lib/validation";
 import { CategoryEditor, addCategory } from "@/components/CategoryEditor";
 import { AddonEditor } from "@/components/AddonEditor";
 import { ScheduleEditor } from "@/components/ScheduleEditor";
@@ -36,6 +37,7 @@ function blankDraft(orgId: string): EventDraft {
   return {
     org_id: orgId, name: "", city_psgc_code: null, region_name: null, province_name: null, city_name: null, venue: null,
     event_date: null, end_date: null, flag_off: null, status: "draft", discipline: "trail",
+    registration_closes_at: null, kit_edit_closes_at: null,
     elevation_gain_m: null, cutoff_hours: null, start_lat: null, start_lng: null, finish_lat: null, finish_lng: null,
     route: null, description: null, hero_image_url: null, gallery: [], schedule: [], inclusions: [],
   };
@@ -123,6 +125,8 @@ export function EventEditorForm({ initial, orgId }: { initial: EditorData | null
     const coordError = coordPairError(parsed.data);
     if (coordError) return coordError;
     if (event.end_date && event.event_date && event.end_date < event.event_date) return "End date can't be before the start date.";
+    const kitError = kitCutoffError(event);
+    if (kitError) return kitError;
     for (const c of cats) if (!categoryInputSchema.safeParse(c).success) return "Fix the category rows (code, label, non-negative price/slots, gain 0-30000m, cut-off 0-240h).";
     for (const a of addons) if (!addonInputSchema.safeParse(a).success) return "Fix the add-on rows (name, non-negative price).";
     return null;
@@ -179,6 +183,10 @@ export function EventEditorForm({ initial, orgId }: { initial: EditorData | null
 
   const inputCls = "h-11 rounded-lg text-[13.5px]";
 
+  // Same check `invalid` runs (via kitCutoffError) — kept separately here so the warning
+  // renders under the Kit edits close field itself, not just in the Save-bar error banner.
+  const kitBeforeReg = !!kitCutoffError(event);
+
   return (
     <div className="px-4 pb-4 pt-6 md:px-[30px]">
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[190px_minmax(0,1fr)]">
@@ -225,6 +233,36 @@ export function EventEditorForm({ initial, orgId }: { initial: EditorData | null
                   <Input aria-label="Flag-off" type="time" className={inputCls} value={event.flag_off ?? ""} onChange={(e) => set({ flag_off: e.target.value || null })} />
                 </Field>
               </div>
+              <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+                <Field label="Registration closes" hint="Leave empty to close by status only">
+                  <Input
+                    aria-label="Registration closes"
+                    type="datetime-local"
+                    className={inputCls}
+                    value={toLocalInput(event.registration_closes_at)}
+                    onChange={(e) => set({ registration_closes_at: fromLocalInput(e.target.value) })}
+                  />
+                </Field>
+                <Field label="Kit edits close" hint="When shirt sizes freeze for printing">
+                  <Input
+                    aria-label="Kit edits close"
+                    type="datetime-local"
+                    className={inputCls}
+                    value={toLocalInput(event.kit_edit_closes_at)}
+                    onChange={(e) => set({ kit_edit_closes_at: fromLocalInput(e.target.value) })}
+                  />
+                  {kitBeforeReg ? (
+                    <p className="mt-1.5 text-[11px] text-destructive">
+                      Kit edits cannot close before registration does — a runner who signs up on
+                      the last day would never get to change their shirt size.
+                    </p>
+                  ) : null}
+                </Field>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Times are in {Intl.DateTimeFormat().resolvedOptions().timeZone}. Runners can still
+                fix blood type and emergency contact after the kit cutoff.
+              </p>
               <Field label="Description">
                 <Textarea aria-label="Description" className="min-h-[92px] resize-y rounded-lg text-[13.5px]" value={event.description ?? ""} onChange={(e) => set({ description: e.target.value || null })} />
               </Field>
