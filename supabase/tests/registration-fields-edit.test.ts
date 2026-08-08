@@ -233,16 +233,17 @@ describe("update_registration_fields_tx", () => {
     try {
       const c = createClient(url, anonKey, { auth: { persistSession: false } });
       const r = await call(c, reg.id, { shirt_size: "L" });
-      // Empirically verified against the hosted project: EXECUTE is granted to anon/authenticated/
-      // service_role via this project's ALTER DEFAULT PRIVILEGES, independent of this migration's
-      // own grant statement, so the anon-role call reaches the function body rather than being
-      // rejected by Postgres. auth.uid() resolves to NULL for an anon-key call (no `sub` claim in
-      // the JWT), so it's the function's own `v_actor is null` guard -- not a database permission
-      // error -- that refuses it. Assert that specific outcome rather than "any error at all",
-      // which the previous version of this test accepted and which passed even when the RPC
-      // didn't exist yet.
-      expect(r.error).toBeNull();
-      expect(r.data).toBe("forbidden");
+      // Updated by 20260808110000_lock_down_function_grants.sql: this RPC is Group B in that
+      // migration's security audit (client-called, needs `authenticated`, `anon` has no business
+      // reaching it) and now has anon EXECUTE revoked at the grant level. The call no longer
+      // reaches the function body at all, so this is a Postgres 42501 permission error rather
+      // than the function's own `v_actor is null` guard. Before that migration, EXECUTE was
+      // granted to anon/authenticated/service_role via this project's ALTER DEFAULT PRIVILEGES
+      // regardless of this function's own grant statement, so the anon-role call used to reach
+      // the body and get refused internally ('forbidden') instead of by the database.
+      expect(r.error).not.toBeNull();
+      expect(r.error!.code).toBe("42501");
+      expect(r.data).toBeNull();
       expect((await s.from("registrations").select("custom_data").eq("id", reg.id).single()).data!.custom_data.shirt_size).toBe("M");
     } finally {
       await cleanup(s, org.id, uid);
