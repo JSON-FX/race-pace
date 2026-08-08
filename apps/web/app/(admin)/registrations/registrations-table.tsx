@@ -152,13 +152,14 @@ export function RegistrationsTable({
       enableSorting: false,
       cell: () => <span aria-hidden="true" className="text-[12px] text-muted-foreground">›</span>,
     },
-  // `patch` is stable across renders (see use-table-params.ts — every
-  // setter is wrapped in useCallback), and `openReg` is itself
-  // useCallback-wrapped over that already-stable `patch`, so depending
-  // on it here both keeps the Runner cell's onClick correct (it always
-  // calls the current openReg, never a stale closure over an old
-  // `searchParams`) AND lets this memo genuinely memoize instead of
-  // recomputing every render.
+  // `writeRegParam` is useCallback'd with an empty dependency array — it
+  // reads `window.location` fresh on every call rather than closing over a
+  // React value, so it can never go stale — and `openReg` is itself
+  // useCallback-wrapped over that already-stable `writeRegParam`. Both are
+  // referentially stable for the component's whole lifetime, so depending on
+  // `openReg` here keeps the Runner cell's onClick correct (always today's
+  // `openReg`, never a stale one) AND lets this memo genuinely memoize
+  // instead of recomputing every render.
   ], [openReg]);
 
   const bulkActions: BulkAction[] = useMemo(() => [

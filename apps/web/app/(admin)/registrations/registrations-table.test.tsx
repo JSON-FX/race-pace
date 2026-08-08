@@ -10,11 +10,16 @@ vi.mock("@/lib/use-table-params", () => ({ useTableParams: () => tableParamsMock
 // registrations-table.tsx now reads the open registration id straight from
 // useSearchParams() (see its `urlRegId`), not the `activeFilters` prop, so a
 // mocked search-param source is required the same way
-// payments/event-picker.test.tsx supplies one for PaymentsEventPicker — an
-// unmocked `next/navigation` throws "invariant expected app router to be
-// mounted" outside a real Next router. A mutable binding, not a fixed
-// literal like that file's, because different cases below need `reg`
-// present or absent in the URL.
+// payments/event-picker.test.tsx supplies one for PaymentsEventPicker —
+// though for a different failure mode than that file's: outside a real Next
+// router, an unmocked useSearchParams() returns `null` rather than throwing
+// (confirmed — every test here fails with `Cannot read properties of null
+// (reading 'get')` without this mock), so `.get("reg")` is what breaks.
+// "invariant expected app router to be mounted" is useRouter's failure mode,
+// which is why the sibling file hits it — PaymentsEventPicker calls
+// useRouter, not useSearchParams. A mutable binding, not a fixed literal
+// like that file's, because different cases below need `reg` present or
+// absent in the URL.
 let mockSearchParams = new URLSearchParams();
 vi.mock("next/navigation", () => ({
   useSearchParams: () => mockSearchParams,
@@ -105,6 +110,7 @@ describe("RegistrationsTable", () => {
     const pushState = vi.spyOn(window.history, "pushState");
     render(<RegistrationsTable {...props} />);
     await user.click(screen.getByRole("button", { name: "Close" }));
+    expect(pushState).toHaveBeenCalled();
     expect(String(pushState.mock.calls.at(-1)?.[2])).not.toContain("reg=");
     pushState.mockRestore();
   });
@@ -212,6 +218,7 @@ describe("RegistrationsTable", () => {
     await user.click(screen.getByRole("button", { name: "Close" }));
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(pushState).toHaveBeenCalled();
     expect(String(pushState.mock.calls.at(-1)?.[2])).not.toContain("reg=");
     pushState.mockRestore();
   });
@@ -223,6 +230,11 @@ describe("RegistrationsTable", () => {
   // syncs with useSearchParams without re-running anything.
   it("opens the modal without any server navigation", async () => {
     const user = userEvent.setup();
+    // writeRegParam reads window.location.search directly, not the `page={2}`
+    // prop — a genuine pagination-preserved guard needs a REAL `page` param
+    // on the URL to preserve, or the assertion below is vacuous (confirmed by
+    // mutation: see task-8-report.md).
+    window.history.pushState(null, "", "/registrations?page=2");
     const pushState = vi.spyOn(window.history, "pushState");
     render(
       <RegistrationsTable
@@ -236,20 +248,24 @@ describe("RegistrationsTable", () => {
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
     expect(tableParamsSpies.patch).not.toHaveBeenCalled();
     expect(pushState).toHaveBeenCalled();
-    expect(String(pushState.mock.calls.at(-1)?.[2])).toContain("reg=r1");
+    const url = String(pushState.mock.calls.at(-1)?.[2]);
+    expect(url).toContain("reg=r1");
     // Pagination must survive — this is the page-2 bug's regression guard.
-    expect(String(pushState.mock.calls.at(-1)?.[2])).not.toContain("page=1");
+    expect(url).toContain("page=2");
     pushState.mockRestore();
   });
 
   it("closes the modal without any server navigation", async () => {
     const user = userEvent.setup();
     mockSearchParams = new URLSearchParams("reg=r1");
+    // Same seeding as the open test above, plus `reg=r1` already present —
+    // this test starts from the modal already open.
+    window.history.pushState(null, "", "/registrations?page=2&reg=r1");
     const pushState = vi.spyOn(window.history, "pushState");
     render(
       <RegistrationsTable
         rows={rows} total={60} page={2} per={25} sort={[]}
-        activeFilters={{ reg: "r1" }} q="" categories={[]}
+        activeFilters={{}} q="" categories={[]}
       />,
     );
 
@@ -258,7 +274,47 @@ describe("RegistrationsTable", () => {
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(tableParamsSpies.patch).not.toHaveBeenCalled();
-    expect(String(pushState.mock.calls.at(-1)?.[2])).not.toContain("reg=");
+    expect(pushState).toHaveBeenCalled();
+    const url = String(pushState.mock.calls.at(-1)?.[2]);
+    expect(url).not.toContain("reg=");
+    // Pagination must survive on close too — Task 7's original regression
+    // guard covered both directions; this restores the close-side half.
+    expect(url).toContain("page=2");
     pushState.mockRestore();
+  });
+
+  // Back/Forward moves the URL without ever calling openReg/closeReg — Next
+  // syncs history navigation with useSearchParams, so the component's ONLY
+  // way to learn about it is `urlRegId` changing on a fresh render. The
+  // clearing effect (`useEffect(() => setOverride(null), [urlRegId])`) is
+  // what makes that translate into the modal actually closing — WITHOUT it,
+  // the `override` a click leaves behind never gets dropped, and it
+  // permanently wins over whatever `urlRegId` says afterward (`selectedId =
+  // override ? override.id : urlRegId`). A test that only flips
+  // `mockSearchParams` without ever setting `override` via a real click
+  // (i.e. asserting on `urlRegId` alone) would pass with the effect deleted
+  // too, since `override` would still be null on its own — so this must
+  // open via a click first, exactly like a real Back press would follow a
+  // real open.
+  it("closes the modal on a Back press, even though a click set the override", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(<RegistrationsTable {...props} />);
+
+    await user.click(screen.getByRole("button", { name: /View Maria Josefa Santos/ }));
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+
+    // Simulate the URL catching up to the click a moment later (what a real
+    // pushState -> useSearchParams sync does) — this is the point at which
+    // the clearing effect drops the override while urlRegId still agrees,
+    // so nothing is visibly different yet.
+    mockSearchParams = new URLSearchParams("reg=r1");
+    rerender(<RegistrationsTable {...props} />);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+    // Now Back: the URL moves with no openReg/closeReg call in between.
+    mockSearchParams = new URLSearchParams();
+    rerender(<RegistrationsTable {...props} />);
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });
