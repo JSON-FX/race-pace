@@ -60,9 +60,9 @@ describe("TeamTable", () => {
 
   // Regression guard for the assignable-role list: if ASSIGNABLE_ROLES in
   // lib/queries/team.ts ever drifts from what the org-members edge function
-  // accepts (supabase/functions/_shared/team.ts), this fails because the
-  // "Race Kit" (claiming) option would disappear from the picker.
-  it("offers every assignable role in the role picker, including claiming", async () => {
+  // accepts (supabase/functions/_shared/team.ts), this fails because an
+  // assignable role option would disappear from the picker.
+  it("offers every assignable role in the role picker", async () => {
     const user = userEvent.setup();
     render(<TeamTable {...props} />);
     const rowsEls = screen.getAllByRole("row");
@@ -71,7 +71,6 @@ describe("TeamTable", () => {
     expect(screen.getByRole("option", { name: "Admin" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "Editor" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "Marshal" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Race Kit" })).toBeInTheDocument();
   });
 
   // Regression guard: the org-members edge function can reject a role

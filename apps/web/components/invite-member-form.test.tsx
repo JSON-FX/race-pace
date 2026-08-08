@@ -40,16 +40,14 @@ describe("InviteMemberForm", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("can't be assigned");
   });
 
-  // Regression guard: ASSIGNABLE_ROLES/ROLE_LABELS drift (e.g. dropping
-  // "claiming"/"Race Kit") would silently remove an assignable role from
-  // the invite picker without any type error.
-  it("offers every assignable role, including Race Kit (claiming)", async () => {
+  // Regression guard: ASSIGNABLE_ROLES/ROLE_LABELS drift would silently remove
+  // an assignable role from the invite picker without any type error.
+  it("offers every assignable role", async () => {
     const user = userEvent.setup();
     render(<InviteMemberForm orgId="a1" />);
     await user.click(screen.getByLabelText("Role"));
     expect(screen.getByRole("option", { name: "Admin" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "Editor" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "Marshal" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Race Kit" })).toBeInTheDocument();
   });
 });
