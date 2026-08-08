@@ -1,16 +1,17 @@
 import Link from "next/link";
-import { Wallet, Percent, Landmark, Undo2, Download } from "lucide-react";
+import { Suspense } from "react";
+import { Download } from "lucide-react";
 import { parseTableParams, serializeTableParams } from "@/lib/table-params";
 import { getMyRoles, requireOrgId } from "@/lib/queries/roles";
-import { listOrgPayments, getPaymentAggregates, listOrgPaymentMethods } from "@/lib/queries/payments";
 import { listOrgEventOptions } from "@/lib/queries/registrations";
+import { DataTableSkeleton } from "@/components/data-table";
 import { NoOrgScope } from "@/components/no-org-scope";
-import { KpiCard, KpiRow } from "@/components/kpi-card";
+import { KpiRowSkeleton } from "@/components/kpi-card";
 import { Button } from "@/components/ui/button";
-import { peso } from "@/lib/format";
-import { PaymentsTable } from "./payments-table";
 import { PaymentsEventPicker } from "./event-picker";
 import { ALL_EVENTS } from "./constants";
+import { PaymentsKpiSection } from "./kpi-section";
+import { PaymentsTableSection } from "./table-section";
 
 const DEFAULTS = {
   sort: [{ id: "created_at", desc: true }],
@@ -40,23 +41,23 @@ export default async function PaymentsPage({
     );
   }
 
-  const [{ rows, total }, aggregates, methods, events] = await Promise.all([
-    listOrgPayments(orgId, params),
-    // Same org + same filters as the table above. Gross/fee/net come straight
-    // off admin_payments_v's own columns — see getPaymentAggregates' doc
-    // comment for why net is never recomputed as amount - fee here.
-    getPaymentAggregates(orgId, params),
-    // Org-scoped but deliberately UNfiltered — the Method filter has to keep
-    // offering the other methods once one is selected. See its doc comment.
-    listOrgPaymentMethods(orgId),
-    // Org-scoped and deliberately UNfiltered, same as the methods list: the
-    // picker must keep offering every other event once one is selected.
-    listOrgEventOptions(orgId),
-  ]);
+  // Only the event list is needed before the shell can paint — the picker
+  // renders from it and the subtitle names the active event. Rows, methods and
+  // aggregates have moved into the suspended sections below.
+  const events = await listOrgEventOptions(orgId);
 
   const activeEvent = params.filters.event ?? ALL_EVENTS;
 
   const exportHref = `/payments/export?${serializeTableParams({ ...params, page: 1 }, DEFAULTS)}`;
+
+  // Keying both boundaries on the resolved params is what makes a skeleton
+  // appear on a searchParams-only navigation. `loading.tsx` fires only when the
+  // route SEGMENT changes, so switching event, paging, sorting or filtering
+  // otherwise leaves the old table on screen with no indication anything is
+  // happening. Changing the key remounts the boundary, which re-shows the
+  // fallback. Reuses serializeTableParams so the key can never drift from the
+  // params the sections are actually handed.
+  const sectionKey = serializeTableParams({ ...params }, DEFAULTS).toString();
 
   return (
     <div className="px-4 pb-10 pt-6 md:px-[30px]">
@@ -64,15 +65,14 @@ export default async function PaymentsPage({
         <div>
           <h1 className="text-[21px] font-bold tracking-[-0.02em]">Payments</h1>
           <p className="mt-0.5 text-[13px] text-muted-foreground">
-            <span className="tabular">{total}</span> transaction{total === 1 ? "" : "s"}
             {activeEvent !== ALL_EVENTS ? (
-              // Name the scope in words next to the count. The KPI cards above
-              // change silently otherwise, and "₱2,100 gross" for one event
-              // looks identical to "₱2,100 gross" for the whole organization.
-              <> in <span className="font-semibold text-foreground">
+              // Name the scope in words next to the cards. The KPI cards change
+              // silently otherwise, and "₱2,100 gross" for one event looks
+              // identical to "₱2,100 gross" for the whole organization.
+              <>Showing <span className="font-semibold text-foreground">
                 {events.find((e) => e.id === activeEvent)?.name ?? "this event"}
               </span></>
-            ) : " across all events"}
+            ) : "Across all events"}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -86,21 +86,13 @@ export default async function PaymentsPage({
         </div>
       </div>
 
-      {/* No delta line on any Payments card — the binding spec's KPI table
-          (docs/superpowers/specs/2026-08-06-admin-visual-parity-spec.md,
-          "KPI row") lists only a peso value for Gross/Platform fees/Net to
-          org/Refunded, and the mockup's tab A content view is the
-          Registrations page, not Payments, so there is no `.kpi` delta
-          markup to match here. */}
-      <KpiRow>
-        <KpiCard icon={Wallet} label="Gross" value={peso(aggregates.grossCents)} />
-        <KpiCard icon={Percent} label="Platform fees" value={peso(aggregates.feeCents)} />
-        <KpiCard icon={Landmark} label="Net to org" value={peso(aggregates.netCents)} />
-        <KpiCard icon={Undo2} label="Refunded" value={peso(aggregates.refundedCents)} />
-      </KpiRow>
+      <Suspense key={`kpi-${sectionKey}`} fallback={<KpiRowSkeleton />}>
+        <PaymentsKpiSection orgId={orgId} params={params} />
+      </Suspense>
 
-      <PaymentsTable rows={rows} total={total} page={params.page} per={params.per}
-        sort={params.sort} activeFilters={params.filters} q={params.q} methods={methods} />
+      <Suspense key={`table-${sectionKey}`} fallback={<DataTableSkeleton rows={8} columns={6} />}>
+        <PaymentsTableSection orgId={orgId} params={params} />
+      </Suspense>
     </div>
   );
 }
