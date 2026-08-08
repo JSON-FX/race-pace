@@ -1413,3 +1413,234 @@ reg addresses a modal, not a subset of rows, so routing it through setFilter
 outside rows entirely — the modal silently never appeared. Add-ons now come
 down with the row, so opening a registration makes no network request at all."
 ```
+
+---
+
+### Task 8: Stop the modal re-rendering the whole page
+
+Found by the user after Task 7 shipped: opening a registration shows the modal but *also* runs the loading state and re-renders the entire page; closing does the same again.
+
+**Root cause — a design error in Task 4, not an implementation error.** `parseTableParams` treats every param that is not `page`/`per`/`sort`/`q` as a filter (`lib/table-params.ts:17`), so `?reg=<id>` becomes `params.filters.reg`. Task 4 then built the Suspense key from *all* filters. `reg` has no entry in `DEFAULTS.filters`, so `serializeTableParams` compares it against `"all"`, finds a uuid, and includes it. Changing `reg` therefore changes the key, **both Suspense boundaries remount**, skeletons appear, and both sections re-fetch — to produce byte-identical data, because `listEventRegistrations` never reads `filters.reg` (verified: zero matches in `lib/queries/registrations.ts`).
+
+Two independent problems; fixing only one leaves a visible defect:
+- **A.** `reg` participates in a key that should describe only what the sections query → skeletons + remount.
+- **B.** `reg` is written with `patch` → `router.push`, which always re-runs the server component → a wasted round trip and the nav progress bar, even once the remount is gone.
+
+**Files:**
+- Modify: `apps/web/lib/table-params.ts`
+- Modify: `apps/web/app/(admin)/registrations/page.tsx`
+- Modify: `apps/web/app/(admin)/registrations/registrations-table.tsx`
+- Modify: `apps/web/lib/table-params.test.ts`, `apps/web/app/(admin)/registrations/page.test.tsx`, `apps/web/app/(admin)/registrations/registrations-table.test.tsx`
+
+**Interfaces:**
+- Produces: `UI_ONLY_PARAMS: ReadonlySet<string>` and `serializeSectionKey(params: TableParams, defaults: TableDefaults): string`, both from `@/lib/table-params`.
+
+- [ ] **Step 1: Write the failing key test**
+
+In `apps/web/lib/table-params.test.ts`:
+
+```ts
+describe("serializeSectionKey", () => {
+  const DEFAULTS = { sort: [{ id: "created_at", desc: true }], filters: { status: "all", category: "all" } };
+
+  // THE bug this exists to prevent: `reg` addresses a modal, not a subset of
+  // rows — no query reads it. While it fed the Suspense key, opening a
+  // registration remounted both boundaries, flashed skeletons and re-fetched
+  // byte-identical data. A key must describe only what its sections query.
+  it("ignores UI-only params so opening a modal cannot change the key", () => {
+    const base = parseTableParams({ event: "e1", status: "paid" }, DEFAULTS);
+    const withModal = parseTableParams({ event: "e1", status: "paid", reg: "r-123" }, DEFAULTS);
+    expect(serializeSectionKey(withModal, DEFAULTS)).toBe(serializeSectionKey(base, DEFAULTS));
+  });
+
+  it("still changes when a param the sections actually query changes", () => {
+    const a = parseTableParams({ event: "e1", status: "paid" }, DEFAULTS);
+    for (const next of [{ event: "e2", status: "paid" }, { event: "e1", status: "pending" },
+                        { event: "e1", status: "paid", page: "2" }, { event: "e1", status: "paid", q: "maria" }]) {
+      expect(serializeSectionKey(parseTableParams(next, DEFAULTS), DEFAULTS))
+        .not.toBe(serializeSectionKey(a, DEFAULTS));
+    }
+  });
+});
+```
+
+- [ ] **Step 2: Run it to verify it fails**
+
+```bash
+pnpm --filter web test table-params
+```
+
+Expected: FAIL — `serializeSectionKey` is not exported.
+
+- [ ] **Step 3: Implement the key helper**
+
+In `apps/web/lib/table-params.ts`:
+
+```ts
+/** Params that address UI state rather than scoping the query.
+ *
+ *  `parseTableParams` files every non-reserved param under `filters`, which is
+ *  right for the URL but wrong for anything that asks "does this change what we
+ *  fetch?". `reg` names which registration's modal is open; no reader consults
+ *  it. Anything listed here must never participate in a Suspense key, a cache
+ *  key, or a revalidation tag — it changes nothing about the data, so treating
+ *  it as data churn costs a full re-render for no new information. */
+export const UI_ONLY_PARAMS: ReadonlySet<string> = new Set(["reg"]);
+
+/** The identity of a page's data, for keying a Suspense boundary.
+ *
+ *  Deliberately NOT `serializeTableParams` directly: that is the URL's
+ *  serialization and includes UI-only params, which is correct for a URL and
+ *  wrong for a key. Built on it rather than hand-rolled so the two cannot drift
+ *  on the params they DO share. */
+export function serializeSectionKey(p: TableParams, defaults: TableDefaults = {}): string {
+  const filters = Object.fromEntries(
+    Object.entries(p.filters).filter(([key]) => !UI_ONLY_PARAMS.has(key)),
+  );
+  return serializeTableParams({ ...p, filters }, defaults).toString();
+}
+```
+
+- [ ] **Step 4: Use it in the page**
+
+In `apps/web/app/(admin)/registrations/page.tsx`, import `serializeSectionKey` and replace the `sectionKey` derivation, keeping the existing explanatory comment and adding the reason for the new helper:
+
+```tsx
+  // Keyed so a searchParams-only navigation re-shows the skeleton — loading.tsx
+  // fires only on a route SEGMENT change, so paging, sorting or filtering would
+  // otherwise leave the old table on screen with no sign anything is happening.
+  //
+  // serializeSectionKey, NOT serializeTableParams: `reg` (the open modal) is a
+  // filter as far as the URL is concerned but changes nothing about what these
+  // sections fetch. While it fed this key, opening a registration remounted both
+  // boundaries and re-fetched identical data behind a skeleton.
+  const sectionKey = serializeSectionKey(
+    { ...params, filters: { ...params.filters, event: eventId } },
+    DEFAULTS,
+  );
+```
+
+- [ ] **Step 5: Extend the page's Suspense-key regression test**
+
+`page.test.tsx` already walks the returned tree for boundary keys. Add a case asserting `reg` does NOT change them. Adapt to the existing helper's actual name and signature in that file — read it first, do not assume a name:
+
+```tsx
+  it("does not change the Suspense keys when only the open modal changes", async () => {
+    expect(await keysFor({ reg: "r-123" })).toEqual(await keysFor({}));
+  });
+```
+
+- [ ] **Step 6: Write the failing test for the server navigation**
+
+In `registrations-table.test.tsx`. These REPLACE the `patch`-based assertions added in Task 7 — `reg` no longer goes through `useTableParams` at all — but the behavioural halves (modal opens, modal closes, pagination preserved) must stay exactly as they are:
+
+```tsx
+  // Opening a modal must not navigate. `patch` routes through router.push,
+  // which always re-runs the server component: the admin saw the progress bar
+  // and a full page re-render for data already on the client. The URL still
+  // updates so a registration stays linkable — via the History API, which Next
+  // syncs with useSearchParams without re-running anything.
+  it("opens the modal without any server navigation", async () => {
+    const user = userEvent.setup();
+    const pushState = vi.spyOn(window.history, "pushState");
+    render(
+      <RegistrationsTable
+        rows={rows} total={60} page={2} per={25} sort={[]}
+        activeFilters={{}} q="" categories={[]}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /View Maria Josefa Santos/ }));
+
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    expect(tableParamsSpies.patch).not.toHaveBeenCalled();
+    expect(pushState).toHaveBeenCalled();
+    expect(String(pushState.mock.calls.at(-1)?.[2])).toContain("reg=r1");
+    // Pagination must survive — this is the page-2 bug's regression guard.
+    expect(String(pushState.mock.calls.at(-1)?.[2])).not.toContain("page=1");
+    pushState.mockRestore();
+  });
+
+  it("closes the modal without any server navigation", async () => {
+    const user = userEvent.setup();
+    const pushState = vi.spyOn(window.history, "pushState");
+    render(
+      <RegistrationsTable
+        rows={rows} total={60} page={2} per={25} sort={[]}
+        activeFilters={{ reg: "r1" }} q="" categories={[]}
+      />,
+    );
+
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Close" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(tableParamsSpies.patch).not.toHaveBeenCalled();
+    expect(String(pushState.mock.calls.at(-1)?.[2])).not.toContain("reg=");
+    pushState.mockRestore();
+  });
+```
+
+- [ ] **Step 7: Implement the History-API write**
+
+In `registrations-table.tsx`, replace the `patch`-based writes. Read `reg` from `useSearchParams()` rather than the `activeFilters` server prop, so a Back/Forward press (which changes the URL without re-running the server) still syncs:
+
+```tsx
+  const searchParams = useSearchParams();
+  const urlRegId = searchParams.get("reg");
+```
+
+```tsx
+  /** Write `?reg=` without a server navigation.
+   *
+   *  `router.push` (and therefore useTableParams' `patch`) always re-runs the
+   *  server component — for a modal rendered entirely from a row already on the
+   *  client, that is a full round trip and a progress bar for zero new data.
+   *  Next syncs pushState with useSearchParams, so the URL stays real,
+   *  linkable and Back-able while nothing re-renders.
+   *
+   *  pushState, not replaceState: Back should close the modal, which is what
+   *  people expect from something that opened over the page. The cost is one
+   *  history entry per open, which is the right trade. */
+  const writeRegParam = useCallback((id: string | null) => {
+    const sp = new URLSearchParams(window.location.search);
+    if (id) sp.set("reg", id);
+    else sp.delete("reg");
+    const qs = sp.toString();
+    window.history.pushState(null, "", qs ? `${window.location.pathname}?${qs}` : window.location.pathname);
+  }, []);
+
+  const openReg = useCallback((id: string) => {
+    setOverride({ id });
+    writeRegParam(id);
+  }, [writeRegParam]);
+
+  const closeReg = useCallback(() => {
+    setOverride({ id: null });
+    writeRegParam(null);
+  }, [writeRegParam]);
+```
+
+Keep the existing tri-state `override` and the `useEffect(() => setOverride(null), [urlRegId])` exactly as they are — that effect is what makes Back/Forward work, and it now keys off the live `useSearchParams` value.
+
+`useTableParams` is still needed for the DataTable toolbar; only the `reg` writes move off it. If `patch` becomes an unused destructure, remove the binding (a previous task shipped one and it was flagged).
+
+- [ ] **Step 8: Full suite + typecheck**
+
+```bash
+pnpm --filter web test && pnpm --filter web typecheck
+```
+
+- [ ] **Step 9: Commit**
+
+Stage `apps/web` and commit with this message:
+
+```
+fix(admin): stop the modal re-rendering the whole page
+
+reg addresses a modal, not a subset of rows, but parseTableParams files it
+under filters and the Suspense key serialized every filter — so opening a
+registration remounted both boundaries and re-fetched identical data behind
+a skeleton. The key now excludes UI-only params, and reg is written via the
+History API so opening or closing triggers no server navigation at all.
+```
