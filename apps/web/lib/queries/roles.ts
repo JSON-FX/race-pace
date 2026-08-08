@@ -1,8 +1,7 @@
 import { cache } from "react";
-import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getOrgContext } from "@/lib/org-context";
-import { capabilitiesFor, hasCapability, type Capability } from "@/lib/capabilities";
+import { capabilitiesFor, type Capability } from "@/lib/capabilities";
 
 export type MyRoles = {
   role: string | null;
@@ -125,28 +124,4 @@ export const getMyRoles = cache(async (): Promise<MyRoles | null> => {
  */
 export function requireOrgId(roles: MyRoles | null): string | null {
   return roles?.orgId ?? null;
-}
-
-/**
- * Assert a capability inside a server component, before anything renders.
- *
- * Hiding a nav link is a convenience; this is the control. A marshal typing
- * /payments is redirected here rather than reaching a page whose emptiness
- * depends on RLS — the difference between an authorization boundary and a
- * data-layer accident.
- *
- * Takes `roles` rather than fetching it: every caller already has it (from
- * the layout's `getMyRoles()`, itself `cache()`d), so fetching again here
- * would just be a second name for the same call — and a pure `(roles, cap)`
- * function is trivially unit-testable without mocking this module against
- * itself.
- *
- * Platform pages (Organizations, Commission, Payouts) deliberately do NOT
- * use this — they call `notFound()` instead, because whether they exist is
- * itself information not to disclose to a non-super-admin. See
- * organizations/page.tsx.
- */
-export function requireCapability(roles: MyRoles | null, cap: Capability): MyRoles {
-  if (!roles || !hasCapability(roles.capabilities, cap)) redirect("/no-access");
-  return roles;
 }

@@ -1,14 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { requireOrgId, requireCapability, type MyRoles } from "./roles";
-
-// requireCapability calls next/navigation's redirect() on denial. Make it
-// throw the way the real one does (by aborting the render) so a denial is
-// observable as a rejection rather than requireCapability silently falling
-// through to its `return roles` — a redirect() that returns normally would
-// make every denial test below pass for the wrong reason.
-vi.mock("next/navigation", () => ({
-  redirect: vi.fn((to: string) => { throw new Error(`REDIRECT:${to}`); }),
-}));
+import { requireOrgId, type MyRoles } from "./roles";
 
 function roles(overrides: Partial<MyRoles>): MyRoles {
   return {
@@ -33,50 +24,6 @@ describe("requireOrgId", () => {
 
   it("returns null when roles is null (unauthenticated)", () => {
     expect(requireOrgId(null)).toBeNull();
-  });
-});
-
-describe("requireCapability", () => {
-  it("returns the roles unchanged when the capability is held", () => {
-    const r = roles({ capabilities: ["manage_org"] });
-    expect(requireCapability(r, "manage_org")).toBe(r);
-  });
-
-  it("redirects to /no-access when the capability is absent", () => {
-    const r = roles({ capabilities: ["check_in"] });
-    expect(() => requireCapability(r, "manage_org")).toThrow("REDIRECT:/no-access");
-  });
-
-  it("redirects to /no-access when roles is null (unauthenticated)", () => {
-    expect(() => requireCapability(null, "manage_org")).toThrow("REDIRECT:/no-access");
-  });
-
-  // The discriminating case: a marshal has check_in but is neither
-  // isOrgAdmin nor isSuperAdmin. If requireCapability were ever written (or
-  // reverted) to gate on a role flag instead of the capability array — e.g.
-  // `roles.isOrgAdmin` — this passes today's marshal-only account straight
-  // to /no-access, breaking the check-in station this task exists to keep
-  // reachable. Asserting capabilities directly, not role flags, is the
-  // point of this function; this is the test that would catch losing it.
-  it("lets a marshal (check_in only, not isOrgAdmin/isSuperAdmin) through to check_in", () => {
-    const r = roles({
-      role: "marshal", isOrgAdmin: false, isSuperAdmin: false, isAdmin: true,
-      capabilities: ["check_in"],
-    });
-    expect(requireCapability(r, "check_in")).toBe(r);
-  });
-
-  // The mirror case: an org admin holds manage_org/manage_team/check_in but
-  // never manage_platform — that capability is exclusive to isSuperAdmin
-  // (see capabilitiesFor). If requireCapability's check were ever loosened to
-  // something isOrgAdmin also satisfies, an org admin would reach a
-  // platform-scoped route this task is meant to keep them out of.
-  it("keeps an org admin (isOrgAdmin true, no manage_platform) out of a platform capability", () => {
-    const r = roles({
-      role: "admin", isOrgAdmin: true, isSuperAdmin: false, isAdmin: true,
-      capabilities: ["manage_team", "manage_org", "check_in"],
-    });
-    expect(() => requireCapability(r, "manage_platform")).toThrow("REDIRECT:/no-access");
   });
 });
 
