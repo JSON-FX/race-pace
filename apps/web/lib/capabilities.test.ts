@@ -43,6 +43,27 @@ describe("capabilitiesFor", () => {
   it("lets super admin win over a lesser role held in the resolved org", () => {
     expect(capabilitiesFor("marshal", true)).toContain("manage_platform");
   });
+
+  // BY_ROLE today forms a strict superset chain: marshal ⊆ editor ⊆ admin.
+  // roles.ts's getMyRoles tests lean on this — with a chain, `capabilitiesFor`
+  // applied to the single resolved (highest-tier) row is byte-identical to a
+  // union of `capabilitiesFor` over every row the caller holds, so those tests
+  // cannot by themselves prove capabilities aren't computed by such a union.
+  // This test pins the chain so that guarantee is explicit and checked. The
+  // race-kit spec plans to give `claiming` a `release_kits` capability none of
+  // these three roles have, which breaks the chain — a claiming-in-org-A +
+  // marshal-in-org-B caller would then get different capabilities from
+  // "resolved row alone" vs. "union across rows". When this test starts
+  // failing, that is the signal to add a test in roles.test.ts that actually
+  // discriminates the two (e.g. a resolved marshal row alongside a claiming
+  // row in another org must NOT pick up release_kits).
+  it("keeps marshal, editor and admin capabilities in a strict superset chain", () => {
+    const marshal = capabilitiesFor("marshal", false);
+    const editor = capabilitiesFor("editor", false);
+    const admin = capabilitiesFor("admin", false);
+    expect(marshal.every((c) => editor.includes(c))).toBe(true);
+    expect(editor.every((c) => admin.includes(c))).toBe(true);
+  });
 });
 
 describe("hasCapability", () => {

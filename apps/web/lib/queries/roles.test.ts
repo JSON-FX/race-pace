@@ -156,6 +156,16 @@ describe("getMyRoles", () => {
     expect(r!.capabilities).not.toContain("manage_team");
   });
 
+  // Honest scope: this proves orgId and capabilities agree with each other and
+  // with the resolved row (admin-in-X wins, capabilities describe X). It does
+  // NOT prove capabilities are computed from resolvedRow alone rather than a
+  // union of capabilitiesFor(role) across all rows — with today's BY_ROLE,
+  // admin's set is a strict superset of editor's (see the chain test in
+  // capabilities.test.ts), so a union would produce this exact same result.
+  // That distinction is genuinely unobservable until a role exists whose
+  // capabilities aren't a subset of a higher-tier role's — see the comment on
+  // the chain test for when this stops being true and a discriminating test
+  // becomes both possible and necessary.
   it("derives capabilities from the SAME row orgId came from", async () => {
     // admin in X, editor in Y, adversarial order — the same shape as the
     // regression test above this one. Capabilities must describe X (the
@@ -169,6 +179,12 @@ describe("getMyRoles", () => {
     expect(r!.capabilities).toContain("manage_team");
   });
 
+  // Same caveat as above: marshal's capabilities are a subset of editor's, so
+  // this too can't distinguish "from resolvedRow" from "union across rows"
+  // today. Kept because it does verify the orgId/capabilities pairing (org-E,
+  // not org-M) under adversarial order, which is real coverage even though
+  // the union-vs-resolved-row question specifically remains open until the
+  // chain breaks.
   it("does not let a marshal row in another org add capabilities to the resolved org", async () => {
     const getMyRoles = await loadGetMyRoles([
       { role: "editor", org_id: "org-E" },
@@ -180,9 +196,40 @@ describe("getMyRoles", () => {
     expect(r!.capabilities).not.toContain("manage_team");
   });
 
+  // The specific fallthrough this task added: admin ?? editor ?? marshal.
+  // Only admin-vs-editor and editor-vs-marshal were covered before; this pins
+  // the case that actually matters for a marshal who also holds an admin row
+  // (e.g. admin of their home org, marshal-only at an event they're helping
+  // out at another org) — admin must win, in either row order.
+  it("resolves to the admin org, not the marshal org, when the marshal row sorts first", async () => {
+    const getMyRoles = await loadGetMyRoles([
+      { role: "marshal", org_id: "org-M" },
+      { role: "admin", org_id: "org-X" },
+    ]);
+    const r = await getMyRoles();
+    expect(r!.orgId).toBe("org-X");
+    expect(r!.capabilities).toContain("manage_team");
+    expect(r!.isOrgAdmin).toBe(true);
+  });
+
   it("gives a bare super admin every capability", async () => {
     const getMyRoles = await loadGetMyRoles([{ role: "super_admin", org_id: "" }]);
     const r = await getMyRoles();
+    expect(r!.capabilities).toContain("manage_platform");
+    expect(r!.capabilities).toContain("manage_team");
+  });
+
+  // A super admin who ALSO holds a real org-scoped row (e.g. admin of their
+  // home org) keeps that org's id via resolvedRow — see the "resolvedRow
+  // first" comment in roles.ts — while still getting every capability via the
+  // isSuperAdmin short-circuit in capabilitiesFor, not via resolvedRow's role.
+  it("keeps the org id from a super admin's real row while still granting every capability", async () => {
+    const getMyRoles = await loadGetMyRoles([
+      { role: "super_admin", org_id: "" },
+      { role: "editor", org_id: "org-E" },
+    ]);
+    const r = await getMyRoles();
+    expect(r!.orgId).toBe("org-E");
     expect(r!.capabilities).toContain("manage_platform");
     expect(r!.capabilities).toContain("manage_team");
   });
