@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react";
 import { SHIRT_SIZES, BLOOD_TYPES, GENDERS } from "@race-pace/shared";
 import { getProfile, upsertProfile, type Profile } from "@/lib/profile";
+import type { PhotoKind } from "@/lib/profileImage";
 import { signOut } from "@/lib/auth";
+import { PassportPhotos } from "./PassportPhotos";
 import { useMyRegistrations } from "@/lib/registration";
 import { PillSelect } from "@/components/PillSelect";
 import { Button } from "@/components/ui/button";
@@ -126,6 +128,18 @@ export function ProfileForm({ userId }: { userId: string }) {
   const edit = (k: string) => setOpen((s) => new Set(s).add(k));
   const isOpen = (k: string) => open.has(k);
 
+  /** Photos save on their own, not with the Save button — a runner who picks a
+   *  photo has already committed to it, and leaving it unsaved next to a form
+   *  they may never submit would silently lose the upload. */
+  async function savePhoto(kind: PhotoKind, url: string | null) {
+    const column = kind === "avatar" ? "avatar_url" : "cover_url";
+    // Persist before showing it: a band that displays a photo the database
+    // rejected would come back empty on the next load with no explanation.
+    const { error } = await upsertProfile({ id: userId, [column]: url });
+    if (error) throw new Error(error);
+    setProfile((p) => ({ ...p, [column]: url }));
+  }
+
   async function save() {
     setBusy(true);
     setError(null);
@@ -164,20 +178,14 @@ export function ProfileForm({ userId }: { userId: string }) {
         {/* Identity band — the same forest/trail-green language TicketCard uses
             for a runner's race pass, so a signed-in account reads as the same
             passport before a race is ever entered, not a generic settings form. */}
-        <div className="flex items-center gap-4 bg-forest px-5 py-5">
-          <span
-            aria-hidden
-            className="flex size-14 shrink-0 items-center justify-center rounded-full border-2 border-white/20 bg-white/10 font-display text-[19px] font-extrabold tracking-[-0.2px] text-[#7FE0A6]"
-          >
-            {mark || "◈"}
-          </span>
-          <div className="min-w-0">
-            <p className="font-eyebrow text-[10.5px] font-bold uppercase tracking-[2.6px] text-[#7FE0A6]">Runner</p>
-            <p className="mt-1 truncate font-display text-[21px] font-black uppercase leading-none tracking-[-0.9px] text-white">
-              {profile.full_name || "Add your name"}
-            </p>
-          </div>
-        </div>
+        <PassportPhotos
+          userId={userId}
+          name={profile.full_name}
+          mark={mark}
+          avatarUrl={profile.avatar_url}
+          coverUrl={profile.cover_url}
+          onChange={savePhoto}
+        />
 
         <dl className="grid grid-cols-3 border-b border-divider bg-card">
           <Figure label="Races" value={career.races} />
