@@ -12,7 +12,8 @@
 
 - **Hold window is 24 hours.** Define it once as `interval '24 hours'` in the `expires_at` column default and reuse; never re-type the literal elsewhere.
 - **Live statuses are exactly `pending` and `paid`.** `cancelled`, `refunded`, `expired` are not live and must stay outside the unique index predicate.
-- **Never change `categories.slots_taken` on any expiry path.** `slots_taken` is incremented only in `confirm_payment_tx` and decremented only in `refund_registration_tx`. See the header comment of `supabase/migrations/20260806201000_admin_cancel_registration_rpc.sql` for the manufactured-capacity bug this rule prevents.
+- **Never change `categories.slots_taken` on any expiry path** — the recurring sweep and the event-close trigger. `slots_taken` is incremented only in `confirm_payment_tx` and decremented only in `refund_registration_tx`. See the header comment of `supabase/migrations/20260806201000_admin_cancel_registration_rpc.sql` for the manufactured-capacity bug this rule prevents.
+  - **One exemption, ruled on before execution:** the one-time dedupe in Task 2 *does* decrement, once per `paid` duplicate it expires. Those rows were genuinely paid and genuinely held a slot, so releasing them is the correction, not a manufacture. This exemption covers that migration and nothing else.
 - **All new SQL functions:** `security definer`, `set search_path = ''`, fully schema-qualified identifiers. This matches `20260806202000_harden_auth_helper_search_path.sql` and closes the `pg_temp` shadowing attack documented there.
 - **Tests must not hardcode seeded ids.** `supabase/seed.sql` no longer creates `00000000-0000-0000-0000-0000000000a1`; tests that assume it fail silently. Create your own org/event/category rows per test, as `supabase/tests/backend.test.ts` already does.
 - **Known-failing baseline: 34 failed / 126 passed (160 tests, 8 files)** before this work starts. These are pre-existing seed-drift and `functions serve` failures. Do not fix them here; do not let the count grow.
@@ -838,8 +839,22 @@ Append to `supabase/tests/registration-gate.test.ts`:
 ```ts
 const FN = process.env.FUNCTIONS_URL ?? "http://127.0.0.1:54521/functions/v1";
 
+/** The edge runtime is a separate process (`supabase functions serve`) that is
+ *  not running in a plain `pnpm test`. Skipping beats failing: a red test that
+ *  only means "you didn't start a second process" trains everyone to ignore
+ *  red. Anyone with the runtime up gets the real coverage. */
+async function functionsServing(): Promise<boolean> {
+  try {
+    await fetch(`${FN}/registrations-checkout`, { method: "OPTIONS" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 describe("registrations-checkout duplicate handling", () => {
-  it("returns already_registered with the existing entry", async () => {
+  it("returns already_registered with the existing entry", async (ctx) => {
+    if (!(await functionsServing())) ctx.skip();
     const svc = service();
     const f = await makeEvent(`co${Date.now()}`);
     const runner = await makeUser(`gate_co_${Date.now()}@test.dev`);
@@ -878,7 +893,7 @@ supabase functions serve
 
 Then: `pnpm exec vitest run supabase/tests/registration-gate.test.ts -t "already_registered"`
 
-Expected: PASS. If it fails with a connection error, `functions serve` is not running — that is the cause, not the code.
+Expected: PASS. Then stop `functions serve` and re-run: expected SKIPPED, not failed. Both outcomes must hold — the skip guard is what keeps `pnpm test` at the 34-failure baseline.
 
 - [ ] **Step 5: Commit**
 
