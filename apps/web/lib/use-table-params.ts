@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { DEFAULT_PER, type SortState } from "./table-params";
+import { useReportPending } from "@/components/NavProgress";
 
 /** Writes table state into the URL. Parsing happens server-side in
  *  table-params.ts — this hook never reads state back for rendering.
@@ -23,6 +24,11 @@ export function useTableParams() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
+  // Surfaces pagination / sort / filter / search navigations on the shared top
+  // progress bar. `isPending` was already computed and returned here, but only
+  // DataTable consumed it (to dim the card) — the navigation itself was
+  // otherwise silent. No-ops outside NavProgressProvider.
+  useReportPending(isPending);
 
   /** null (or "") removes the key, anything else sets it verbatim. This is a
    *  generic URL writer — it must NOT special-case the string "all", or a
