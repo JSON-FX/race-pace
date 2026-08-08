@@ -1,0 +1,12 @@
+-- An unpaid registration that ran out its hold window, or whose event closed
+-- before it was paid. Distinct from 'cancelled', which is a deliberate act by
+-- the runner or an organizer -- an organizer looking at a roster needs to tell
+-- "gave up / never finished paying" apart from "actively withdrew".
+--
+-- ALONE IN THIS FILE ON PURPOSE. Postgres permits ALTER TYPE ... ADD VALUE
+-- inside a transaction block but forbids *using* the new value until that
+-- transaction commits; Supabase wraps each migration file in one transaction.
+-- Adding 'expired' and referencing it in the same file fails with
+-- 'unsafe use of new value "expired" of enum type registration_status'.
+-- Everything that uses it lives in later migrations.
+alter type public.registration_status add value if not exists 'expired';
