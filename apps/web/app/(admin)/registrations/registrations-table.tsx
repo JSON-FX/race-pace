@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Mail, Hash, CheckCircle2, XCircle } from "lucide-react";
 import { DataTable, type FilterDef, type BulkAction } from "@/components/data-table";
@@ -42,8 +42,38 @@ export function RegistrationsTable({
   // `preserveOnClear`, "Clear all" closes the sheet along with every other
   // non-`event` param.
   const { setFilter } = useTableParams();
-  const selectedId = activeFilters.reg;
+
+  // The URL stays the source of truth — `?reg=<id>` is what makes a
+  // registration linkable, and a cold load of that URL still resolves
+  // server-side. But the modal must not WAIT for it: RegistrationDetail renders
+  // entirely from a row already in `rows`, so the ~3.3s round trip bought
+  // literally nothing.
+  //
+  // A tri-state override, not a plain `string | null`: closing has to be
+  // expressible as "override to nothing" and distinguished from "no override",
+  // or Close would leave the modal up until the URL caught up — the exact
+  // latency being removed, just in the other direction.
+  const [override, setOverride] = useState<{ id: string | null } | null>(null);
+  const urlRegId = activeFilters.reg ?? null;
+
+  // Drop the override once the URL agrees — and, just as importantly, when it
+  // DISAGREES: a Back button press moves `urlRegId` without going through
+  // openReg/closeReg, and a stale override would pin the modal open against it.
+  useEffect(() => { setOverride(null); }, [urlRegId]);
+
+  const selectedId = override ? override.id : urlRegId;
   const selected = selectedId ? rows.find((r) => r.id === selectedId) ?? null : null;
+
+  const openReg = useCallback((id: string) => {
+    setOverride({ id });        // paints this frame
+    setFilter("reg", id);       // catches the URL up in the background
+  }, [setFilter]);
+
+  const closeReg = useCallback(() => {
+    setOverride({ id: null });
+    // "all" is setFilter's own sentinel for "remove this key".
+    setFilter("reg", "all");
+  }, [setFilter]);
 
   // Ids the admin has confirmed for a bulk cancel — null when the dialog is
   // closed. Kept separate from DataTable's own selection state (which is
@@ -63,7 +93,7 @@ export function RegistrationsTable({
       cell: ({ row }) => (
         <button
           type="button"
-          onClick={() => setFilter("reg", row.original.id)}
+          onClick={() => openReg(row.original.id)}
           aria-label={`View ${row.original.full_name ?? "registration"}`}
           className="text-left hover:underline"
         >
@@ -105,11 +135,13 @@ export function RegistrationsTable({
       cell: () => <span aria-hidden="true" className="text-[12px] text-muted-foreground">›</span>,
     },
   // `setFilter` is stable across renders (see use-table-params.ts — every
-  // setter is wrapped in useCallback), so depending on it here both keeps
-  // the Runner cell's onClick correct (it always calls the current
-  // setFilter, never a stale closure over an old `searchParams`) AND lets
-  // this memo genuinely memoize instead of recomputing every render.
-  ], [setFilter]);
+  // setter is wrapped in useCallback), and `openReg` is itself
+  // useCallback-wrapped over that already-stable `setFilter`, so depending
+  // on it here both keeps the Runner cell's onClick correct (it always
+  // calls the current openReg, never a stale closure over an old
+  // `searchParams`) AND lets this memo genuinely memoize instead of
+  // recomputing every render.
+  ], [openReg]);
 
   const bulkActions: BulkAction[] = useMemo(() => [
     {
@@ -162,11 +194,8 @@ export function RegistrationsTable({
       {selected ? (
         <RegistrationDetail
           row={selected}
-          // "all" is setFilter's own sentinel for "remove this key" — closes
-          // the sheet by dropping `reg` from the URL, same as removing any
-          // other filter chip.
-          onClose={() => setFilter("reg", "all")}
-          onRefunded={() => setFilter("reg", "all")}
+          onClose={closeReg}
+          onRefunded={closeReg}
         />
       ) : null}
 

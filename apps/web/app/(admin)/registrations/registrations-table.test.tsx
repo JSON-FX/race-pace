@@ -159,4 +159,41 @@ describe("RegistrationsTable", () => {
     await user.click(screen.getByRole("button", { name: /^Cancel$/ }));
     expect(screen.getByText("Cancel 1 registration?")).toBeInTheDocument();
   });
+
+  it("opens the detail modal without waiting for the URL to update", async () => {
+    const user = userEvent.setup();
+    // activeFilters has NO `reg` key and the mocked setFilter never writes one
+    // back, so a modal that waits on the URL can never open here. That is the
+    // regression this pins: before, `reg` was read straight from activeFilters
+    // and opening cost a full server round trip.
+    render(
+      <RegistrationsTable
+        rows={rows} total={2} page={1} per={25} sort={[]}
+        activeFilters={{}} q="" categories={[]}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /View Maria Josefa Santos/ }));
+
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    // Still syncs the URL behind the modal, so the registration stays linkable.
+    expect(tableParamsSpies.setFilter).toHaveBeenCalledWith("reg", "r1");
+  });
+
+  it("closes the modal without waiting for the URL either", async () => {
+    const user = userEvent.setup();
+    // Opposite direction: `reg` IS in the URL and the mock will never clear it.
+    render(
+      <RegistrationsTable
+        rows={rows} total={2} page={1} per={25} sort={[]}
+        activeFilters={{ reg: "r1" }} q="" categories={[]}
+      />,
+    );
+
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Close" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(tableParamsSpies.setFilter).toHaveBeenCalledWith("reg", "all");
+  });
 });
