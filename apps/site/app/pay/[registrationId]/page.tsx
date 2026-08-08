@@ -17,7 +17,7 @@ export default async function PayPage({ params }: { params: Promise<{ registrati
   // An already-paid registration has nothing to pay — send them to the ticket.
   const { data: reg } = await db
     .from("registrations")
-    .select("status,event_id,events(status)")
+    .select("status,event_id,events(status,registration_closes_at)")
     .eq("id", registrationId)
     .maybeSingle();
   if (reg?.status === "paid") redirect(`/ticket/${registrationId}`);
@@ -29,9 +29,14 @@ export default async function PayPage({ params }: { params: Promise<{ registrati
   // PostgREST types a to-one embed as an array; it arrives as either shape
   // depending on the relationship it infers, so normalise both (mapReg does the
   // same for payments).
-  const embedded = reg?.events as { status: string } | { status: string }[] | null | undefined;
-  const eventStatus = (Array.isArray(embedded) ? embedded[0] : embedded)?.status;
-  if (eventStatus && isRegistrationClosed(eventStatus)) {
+  const embedded = reg?.events as
+    | { status: string; registration_closes_at: string | null }
+    | { status: string; registration_closes_at: string | null }[]
+    | null
+    | undefined;
+  const embeddedEvent = Array.isArray(embedded) ? embedded[0] : embedded;
+  const eventStatus = embeddedEvent?.status;
+  if (eventStatus && isRegistrationClosed(eventStatus, embeddedEvent?.registration_closes_at ?? null)) {
     redirect(`/events/${reg!.event_id}?closed=1`);
   }
 

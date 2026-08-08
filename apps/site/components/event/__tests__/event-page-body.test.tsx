@@ -20,6 +20,7 @@ const baseEvent: EventRow = {
   joined_count: 18, distances: [60, 30], org_name: "Race Pace",
   discipline: "trail", schedule: [],
   start_lat: null, start_lng: null, finish_lat: null, finish_lng: null, route: null,
+  registration_closes_at: null,
 };
 
 const cat = (over: Partial<CategoryRow> = {}): CategoryRow => ({

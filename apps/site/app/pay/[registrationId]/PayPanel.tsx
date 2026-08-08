@@ -42,7 +42,7 @@ export function PayPanel({ registrationId }: { registrationId: string }) {
   // status can flip under the runner. The server page redirects on load; this
   // covers the live case. Critical because `reg.data.checkoutUrl` holds a
   // PayMongo session created while the event was open and still chargeable.
-  const eventClosed = isRegistrationClosed(reg.data.eventStatus ?? "");
+  const eventClosed = isRegistrationClosed(reg.data.eventStatus ?? "", reg.data.eventRegistrationClosesAt);
   if (eventClosed) {
     return (
       <div className="mx-auto w-full max-w-2xl px-6 py-20 text-center">
@@ -72,7 +72,11 @@ export function PayPanel({ registrationId }: { registrationId: string }) {
     // still open. createMethodCheckout returns null for ANY failure — including
     // the server's `registration_closed` 409 — so without this guard a
     // cancelled race would quietly charge the stored session anyway.
-    const url = scoped ?? (isRegistrationClosed(reg.data!.eventStatus ?? "") ? null : reg.data!.checkoutUrl);
+    const url =
+      scoped ??
+      (isRegistrationClosed(reg.data!.eventStatus ?? "", reg.data!.eventRegistrationClosesAt)
+        ? null
+        : reg.data!.checkoutUrl);
     if (!url) {
       setBusy(false);
       setError("No checkout link is available. Go back and try registering again.");

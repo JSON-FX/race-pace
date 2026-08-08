@@ -29,7 +29,7 @@ export type SeasonStats = {
 export async function fetchSeasonStats(db: SupabaseClient): Promise<SeasonStats> {
   try {
     const [eventsRes, catsRes] = await Promise.all([
-      db.from("events").select("id,status,org_id"),
+      db.from("events").select("id,status,org_id,registration_closes_at"),
       // distance_km lives on categories, not events — an event's "longest" is
       // the longest distance any of its categories offers.
       db.from("categories").select("event_id,distance_km"),
@@ -40,7 +40,7 @@ export async function fetchSeasonStats(db: SupabaseClient): Promise<SeasonStats>
     }
 
     const open = (eventsRes.data ?? []).filter(
-      (e) => !isRegistrationClosed(String(e.status)),
+      (e) => !isRegistrationClosed(String(e.status), (e.registration_closes_at as string | null) ?? null),
     );
     const openIds = new Set(open.map((e) => e.id as string));
 

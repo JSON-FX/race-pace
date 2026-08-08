@@ -28,7 +28,7 @@ export default async function RegisterPage({ params }: { params: Promise<{ categ
   // time) — this is a UX nicety so a runner with a stale/direct link to a
   // cancelled or closed event doesn't get walked through three steps just
   // to be rejected (or, worse, charged) at the end.
-  if (isRegistrationClosed(event.status)) {
+  if (isRegistrationClosed(event.status, event.registration_closes_at)) {
     redirect(`/events/${category.event_id}?closed=${categoryId}`);
   }
 

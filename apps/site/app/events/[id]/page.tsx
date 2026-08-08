@@ -47,7 +47,7 @@ export default async function EventPage({ params }: Params) {
   const [categories, addons] = await Promise.all([fetchCategories(db, id), fetchAddons(db, id)]);
   // almost_full is still registerable — see lib/eventStatus.ts, mirrors
   // apps/mobile/app/event/[id].tsx's `registerable` rule.
-  const closed = isRegistrationClosed(event.status);
+  const closed = isRegistrationClosed(event.status, event.registration_closes_at);
 
   return (
     <>

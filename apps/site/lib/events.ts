@@ -26,6 +26,8 @@ export type EventRow = {
   finish_lat?: number | null; finish_lng?: number | null;
   /** Course line from the organizer's GPX, or null when none is uploaded. */
   route?: RoutePoint[] | null;
+  /** Null means "no deadline" — see lib/eventStatus.ts. */
+  registration_closes_at: string | null;
 };
 
 export type OrgRow = {
@@ -58,7 +60,7 @@ export type FormFieldRow = {
 // the pay page here needs it). Don't assume field-for-field parity; check
 // apps/mobile/lib/events.ts directly if reconciling the two.
 const EVENT_COLS =
-  "id,org_id,name,place,region,event_date,end_date,elevation_gain_m,cutoff_hours,flag_off,status,hero_image_url,description,gallery,original_date,status_note,city_psgc_code,region_name,province_name,city_name,venue,inclusions,discipline,schedule,start_lat,start_lng,finish_lat,finish_lng,route,categories(slots_taken,distance_km)";
+  "id,org_id,name,place,region,event_date,end_date,elevation_gain_m,cutoff_hours,flag_off,status,hero_image_url,description,gallery,original_date,status_note,city_psgc_code,region_name,province_name,city_name,venue,inclusions,discipline,schedule,start_lat,start_lng,finish_lat,finish_lng,route,registration_closes_at,categories(slots_taken,distance_km)";
 const CAT_COLS =
   "id,event_id,org_id,code,label,distance_km,base_price,slots_total,slots_taken,elevation_gain_m,cutoff_hours,blurb";
 
