@@ -1227,3 +1227,189 @@ Then, in a browser on `https://admin.racepace.lan`:
 | Sidebar navigation | Unchanged — still shows bar + per-link spinner |
 
 Record the dev-server `GET /registrations … in Nms` line before and after. Note that this plan does **not** reduce that number much — it moves work behind a boundary so the shell paints first. The absolute latency is Sections 2–4 of the spec, not this plan. Do not report a wall-clock improvement this plan did not deliver.
+
+---
+
+### Task 7: Fix the page-reset bug, and make the modal need zero requests
+
+Two related defects, both found by using the app after Tasks 1–6 landed. Neither is a regression from this plan — the first is a latent design error the plan inherited and made more visible, the second is pre-existing.
+
+**Defect A — opening a registration from page 2+ resets to page 1 and the modal never appears.**
+`lib/use-table-params.ts:70` — `setFilter` patches `{ [key]: value, page: null }`. Dropping the page is correct for a real filter (changing status *should* return you to page 1) but `reg` is not a filter, it is a **modal address**. So `openReg` → `setFilter("reg", id)` → `page` is dropped → the server re-renders with page-1 rows → `rows.find(selectedId)` misses (the clicked row was on page 2) → the modal cannot render. After Task 6 the symptom is worse-looking, not better: the modal flashes open from the client override, then vanishes when `urlRegId` lands and the effect clears the override.
+
+**Defect B — the modal still makes a network request on every open.**
+`components/RegistrationDetail.tsx:82-102` fetches `registration_addons` from the BROWSER. From the Philippines to the Tokyo project that is ~350ms measured. Task 6 made the modal *shell* instant; the money breakdown still waits. The row already carries name, amount, status, category and custom fields — add-ons are the only missing piece, and they are what the entry-fee split is derived from.
+
+**Files:**
+- Modify: `apps/web/app/(admin)/registrations/registrations-table.tsx`
+- Modify: `apps/web/lib/queries/registrations.ts`
+- Modify: `apps/web/components/RegistrationDetail.tsx`
+- Modify (fixtures only): `apps/web/components/RegistrationDetail.test.tsx`, `apps/web/app/(admin)/registrations/registrations-table.test.tsx`, `apps/web/app/(admin)/registrations/table-section.test.tsx`, `apps/web/app/(admin)/registrations/export/route.test.ts`
+
+**Interfaces:**
+- Consumes: `useTableParams().patch` (existing, `useCallback`-stable, already exported).
+- Produces: `Addon = { name: string | null; price: number }` exported from `@/lib/queries/registrations`; `RegistrationRow.addons: Addon[]`.
+
+- [ ] **Step 1: Write the failing test for Defect A**
+
+In `apps/web/app/(admin)/registrations/registrations-table.test.tsx`:
+
+```tsx
+  // THE page-2 bug: `reg` is a modal address, not a filter, so opening one must
+  // NOT reset pagination. setFilter unconditionally patches `page: null`, which
+  // sent the server back to page 1, replaced `rows` with page-1 rows, and left
+  // rows.find(selectedId) with nothing to find — the modal silently never
+  // appeared and the admin lost their place in the list.
+  it("does not reset pagination when opening a registration", async () => {
+    const user = userEvent.setup();
+    render(
+      <RegistrationsTable
+        rows={rows} total={60} page={2} per={25} sort={[]}
+        activeFilters={{}} q="" categories={[]}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /View Maria Josefa Santos/ }));
+
+    expect(tableParamsSpies.patch).toHaveBeenCalledWith({ reg: "r1" });
+    // Assert the absence explicitly: a patch carrying `page: null` is exactly
+    // the bug, and a test that only checked `reg` would still pass with it.
+    const [arg] = tableParamsSpies.patch.mock.calls.at(-1) as [Record<string, unknown>];
+    expect(arg).not.toHaveProperty("page");
+  });
+
+  it("does not reset pagination when closing a registration", async () => {
+    const user = userEvent.setup();
+    render(
+      <RegistrationsTable
+        rows={rows} total={60} page={2} per={25} sort={[]}
+        activeFilters={{ reg: "r1" }} q="" categories={[]}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Close" }));
+
+    expect(tableParamsSpies.patch).toHaveBeenCalledWith({ reg: null });
+    const [arg] = tableParamsSpies.patch.mock.calls.at(-1) as [Record<string, unknown>];
+    expect(arg).not.toHaveProperty("page");
+  });
+```
+
+- [ ] **Step 2: Run it to verify it fails**
+
+```bash
+pnpm --filter web test registrations-table
+```
+
+Expected: FAIL — `patch` was called with `{ reg: "r1", page: null }`.
+
+- [ ] **Step 3: Fix Defect A**
+
+In `registrations-table.tsx`, destructure `patch` alongside `setFilter`, and route the modal through it:
+
+```tsx
+  const { setFilter, patch } = useTableParams();
+```
+
+```tsx
+  const openReg = useCallback((id: string) => {
+    setOverride({ id });     // paints this frame
+    // `patch`, NOT setFilter: setFilter unconditionally clears `page`, which is
+    // right for a real filter and wrong for `reg`. `reg` addresses a modal, not
+    // a subset of rows — resetting pagination sent the admin back to page 1 and
+    // left the clicked row outside `rows` entirely, so the modal never rendered.
+    patch({ reg: id });      // catches the URL up in the background
+  }, [patch]);
+
+  const closeReg = useCallback(() => {
+    setOverride({ id: null });
+    patch({ reg: null });    // null removes the key — same reason as openReg
+  }, [patch]);
+```
+
+`setFilter` is still used by the DataTable toolbar for real filters — do not remove it.
+
+- [ ] **Step 4: Verify Step 1's tests pass**
+
+```bash
+pnpm --filter web test registrations-table
+```
+
+- [ ] **Step 5: Fix Defect B — carry add-ons on the row**
+
+In `lib/queries/registrations.ts`, export the type and add a batch reader. Scope it to the page's row ids (bounded by `per`, max 100) — deliberately NOT event-scoped like `getEventRegistrationEmails`, because that RPC is event-wide to serve an export paging through many batches, whereas this only ever needs the rows on screen:
+
+```ts
+export type Addon = { name: string | null; price: number };
+
+/** Add-ons for a page of registrations, in ONE query keyed by row id.
+ *
+ *  Previously RegistrationDetail fetched these from the BROWSER on every modal
+ *  open — ~350ms from the Philippines to the Tokyo project, for data the server
+ *  could have carried down with the row it already sent. Fetching here costs a
+ *  round trip from a function co-located with the database (~2ms) and removes a
+ *  network request from the interaction entirely.
+ *
+ *  Bounded by the page size, so this is never the O(n) read an event-wide
+ *  version would be. Degrades to an empty map rather than throwing — a missing
+ *  breakdown must not take down the table's real content. */
+export async function getRegistrationAddons(ids: string[]): Promise<Map<string, Addon[]>> {
+  if (ids.length === 0) return new Map();
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("registration_addons")
+    .select("registration_id,price,addons(name)")
+    .in("registration_id", ids);
+  if (error) {
+    console.error("getRegistrationAddons failed", error);
+    return new Map();
+  }
+  const byId = new Map<string, Addon[]>();
+  for (const raw of (data ?? []) as Record<string, unknown>[]) {
+    const addon = Array.isArray(raw.addons) ? raw.addons[0] : raw.addons;
+    const list = byId.get(raw.registration_id as string) ?? [];
+    list.push({ name: ((addon as { name?: string })?.name) ?? null, price: raw.price as number });
+    byId.set(raw.registration_id as string, list);
+  }
+  return byId;
+}
+```
+
+Add `addons: Addon[]` to `RegistrationRow`. Add an `includeAddons?: boolean` opt to `listEventRegistrations` (default `true`), mirroring the existing `includeEmails` / `includeCount` pattern, and populate it in the same parallel step as emails — NOT sequentially after it. The export route passes `includeAddons: false` (it does not render add-ons); rows then carry `addons: []`.
+
+- [ ] **Step 6: Drop the modal's fetch**
+
+In `components/RegistrationDetail.tsx`: delete the `useEffect`, the `createClient` import, the `addons` state and the local `Addon` type. Read `row.addons` directly.
+
+`addonTotal`/`entryFee` were previously `null` while loading, so the breakdown appeared "complete or not at all". That state no longer exists — the data arrives with the row. Compute them directly, and keep the existing `addons.length > 0` guard so a registration with no add-ons still renders no breakdown:
+
+```tsx
+  const addonTotal = row.addons.reduce((sum, a) => sum + a.price, 0);
+  const entryFee = row.total_amount - addonTotal;
+```
+
+Update the render guard from `entryFee !== null && addons && addons.length > 0` to `row.addons.length > 0`.
+
+In `RegistrationDetail.test.tsx`, delete the now-dead `@/lib/supabase/client` mock and put the add-on onto the fixture instead (`addons: [{ name: "Singlet", price: 60000 }]`). Every existing assertion in that file must still pass — the breakdown values are unchanged, only their source is.
+
+- [ ] **Step 7: Update the remaining fixtures**
+
+Add `addons: []` to `RegistrationRow` fixtures in `registrations-table.test.tsx`, `table-section.test.tsx` and `export/route.test.ts` as typecheck requires. Do not change any assertion.
+
+- [ ] **Step 8: Full suite + typecheck**
+
+```bash
+pnpm --filter web test && pnpm --filter web typecheck
+```
+
+- [ ] **Step 9: Commit**
+
+```bash
+git add -A apps/web
+git commit -m "fix(admin): keep pagination when opening a registration, and drop the modal's fetch
+
+reg addresses a modal, not a subset of rows, so routing it through setFilter
+(which clears page) sent the admin back to page 1 and left the clicked row
+outside rows entirely — the modal silently never appeared. Add-ons now come
+down with the row, so opening a registration makes no network request at all."
+```
