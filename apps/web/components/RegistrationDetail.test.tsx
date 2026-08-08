@@ -13,8 +13,16 @@ const addonResult: { data: unknown; error: unknown } = {
   error: null,
 };
 const selectMock = vi.fn(() => ({ eq: () => Promise.resolve(addonResult) }));
+// RegistrationDetail now mounts RegistrationHistory alongside the add-ons fetch, which
+// queries a second table (registration_audit) with an extra `.order()` step the add-ons
+// query never had. Branch by table name so both fetches get a shape they can call.
 vi.mock("@/lib/supabase/client", () => ({
-  createClient: () => ({ from: () => ({ select: selectMock }) }),
+  createClient: () => ({
+    from: (table: string) =>
+      table === "registration_audit"
+        ? { select: () => ({ eq: () => ({ order: () => Promise.resolve({ data: [], error: null }) }) }) }
+        : { select: selectMock },
+  }),
 }));
 
 const refundRegistrationAction = vi.fn((..._args: unknown[]) => Promise.resolve({ ok: true }));
