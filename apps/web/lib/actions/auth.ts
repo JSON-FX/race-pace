@@ -55,7 +55,13 @@ export async function signInAction(_prev: AuthState, formData: FormData): Promis
 
   revalidatePath("/", "layout");
   // redirect() throws internally; it must be outside any try/catch.
-  redirect(safeNextPath(next));
+  //
+  // "/events" here, not homePathFor: `next` already defaults to "/events" in
+  // this action's own signature above, mirroring the pre-capability-model
+  // behaviour of the password form specifically. Unlike the OAuth callback,
+  // this path was not the one that broke — see the report for why it was
+  // left alone rather than folded into the same fix.
+  redirect(safeNextPath(next, "/events"));
 }
 
 export async function signOutAction(): Promise<void> {

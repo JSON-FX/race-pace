@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/server";
 import { getMyRoles } from "@/lib/queries/roles";
-import { hasCapability } from "@/lib/capabilities";
+import { homePathFor } from "@/lib/routes";
 import { LoginForm } from "./login-form";
 
 /**
@@ -39,20 +39,17 @@ export default async function LoginPage() {
   // the console their capabilities actually reach, to /no-access — which
   // names the rejected address — if they hold none at all.
   //
-  // NOT `roles?.isAdmin ? "/events" : "/no-access"`: that was a binary check
-  // from before the capability model, and it sends a marshal (isAdmin is
-  // false for marshal — see roles.ts) to /no-access even though the console
-  // built /check-in for exactly this account. manage_org is checked first
-  // because a caller can hold both manage_org and check_in (e.g. admin);
-  // /events is their home, not the station.
+  // homePathFor (lib/routes.ts) is the single source for this decision — it
+  // also drives the no-explicit-destination case in auth/callback/route.ts.
+  // NOT an inline `roles?.isAdmin ? "/events" : "/no-access"`: that was a
+  // binary check from before the capability model, and it sends a marshal
+  // (isAdmin is false for marshal — see roles.ts) to /no-access even though
+  // the console built /check-in for exactly this account.
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (user) {
     const roles = await getMyRoles();
-    const capabilities = roles?.capabilities ?? [];
-    if (hasCapability(capabilities, "manage_org")) redirect("/events");
-    if (hasCapability(capabilities, "check_in")) redirect("/check-in");
-    redirect("/no-access");
+    redirect(homePathFor(roles?.capabilities ?? []));
   }
 
   return (
