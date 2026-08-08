@@ -274,3 +274,86 @@ describe("dedupe winner-selection order (paid always wins, then earliest)", () =
     });
   });
 });
+
+describe("expiry of unpaid entries", () => {
+  it("expires a pending entry past its hold window and fails its payment", async () => {
+    const svc = service();
+    const f = await makeEvent(`sweep${Date.now()}`);
+    const runner = await makeUser(`gate_sweep_${Date.now()}@test.dev`);
+
+    const reg = await svc.from("registrations").insert(regRow(f, runner.id)).select().single();
+    await svc.from("payments").insert({
+      org_id: f.orgId, registration_id: reg.data!.id, amount: 100000, status: "pending",
+    });
+    await svc.from("registrations")
+      .update({ expires_at: new Date(Date.now() - 60_000).toISOString() }).eq("id", reg.data!.id);
+
+    const swept = await svc.rpc("expire_stale_registrations");
+    expect(swept.error).toBeNull();
+
+    const after = await svc.from("registrations").select("status,expires_at").eq("id", reg.data!.id).single();
+    expect(after.data!.status).toBe("expired");
+    expect(after.data!.expires_at).toBeNull();
+
+    const pay = await svc.from("payments").select("status").eq("registration_id", reg.data!.id).single();
+    expect(pay.data!.status).toBe("failed");
+  });
+
+  it("leaves slots_taken untouched — expiry must never manufacture capacity", async () => {
+    const svc = service();
+    const f = await makeEvent(`slots${Date.now()}`);
+    const runner = await makeUser(`gate_slots_${Date.now()}@test.dev`);
+
+    await svc.from("categories").update({ slots_taken: 4 }).eq("id", f.categoryId);
+    const reg = await svc.from("registrations").insert(regRow(f, runner.id)).select().single();
+    await svc.from("registrations")
+      .update({ expires_at: new Date(Date.now() - 60_000).toISOString() }).eq("id", reg.data!.id);
+
+    await svc.rpc("expire_stale_registrations");
+
+    const cat = await svc.from("categories").select("slots_taken").eq("id", f.categoryId).single();
+    expect(cat.data!.slots_taken).toBe(4);
+  });
+
+  it("leaves a paid entry alone no matter how old", async () => {
+    const svc = service();
+    const f = await makeEvent(`paid${Date.now()}`);
+    const runner = await makeUser(`gate_paid_${Date.now()}@test.dev`);
+
+    const reg = await svc.from("registrations").insert(regRow(f, runner.id)).select().single();
+    await svc.from("registrations")
+      .update({ status: "paid", expires_at: new Date(Date.now() - 86_400_000).toISOString() })
+      .eq("id", reg.data!.id);
+
+    await svc.rpc("expire_stale_registrations");
+
+    const after = await svc.from("registrations").select("status").eq("id", reg.data!.id).single();
+    expect(after.data!.status).toBe("paid");
+  });
+
+  it("expires pending entries the moment the event closes", async () => {
+    const svc = service();
+    const f = await makeEvent(`close${Date.now()}`);
+    const runner = await makeUser(`gate_close_${Date.now()}@test.dev`);
+    const reg = await svc.from("registrations").insert(regRow(f, runner.id)).select().single();
+
+    await svc.from("events").update({ status: "closed" }).eq("id", f.eventId);
+
+    const after = await svc.from("registrations").select("status").eq("id", reg.data!.id).single();
+    expect(after.data!.status).toBe("expired");
+  });
+
+  it("frees the runner to register again after expiry", async () => {
+    const svc = service();
+    const f = await makeEvent(`free${Date.now()}`);
+    const runner = await makeUser(`gate_free_${Date.now()}@test.dev`);
+
+    const reg = await svc.from("registrations").insert(regRow(f, runner.id)).select().single();
+    await svc.from("registrations")
+      .update({ expires_at: new Date(Date.now() - 60_000).toISOString() }).eq("id", reg.data!.id);
+    await svc.rpc("expire_stale_registrations");
+
+    const again = await svc.from("registrations").insert(regRow(f, runner.id)).select().single();
+    expect(again.error).toBeNull();
+  });
+});
