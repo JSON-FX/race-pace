@@ -13,7 +13,7 @@ async function fixture(tag: string) {
   const ev = (await s.from("events").insert({ org_id: org.id, name: "Audit Race", status: "open" }).select().single()).data!;
   const cat = (await s.from("categories").insert({ org_id: org.id, event_id: ev.id, code: "10k", label: "10K", base_price: 100000, slots_total: 50, slots_taken: 0 }).select().single()).data!;
   const reg = (await s.from("registrations").insert({ org_id: org.id, event_id: ev.id, category_id: cat.id, user_id: uid, total_amount: 100000, status: "paid", custom_data: { shirt_size: "M" } }).select().single()).data!;
-  return { s, uid, email, org, ev, reg };
+  return { s, uid, email, org, ev, cat, reg };
 }
 
 async function cleanup(s: ReturnType<typeof svc>, orgId: string, uid: string) {
@@ -71,8 +71,13 @@ describe("registration_audit", () => {
     await cleanup(s, org.id, uid);
   });
 
-  it("does not let an unrelated runner read another runner's audit rows", async () => {
-    const { s, uid, org, ev, reg } = await fixture("cross");
+  it("does not let a fellow org runner read another runner's audit rows", async () => {
+    // B must be a genuine runner IN THE SAME ORG (own registration, same org_id) — not merely
+    // an unaffiliated stranger. A stranger reads 0 rows under both the correct read-own policy
+    // and a hypothetically-broken org-scoped one, so that setup can't distinguish secure from
+    // vulnerable. A same-org runner can: under the real policy they still get 0 rows (they
+    // don't own reg A), but under a broken "org membership" policy they'd leak reg A's rows.
+    const { s, uid, org, ev, cat, reg } = await fixture("cross");
     await s.from("registration_audit").insert({
       registration_id: reg.id, org_id: org.id, event_id: ev.id,
       action: "field_changed", detail: { field: "shirt_size", from: "M", to: "L" },
@@ -81,14 +86,25 @@ describe("registration_audit", () => {
 
     const otherEmail = `audit_cross_other_${Date.now()}@test.dev`;
     const otherUid = (await s.auth.admin.createUser({ email: otherEmail, password: "password123", email_confirm: true })).data.user!.id;
+    const otherReg = (await s.from("registrations").insert({ org_id: org.id, event_id: ev.id, category_id: cat.id, user_id: otherUid, total_amount: 100000, status: "paid" }).select().single()).data!;
+    await s.from("registration_audit").insert({
+      registration_id: otherReg.id, org_id: org.id, event_id: ev.id,
+      action: "field_changed", detail: { field: "shirt_size", from: "S", to: "M" },
+      actor_id: otherUid, actor_role: "runner",
+    });
 
     const asOther = createClient(url, anonKey, { auth: { persistSession: false } });
     await asOther.auth.signInWithPassword({ email: otherEmail, password: "password123" });
 
-    const read = await asOther.from("registration_audit").select("*").eq("registration_id", reg.id);
-    expect(read.error).toBeNull();
-    expect(read.data!.length).toBe(0);
+    const readOwn = await asOther.from("registration_audit").select("*").eq("registration_id", otherReg.id);
+    expect(readOwn.error).toBeNull();
+    expect(readOwn.data!.length).toBe(1); // proves the query itself isn't just silently broken
 
+    const readOther = await asOther.from("registration_audit").select("*").eq("registration_id", reg.id);
+    expect(readOther.error).toBeNull();
+    expect(readOther.data!.length).toBe(0);
+
+    await s.from("registrations").delete().eq("id", otherReg.id);
     await s.auth.admin.deleteUser(otherUid);
     await cleanup(s, org.id, uid);
   });
