@@ -30,7 +30,12 @@ function Entry({ row }: { row: AuditRow }) {
             {from ?? "empty"}
           </span>
           <ArrowRight size={12} className="text-muted-foreground" aria-hidden="true" />
-          <span className="rounded bg-accent/15 px-2 py-0.5 text-[12px] font-medium text-accent">{to}</span>
+          {/* `--accent` is a pale background tint, not a foreground — reading it as text
+              paints near-white on near-white. The legible pairing, used everywhere else in
+              this app, is bg-accent with text-accent-foreground. */}
+          <span className="rounded bg-accent px-2 py-0.5 text-[12px] font-medium text-accent-foreground">
+            {to}
+          </span>
         </div>
         <div className="mt-1.5 text-[11px] text-muted-foreground">
           {actorLabel(row.actor_role)} · {time(row.created_at)}
