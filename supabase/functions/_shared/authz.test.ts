@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { canCheckIn, canAdminOrg, isAuthorizedBearer } from "./authz";
 
 const ORG = "org-1";
@@ -44,6 +46,25 @@ describe("canCheckIn event_scope", () => {
 
   it("refuses a role with no check-in rights", () => {
     expect(canCheckIn([row({ role: "claiming" })], "org-1", "event-A")).toBe(false);
+  });
+});
+
+describe("check-in/index.ts user_roles select", () => {
+  // canCheckIn's event_scope narrowing is only as good as the data it's fed.
+  // The tests above build RoleRow objects by hand, so they never touch the
+  // actual `.select(...)` string in check-in/index.ts — dropping "event_scope"
+  // from that string would silently revert every scoped marshal to org-wide
+  // access, and every test above would still pass. This is a blunt
+  // string-content assertion (it can't prove event_scope is *used* correctly,
+  // only that it's *requested*), but it's the only thing standing between
+  // that regression and production, since this repo has no harness that runs
+  // the edge function against a real user_roles table.
+  it("requests event_scope alongside role and org_id", () => {
+    const path = fileURLToPath(new URL("../check-in/index.ts", import.meta.url));
+    const source = readFileSync(path, "utf8");
+    const selectMatch = source.match(/\.from\("user_roles"\)\.select\("([^"]+)"\)/);
+    expect(selectMatch).not.toBeNull();
+    expect(selectMatch?.[1]).toContain("event_scope");
   });
 });
 
