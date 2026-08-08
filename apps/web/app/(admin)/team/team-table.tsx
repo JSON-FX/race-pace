@@ -72,9 +72,18 @@ function RoleCell({ member, orgId }: { member: TeamMember; orgId: string }) {
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        {ASSIGNABLE_ROLES.map((r) => (
-          <SelectItem key={r} value={r}>{ROLE_LABELS[r]}</SelectItem>
-        ))}
+        {(() => {
+          const roles = [...ASSIGNABLE_ROLES];
+          // Include the member's current role even if it's no longer assignable (e.g.,
+          // old roles being phased out like "claiming"). This keeps the picker from
+          // rendering blank for members already holding that role.
+          if (!roles.includes(member.role as any)) {
+            roles.push(member.role as any);
+          }
+          return roles.map((r) => (
+            <SelectItem key={r} value={r}>{ROLE_LABELS[r]}</SelectItem>
+          ));
+        })()}
       </SelectContent>
     </Select>
   );

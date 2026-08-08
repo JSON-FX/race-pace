@@ -2,12 +2,18 @@ import { describe, it, expect } from "vitest";
 import { isAssignableRole, wouldLeaveNoAdmin, ASSIGNABLE_ROLES } from "./team";
 
 describe("isAssignableRole", () => {
-  it("accepts the four assignable roles", () => {
+  // Pin the assignable roles to prevent accidental drift (e.g., re-adding
+  // "claiming" without realizing the UI also needs to be updated). The web
+  // app has its own mirror of ASSIGNABLE_ROLES in lib/team-roles.ts; both
+  // must stay in sync.
+  it("accepts exactly the assignable roles: admin, editor, marshal", () => {
+    expect(ASSIGNABLE_ROLES).toEqual(["admin", "editor", "marshal"]);
     for (const r of ASSIGNABLE_ROLES) expect(isAssignableRole(r)).toBe(true);
   });
-  it("rejects user, super_admin, and unknown roles", () => {
+  it("rejects user, super_admin, claiming, and unknown roles", () => {
     expect(isAssignableRole("user")).toBe(false);
     expect(isAssignableRole("super_admin")).toBe(false);
+    expect(isAssignableRole("claiming")).toBe(false);
     expect(isAssignableRole("wizard")).toBe(false);
   });
 });
