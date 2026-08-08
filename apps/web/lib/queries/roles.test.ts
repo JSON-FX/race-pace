@@ -43,6 +43,10 @@ describe("getMyRoles", () => {
   // unsorted, adversarial row order here is what actually proves that.
   async function loadGetMyRoles(rows: { role: string; org_id: string }[]) {
     vi.resetModules();
+    // Undo any @/lib/org-context override a previous test in this file left
+    // behind (see loadGetMyRolesWithOrgContext below) — this helper wants the
+    // real getOrgContext, not a leaked stub.
+    vi.doUnmock("@/lib/org-context");
     vi.doMock("@/lib/supabase/server", () => ({
       createClient: async () => ({
         auth: { getUser: async () => ({ data: { user: { id: "u1" } } }) },
@@ -54,6 +58,34 @@ describe("getMyRoles", () => {
           }),
         }),
       }),
+    }));
+    return (await import("./roles")).getMyRoles;
+  }
+
+  // getOrgContext() only runs for a super admin, and this file's supabase
+  // mock above supports two chained .order() calls while the real
+  // getOrgContext makes only one — so under that mock, orgCtx?.activeOrgId is
+  // always null, and `resolvedRow?.org_id ?? orgCtx?.activeOrgId` can't be
+  // told apart from the wrong precedence `orgCtx?.activeOrgId ??
+  // resolvedRow?.org_id`: `null ?? "org-E"` and `"org-E" ?? null` are the same
+  // value. Mock @/lib/org-context directly with a DIFFERENT, distinguishable
+  // org id so a test using this helper can actually tell which side won.
+  async function loadGetMyRolesWithOrgContext(rows: { role: string; org_id: string }[]) {
+    vi.resetModules();
+    vi.doMock("@/lib/supabase/server", () => ({
+      createClient: async () => ({
+        auth: { getUser: async () => ({ data: { user: { id: "u1" } } }) },
+        from: () => ({
+          select: () => ({
+            order: () => ({
+              order: async () => ({ data: rows, error: null }),
+            }),
+          }),
+        }),
+      }),
+    }));
+    vi.doMock("@/lib/org-context", () => ({
+      getOrgContext: async () => ({ activeOrgId: "org-FROM-CONTEXT" }),
     }));
     return (await import("./roles")).getMyRoles;
   }
@@ -223,13 +255,17 @@ describe("getMyRoles", () => {
   // home org) keeps that org's id via resolvedRow — see the "resolvedRow
   // first" comment in roles.ts — while still getting every capability via the
   // isSuperAdmin short-circuit in capabilitiesFor, not via resolvedRow's role.
+  // Uses loadGetMyRolesWithOrgContext (not the shared loadGetMyRoles) so the
+  // org-context fallback resolves to a DIFFERENT org than the real row —
+  // "org-E" vs "org-FROM-CONTEXT" — making the precedence actually testable.
   it("keeps the org id from a super admin's real row while still granting every capability", async () => {
-    const getMyRoles = await loadGetMyRoles([
+    const getMyRoles = await loadGetMyRolesWithOrgContext([
       { role: "super_admin", org_id: "" },
       { role: "editor", org_id: "org-E" },
     ]);
     const r = await getMyRoles();
     expect(r!.orgId).toBe("org-E");
+    expect(r!.orgId).not.toBe("org-FROM-CONTEXT");
     expect(r!.capabilities).toContain("manage_platform");
     expect(r!.capabilities).toContain("manage_team");
   });
