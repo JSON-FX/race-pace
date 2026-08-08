@@ -1,8 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { createClient } from "@supabase/supabase-js";
+import { Client } from "pg";
 import { loadEnv } from "../../test/env";
 
-const { url, anonKey, serviceKey } = loadEnv();
+const { url, anonKey, serviceKey, dbUrl } = loadEnv();
 const anon = () => createClient(url, anonKey, { auth: { persistSession: false } });
 const service = () => createClient(url, serviceKey, { auth: { persistSession: false } });
 
@@ -90,28 +91,17 @@ describe("one live registration per event", () => {
  * -- same CTE, callable and testable on demand, and reusable by Task 10 to confirm
  * the hosted push left zero stragglers.
  *
- * What this suite does NOT cover, and why: asserting the function actually resolves
- * a genuine duplicate (earliest survives, losers expire, slots_taken drops by exactly
- * the paid-loser count) requires staging two live 'pending'/'paid' rows for the same
- * (event_id, user_id) -- which the partial unique index this migration creates makes
- * impossible through ANY client, including service_role, by design. Verified directly:
- * inserting two rows as 'cancelled' (outside the index's predicate) and then flipping
- * both to 'paid', either as one multi-row UPDATE or as two sequential single-row
- * UPDATEs, both 23505 on the second row -- Postgres checks each new partial-index
- * tuple as it's written, even mid-statement, so there is no window in which two live
- * rows for the same key coexist. The only way around that is DDL that drops or
- * disables the index (this repo has no `pg`/raw-Postgres dependency to run that from
- * a test, and none was added for this), which would mean shipping a path capable of
- * making the production index disappear, even briefly, purely to satisfy a test --
- * exactly the tradeoff the index exists to prevent. So this suite instead asserts the
- * function's behaviour on the ONE thing that's safe to construct: a single genuine
- * registration, confirming the function is a true no-op against it (idempotent, no
- * false-positive expiry, no false slots_taken adjustment). The duplicate-resolution
- * path itself (ranked/losers/released) was reviewed line-by-line against the original
- * inline CTE it was extracted from character-for-character, and its outcome IS
- * covered indirectly by the "allows a new registration once the previous one is
- * cancelled, refunded or expired" test above, which exercises the same status
- * transition semantics the dedupe relies on.
+ * This block only covers the no-duplicate-data path (idempotence, no false-positive
+ * expiry, no false slots_taken adjustment) via the normal supabase-js/PostgREST client,
+ * because staging two live 'pending'/'paid' rows for the same (event_id, user_id)
+ * through that client is impossible by design -- the partial unique index this
+ * migration creates forbids it, full stop. The duplicate-RESOLUTION path itself
+ * (ranked/losers/released, and specifically the paid-wins-then-earliest ordering) is
+ * covered directly, against real conflicting rows, by the
+ * "dedupe winner-selection order" describe block further down -- that one opens a
+ * direct Postgres connection and drops the index inside a transaction it always rolls
+ * back, which is the only way to construct that state at all. See that block's header
+ * for the full reasoning and fix-round history.
  */
 describe("dedupe of pre-existing duplicates", () => {
   it("is idempotent and leaves a genuine single registration untouched", async () => {
@@ -159,77 +149,128 @@ describe("dedupe of pre-existing duplicates", () => {
  * released. Ruled fix (20260809100150_dedupe_paid_wins_tiebreak.sql): PAID ALWAYS WINS,
  * THEN EARLIEST -- `order by (status = 'paid') desc, created_at, id`.
  *
- * This is exactly the branch the "dedupe of pre-existing duplicates" describe block
- * above cannot reach: proving it requires two 'pending'/'paid' rows for the same
- * (event_id, user_id) to exist at once, which registrations_one_live_per_event forbids
- * unconditionally (see that block's header comment -- reconfirmed true here, the
- * ordering rule doesn't change that constraint at all).
+ * Fix round 2: this used to be covered by two test-only probe functions shipped in a
+ * permanent migration (20260809100160). Review correctly rejected that: shipping
+ * test-only functions into the production schema forever is schema pollution, and one
+ * of the two probes (`_dedupe_source_contains`) asserted on the function's SOURCE TEXT
+ * rather than its behaviour -- a tripwire that passes on a semantically-broken rewrite
+ * and fails on harmless reformatting, not a real test. That migration has been deleted
+ * entirely (confirmed via a fresh `supabase db reset` that neither probe function
+ * exists anymore).
  *
- * So this covers the ordering rule two ways, neither requiring DDL or two live rows for
- * the same event:
- *
- * 1. _dedupe_rank_probe (20260809100160_dedupe_rank_test_probes.sql) runs the exact
- *    deployed ORDER BY clause against two REAL registration rows with genuine 'pending'
- *    and 'paid' statuses -- just for two DIFFERENT events, so the unique index has
- *    nothing to object to. Proves the rule behaves correctly: paid outranks pending
- *    regardless of which was created first, and same-status pairs still tiebreak on
- *    created_at/id.
- * 2. _dedupe_source_contains asserts the REAL, deployed dedupe_live_registrations()
- *    function's source (via pg_get_functiondef) still contains the paid-wins ORDER BY.
- *    _dedupe_rank_probe's clause is a hand-kept copy of that ORDER BY, not a shared
- *    reference -- on its own it would keep passing even if someone reverted the real
- *    function back to `created_at, id` and forgot to touch the probe. This assertion is
- *    what actually fails in that scenario: it reads the real function's current body,
- *    not the probe's copy.
+ * The real fix: `pg` is now a devDependency (root package.json, `pnpm add -D -w`), so
+ * this suite can open a direct connection to the same local Postgres instance
+ * (`DB_URL`, already in `.env.local`) and exercise `dedupe_live_registrations()` for
+ * real, against real conflicting rows, inside a transaction that always ROLLBACKs.
+ * `registrations_one_live_per_event` is a plain (non-deferrable) unique index, so even
+ * within one transaction there is no way to have two live rows for the same
+ * (event_id, user_id) coexist while it exists -- confirmed in fix round 1 by trying to
+ * flip two 'cancelled' rows to 'paid' and hitting 23505 immediately, and that finding
+ * still holds. So each test here DROPs the index first. Because DDL is transactional in
+ * Postgres, DROP INDEX only ever takes effect for the lifetime of that one transaction;
+ * ROLLBACK restores it (and undoes every row this test wrote) with no trace left in the
+ * database, hosted or local. Nothing here weakens the index outside the test's own,
+ * always-rolled-back transaction.
  */
+async function withRolledBackTx<T>(fn: (client: Client) => Promise<T>): Promise<T> {
+  const client = new Client({ connectionString: dbUrl });
+  await client.connect();
+  try {
+    await client.query("begin");
+    // Transactional DDL: only visible inside this transaction, gone the instant it
+    // ends (commit OR rollback) -- see this describe block's header comment.
+    await client.query("drop index registrations_one_live_per_event");
+    return await fn(client);
+  } finally {
+    await client.query("rollback");
+    await client.end();
+  }
+}
+
+async function stageFixture(client: Client) {
+  const user = await client.query<{ id: string }>("insert into auth.users (id) values (gen_random_uuid()) returning id");
+  const org = await client.query<{ id: string }>(
+    "insert into organizations (name, slug) values ($1, $2) returning id",
+    [`Gate TX ${Date.now()}`, `gate-tx-${Date.now()}-${Math.random().toString(36).slice(2)}`],
+  );
+  const event = await client.query<{ id: string }>(
+    "insert into events (org_id, name, status) values ($1, $2, 'open') returning id",
+    [org.rows[0].id, "Gate TX Race"],
+  );
+  const category = await client.query<{ id: string }>(
+    "insert into categories (org_id, event_id, code, label, base_price, slots_total, slots_taken) " +
+      "values ($1, $2, '10k', '10K', 100000, 10, 5) returning id",
+    [org.rows[0].id, event.rows[0].id],
+  );
+  return { userId: user.rows[0].id, eventId: event.rows[0].id, orgId: org.rows[0].id, categoryId: category.rows[0].id };
+}
+
+async function insertRegistration(
+  client: Client,
+  f: { orgId: string; eventId: string; categoryId: string; userId: string },
+  status: "pending" | "paid",
+  createdAt: string,
+) {
+  const res = await client.query<{ id: string }>(
+    "insert into registrations (org_id, event_id, category_id, user_id, total_amount, status, created_at) " +
+      "values ($1, $2, $3, $4, 100000, $5, $6) returning id",
+    [f.orgId, f.eventId, f.categoryId, f.userId, status, createdAt],
+  );
+  return res.rows[0].id;
+}
+
 describe("dedupe winner-selection order (paid always wins, then earliest)", () => {
-  it("ranks a genuinely paid row ahead of an earlier abandoned pending row", async () => {
-    const svc = service();
-    const older = await makeEvent(`rankpending${Date.now()}`);
-    const newer = await makeEvent(`rankpaid${Date.now()}`);
-    const runner = await makeUser(`gate_rank_${Date.now()}@test.dev`);
+  it("a genuinely paid row survives over an earlier abandoned pending row, and slots_taken is untouched", async () => {
+    await withRolledBackTx(async (client) => {
+      const f = await stageFixture(client);
+      const earlier = new Date(Date.now() - 2 * 3_600_000).toISOString();
+      const later = new Date(Date.now() - 3_600_000).toISOString();
 
-    const earlier = new Date(Date.now() - 2 * 3_600_000).toISOString();
-    const later = new Date(Date.now() - 3_600_000).toISOString();
+      const pendingId = await insertRegistration(client, f, "pending", earlier);
+      const paidId = await insertRegistration(client, f, "paid", later);
 
-    const pendingRow = { ...regRow(older, runner.id), status: "pending", created_at: earlier };
-    const paidRow = { ...regRow(newer, runner.id), status: "paid", created_at: later };
+      await client.query("select dedupe_live_registrations()");
 
-    const pending = await svc.from("registrations").insert(pendingRow).select().single();
-    expect(pending.error).toBeNull();
-    const paid = await svc.from("registrations").insert(paidRow).select().single();
-    expect(paid.error).toBeNull();
+      const rows = await client.query<{ id: string; status: string; expires_at: string | null }>(
+        "select id, status, expires_at from registrations where id in ($1, $2)",
+        [pendingId, paidId],
+      );
+      const pendingAfter = rows.rows.find((r) => r.id === pendingId)!;
+      const paidAfter = rows.rows.find((r) => r.id === paidId)!;
 
-    const probe = await svc.rpc("_dedupe_rank_probe", { id_a: pending.data!.id, id_b: paid.data!.id });
-    expect(probe.error).toBeNull();
-    const winner = probe.data!.find((r: { id: string; rn: number }) => r.rn === 1);
-    expect(winner?.id, "the paid row must rank first even though the pending row is older").toBe(paid.data!.id);
+      expect(paidAfter.status, "the paid row must survive even though it was created later").toBe("paid");
+      expect(pendingAfter.status, "the abandoned pending row must lose").toBe("expired");
+      expect(pendingAfter.expires_at).toBeNull();
+
+      const cat = await client.query<{ slots_taken: number }>("select slots_taken from categories where id = $1", [f.categoryId]);
+      expect(cat.rows[0].slots_taken, "the loser was pending -- it never held a slot, so none should be released").toBe(5);
+    });
   });
 
-  it("still tiebreaks on created_at/id when both candidates share a status", async () => {
-    const svc = service();
-    const a = await makeEvent(`rankties_a${Date.now()}`);
-    const b = await makeEvent(`rankties_b${Date.now()}`);
-    const runner = await makeUser(`gate_rank_tie_${Date.now()}@test.dev`);
+  it("with two paid rows, the earlier survives and slots_taken drops by exactly one", async () => {
+    await withRolledBackTx(async (client) => {
+      const f = await stageFixture(client);
+      const earlier = new Date(Date.now() - 2 * 3_600_000).toISOString();
+      const later = new Date(Date.now() - 3_600_000).toISOString();
 
-    const earlier = new Date(Date.now() - 2 * 3_600_000).toISOString();
-    const later = new Date(Date.now() - 3_600_000).toISOString();
+      const earlierId = await insertRegistration(client, f, "paid", earlier);
+      const laterId = await insertRegistration(client, f, "paid", later);
 
-    const first = await svc.from("registrations").insert({ ...regRow(a, runner.id), status: "pending", created_at: earlier }).select().single();
-    expect(first.error).toBeNull();
-    const second = await svc.from("registrations").insert({ ...regRow(b, runner.id), status: "pending", created_at: later }).select().single();
-    expect(second.error).toBeNull();
+      await client.query("select dedupe_live_registrations()");
 
-    const probe = await svc.rpc("_dedupe_rank_probe", { id_a: first.data!.id, id_b: second.data!.id });
-    expect(probe.error).toBeNull();
-    const winner = probe.data!.find((r: { id: string; rn: number }) => r.rn === 1);
-    expect(winner?.id, "with equal status, the earlier created_at must still win").toBe(first.data!.id);
-  });
+      const rows = await client.query<{ id: string; status: string; expires_at: string | null }>(
+        "select id, status, expires_at from registrations where id in ($1, $2)",
+        [earlierId, laterId],
+      );
+      const earlierAfter = rows.rows.find((r) => r.id === earlierId)!;
+      const laterAfter = rows.rows.find((r) => r.id === laterId)!;
 
-  it("the deployed dedupe_live_registrations() still contains the paid-wins ORDER BY", async () => {
-    const svc = service();
-    const check = await svc.rpc("_dedupe_source_contains", { needle: "(status = 'paid') desc" });
-    expect(check.error).toBeNull();
-    expect(check.data, "dedupe_live_registrations()'s ORDER BY must not regress to created_at,id").toBe(true);
+      expect(earlierAfter.status, "between two paid rows, the earlier one wins the tiebreak").toBe("paid");
+      expect(laterAfter.status).toBe("expired");
+      expect(laterAfter.expires_at).toBeNull();
+
+      const cat = await client.query<{ slots_taken: number }>("select slots_taken from categories where id = $1", [f.categoryId]);
+      expect(cat.rows[0].slots_taken, "exactly one paid loser -- slots_taken must drop by exactly 1").toBe(4);
+    });
   });
 });
