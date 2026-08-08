@@ -6,6 +6,44 @@ const { url, anonKey, serviceKey } = loadEnv();
 const svc = () => createClient(url, serviceKey, { auth: { persistSession: false } });
 const anon = () => createClient(url, anonKey, { auth: { persistSession: false } });
 
+// Referenced inside RLS policies, which evaluate as the querying role — see the two allowlists
+// below for why each needs what it needs. Never revoke EXECUTE on these three, for any role.
+const AUTH_PREDICATES = ["auth_can_admin_org", "auth_can_check_in_event", "auth_is_super_admin"];
+
+// Group B, per 20260808110000/task-sec-brief.md: client-called, each refuses unauthorized
+// callers internally, so `authenticated` EXECUTE is required — plus the three RLS-policy
+// predicates, which must keep `authenticated` or row-level security evaluation across the schema
+// breaks. Nothing else in `public` should be authenticated-executable without a deliberate edit
+// to this list.
+const AUTHENTICATED_ALLOWLIST = new Set([
+  "admin_cancel_registration",
+  "admin_registration_emails",
+  "admin_org_signups_daily",
+  "admin_payment_aggregates",
+  "admin_registration_aggregates",
+  "checkin_events",
+  "checkin_roster",
+  "checkin_undo",
+  "payout_mark_paid",
+  "payout_open_statement",
+  "update_registration_fields_tx",
+  ...AUTH_PREDICATES,
+]);
+
+// The three RLS-policy predicates are additionally anon-executable — not a gap, a requirement:
+// they're called from inside RLS policies on tables anon can read (e.g. `events`/`organizations`
+// SELECT policies gated on `auth_can_admin_org`-adjacent logic), and a policy evaluates as
+// whatever role is running the query, including anon. This is the ONE sanctioned exception to
+// "no function is anon-executable" — task-sec-brief.md and every review pass since have called
+// these three out by name as the one thing that must never be touched, for any role: "Revoking
+// EXECUTE from authenticated (or anon, for anon-readable tables whose policies reference them)
+// would break row-level security evaluation across the whole schema." Confirmed via
+// `_function_grant_audit` that this is the schema's actual, unchanged-since-before-this-task
+// state (these three were explicitly out of scope for every migration in this series) — not
+// something to "fix" by revoking anon, which would violate that constraint and risk exactly the
+// outage it warns about.
+const ANON_ALLOWLIST = new Set(AUTH_PREDICATES);
+
 async function signedIn(email: string): Promise<SupabaseClient> {
   const c = createClient(url, anonKey, { auth: { persistSession: false } });
   const { error } = await c.auth.signInWithPassword({ email, password: "password123" });
@@ -126,32 +164,39 @@ describe("function grants — service-role-only RPCs reject anon", () => {
     expect(r.data).toBeNull();
   });
 
-  // Regression guard for 20260808120200_close_new_function_public_execute_gap.sql. The obvious
-  // fix (naming PUBLIC in the ALTER DEFAULT PRIVILEGES revoke, 20260808120000) does NOT actually
-  // suppress Postgres's built-in "EXECUTE granted to PUBLIC" default for new functions — proven
-  // empirically while writing these migrations, see 20260808120000's header — so PUBLIC's grant
-  // applies to every role, and a brand-new function was exactly as anon/authenticated-executable
-  // as before the fix, silently. `_grants_regression_canary` (20260808120300) is a permanent
-  // fixture function created by a real migration with no grant statement of its own, exactly the
-  // shape a careless future migration would produce; this proves anon and authenticated cannot
-  // call it, rather than trusting that the schema-wide defaults still say what these migrations
-  // claim they say.
-  it("a function created with no explicit grant is anon- and authenticated-unreachable by default", async () => {
-    const anonResult = await anon().rpc("_grants_regression_canary");
-    expect(anonResult.error).not.toBeNull();
-    expect(anonResult.error!.code).toBe("42501");
+  // Schema-wide regression guard, replacing 20260808120200's event trigger (removed by
+  // 20260808130000 — it fired on CREATE OR REPLACE FUNCTION as well as fresh creates, silently
+  // stripping `authenticated` from any existing client-called RPC the next time its body was
+  // redefined, which this repo's own migrations do without restating grants). This is the
+  // enumeration equivalent: it doesn't prevent a bad grant from happening, but it fails loudly,
+  // in a test run, the moment one does — instead of silently, at runtime, in the admin console.
+  //
+  // Enumerates every SECURITY DEFINER function in `public` via the service-role-only
+  // `_function_grant_audit` RPC (supabase-js has no way to run arbitrary SQL — see test/env.ts)
+  // and asserts: no function is anon-executable except ANON_ALLOWLIST (the three RLS predicates —
+  // no other exception; if one is ever legitimately needed, that's a deliberate edit to this
+  // test, not a passive default). No function is authenticated-executable except
+  // AUTHENTICATED_ALLOWLIST above.
+  it("no security-definer function in public is anon-executable (except the RLS predicates), and only the allowlist is authenticated-executable", async () => {
+    const { data, error } = await svc().rpc("_function_grant_audit");
+    expect(error).toBeNull();
+    expect(data!.length).toBeGreaterThan(0);
 
-    const { data: { user }, error: signUpError } = await svc().auth.admin.createUser({
-      email: `grants_canary_${Date.now()}@test.dev`, password: "password123", email_confirm: true,
-    });
-    expect(signUpError).toBeNull();
-    try {
-      const c = await signedIn(user!.email!);
-      const authedResult = await c.rpc("_grants_regression_canary");
-      expect(authedResult.error).not.toBeNull();
-      expect(authedResult.error!.code).toBe("42501");
-    } finally {
-      await svc().auth.admin.deleteUser(user!.id);
-    }
+    const violations = (data as { fn_name: string; anon_exec: boolean; auth_exec: boolean }[])
+      .filter((row) =>
+        (row.anon_exec && !ANON_ALLOWLIST.has(row.fn_name)) ||
+        (row.auth_exec && !AUTHENTICATED_ALLOWLIST.has(row.fn_name)))
+      .map((row) => ({ fn_name: row.fn_name, anon_exec: row.anon_exec, auth_exec: row.auth_exec }));
+
+    expect(violations, `unexpected grants: ${JSON.stringify(violations)}`).toEqual([]);
+  });
+
+  // The audit helper itself is security definer, so it's in scope of the enumeration above —
+  // confirm directly that it isn't accidentally exempting itself by being reachable, rather than
+  // relying on the enumeration test alone to notice.
+  it("_function_grant_audit itself is locked to service_role", async () => {
+    const r = await anon().rpc("_function_grant_audit");
+    expect(r.error).not.toBeNull();
+    expect(r.error!.code).toBe("42501");
   });
 });
