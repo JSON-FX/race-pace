@@ -16,7 +16,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   if (!user) redirect("/login");
 
   const roles = await getMyRoles();
-  if (!roles?.isAdmin) redirect("/no-access");
+  // "Can this person use the console at all", not "are they an admin". A
+  // marshal holds only check_in and must get past here to reach the station
+  // that was built for them; each route below still asserts its own capability.
+  if (!roles || roles.capabilities.length === 0) redirect("/no-access");
 
   // requireOrgId returns null for a bare super_admin with no org-scoped
   // row — that's not an error, it just means there's no org name to show

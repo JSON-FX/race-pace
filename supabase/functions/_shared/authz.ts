@@ -1,5 +1,5 @@
 // Shared role checks (service-role bypasses RLS, so these gate authorization in code).
-export type RoleRow = { role: string; org_id: string | null };
+export type RoleRow = { role: string; org_id: string | null; event_scope?: string | null };
 
 /** Gate for `verify_jwt = false` functions invoked server-to-server with a
  *  fixed shared secret instead of a caller JWT (send-push's PUSH_CRON_SECRET
@@ -14,7 +14,14 @@ export function isAuthorizedBearer(authorizationHeader: string | null, expected:
 export function canAdminOrg(roles: RoleRow[], orgId: string): boolean {
   return roles.some((r) => r.role === "super_admin" || (r.org_id === orgId && (r.role === "editor" || r.role === "admin")));
 }
-export function canCheckIn(roles: RoleRow[], orgId: string): boolean {
-  return roles.some((r) => r.role === "super_admin" ||
-    (r.org_id === orgId && (r.role === "marshal" || r.role === "editor" || r.role === "admin")));
+/** Mirrors auth_can_check_in_event (20260806202000_harden_auth_helper_search_path.sql:44)
+ *  including its event_scope narrowing. `eventId` is required, not optional: an
+ *  optional parameter lets a future call site skip the scope check silently,
+ *  where a required one is a compile error until someone decides. */
+export function canCheckIn(roles: RoleRow[], orgId: string, eventId: string): boolean {
+  return roles.some((r) =>
+    r.role === "super_admin" ||
+    (r.org_id === orgId &&
+      (r.role === "marshal" || r.role === "editor" || r.role === "admin") &&
+      (r.event_scope == null || r.event_scope === eventId)));
 }

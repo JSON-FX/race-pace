@@ -15,6 +15,9 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
   usePathname: () => "/payments",
   useSearchParams: () => new URLSearchParams(),
+  redirect: (path: string) => {
+    throw new Error(`NEXT_REDIRECT:${path}`);
+  },
 }));
 
 // PaymentsKpiSection and PaymentsTableSection are async Server Components,
@@ -80,12 +83,30 @@ describe("PaymentsPage", () => {
     PaymentsTableSection.mockClear();
   });
 
+  // Fix 2 regression test: Payments asserted no capability before this fix,
+  // so a marshal (check_in only, no manage_org) reached a fully rendered
+  // page past the (admin) layout's "some capability" gate.
+  it("redirects a marshal to /no-access and never queries events or mounts either section", async () => {
+    getMyRoles.mockResolvedValue({
+      role: "marshal", orgId: "org-1", isSuperAdmin: false, isAdmin: false, isOrgAdmin: false,
+      capabilities: ["check_in"],
+    });
+
+    await expect(PaymentsPage({ searchParams: Promise.resolve({}) })).rejects.toThrow("NEXT_REDIRECT:/no-access");
+    expect(listOrgEventOptions).not.toHaveBeenCalled();
+    expect(PaymentsKpiSection).not.toHaveBeenCalled();
+    expect(PaymentsTableSection).not.toHaveBeenCalled();
+  });
+
   it("renders NoOrgScope and never queries events or mounts either section when the caller has no org", async () => {
     // A bare super_admin: isAdmin true (clears the (admin) layout guard) but
     // orgId null — there's no organization to scope a payments query to.
     // Querying with a null org id 500s rather than returning an empty list,
     // so the page must branch before calling any query at all.
-    getMyRoles.mockResolvedValue({ role: "super_admin", orgId: null, isSuperAdmin: true, isAdmin: true, isOrgAdmin: true });
+    getMyRoles.mockResolvedValue({
+      role: "super_admin", orgId: null, isSuperAdmin: true, isAdmin: true, isOrgAdmin: true,
+      capabilities: ["manage_platform", "manage_team", "manage_org", "check_in"],
+    });
 
     const ui = await PaymentsPage({ searchParams: Promise.resolve({}) });
     render(ui);
@@ -100,7 +121,10 @@ describe("PaymentsPage", () => {
   });
 
   it("hands the same org id and params to both sections", async () => {
-    getMyRoles.mockResolvedValue({ role: "admin", orgId: "org-1", isSuperAdmin: false, isAdmin: true, isOrgAdmin: true });
+    getMyRoles.mockResolvedValue({
+      role: "admin", orgId: "org-1", isSuperAdmin: false, isAdmin: true, isOrgAdmin: true,
+      capabilities: ["manage_team", "manage_org", "check_in"],
+    });
     listOrgEventOptions.mockResolvedValue([{ id: "ev-1", name: "Kitanglad Skyline Ultra", count: 3 }]);
 
     const ui = await PaymentsPage({ searchParams: Promise.resolve({ method: "gcash" }) });
@@ -128,7 +152,10 @@ describe("PaymentsPage", () => {
   });
 
   it("keys both Suspense boundaries on the resolved params, so the key changes with every param that changes what a section renders", async () => {
-    getMyRoles.mockResolvedValue({ role: "admin", orgId: "org-1", isSuperAdmin: false, isAdmin: true, isOrgAdmin: true });
+    getMyRoles.mockResolvedValue({
+      role: "admin", orgId: "org-1", isSuperAdmin: false, isAdmin: true, isOrgAdmin: true,
+      capabilities: ["manage_team", "manage_org", "check_in"],
+    });
     listOrgEventOptions.mockResolvedValue([
       { id: "ev-1", name: "Kitanglad Skyline Ultra", count: 3 },
       { id: "ev-9", name: "Some Other Event", count: 1 },

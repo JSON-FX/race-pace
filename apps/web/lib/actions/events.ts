@@ -59,8 +59,12 @@ const EVENT_COLS = (e: EventDraft) => ({
  *   select auth_is_super_admin() or exists (select 1 from user_roles
  *     where user_id = auth.uid() and org_id = target and role in ('editor','admin'));
  *
- * `roles.isAdmin` (lib/queries/roles.ts) is true for super_admin OR any
- * resolved admin/editor row — exactly this set. `roles.orgId` is the org
+ * `roles.isAdmin` (lib/queries/roles.ts) is true for super_admin OR a
+ * resolved row that holds the `manage_org` capability (admin or editor) —
+ * exactly this set. It is NOT `!!resolvedRow`: resolvedRow now also matches
+ * a marshal row (marshal needs a resolved org to reach /check-in — see that
+ * file's "Marshal last" comment), so `isAdmin` is defined via `manage_org`
+ * specifically to keep marshal out of it. `roles.orgId` is the org
  * that resolved row belongs to; the caller must match the event's org_id,
  * or an editor in org A could forge org_id "B" in the JSON payload and
  * create/update a row in org B (the request would still 403 at the RLS

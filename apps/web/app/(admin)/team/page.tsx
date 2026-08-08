@@ -1,5 +1,6 @@
 import { parseTableParams } from "@/lib/table-params";
 import { getMyRoles, requireOrgId } from "@/lib/queries/roles";
+import { hasCapability } from "@/lib/capabilities";
 import { listTeam } from "@/lib/queries/team";
 import { NoOrgScope } from "@/components/no-org-scope";
 import { OrgAdminsOnly } from "@/components/org-admins-only";
@@ -40,7 +41,7 @@ export default async function TeamPage({
   // here, before calling listTeam, rather than letting that throw into an
   // uncaught 500 — an org editor who bookmarks /team must see an
   // explanatory notice, not a crash.
-  if (!roles!.isOrgAdmin) {
+  if (!hasCapability(roles!.capabilities, "manage_team")) {
     return (
       <div className="px-4 pb-10 pt-6 md:px-[30px]">
         <div className="mb-5">

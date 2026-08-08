@@ -21,37 +21,45 @@ import {
   QrCode, Users, Settings as SettingsIcon, Building2, Percent, Banknote, type LucideIcon,
 } from "lucide-react";
 import type { MyRoles } from "@/lib/queries/roles";
+import { hasCapability, type Capability } from "@/lib/capabilities";
 
 export type NavCounts = { events: number; registrations: number } | null;
 
-export type NavItem = { to: string; label: string; icon: LucideIcon; countKey?: keyof NonNullable<NavCounts> };
+export type NavItem = {
+  to: string; label: string; icon: LucideIcon;
+  countKey?: keyof NonNullable<NavCounts>;
+  /** The capability required to reach this destination. Stated here so the
+   *  nav and the route gate read the same list — previously each nav filter
+   *  hand-wrote its own predicate and could drift from the page's check. */
+  requires: Capability;
+};
 
 export const ORG_ITEMS: NavItem[] = [
-  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/events", label: "Events", icon: CalendarDays, countKey: "events" },
-  { to: "/registrations", label: "Registrations", icon: ClipboardList, countKey: "registrations" },
-  { to: "/payments", label: "Payments", icon: CreditCard },
-  { to: "/check-in", label: "Check-in", icon: QrCode },
-  { to: "/team", label: "Team", icon: Users },
-  { to: "/settings", label: "Settings", icon: SettingsIcon },
+  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, requires: "manage_org" },
+  { to: "/events", label: "Events", icon: CalendarDays, countKey: "events", requires: "manage_org" },
+  { to: "/registrations", label: "Registrations", icon: ClipboardList, countKey: "registrations", requires: "manage_org" },
+  { to: "/payments", label: "Payments", icon: CreditCard, requires: "manage_org" },
+  { to: "/check-in", label: "Check-in", icon: QrCode, requires: "check_in" },
+  { to: "/team", label: "Team", icon: Users, requires: "manage_team" },
+  { to: "/settings", label: "Settings", icon: SettingsIcon, requires: "manage_org" },
 ];
 
 export const SUPER_ITEMS: NavItem[] = [
-  { to: "/organizations", label: "Organizations", icon: Building2 },
-  { to: "/commission", label: "Commission", icon: Percent },
-  { to: "/payouts", label: "Payouts", icon: Banknote },
+  { to: "/organizations", label: "Organizations", icon: Building2, requires: "manage_platform" },
+  { to: "/commission", label: "Commission", icon: Percent, requires: "manage_platform" },
+  { to: "/payouts", label: "Payouts", icon: Banknote, requires: "manage_platform" },
 ];
 
-/** Org-scoped nav, filtered the same way Sidebar.tsx always has: Team is
- *  admin-only within the org (`isOrgAdmin`), everything else is visible to
- *  any org member the (admin) layout already let through. */
+/** Org-scoped nav, filtered by capability. Replaces the hand-written
+ *  `it.to !== "/team" || roles.isOrgAdmin` predicate — same outcome for an
+ *  admin and an editor, and now correct for a marshal too. */
 export function visibleOrgItems(roles: MyRoles): NavItem[] {
-  return ORG_ITEMS.filter((it) => it.to !== "/team" || roles.isOrgAdmin);
+  return ORG_ITEMS.filter((it) => hasCapability(roles.capabilities, it.requires));
 }
 
-/** PLATFORM group — Organizations / Commission / Payouts — super_admin only. */
+/** PLATFORM group — Organizations / Commission / Payouts. */
 export function visibleSuperItems(roles: MyRoles): NavItem[] {
-  return roles.isSuperAdmin ? SUPER_ITEMS : [];
+  return SUPER_ITEMS.filter((it) => hasCapability(roles.capabilities, it.requires));
 }
 
 /**

@@ -6,6 +6,9 @@ const getMyRoles = vi.fn();
 const notFound = vi.fn(() => {
   throw new Error("NEXT_NOT_FOUND");
 });
+const redirect = vi.fn((path: string) => {
+  throw new Error(`NEXT_REDIRECT:${path}`);
+});
 
 vi.mock("@/lib/queries/event-editor", () => ({ getEventForEditor: (id: string) => getEventForEditor(id) }));
 // requireOrgId is trivial (`roles?.orgId ?? null`) and pure — reimplemented
@@ -15,7 +18,7 @@ vi.mock("@/lib/queries/roles", () => ({
   getMyRoles: () => getMyRoles(),
   requireOrgId: (roles: { orgId: string | null } | null) => roles?.orgId ?? null,
 }));
-vi.mock("next/navigation", () => ({ notFound: () => notFound() }));
+vi.mock("next/navigation", () => ({ notFound: () => notFound(), redirect: (path: string) => redirect(path) }));
 // The full editor form isn't the concern of this test — stub it so a render
 // only fails on this page's own authorization logic.
 vi.mock("../../event-editor-form", () => ({ EventEditorForm: () => <div data-testid="editor-form-stub" /> }));
@@ -36,14 +39,21 @@ function editorData(orgId: string): EditorData {
     addons: [],
   };
 }
-function roles(overrides: Partial<{ isSuperAdmin: boolean; orgId: string | null }> = {}) {
-  return { role: "admin", isSuperAdmin: false, isAdmin: true, isOrgAdmin: true, orgId: "a1", ...overrides };
+function roles(
+  overrides: Partial<{ isSuperAdmin: boolean; orgId: string | null; capabilities: string[] }> = {},
+) {
+  return {
+    role: "admin", isSuperAdmin: false, isAdmin: true, isOrgAdmin: true, orgId: "a1",
+    capabilities: ["manage_org"],
+    ...overrides,
+  };
 }
 
 beforeEach(() => {
   getEventForEditor.mockReset();
   getMyRoles.mockReset();
   notFound.mockClear();
+  redirect.mockClear();
 });
 
 it("renders the editor for an event in the caller's own org", async () => {
@@ -77,4 +87,18 @@ it("404s a caller with no resolved org (super_admin edge case aside) rather than
   getEventForEditor.mockResolvedValue(editorData("a1"));
   getMyRoles.mockResolvedValue(roles({ orgId: null }));
   await expect(EditEventPage({ params: Promise.resolve({ id: "e1" }) })).rejects.toThrow("NEXT_NOT_FOUND");
+});
+
+// Fix 2 regression test: this page asserted no capability before this fix,
+// so a marshal (check_in only, no manage_org) reached a fully rendered
+// editor past the (admin) layout's "some capability" gate. redirect(), not
+// notFound() — this is not the same "event doesn't exist for you" signal as
+// the org-mismatch check above. getEventForEditor is still fetched (it runs
+// inside the same Promise.all as getMyRoles, before either result is
+// inspected) — only what the page DOES with the result changes.
+it("redirects a marshal to /no-access rather than rendering the editor", async () => {
+  getEventForEditor.mockResolvedValue(editorData("a1"));
+  getMyRoles.mockResolvedValue(roles({ capabilities: ["check_in"] }));
+  await expect(EditEventPage({ params: Promise.resolve({ id: "e1" }) })).rejects.toThrow("NEXT_REDIRECT:/no-access");
+  expect(notFound).not.toHaveBeenCalled();
 });

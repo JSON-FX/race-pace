@@ -17,8 +17,10 @@
  * supabase/functions/_shared/team.ts's ASSIGNABLE_ROLES, enforced
  * server-side by the org-members edge function. Keep these in sync with it.
  */
-export const ASSIGNABLE_ROLES = ["admin", "editor", "marshal", "claiming"] as const;
+// `claiming` returns here once the race-kit spec gives it a capability to check.
+export const ASSIGNABLE_ROLES = ["admin", "editor", "marshal"] as const;
 export type AssignableRole = (typeof ASSIGNABLE_ROLES)[number];
-export const ROLE_LABELS: Record<AssignableRole, string> = {
+// Keep the `claiming` label for existing rows that may carry the role.
+export const ROLE_LABELS: Record<AssignableRole | "claiming", string> = {
   admin: "Admin", editor: "Editor", marshal: "Marshal", claiming: "Race Kit",
 };

@@ -11,6 +11,9 @@ vi.mock("@/lib/use-table-params", () => ({ useTableParams: () => tableParamsMock
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
   usePathname: () => "/registrations",
+  redirect: (path: string) => {
+    throw new Error(`NEXT_REDIRECT:${path}`);
+  },
 }));
 
 // RegistrationsKpiSection and RegistrationsTableSection are async Server
@@ -88,12 +91,30 @@ describe("RegistrationsPage", () => {
     RegistrationsTableSection.mockClear();
   });
 
+  // Fix 2 regression test: Registrations asserted no capability before this
+  // fix, so a marshal (check_in only, no manage_org) reached a fully
+  // rendered page past the (admin) layout's "some capability" gate.
+  it("redirects a marshal to /no-access and never queries events or mounts either section", async () => {
+    getMyRoles.mockResolvedValue({
+      role: "marshal", orgId: "org-1", isSuperAdmin: false, isAdmin: false, isOrgAdmin: false,
+      capabilities: ["check_in"],
+    });
+
+    await expect(RegistrationsPage({ searchParams: Promise.resolve({}) })).rejects.toThrow("NEXT_REDIRECT:/no-access");
+    expect(listOrgEventOptions).not.toHaveBeenCalled();
+    expect(RegistrationsKpiSection).not.toHaveBeenCalled();
+    expect(RegistrationsTableSection).not.toHaveBeenCalled();
+  });
+
   it("renders NoOrgScope and never queries events or mounts either section when the caller has no org", async () => {
     // A bare super_admin: isAdmin true (clears the (admin) layout guard) but
     // orgId null — there's no organization to scope an events query to.
     // Querying with a null org id 500s rather than returning an empty list,
     // so the page must branch before calling any query at all.
-    getMyRoles.mockResolvedValue({ role: "super_admin", orgId: null, isSuperAdmin: true, isAdmin: true, isOrgAdmin: true });
+    getMyRoles.mockResolvedValue({
+      role: "super_admin", orgId: null, isSuperAdmin: true, isAdmin: true, isOrgAdmin: true,
+      capabilities: ["manage_platform", "manage_team", "manage_org", "check_in"],
+    });
 
     const ui = await RegistrationsPage({ searchParams: Promise.resolve({}) });
     render(ui);
@@ -108,7 +129,10 @@ describe("RegistrationsPage", () => {
   });
 
   it("resolves eventId to the org's most recent event, hands it to both sections, and renders the subtitle from the org-wide counts", async () => {
-    getMyRoles.mockResolvedValue({ role: "admin", orgId: "org-1", isSuperAdmin: false, isAdmin: true, isOrgAdmin: true });
+    getMyRoles.mockResolvedValue({
+      role: "admin", orgId: "org-1", isSuperAdmin: false, isAdmin: true, isOrgAdmin: true,
+      capabilities: ["manage_team", "manage_org", "check_in"],
+    });
     listOrgEventOptions.mockResolvedValue([{ id: "event-1", name: "Dahilayan Sky Ultra", count: 4 }]);
     getOrgRegistrationCount.mockResolvedValue(4);
     getOrgPendingRegistrationCount.mockResolvedValue(1);
@@ -147,7 +171,10 @@ describe("RegistrationsPage", () => {
   });
 
   it("renders the subtitle's zeroed figures, not a blank header, when the org has no registrations yet", async () => {
-    getMyRoles.mockResolvedValue({ role: "admin", orgId: "org-1", isSuperAdmin: false, isAdmin: true, isOrgAdmin: true });
+    getMyRoles.mockResolvedValue({
+      role: "admin", orgId: "org-1", isSuperAdmin: false, isAdmin: true, isOrgAdmin: true,
+      capabilities: ["manage_team", "manage_org", "check_in"],
+    });
     listOrgEventOptions.mockResolvedValue([{ id: "event-1", name: "Dahilayan Sky Ultra", count: 0 }]);
     getOrgRegistrationCount.mockResolvedValue(0);
     getOrgPendingRegistrationCount.mockResolvedValue(0);
@@ -163,7 +190,10 @@ describe("RegistrationsPage", () => {
   });
 
   it("keys both Suspense boundaries on the resolved params, so the key changes with every param that changes what a section renders", async () => {
-    getMyRoles.mockResolvedValue({ role: "admin", orgId: "org-1", isSuperAdmin: false, isAdmin: true, isOrgAdmin: true });
+    getMyRoles.mockResolvedValue({
+      role: "admin", orgId: "org-1", isSuperAdmin: false, isAdmin: true, isOrgAdmin: true,
+      capabilities: ["manage_team", "manage_org", "check_in"],
+    });
     listOrgEventOptions.mockResolvedValue([
       { id: "event-1", name: "Dahilayan Sky Ultra", count: 4 },
       { id: "event-9", name: "Some Other Event", count: 1 },
@@ -195,7 +225,10 @@ describe("RegistrationsPage", () => {
   });
 
   it("does not change the Suspense keys when only the open modal changes", async () => {
-    getMyRoles.mockResolvedValue({ role: "admin", orgId: "org-1", isSuperAdmin: false, isAdmin: true, isOrgAdmin: true });
+    getMyRoles.mockResolvedValue({
+      role: "admin", orgId: "org-1", isSuperAdmin: false, isAdmin: true, isOrgAdmin: true,
+      capabilities: ["manage_team", "manage_org", "check_in"],
+    });
     listOrgEventOptions.mockResolvedValue([{ id: "event-1", name: "Dahilayan Sky Ultra", count: 4 }]);
     getOrgRegistrationCount.mockResolvedValue(4);
     getOrgPendingRegistrationCount.mockResolvedValue(1);

@@ -1,6 +1,8 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ClipboardList, Wallet, Landmark, Clock } from "lucide-react";
 import { getMyRoles, requireOrgId } from "@/lib/queries/roles";
+import { hasCapability } from "@/lib/capabilities";
 import { getOrgDashboard, getOrgUpcomingEvents } from "@/lib/queries/dashboard";
 import { NoOrgScope } from "@/components/no-org-scope";
 import { TableEmptyState } from "@/components/data-table";
@@ -38,6 +40,17 @@ function CardHead({ title, note }: { title: string; note: string }) {
 
 export default async function DashboardPage() {
   const roles = await getMyRoles();
+  // The (admin) layout only asserts SOME capability, so /check-in stays
+  // reachable for a marshal — it does NOT mean every other route is safe to
+  // render for them. Every capability that reaches the layout except
+  // `check_in` includes `manage_org`, but `check_in` is exactly the one this
+  // branch newly admits past the layout gate, so this page must assert it
+  // itself or a marshal typing this URL gets a fully rendered page of
+  // zeros and empty tables — indistinguishable from "this org has no data".
+  // redirect(), not notFound(): notFound() is reserved for the platform
+  // pages, where whether the page exists is itself information this org-
+  // scoped page doesn't carry.
+  if (!hasCapability(roles?.capabilities ?? [], "manage_org")) redirect("/no-access");
   // See requireOrgId's doc comment: a super_admin with no org-scoped
   // admin/editor row clears the (admin) layout's `isAdmin` guard with
   // `orgId: null`. Branch before calling any org-scoped query, don't assert

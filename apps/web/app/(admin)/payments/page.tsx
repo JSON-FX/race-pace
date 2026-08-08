@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { Suspense } from "react";
+import { redirect } from "next/navigation";
 import { Download } from "lucide-react";
 import { parseTableParams, serializeTableParams } from "@/lib/table-params";
 import { getMyRoles, requireOrgId } from "@/lib/queries/roles";
+import { hasCapability } from "@/lib/capabilities";
 import { listOrgEventOptions } from "@/lib/queries/registrations";
 import { DataTableSkeleton } from "@/components/data-table";
 import { NoOrgScope } from "@/components/no-org-scope";
@@ -24,6 +26,11 @@ export default async function PaymentsPage({
   // searchParams is a Promise in Next 15 and must be awaited.
   const params = parseTableParams(await searchParams, DEFAULTS);
   const roles = await getMyRoles();
+  // See app/(admin)/dashboard/page.tsx's identical guard: the (admin)
+  // layout only asserts SOME capability (check_in included), so a marshal
+  // clears it — this page must assert manage_org itself, and redirect()
+  // rather than notFound().
+  if (!hasCapability(roles?.capabilities ?? [], "manage_org")) redirect("/no-access");
   // See requireOrgId's doc comment: a super_admin with no org-scoped
   // admin/editor row clears the (admin) layout's `isAdmin` guard with
   // `orgId: null`. Branch before calling any org-scoped query, don't assert
