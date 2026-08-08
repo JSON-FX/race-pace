@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { Download, Plus } from "lucide-react";
-import { parseTableParams, serializeTableParams } from "@/lib/table-params";
+import { parseTableParams, serializeTableParams, serializeSectionKey } from "@/lib/table-params";
 import { getMyRoles, requireOrgId } from "@/lib/queries/roles";
 import {
   listOrgEventOptions,
@@ -82,17 +82,18 @@ export default async function RegistrationsPage({
     DEFAULTS,
   )}`;
 
-  // Keying both boundaries on the resolved params is what makes a skeleton
-  // appear on a searchParams-only navigation. `loading.tsx` fires only when the
-  // route SEGMENT changes, so switching event, paging, sorting or filtering
-  // otherwise leaves the old table on screen with no indication anything is
-  // happening. Changing the key remounts the boundary, which re-shows the
-  // fallback. Reuses serializeTableParams so the key can never drift from the
-  // params the sections are actually handed.
-  const sectionKey = serializeTableParams(
+  // Keyed so a searchParams-only navigation re-shows the skeleton — loading.tsx
+  // fires only on a route SEGMENT change, so paging, sorting or filtering would
+  // otherwise leave the old table on screen with no sign anything is happening.
+  //
+  // serializeSectionKey, NOT serializeTableParams: `reg` (the open modal) is a
+  // filter as far as the URL is concerned but changes nothing about what these
+  // sections fetch. While it fed this key, opening a registration remounted both
+  // boundaries and re-fetched identical data behind a skeleton.
+  const sectionKey = serializeSectionKey(
     { ...params, filters: { ...params.filters, event: eventId } },
     DEFAULTS,
-  ).toString();
+  );
 
   return (
     <div className="px-4 pb-10 pt-6 md:px-[30px]">

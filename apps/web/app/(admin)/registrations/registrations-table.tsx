@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Mail, Hash, CheckCircle2, XCircle } from "lucide-react";
 import { DataTable, type FilterDef, type BulkAction } from "@/components/data-table";
@@ -9,7 +10,6 @@ import { RegistrationDetail } from "@/components/RegistrationDetail";
 import { RunnerAvatar } from "@/components/RunnerAvatar";
 import { BulkCancelDialog } from "@/components/BulkCancelDialog";
 import { peso, fmtDateTime } from "@/lib/format";
-import { useTableParams } from "@/lib/use-table-params";
 import type { RegistrationRow } from "@/lib/queries/registrations";
 import type { SortState } from "@/lib/table-params";
 
@@ -41,7 +41,8 @@ export function RegistrationsTable({
   // it can't affect the query. And because `reg` isn't in
   // `preserveOnClear`, "Clear all" closes the sheet along with every other
   // non-`event` param.
-  const { patch } = useTableParams();
+  const searchParams = useSearchParams();
+  const urlRegId = searchParams.get("reg");
 
   // The URL stays the source of truth — `?reg=<id>` is what makes a
   // registration linkable, and a cold load of that URL still resolves
@@ -54,7 +55,6 @@ export function RegistrationsTable({
   // or Close would leave the modal up until the URL caught up — the exact
   // latency being removed, just in the other direction.
   const [override, setOverride] = useState<{ id: string | null } | null>(null);
-  const urlRegId = activeFilters.reg ?? null;
 
   // Drop the override once the URL agrees — and, just as importantly, when it
   // DISAGREES: a Back button press moves `urlRegId` without going through
@@ -64,19 +64,34 @@ export function RegistrationsTable({
   const selectedId = override ? override.id : urlRegId;
   const selected = selectedId ? rows.find((r) => r.id === selectedId) ?? null : null;
 
+  /** Write `?reg=` without a server navigation.
+   *
+   *  `router.push` (and therefore useTableParams' `patch`) always re-runs the
+   *  server component — for a modal rendered entirely from a row already on the
+   *  client, that is a full round trip and a progress bar for zero new data.
+   *  Next syncs pushState with useSearchParams, so the URL stays real,
+   *  linkable and Back-able while nothing re-renders.
+   *
+   *  pushState, not replaceState: Back should close the modal, which is what
+   *  people expect from something that opened over the page. The cost is one
+   *  history entry per open, which is the right trade. */
+  const writeRegParam = useCallback((id: string | null) => {
+    const sp = new URLSearchParams(window.location.search);
+    if (id) sp.set("reg", id);
+    else sp.delete("reg");
+    const qs = sp.toString();
+    window.history.pushState(null, "", qs ? `${window.location.pathname}?${qs}` : window.location.pathname);
+  }, []);
+
   const openReg = useCallback((id: string) => {
-    setOverride({ id });     // paints this frame
-    // `patch`, NOT setFilter: setFilter unconditionally clears `page`, which is
-    // right for a real filter and wrong for `reg`. `reg` addresses a modal, not
-    // a subset of rows — resetting pagination sent the admin back to page 1 and
-    // left the clicked row outside `rows` entirely, so the modal never rendered.
-    patch({ reg: id });      // catches the URL up in the background
-  }, [patch]);
+    setOverride({ id });
+    writeRegParam(id);
+  }, [writeRegParam]);
 
   const closeReg = useCallback(() => {
     setOverride({ id: null });
-    patch({ reg: null });    // null removes the key — same reason as openReg
-  }, [patch]);
+    writeRegParam(null);
+  }, [writeRegParam]);
 
   // Ids the admin has confirmed for a bulk cancel — null when the dialog is
   // closed. Kept separate from DataTable's own selection state (which is

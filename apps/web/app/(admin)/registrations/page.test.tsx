@@ -193,4 +193,16 @@ describe("RegistrationsPage", () => {
       expect(findSuspenseKeys(ui)).toEqual([`kpi-${suffix}`, `table-${suffix}`]);
     }
   });
+
+  it("does not change the Suspense keys when only the open modal changes", async () => {
+    getMyRoles.mockResolvedValue({ role: "admin", orgId: "org-1", isSuperAdmin: false, isAdmin: true, isOrgAdmin: true });
+    listOrgEventOptions.mockResolvedValue([{ id: "event-1", name: "Dahilayan Sky Ultra", count: 4 }]);
+    getOrgRegistrationCount.mockResolvedValue(4);
+    getOrgPendingRegistrationCount.mockResolvedValue(1);
+
+    const withModal = await RegistrationsPage({ searchParams: Promise.resolve({ reg: "r-123" }) });
+    const withoutModal = await RegistrationsPage({ searchParams: Promise.resolve({}) });
+
+    expect(findSuspenseKeys(withModal)).toEqual(findSuspenseKeys(withoutModal));
+  });
 });

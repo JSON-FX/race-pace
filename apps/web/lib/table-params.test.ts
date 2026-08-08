@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseTableParams, serializeTableParams, rangeLabel, DEFAULT_PER } from "./table-params";
+import { parseTableParams, serializeTableParams, serializeSectionKey, rangeLabel, DEFAULT_PER } from "./table-params";
 
 describe("parseTableParams", () => {
   it("returns defaults for an empty query string", () => {
@@ -66,6 +66,29 @@ describe("serializeTableParams", () => {
     const original = { page: 2, per: 100, q: "dela cruz", sort: [{ id: "amount", desc: true }], filters: { status: "refunded" } };
     const parsed = parseTableParams(Object.fromEntries(serializeTableParams(original)));
     expect(parsed).toEqual(original);
+  });
+});
+
+describe("serializeSectionKey", () => {
+  const DEFAULTS = { sort: [{ id: "created_at", desc: true }], filters: { status: "all", category: "all" } };
+
+  // THE bug this exists to prevent: `reg` addresses a modal, not a subset of
+  // rows — no query reads it. While it fed the Suspense key, opening a
+  // registration remounted both boundaries, flashed skeletons and re-fetched
+  // byte-identical data. A key must describe only what its sections query.
+  it("ignores UI-only params so opening a modal cannot change the key", () => {
+    const base = parseTableParams({ event: "e1", status: "paid" }, DEFAULTS);
+    const withModal = parseTableParams({ event: "e1", status: "paid", reg: "r-123" }, DEFAULTS);
+    expect(serializeSectionKey(withModal, DEFAULTS)).toBe(serializeSectionKey(base, DEFAULTS));
+  });
+
+  it("still changes when a param the sections actually query changes", () => {
+    const a = parseTableParams({ event: "e1", status: "paid" }, DEFAULTS);
+    for (const next of [{ event: "e2", status: "paid" }, { event: "e1", status: "pending" },
+                        { event: "e1", status: "paid", page: "2" }, { event: "e1", status: "paid", q: "maria" }]) {
+      expect(serializeSectionKey(parseTableParams(next, DEFAULTS), DEFAULTS))
+        .not.toBe(serializeSectionKey(a, DEFAULTS));
+    }
   });
 });
 

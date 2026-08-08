@@ -6,6 +6,15 @@ import type { RegistrationRow } from "@/lib/queries/registrations";
 
 vi.mock("@/lib/use-table-params", () => ({ useTableParams: () => tableParamsMockReturn }));
 
+// This renders the real RegistrationsTable (not a stub, unlike page.test.tsx —
+// see that file's header comment), which now reads the open registration id
+// via useSearchParams() directly (see registrations-table.tsx's `urlRegId`).
+// No test here opens the modal, so a fixed empty value is enough — see
+// registrations-table.test.tsx for the mutable version other cases need.
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => new URLSearchParams(),
+}));
+
 const listEventRegistrations = vi.hoisted(() => vi.fn());
 const listEventCategories = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/queries/registrations", () => ({ listEventRegistrations, listEventCategories }));

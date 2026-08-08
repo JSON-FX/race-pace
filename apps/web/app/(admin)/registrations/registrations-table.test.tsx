@@ -7,8 +7,22 @@ import { tableParamsSpies, tableParamsMockReturn, resetTableParamsSpies } from "
 
 vi.mock("@/lib/use-table-params", () => ({ useTableParams: () => tableParamsMockReturn }));
 
+// registrations-table.tsx now reads the open registration id straight from
+// useSearchParams() (see its `urlRegId`), not the `activeFilters` prop, so a
+// mocked search-param source is required the same way
+// payments/event-picker.test.tsx supplies one for PaymentsEventPicker — an
+// unmocked `next/navigation` throws "invariant expected app router to be
+// mounted" outside a real Next router. A mutable binding, not a fixed
+// literal like that file's, because different cases below need `reg`
+// present or absent in the URL.
+let mockSearchParams = new URLSearchParams();
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => mockSearchParams,
+}));
+
 beforeEach(() => {
   resetTableParamsSpies();
+  mockSearchParams = new URLSearchParams();
 });
 
 const rows: RegistrationRow[] = [
@@ -64,7 +78,8 @@ describe("RegistrationsTable", () => {
   // match the old SPA — an admin can bookmark or paste a link to a specific
   // registration), driven from `activeFilters.reg` rather than local state.
   it("opens the detail sheet for the registration named in ?reg=", () => {
-    render(<RegistrationsTable {...props} activeFilters={{ reg: "r1" }} />);
+    mockSearchParams = new URLSearchParams("reg=r1");
+    render(<RegistrationsTable {...props} />);
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     // The name renders once in the table row and again in the sheet header.
     expect(screen.getAllByText("Maria Josefa Santos").length).toBeGreaterThanOrEqual(2);
@@ -79,23 +94,29 @@ describe("RegistrationsTable", () => {
     expect(screen.queryByRole("button", { name: "Clear all" })).not.toBeInTheDocument();
   });
 
-  // Was "... via setFilter, not local state" — closeReg now routes through
-  // `patch` directly (setFilter unconditionally clears `page`, which is wrong
-  // for a modal address; see the page-2 bug tests below), so a name pinning
-  // the old mechanism would be actively misleading to the next reader.
+  // Was "... via setFilter, not local state" — closeReg no longer routes
+  // through any useTableParams setter at all; it writes `?reg=` via the
+  // History API directly (see the "without any server navigation" tests
+  // below), so a name pinning any particular mechanism would only go stale
+  // again the next time that mechanism changes.
   it("closing the sheet clears ?reg=, not local state", async () => {
     const user = userEvent.setup();
-    render(<RegistrationsTable {...props} activeFilters={{ reg: "r1" }} />);
+    mockSearchParams = new URLSearchParams("reg=r1");
+    const pushState = vi.spyOn(window.history, "pushState");
+    render(<RegistrationsTable {...props} />);
     await user.click(screen.getByRole("button", { name: "Close" }));
-    expect(tableParamsSpies.patch).toHaveBeenCalledWith({ reg: null });
+    expect(String(pushState.mock.calls.at(-1)?.[2])).not.toContain("reg=");
+    pushState.mockRestore();
   });
 
   // Was "... by setting ?reg= via setFilter" — same rename reason as above.
   it("clicking a runner name opens the sheet by setting ?reg=", async () => {
     const user = userEvent.setup();
+    const pushState = vi.spyOn(window.history, "pushState");
     render(<RegistrationsTable {...props} />);
     await user.click(screen.getByText("Maria Josefa Santos"));
-    expect(tableParamsSpies.patch).toHaveBeenCalledWith({ reg: "r1" });
+    expect(String(pushState.mock.calls.at(-1)?.[2])).toContain("reg=r1");
+    pushState.mockRestore();
   });
 
   // Table cell composition (visual parity V3): the Runner cell is now an
@@ -154,10 +175,12 @@ describe("RegistrationsTable", () => {
 
   it("opens the detail modal without waiting for the URL to update", async () => {
     const user = userEvent.setup();
-    // activeFilters has NO `reg` key and the mocked setFilter never writes one
-    // back, so a modal that waits on the URL can never open here. That is the
-    // regression this pins: before, `reg` was read straight from activeFilters
-    // and opening cost a full server round trip.
+    const pushState = vi.spyOn(window.history, "pushState");
+    // The mocked useSearchParams never reflects writeRegParam's pushState — it
+    // returns the same value for the component's whole lifetime — so a modal
+    // that waited on the URL could never open here. That is the regression
+    // this pins: before, `reg` was read straight from activeFilters and
+    // opening cost a full server round trip.
     render(
       <RegistrationsTable
         rows={rows} total={2} page={1} per={25} sort={[]}
@@ -169,16 +192,19 @@ describe("RegistrationsTable", () => {
 
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
     // Still syncs the URL behind the modal, so the registration stays linkable.
-    expect(tableParamsSpies.patch).toHaveBeenCalledWith({ reg: "r1" });
+    expect(String(pushState.mock.calls.at(-1)?.[2])).toContain("reg=r1");
+    pushState.mockRestore();
   });
 
   it("closes the modal without waiting for the URL either", async () => {
     const user = userEvent.setup();
     // Opposite direction: `reg` IS in the URL and the mock will never clear it.
+    mockSearchParams = new URLSearchParams("reg=r1");
+    const pushState = vi.spyOn(window.history, "pushState");
     render(
       <RegistrationsTable
         rows={rows} total={2} page={1} per={25} sort={[]}
-        activeFilters={{ reg: "r1" }} q="" categories={[]}
+        activeFilters={{}} q="" categories={[]}
       />,
     );
 
@@ -186,16 +212,18 @@ describe("RegistrationsTable", () => {
     await user.click(screen.getByRole("button", { name: "Close" }));
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(tableParamsSpies.patch).toHaveBeenCalledWith({ reg: null });
+    expect(String(pushState.mock.calls.at(-1)?.[2])).not.toContain("reg=");
+    pushState.mockRestore();
   });
 
-  // THE page-2 bug: `reg` is a modal address, not a filter, so opening one must
-  // NOT reset pagination. setFilter unconditionally patches `page: null`, which
-  // sent the server back to page 1, replaced `rows` with page-1 rows, and left
-  // rows.find(selectedId) with nothing to find — the modal silently never
-  // appeared and the admin lost their place in the list.
-  it("does not reset pagination when opening a registration", async () => {
+  // Opening a modal must not navigate. `patch` routes through router.push,
+  // which always re-runs the server component: the admin saw the progress bar
+  // and a full page re-render for data already on the client. The URL still
+  // updates so a registration stays linkable — via the History API, which Next
+  // syncs with useSearchParams without re-running anything.
+  it("opens the modal without any server navigation", async () => {
     const user = userEvent.setup();
+    const pushState = vi.spyOn(window.history, "pushState");
     render(
       <RegistrationsTable
         rows={rows} total={60} page={2} per={25} sort={[]}
@@ -205,15 +233,19 @@ describe("RegistrationsTable", () => {
 
     await user.click(screen.getByRole("button", { name: /View Maria Josefa Santos/ }));
 
-    expect(tableParamsSpies.patch).toHaveBeenCalledWith({ reg: "r1" });
-    // Assert the absence explicitly: a patch carrying `page: null` is exactly
-    // the bug, and a test that only checked `reg` would still pass with it.
-    const [arg] = tableParamsSpies.patch.mock.calls.at(-1) as [Record<string, unknown>];
-    expect(arg).not.toHaveProperty("page");
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    expect(tableParamsSpies.patch).not.toHaveBeenCalled();
+    expect(pushState).toHaveBeenCalled();
+    expect(String(pushState.mock.calls.at(-1)?.[2])).toContain("reg=r1");
+    // Pagination must survive — this is the page-2 bug's regression guard.
+    expect(String(pushState.mock.calls.at(-1)?.[2])).not.toContain("page=1");
+    pushState.mockRestore();
   });
 
-  it("does not reset pagination when closing a registration", async () => {
+  it("closes the modal without any server navigation", async () => {
     const user = userEvent.setup();
+    mockSearchParams = new URLSearchParams("reg=r1");
+    const pushState = vi.spyOn(window.history, "pushState");
     render(
       <RegistrationsTable
         rows={rows} total={60} page={2} per={25} sort={[]}
@@ -221,10 +253,12 @@ describe("RegistrationsTable", () => {
       />,
     );
 
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Close" }));
 
-    expect(tableParamsSpies.patch).toHaveBeenCalledWith({ reg: null });
-    const [arg] = tableParamsSpies.patch.mock.calls.at(-1) as [Record<string, unknown>];
-    expect(arg).not.toHaveProperty("page");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(tableParamsSpies.patch).not.toHaveBeenCalled();
+    expect(String(pushState.mock.calls.at(-1)?.[2])).not.toContain("reg=");
+    pushState.mockRestore();
   });
 });
