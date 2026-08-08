@@ -55,3 +55,24 @@ export function KpiCard({ icon: Icon, label, value, delta }: KpiCardProps) {
 export function KpiRow({ children }: { children: React.ReactNode }) {
   return <div className="mb-[18px] grid grid-cols-2 gap-3 min-[760px]:grid-cols-4">{children}</div>;
 }
+
+/** Placeholder for <KpiRow> while its aggregates are in flight. Same grid, same
+ *  card chrome and the same 14/15px padding as KpiCard, so nothing shifts when
+ *  the real numbers land — the reason this mirrors the card rather than being a
+ *  plain grey block. */
+export function KpiRowSkeleton({ cards = 4 }: { cards?: number }) {
+  return (
+    <div
+      className="mb-[18px] grid grid-cols-2 gap-3 min-[760px]:grid-cols-4"
+      role="status"
+      aria-label="Loading summary"
+    >
+      {Array.from({ length: cards }).map((_, i) => (
+        <Card key={i} className="gap-0 rounded-xl border px-[15px] py-[14px] shadow-card">
+          <div className="h-3 w-20 animate-pulse rounded bg-muted" />
+          <div className="mt-[9px] h-6 w-24 animate-pulse rounded bg-muted" />
+        </Card>
+      ))}
+    </div>
+  );
+}
