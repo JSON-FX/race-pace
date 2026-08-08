@@ -130,6 +130,11 @@ describe("money RPCs write to registration_audit", () => {
     expect(afterPaid.length).toBe(1);
     expect(afterPaid[0].action).toBe("paid");
     expect(afterPaid[0].actor_role).toBe("system");
+    // org_id/event_id must come from the row the function itself locked, not just any FK
+    // that happens to satisfy the constraint — an edit that sourced these from the wrong
+    // place would still pass a bare not-null/FK check.
+    expect(afterPaid[0].org_id).toBe(org.id);
+    expect(afterPaid[0].event_id).toBe(reg.event_id);
 
     // Seven arguments — the four-arg form in older migrations was superseded by
     // 20260807090400_refund_policy_tx.sql. Confirm the live parameter names and order with
@@ -144,7 +149,10 @@ describe("money RPCs write to registration_audit", () => {
     expect(afterRefund.length).toBe(2);
     expect(afterRefund[1].action).toBe("refunded");
     expect(afterRefund[1].actor_id).toBe(uid);
+    expect(afterRefund[1].actor_role).toBe("admin");
     expect(afterRefund[1].detail.note).toBe("duplicate entry");
+    expect(afterRefund[1].org_id).toBe(org.id);
+    expect(afterRefund[1].event_id).toBe(reg.event_id);
 
     await cleanup(s, org.id, reg.id, uid);
   });
@@ -157,5 +165,38 @@ describe("money RPCs write to registration_audit", () => {
     const rows = (await s.from("registration_audit").select("id").eq("registration_id", reg.id)).data!;
     expect(rows.length).toBe(1);
     await cleanup(s, org.id, reg.id, uid);
+  });
+
+  it("records exactly one partially_refunded row on a partial refund", async () => {
+    const { s, uid, org, reg } = await fixture("partialaudit");
+    try {
+      await s.rpc("confirm_payment_tx", {
+        p_registration_id: reg.id, p_method: "gcash", p_fee: 10000,
+        p_net: 90000, p_token: "tok.sig", p_raw: {},
+      });
+
+      // Partial: p_refunded_amount (40000) < the payment's amount (100000), so
+      // refund_registration_tx takes the partially_refunded branch, not the full-refund one.
+      const r = await s.rpc("refund_registration_tx", {
+        p_registration_id: reg.id, p_refunded_by: uid, p_note: "goodwill partial",
+        p_provider_refund: { id: "ref_partial", status: "succeeded" },
+        p_refunded_amount: 40000, p_retained_fee: 5000, p_retained_net: 55000,
+      });
+      expect(r.data).toBe("partially_refunded");
+
+      const rows = (await s.from("registration_audit").select("*").eq("registration_id", reg.id).order("created_at", { ascending: true })).data!;
+      // paid + partially_refunded, no third row
+      expect(rows.length).toBe(2);
+      const partialRow = rows[1];
+      expect(partialRow.action).toBe("partially_refunded");
+      expect(partialRow.actor_id).toBe(uid);
+      expect(partialRow.actor_role).toBe("admin");
+      expect(partialRow.org_id).toBe(org.id);
+      expect(partialRow.event_id).toBe(reg.event_id);
+      expect(partialRow.detail.amount).toBe(40000);
+      expect(partialRow.detail.note).toBe("goodwill partial");
+    } finally {
+      await cleanup(s, org.id, reg.id, uid);
+    }
   });
 });
