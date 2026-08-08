@@ -24,7 +24,10 @@ describe("TeamPage", () => {
     // A bare super_admin: isAdmin/isOrgAdmin true (clears the (admin)
     // layout guard) but orgId null — there's no organization to scope a
     // team query to. Querying with a null org id must not happen at all.
-    getMyRoles.mockResolvedValue({ role: "super_admin", orgId: null, isSuperAdmin: true, isAdmin: true, isOrgAdmin: true });
+    getMyRoles.mockResolvedValue({
+      role: "super_admin", orgId: null, isSuperAdmin: true, isAdmin: true, isOrgAdmin: true,
+      capabilities: ["manage_platform", "manage_team", "manage_org", "check_in"],
+    });
 
     const ui = await TeamPage({ searchParams: Promise.resolve({}) });
     render(ui);
@@ -37,11 +40,22 @@ describe("TeamPage", () => {
   // it ever reaches the "list" branch (its caller-is-admin check runs
   // first), so an editor calling listTeam would 500, not get a read-only
   // list. This is the regression MINOR 4 flags: if TeamPage's gate were
-  // ever loosened from `roles.isOrgAdmin` to `roles.isAdmin` (which an
-  // editor also satisfies), this test fails — it would let an editor
-  // through to a listTeam call that this suite has told to throw.
-  it("renders an org-admins-only notice and never queries the team for an editor (isAdmin but not isOrgAdmin)", async () => {
-    getMyRoles.mockResolvedValue({ role: "editor", orgId: "a1", isSuperAdmin: false, isAdmin: true, isOrgAdmin: false });
+  // ever loosened from `hasCapability(roles.capabilities, "manage_team")`
+  // to something an editor also satisfies (e.g. `roles.isAdmin`, or folding
+  // `manage_team` into `manage_org`), this test fails — it would let an
+  // editor through to a listTeam call that this suite has told to throw.
+  //
+  // Note: today `manage_team` is held by exactly {admin, super_admin} — the
+  // same set as `isOrgAdmin` — so this test cannot by itself prove the page
+  // reads `capabilities` rather than `isOrgAdmin`; it proves only that an
+  // editor is kept out, which both predicates already guarantee. See
+  // capabilities.test.ts's "no role escapes admin's set" test for what would
+  // actually need to break for a discriminating case to become possible.
+  it("renders an org-admins-only notice and never queries the team for an editor (holds manage_org, not manage_team)", async () => {
+    getMyRoles.mockResolvedValue({
+      role: "editor", orgId: "a1", isSuperAdmin: false, isAdmin: true, isOrgAdmin: false,
+      capabilities: ["manage_org", "check_in"],
+    });
 
     const ui = await TeamPage({ searchParams: Promise.resolve({}) });
     render(ui);
