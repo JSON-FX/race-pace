@@ -148,3 +148,88 @@ describe("dedupe of pre-existing duplicates", () => {
     expect(catAfterSecond.data!.slots_taken).toBe(5);
   });
 });
+
+/**
+ * Fix round 1: CRITICAL finding on dedupe_live_registrations()'s winner selection.
+ * `row_number() over (partition by event_id, user_id order by created_at, id)` ranked
+ * candidates purely by recency, ignoring status. The realistic way a duplicate forms is
+ * a first checkout going 'pending' and being abandoned, then a later attempt actually
+ * completing payment -- in that order, the OLD abandoned pending row ranked first and
+ * survived, while the row the runner actually PAID for was expired and its slot
+ * released. Ruled fix (20260809100150_dedupe_paid_wins_tiebreak.sql): PAID ALWAYS WINS,
+ * THEN EARLIEST -- `order by (status = 'paid') desc, created_at, id`.
+ *
+ * This is exactly the branch the "dedupe of pre-existing duplicates" describe block
+ * above cannot reach: proving it requires two 'pending'/'paid' rows for the same
+ * (event_id, user_id) to exist at once, which registrations_one_live_per_event forbids
+ * unconditionally (see that block's header comment -- reconfirmed true here, the
+ * ordering rule doesn't change that constraint at all).
+ *
+ * So this covers the ordering rule two ways, neither requiring DDL or two live rows for
+ * the same event:
+ *
+ * 1. _dedupe_rank_probe (20260809100160_dedupe_rank_test_probes.sql) runs the exact
+ *    deployed ORDER BY clause against two REAL registration rows with genuine 'pending'
+ *    and 'paid' statuses -- just for two DIFFERENT events, so the unique index has
+ *    nothing to object to. Proves the rule behaves correctly: paid outranks pending
+ *    regardless of which was created first, and same-status pairs still tiebreak on
+ *    created_at/id.
+ * 2. _dedupe_source_contains asserts the REAL, deployed dedupe_live_registrations()
+ *    function's source (via pg_get_functiondef) still contains the paid-wins ORDER BY.
+ *    _dedupe_rank_probe's clause is a hand-kept copy of that ORDER BY, not a shared
+ *    reference -- on its own it would keep passing even if someone reverted the real
+ *    function back to `created_at, id` and forgot to touch the probe. This assertion is
+ *    what actually fails in that scenario: it reads the real function's current body,
+ *    not the probe's copy.
+ */
+describe("dedupe winner-selection order (paid always wins, then earliest)", () => {
+  it("ranks a genuinely paid row ahead of an earlier abandoned pending row", async () => {
+    const svc = service();
+    const older = await makeEvent(`rankpending${Date.now()}`);
+    const newer = await makeEvent(`rankpaid${Date.now()}`);
+    const runner = await makeUser(`gate_rank_${Date.now()}@test.dev`);
+
+    const earlier = new Date(Date.now() - 2 * 3_600_000).toISOString();
+    const later = new Date(Date.now() - 3_600_000).toISOString();
+
+    const pendingRow = { ...regRow(older, runner.id), status: "pending", created_at: earlier };
+    const paidRow = { ...regRow(newer, runner.id), status: "paid", created_at: later };
+
+    const pending = await svc.from("registrations").insert(pendingRow).select().single();
+    expect(pending.error).toBeNull();
+    const paid = await svc.from("registrations").insert(paidRow).select().single();
+    expect(paid.error).toBeNull();
+
+    const probe = await svc.rpc("_dedupe_rank_probe", { id_a: pending.data!.id, id_b: paid.data!.id });
+    expect(probe.error).toBeNull();
+    const winner = probe.data!.find((r: { id: string; rn: number }) => r.rn === 1);
+    expect(winner?.id, "the paid row must rank first even though the pending row is older").toBe(paid.data!.id);
+  });
+
+  it("still tiebreaks on created_at/id when both candidates share a status", async () => {
+    const svc = service();
+    const a = await makeEvent(`rankties_a${Date.now()}`);
+    const b = await makeEvent(`rankties_b${Date.now()}`);
+    const runner = await makeUser(`gate_rank_tie_${Date.now()}@test.dev`);
+
+    const earlier = new Date(Date.now() - 2 * 3_600_000).toISOString();
+    const later = new Date(Date.now() - 3_600_000).toISOString();
+
+    const first = await svc.from("registrations").insert({ ...regRow(a, runner.id), status: "pending", created_at: earlier }).select().single();
+    expect(first.error).toBeNull();
+    const second = await svc.from("registrations").insert({ ...regRow(b, runner.id), status: "pending", created_at: later }).select().single();
+    expect(second.error).toBeNull();
+
+    const probe = await svc.rpc("_dedupe_rank_probe", { id_a: first.data!.id, id_b: second.data!.id });
+    expect(probe.error).toBeNull();
+    const winner = probe.data!.find((r: { id: string; rn: number }) => r.rn === 1);
+    expect(winner?.id, "with equal status, the earlier created_at must still win").toBe(first.data!.id);
+  });
+
+  it("the deployed dedupe_live_registrations() still contains the paid-wins ORDER BY", async () => {
+    const svc = service();
+    const check = await svc.rpc("_dedupe_source_contains", { needle: "(status = 'paid') desc" });
+    expect(check.error).toBeNull();
+    expect(check.data, "dedupe_live_registrations()'s ORDER BY must not regress to created_at,id").toBe(true);
+  });
+});
