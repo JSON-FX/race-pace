@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { createClient } from "@supabase/supabase-js";
 import { loadEnv } from "../../test/env";
 
-const { url, serviceKey } = loadEnv();
+const { url, anonKey, serviceKey } = loadEnv();
 const svc = () => createClient(url, serviceKey, { auth: { persistSession: false } });
 
 async function org(tag: string) {
@@ -54,5 +54,40 @@ describe("event deadline columns", () => {
     });
     expect(error).toBeNull();
     await s.from("organizations").delete().eq("id", o.id);
+  });
+});
+
+describe("checkout enforces registration_closes_at", () => {
+  it("refuses a registration for an event whose deadline has passed", async () => {
+    const { s, o } = await org("checkout");
+    const email = `dlco_${Date.now()}@test.dev`;
+    const uid = (await s.auth.admin.createUser({ email, password: "password123", email_confirm: true })).data.user!.id;
+    const ev = (await s.from("events").insert({
+      org_id: o.id, name: "Closed Race", status: "open",
+      registration_closes_at: "2020-01-01T00:00:00Z",
+    }).select().single()).data!;
+    const cat = (await s.from("categories").insert({
+      org_id: o.id, event_id: ev.id, code: "10k", label: "10K",
+      base_price: 100000, slots_total: 50, slots_taken: 0,
+    }).select().single()).data!;
+
+    const asUser = createClient(url, anonKey, { auth: { persistSession: false } });
+    const session = await asUser.auth.signInWithPassword({ email, password: "password123" });
+    const jwt = session.data.session!.access_token;
+
+    const res = await fetch(`${url}/functions/v1/registrations-checkout`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${jwt}`, "content-type": "application/json" },
+      body: JSON.stringify({
+        event_id: ev.id, category_id: cat.id, addon_ids: [],
+        custom_data: {}, waiver_accepted: true, idempotency_key: `dl-${Date.now()}`,
+      }),
+    });
+
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe("registration_closed");
+
+    await s.from("organizations").delete().eq("id", o.id);
+    await s.auth.admin.deleteUser(uid);
   });
 });
