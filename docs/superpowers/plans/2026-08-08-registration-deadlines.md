@@ -37,7 +37,7 @@
 - `supabase/migrations/20260808100000_event_deadlines.sql` — deadline columns + constraint
 - `supabase/migrations/20260808100100_registration_audit.sql` — audit table, RLS, grants
 - `supabase/migrations/20260808100200_update_registration_fields_tx.sql` — the edit RPC
-- `supabase/migrations/20260808100300_money_txn_audit.sql` — audit rows from the money RPCs
+- `supabase/migrations/20260808120000_money_txn_audit.sql` — audit rows from the money RPCs
 - `supabase/tests/registration-fields-edit.test.ts` — RPC behaviour
 - `supabase/tests/event-deadlines.test.ts` — columns, constraint, checkout enforcement
 - `apps/site/components/RaceKitCard.tsx` — runner kit card (open + locked)
@@ -804,12 +804,52 @@ git commit -m "feat(db): add update_registration_fields_tx with deadline and aud
 ### Task 5: Audit rows from the money RPCs
 
 **Files:**
-- Create: `supabase/migrations/20260808100300_money_txn_audit.sql`
+- Create: `supabase/migrations/20260808120000_money_txn_audit.sql`
 - Modify: `supabase/tests/money-txn.test.ts`
 
 **Interfaces:**
-- Consumes: `registration_audit` (Task 3), existing `confirm_payment_tx` and `refund_registration_tx` bodies from `supabase/migrations/20260723100000_money_txn_rpcs.sql`.
-- Produces: no signature change. `confirm_payment_tx` additionally writes a `paid` audit row; `refund_registration_tx` writes a `refunded` audit row with `actor_id = p_refunded_by`.
+- Consumes: `registration_audit` (Task 3), and the **live** definitions of `confirm_payment_tx` and `refund_registration_tx`.
+- Produces: no signature change whatsoever. `confirm_payment_tx` additionally writes a `paid` audit row; `refund_registration_tx` writes a `refunded` audit row with `actor_id = p_refunded_by`.
+
+> ## ⚠️ Read this before writing any SQL — it is a security trap
+>
+> **Do not copy function bodies from anywhere in this plan or from
+> `supabase/migrations/20260723100000_money_txn_rpcs.sql`. Both are stale.**
+>
+> `refund_registration_tx` was replaced by `supabase/migrations/20260807090400_refund_policy_tx.sql`
+> and now takes **seven** arguments, with partial-refund and retained-fee logic the older
+> body does not have:
+> ```
+> p_registration_id uuid, p_refunded_by uuid, p_note text, p_provider_refund jsonb,
+> p_refunded_amount integer, p_retained_fee integer, p_retained_net integer
+> ```
+>
+> `create or replace function` matches on the **argument signature**. Emitting the old
+> four-argument version would not replace anything — it would create a *second*,
+> differently-signed function alongside the real one. That new function would be created
+> with Supabase's default privileges, which grant `EXECUTE` to `anon` and `authenticated`,
+> **re-opening the exact vulnerability that `20260808110000_lock_down_function_grants.sql`
+> just closed** (an anonymous caller could mark registrations refunded). It would also
+> silently drop the partial-refund logic on whichever version callers resolved to.
+>
+> **Therefore: derive both bodies from the live database, not from this document.**
+> Run `select pg_get_functiondef(oid) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+> where n.nspname='public' and p.proname in ('confirm_payment_tx','refund_registration_tx');`
+> and use exactly what it returns as your starting point. Change one thing in each body:
+> add the `insert into public.registration_audit` shown below, immediately before the
+> function's final `return`. Change nothing else — not the signature, not the argument names,
+> not the existing logic, not `security definer`, not `set search_path`.
+>
+> After the two `create or replace` statements, re-assert the lockdown explicitly:
+> ```sql
+> revoke execute on function public.confirm_payment_tx(uuid, text, int, int, text, jsonb)
+>   from anon, authenticated;
+> revoke execute on function public.refund_registration_tx(uuid, uuid, text, jsonb, int, int, int)
+>   from anon, authenticated;
+> ```
+> `create or replace` does preserve existing privileges, so this is belt-and-braces — but
+> given what these two functions do, assert it rather than assume it. Verify the signatures
+> against `pg_get_function_identity_arguments` before writing them.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -830,8 +870,13 @@ describe("money RPCs write to registration_audit", () => {
     expect(afterPaid[0].action).toBe("paid");
     expect(afterPaid[0].actor_role).toBe("system");
 
+    // Seven arguments — the four-arg form in older migrations was superseded by
+    // 20260807090400_refund_policy_tx.sql. Confirm the live parameter names and order with
+    // pg_get_function_identity_arguments before writing this call; a wrong arg list fails
+    // as "function does not exist", which reads like a missing migration.
     await s.rpc("refund_registration_tx", {
-      p_registration_id: reg.id, p_refunded_by: uid, p_note: "duplicate entry", p_provider_refund: {},
+      p_registration_id: reg.id, p_refunded_by: uid, p_note: "duplicate entry",
+      p_provider_refund: {}, p_refunded_amount: 100000, p_retained_fee: 0, p_retained_net: 0,
     });
 
     const afterRefund = (await s.from("registration_audit").select("*").eq("registration_id", reg.id).order("created_at", { ascending: true })).data!;
@@ -862,106 +907,47 @@ Expected: FAIL — `expected 0 to be 1` on the audit row count. Existing tests i
 
 - [ ] **Step 3: Write the migration**
 
-Create `supabase/migrations/20260808100300_money_txn_audit.sql`. This replaces both function
-bodies in full — the only change is the `insert into public.registration_audit` before each
-`return`:
+Create `supabase/migrations/20260808120000_money_txn_audit.sql`.
+
+**Do not write the bodies from memory or from this plan.** Follow the trap warning at the top
+of this task. Concretely:
+
+1. Get the live definitions:
+   ```bash
+   pnpm exec supabase db query "select pg_get_functiondef(p.oid) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname in ('confirm_payment_tx','refund_registration_tx')" --linked
+   ```
+2. Paste each returned definition into the migration unchanged.
+3. In `confirm_payment_tx`, declare whatever locals you need for the audit row and add this
+   immediately before its final `return 'paid';`:
 
 ```sql
--- Extend the money RPCs to write the registration timeline. Refund audit data has been
--- landing in payments.raw since 20260723100000 and no UI has ever read it; these rows are
--- what make it visible in the admin drawer.
-create or replace function public.confirm_payment_tx(
-  p_registration_id uuid, p_method text, p_fee int, p_net int, p_token text, p_raw jsonb
-) returns text
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  v_status public.registration_status;
-  v_category uuid;
-  v_org uuid;
-  v_event uuid;
-  v_amount int;
-begin
-  select status, category_id, org_id, event_id, total_amount
-    into v_status, v_category, v_org, v_event, v_amount
-    from public.registrations where id = p_registration_id for update;
-  if not found then return 'not_found'; end if;
-  if v_status = 'paid' then return 'already'; end if;
-  if v_status <> 'pending' then return 'not_pending'; end if;
-
-  update public.payments
-     set status = 'paid', method = p_method, platform_fee = p_fee,
-         net_to_org = p_net, raw = p_raw
-   where registration_id = p_registration_id;
-
-  update public.registrations
-     set status = 'paid', ticket_token = p_token
-   where id = p_registration_id;
-
-  update public.categories set slots_taken = slots_taken + 1 where id = v_category;
-
   insert into public.registration_audit
     (registration_id, org_id, event_id, action, detail, actor_role)
   values (p_registration_id, v_org, v_event, 'paid',
           jsonb_build_object('method', p_method, 'amount', v_amount), 'system');
+```
 
-  return 'paid';
-end;
-$$;
+4. In `refund_registration_tx`, add this immediately before its final `return 'refunded';`:
 
-revoke all on function public.confirm_payment_tx(uuid, text, int, int, text, jsonb) from public;
-grant execute on function public.confirm_payment_tx(uuid, text, int, int, text, jsonb) to service_role;
-
-create or replace function public.refund_registration_tx(
-  p_registration_id uuid, p_refunded_by uuid, p_note text, p_provider_refund jsonb
-) returns text
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  v_status public.registration_status;
-  v_category uuid;
-  v_raw jsonb;
-  v_org uuid;
-  v_event uuid;
-  v_amount int;
-begin
-  select status, category_id, org_id, event_id, total_amount
-    into v_status, v_category, v_org, v_event, v_amount
-    from public.registrations where id = p_registration_id for update;
-  if not found then return 'not_found'; end if;
-  if v_status = 'refunded' then return 'already'; end if;
-  if v_status <> 'paid' then return 'not_paid'; end if;
-
-  update public.registrations set status = 'refunded' where id = p_registration_id;
-
-  select raw into v_raw from public.payments where registration_id = p_registration_id;
-  update public.payments
-     set status = 'refunded',
-         raw = coalesce(v_raw, '{}'::jsonb) || jsonb_build_object(
-                 'refunded_at', now(),
-                 'refunded_by', p_refunded_by,
-                 'note', p_note,
-                 'provider_refund', p_provider_refund)
-   where registration_id = p_registration_id;
-
-  update public.categories set slots_taken = greatest(slots_taken - 1, 0) where id = v_category;
-
+```sql
   insert into public.registration_audit
     (registration_id, org_id, event_id, action, detail, actor_id, actor_role)
   values (p_registration_id, v_org, v_event, 'refunded',
           jsonb_build_object('amount', v_amount, 'note', p_note), p_refunded_by, 'admin');
-
-  return 'refunded';
-end;
-$$;
-
-revoke all on function public.refund_registration_tx(uuid, uuid, text, jsonb) from public;
-grant execute on function public.refund_registration_tx(uuid, uuid, text, jsonb) to service_role;
 ```
+
+The existing bodies already `select ... into` several locals from `registrations`; extend that
+existing `select` to also fetch `org_id`, `event_id`, and `total_amount` rather than adding a
+second query. Keep `for update` exactly where it is — it is what makes these transitions safe.
+
+Use unqualified `jsonb_build_object`: it lives in `pg_catalog`, which is always on the search
+path, and `public.jsonb_build_object` does not exist. plpgsql resolves function names at
+execution time, so a wrongly-qualified call would fail only on the happy path — after tests
+that exercise error branches have already gone green.
+
+5. End the migration with the two explicit `revoke execute ... from anon, authenticated`
+   statements from the warning above, using signatures you have verified against
+   `pg_get_function_identity_arguments`.
 
 - [ ] **Step 4: Apply and run the tests**
 
@@ -971,7 +957,7 @@ Expected: PASS — the two new tests plus every pre-existing test in the file.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add supabase/migrations/20260808100300_money_txn_audit.sql supabase/tests/money-txn.test.ts
+git add supabase/migrations/20260808120000_money_txn_audit.sql supabase/tests/money-txn.test.ts
 git commit -m "feat(db): write paid and refunded rows to the registration timeline"
 ```
 
