@@ -1,11 +1,20 @@
 import { render, screen } from "@testing-library/react";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import type { MyRoles } from "@/lib/queries/roles";
+import type { Capability } from "@/lib/capabilities";
 
 vi.mock("next/navigation", () => ({ usePathname: () => "/events" }));
 vi.mock("@/lib/actions/auth", () => ({ signOutAction: vi.fn() }));
 
 import { Sidebar } from "./Sidebar";
+
+// Sidebar now gates on roles.capabilities (lib/nav-items.ts), not on
+// isOrgAdmin/isSuperAdmin directly — these mirror what getMyRoles() would
+// have derived for an admin vs. an editor vs. a super_admin, so overrides
+// below set both the legacy flags AND the capability list a test depends on.
+const ADMIN_CAPS: Capability[] = ["manage_team", "manage_org", "check_in"];
+const EDITOR_CAPS: Capability[] = ["manage_org", "check_in"];
+const SUPER_CAPS: Capability[] = ["manage_platform", "manage_team", "manage_org", "check_in"];
 
 function roles(overrides: Partial<MyRoles> = {}): MyRoles {
   return {
@@ -14,7 +23,7 @@ function roles(overrides: Partial<MyRoles> = {}): MyRoles {
     isAdmin: true,
     isOrgAdmin: true,
     orgId: "a1",
-    capabilities: [],
+    capabilities: ADMIN_CAPS,
     ...overrides,
   };
 }
@@ -40,7 +49,7 @@ function renderSidebar(r: MyRoles) {
 // in the UI; this test exists so a refactor that inverts or drops it fails
 // loudly instead of silently exposing the link to every editor.
 it("hides the Team link from an org editor (isAdmin but not isOrgAdmin)", () => {
-  renderSidebar(roles({ isOrgAdmin: false }));
+  renderSidebar(roles({ isOrgAdmin: false, capabilities: EDITOR_CAPS }));
   expect(screen.getByText("Events")).toBeInTheDocument();
   expect(screen.queryByText("Team")).not.toBeInTheDocument();
 });
@@ -60,7 +69,7 @@ it("hides the PLATFORM super-admin group from a regular org admin", () => {
 });
 
 it("shows the PLATFORM super-admin group to a super_admin", () => {
-  renderSidebar(roles({ isSuperAdmin: true }));
+  renderSidebar(roles({ isSuperAdmin: true, capabilities: SUPER_CAPS }));
   expect(screen.getByText("PLATFORM")).toBeInTheDocument();
   expect(screen.getByText("Organizations")).toBeInTheDocument();
   expect(screen.getByText("Commission")).toBeInTheDocument();
