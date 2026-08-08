@@ -45,9 +45,9 @@
 - `apps/site/lib/kit.ts` — kit lock rule, edit client call, result mapping, deadline notice
 - `apps/site/components/__tests__/race-kit-card.test.tsx`
 - `apps/site/lib/__tests__/kit.test.ts`
-- `apps/web/src/lib/audit.ts` — audit query hook
-- `apps/web/src/components/RegistrationHistory.tsx` — the timeline section
-- `apps/web/src/__tests__/registration-history.test.tsx`
+- `apps/web/lib/deadlines.ts` + `.test.ts` — datetime-local ↔ ISO conversion
+- `apps/web/lib/audit.ts` + `.test.ts` — audit row type and day grouping
+- `apps/web/components/RegistrationHistory.tsx` + `.test.tsx` — the timeline section
 
 **Modified:**
 - `packages/shared/src/index.ts` — field edit policy + labels
@@ -59,9 +59,10 @@
 - `apps/site/lib/events.ts`, `apps/site/lib/home.ts`, `apps/site/lib/registration.ts` — select the new column
 - `apps/site/app/page.tsx`, `app/events/[id]/page.tsx`, `app/register/[categoryId]/page.tsx`, `app/pay/[registrationId]/page.tsx`, `app/pay/[registrationId]/PayPanel.tsx` — call sites
 - `apps/site/app/ticket/[registrationId]/TicketPanel.tsx` — mount the kit card
-- `apps/web/src/routes/EventEditor.tsx` + `apps/web/src/__tests__/event-editor.test.tsx` — deadline inputs
-- `apps/web/src/lib/events.ts` — draft type + persistence for the two columns
-- `apps/web/src/components/RegistrationDetail.tsx` + `apps/web/src/__tests__/registration-detail.test.tsx` — history section + real labels
+- `apps/web/app/(admin)/events/event-editor-form.tsx` + `.test.tsx` — deadline inputs
+- `apps/web/lib/actions/events.ts` — `EventDraft` type + the `EVENT_COLS` write whitelist
+- `apps/web/lib/queries/event-editor.ts` — `EditorEvent` type + the `EVENT_SELECT` read list
+- `apps/web/components/RegistrationDetail.tsx` + `.test.tsx` — mount the history, branch the Supabase mock
 
 ---
 
@@ -203,14 +204,18 @@ git commit -m "feat(db): add registration and kit-edit deadline columns to event
   - `SAFETY_KEYS: readonly ["blood_type", "emergency_contact"]`
   - `type FieldEditPolicy = "kit" | "safety" | "immutable"`
   - `fieldEditPolicy(key: string): FieldEditPolicy`
-  - `fieldLabel(key: string): string`
+
+Do NOT add a `fieldLabel` here. One already ships at `apps/web/lib/field-labels.ts:35`
+with acronym overrides (`city_psgc_code` → "City (PSGC)") that a naive de-slugger gets
+wrong, and `RegistrationDetail.tsx` already uses it. A second implementation in shared
+would be duplication with worse behaviour. Task 11 imports the existing one.
 
 - [ ] **Step 1: Write the failing test**
 
 Append to `packages/shared/src/index.test.ts`:
 
 ```ts
-import { fieldEditPolicy, fieldLabel, KIT_KEYS, SAFETY_KEYS } from "./index";
+import { fieldEditPolicy, KIT_KEYS, SAFETY_KEYS } from "./index";
 
 describe("fieldEditPolicy", () => {
   it("classifies shirt_size as a kit field that freezes before printing", () => {
@@ -231,21 +236,6 @@ describe("fieldEditPolicy", () => {
   it("keeps kit and safety key sets disjoint", () => {
     const overlap = KIT_KEYS.filter((k) => (SAFETY_KEYS as readonly string[]).includes(k));
     expect(overlap).toEqual([]);
-  });
-});
-
-describe("fieldLabel", () => {
-  it("gives profile keys a human label", () => {
-    expect(fieldLabel("shirt_size")).toBe("Shirt size");
-    expect(fieldLabel("blood_type")).toBe("Blood type");
-  });
-
-  it("prettifies an unknown snake_case key rather than showing it raw", () => {
-    expect(fieldLabel("running_club")).toBe("Running club");
-  });
-
-  it("returns an empty string unchanged", () => {
-    expect(fieldLabel("")).toBe("");
   });
 });
 ```
@@ -1278,23 +1268,36 @@ git commit -m "feat(site): close registration by date as well as status"
 
 ### Task 8: Admin event editor deadline inputs
 
+> `apps/web` is a **Next.js** app (App Router, server actions). Tests live beside the file
+> they cover as `foo.test.tsx`, never in `__tests__/`. Run them with `pnpm --filter web test`.
+
 **Files:**
-- Modify: `apps/web/src/routes/EventEditor.tsx` (insert a new grid after the closing `</div>` of the 4-column grid at line 173)
-- Modify: `apps/web/src/lib/events.ts` — `EventDraft` type + the save payload
-- Modify: `apps/web/src/__tests__/event-editor.test.tsx`
+- Create: `apps/web/lib/deadlines.ts`
+- Create: `apps/web/lib/deadlines.test.ts`
+- Modify: `apps/web/lib/actions/events.ts` — the `EventDraft` type and the `EVENT_COLS` whitelist
+- Modify: `apps/web/lib/queries/event-editor.ts` — the `EditorEvent` type (line 5) and the `EVENT_SELECT` column string (line 24)
+- Modify: `apps/web/app/(admin)/events/event-editor-form.tsx` — `blankDraft()` and the date grid
+- Modify: `apps/web/app/(admin)/events/event-editor-form.test.tsx`
 
 **Interfaces:**
 - Consumes: `events.registration_closes_at`, `events.kit_edit_closes_at` (Task 1).
-- Produces: `EventDraft` gains `registration_closes_at: string | null` and `kit_edit_closes_at: string | null`, both stored as ISO-8601 UTC strings. Two helpers exported from `apps/web/src/lib/events.ts`:
-  - `toLocalInput(iso: string | null): string` — ISO → `datetime-local` value
-  - `fromLocalInput(local: string): string | null` — `datetime-local` value → ISO, empty → null
+- Produces:
+  - `EventDraft` and `EditorEvent` both gain `registration_closes_at: string | null` and `kit_edit_closes_at: string | null`, stored as ISO-8601 UTC strings.
+  - `toLocalInput(iso: string | null): string` and `fromLocalInput(local: string): string | null`, exported from the new `apps/web/lib/deadlines.ts`.
+
+**Critical:** the admin app does not spread the draft into the save — `EVENT_COLS` in
+`apps/web/lib/actions/events.ts` builds the payload field by field, and `EVENT_SELECT` in
+`apps/web/lib/queries/event-editor.ts` lists read columns as a string. A new column added to
+the form but missed in either place will silently fail to save or silently fail to load, with
+no type error. Both lists must be updated.
 
 - [ ] **Step 1: Write the failing test**
 
-Append to `apps/web/src/__tests__/event-editor.test.tsx`:
+Create `apps/web/lib/deadlines.test.ts`:
 
-```tsx
-import { toLocalInput, fromLocalInput } from "../lib/events";
+```ts
+import { describe, it, expect } from "vitest";
+import { toLocalInput, fromLocalInput } from "./deadlines";
 
 describe("deadline input conversion", () => {
   it("round-trips a local datetime through ISO", () => {
@@ -1311,46 +1314,54 @@ describe("deadline input conversion", () => {
     expect(toLocalInput(null)).toBe("");
   });
 });
+```
 
-describe("EventEditor deadlines", () => {
-  it("offers registration close and kit edit close inputs", async () => {
-    renderEditor();
-    expect(await screen.findByLabelText("Registration closes")).toBeInTheDocument();
-    expect(await screen.findByLabelText("Kit edits close")).toBeInTheDocument();
+Append to `apps/web/app/(admin)/events/event-editor-form.test.tsx`, using the file's existing
+`editorData(overrides)` fixture builder and its plain
+`render(<EventEditorForm initial={...} orgId="a1" />)` call — there is no custom render
+wrapper. `lastSavedEvent()` in that file pulls the last submitted FormData payload back out;
+use it for the persistence test.
+
+```tsx
+describe("event deadlines", () => {
+  it("offers registration close and kit edit close inputs", () => {
+    render(<EventEditorForm initial={editorData({})} orgId="a1" />);
+    expect(screen.getByLabelText("Registration closes")).toBeInTheDocument();
+    expect(screen.getByLabelText("Kit edits close")).toBeInTheDocument();
   });
 
-  it("warns when the kit cutoff is earlier than the registration close", async () => {
-    renderEditor();
-    const reg = await screen.findByLabelText("Registration closes");
-    const kit = await screen.findByLabelText("Kit edits close");
-    fireEvent.change(reg, { target: { value: "2026-09-06T23:59" } });
-    fireEvent.change(kit, { target: { value: "2026-09-01T23:59" } });
-    expect(await screen.findByText(/kit edits cannot close before registration/i)).toBeInTheDocument();
+  it("warns when the kit cutoff is earlier than the registration close", () => {
+    render(<EventEditorForm initial={editorData({})} orgId="a1" />);
+    fireEvent.change(screen.getByLabelText("Registration closes"), { target: { value: "2026-09-06T23:59" } });
+    fireEvent.change(screen.getByLabelText("Kit edits close"), { target: { value: "2026-09-01T23:59" } });
+    expect(screen.getByText(/kit edits cannot close before registration/i)).toBeInTheDocument();
   });
 
-  it("accepts a kit cutoff after the registration close", async () => {
-    renderEditor();
-    fireEvent.change(await screen.findByLabelText("Registration closes"), { target: { value: "2026-09-01T23:59" } });
-    fireEvent.change(await screen.findByLabelText("Kit edits close"), { target: { value: "2026-09-06T23:59" } });
+  it("accepts a kit cutoff after the registration close", () => {
+    render(<EventEditorForm initial={editorData({})} orgId="a1" />);
+    fireEvent.change(screen.getByLabelText("Registration closes"), { target: { value: "2026-09-01T23:59" } });
+    fireEvent.change(screen.getByLabelText("Kit edits close"), { target: { value: "2026-09-06T23:59" } });
     expect(screen.queryByText(/kit edits cannot close before registration/i)).not.toBeInTheDocument();
+  });
+
+  it("loads an existing deadline back into the input", () => {
+    const iso = fromLocalInput("2026-09-01T23:59")!;
+    render(<EventEditorForm initial={editorData({ registration_closes_at: iso })} orgId="a1" />);
+    expect(screen.getByLabelText("Registration closes")).toHaveValue("2026-09-01T23:59");
   });
 });
 ```
 
-Reuse whatever `renderEditor()` helper and imports (`screen`, `fireEvent`) the existing file
-already defines; if it renders the editor inline instead, follow that pattern exactly rather
-than introducing a new helper.
+Import `fromLocalInput` from `@/lib/deadlines` at the top of that test file.
 
 - [ ] **Step 2: Run it to make sure it fails**
 
-Run: `pnpm --filter web test src/__tests__/event-editor.test.tsx`
-Expected: FAIL — `toLocalInput is not a function` and no element labelled "Registration closes".
+Run: `pnpm --filter web test lib/deadlines.test.ts "app/(admin)/events/event-editor-form.test.tsx"`
+Expected: FAIL — cannot resolve `./deadlines`, and no element labelled "Registration closes".
 
 - [ ] **Step 3: Add the conversion helpers**
 
-In `apps/web/src/lib/events.ts`, add `registration_closes_at: string | null` and
-`kit_edit_closes_at: string | null` to the `EventDraft` type and to the select/save payloads,
-then export:
+Create `apps/web/lib/deadlines.ts`:
 
 ```ts
 /** `datetime-local` speaks the browser's local wall clock; the column stores an absolute
@@ -1370,47 +1381,70 @@ export function fromLocalInput(local: string): string | null {
 }
 ```
 
-- [ ] **Step 4: Add the inputs**
+- [ ] **Step 4: Thread the two columns through all four lists**
 
-In `apps/web/src/routes/EventEditor.tsx`, insert immediately after the closing `</div>` of
-the 4-column DATE / END DATE / FLAG-OFF / STATUS grid (line 173):
+All four of these must change or the column silently fails to save or load:
+
+1. `apps/web/lib/actions/events.ts` — add to the `EventDraft` type, on the line that already
+   carries `event_date: string | null; end_date: string | null; flag_off: string | null;`:
+   ```ts
+   registration_closes_at: string | null; kit_edit_closes_at: string | null;
+   ```
+2. `apps/web/lib/actions/events.ts` — add to the `EVENT_COLS` builder, beside the existing
+   `event_date: e.event_date, end_date: e.end_date, flag_off: e.flag_off,`:
+   ```ts
+   registration_closes_at: e.registration_closes_at, kit_edit_closes_at: e.kit_edit_closes_at,
+   ```
+3. `apps/web/lib/queries/event-editor.ts` — add the same two fields to the `EditorEvent` type,
+   and append `,registration_closes_at,kit_edit_closes_at` to the `EVENT_SELECT` string.
+4. `apps/web/app/(admin)/events/event-editor-form.tsx` — add
+   `registration_closes_at: null, kit_edit_closes_at: null,` to `blankDraft()`.
+
+Also check `apps/web/lib/validation.ts`: if `eventInputSchema` validates the event payload
+field-by-field, add both as nullable ISO datetime strings. If it does not enumerate
+`event_date`/`flag_off`, leave it alone.
+
+- [ ] **Step 5: Add the inputs**
+
+In `apps/web/app/(admin)/events/event-editor-form.tsx`, add a sibling grid row immediately
+after the existing `grid grid-cols-1 gap-3.5 sm:grid-cols-3` block that holds Date / End date
+/ Flag-off. Match that block's idiom exactly: the `Field` component from
+`@/components/form-section` (not a raw `Label`), the shared `inputCls` constant, and `set({...})`.
 
 ```tsx
-            {/* Registration control. Both optional — empty means the event has no date
-                deadline and closes only when an admin flips STATUS. */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className={fieldLabel}>REGISTRATION CLOSES</Label>
+            <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+              <Field label="Registration closes" hint="Leave empty to close by status only">
                 <Input
                   aria-label="Registration closes"
                   type="datetime-local"
+                  className={inputCls}
                   value={toLocalInput(event.registration_closes_at)}
                   onChange={(e) => set({ registration_closes_at: fromLocalInput(e.target.value) })}
                 />
-              </div>
-              <div>
-                <Label className={fieldLabel}>KIT EDITS CLOSE</Label>
+              </Field>
+              <Field label="Kit edits close" hint="When shirt sizes freeze for printing">
                 <Input
                   aria-label="Kit edits close"
                   type="datetime-local"
+                  className={inputCls}
                   value={toLocalInput(event.kit_edit_closes_at)}
                   onChange={(e) => set({ kit_edit_closes_at: fromLocalInput(e.target.value) })}
                 />
                 {kitBeforeReg ? (
-                  <p className="mt-1 text-[11px] text-destructive">
+                  <p className="mt-1.5 text-[11px] text-destructive">
                     Kit edits cannot close before registration does — a runner who signs up on
                     the last day would never get to change their shirt size.
                   </p>
                 ) : null}
-              </div>
+              </Field>
             </div>
-            <p className="-mt-1 text-[11px] text-muted-foreground">
-              Leave both empty for no deadline. Times are in {Intl.DateTimeFormat().resolvedOptions().timeZone}.
-              Runners can still fix blood type and emergency contact after the kit cutoff.
+            <p className="text-[11px] text-muted-foreground">
+              Times are in {Intl.DateTimeFormat().resolvedOptions().timeZone}. Runners can still
+              fix blood type and emergency contact after the kit cutoff.
             </p>
 ```
 
-Add above the `return`, next to the component's other derived values:
+Add beside the component's other derived values, above the `return`:
 
 ```tsx
   const kitBeforeReg =
@@ -1418,17 +1452,17 @@ Add above the `return`, next to the component's other derived values:
     new Date(event.kit_edit_closes_at) < new Date(event.registration_closes_at);
 ```
 
-Import the helpers at the top of the file: `import { toLocalInput, fromLocalInput } from "../lib/events";` (merge into the existing import from that module if one exists).
+Import the helpers: `import { toLocalInput, fromLocalInput } from "@/lib/deadlines";`
 
-- [ ] **Step 5: Run the tests and typecheck**
+- [ ] **Step 6: Run the tests and typecheck**
 
 Run: `pnpm --filter web test && pnpm --filter web typecheck`
 Expected: PASS, including every pre-existing editor test.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add apps/web/src/routes/EventEditor.tsx apps/web/src/lib/events.ts apps/web/src/__tests__/event-editor.test.tsx
+git add apps/web/lib/deadlines.ts apps/web/lib/deadlines.test.ts apps/web/lib/actions/events.ts apps/web/lib/queries/event-editor.ts "apps/web/app/(admin)/events"
 git commit -m "feat(admin): set registration and kit-edit deadlines on an event"
 ```
 
@@ -1918,47 +1952,47 @@ pnpm --filter site test
 
 ### Task 11: Admin history section
 
+> `apps/web` is a **Next.js** app; tests sit beside their subject as `Foo.test.tsx`.
+> `RegistrationDetail.tsx` is a **client** component that fetches on mount.
+
 **Files:**
-- Create: `apps/web/src/lib/audit.ts`
-- Create: `apps/web/src/components/RegistrationHistory.tsx`
-- Create: `apps/web/src/__tests__/registration-history.test.tsx`
-- Modify: `apps/web/src/components/RegistrationDetail.tsx:54` (real labels) and after line 56 (mount the history)
-- Modify: `apps/web/src/__tests__/registration-detail.test.tsx`
+- Create: `apps/web/lib/audit.ts`
+- Create: `apps/web/lib/audit.test.ts`
+- Create: `apps/web/components/RegistrationHistory.tsx`
+- Create: `apps/web/components/RegistrationHistory.test.tsx`
+- Modify: `apps/web/components/RegistrationDetail.tsx` — mount the section
+- Modify: `apps/web/components/RegistrationDetail.test.tsx` — its Supabase mock must branch by table
 
 **Interfaces:**
-- Consumes: `registration_audit` (Tasks 3 and 5), `fieldLabel` from `@race-pace/shared` (Task 2).
+- Consumes: `registration_audit` (Tasks 3 and 5).
 - Produces:
   - `type AuditRow = { id: string; action: string; detail: Record<string, unknown>; actor_role: string | null; created_at: string }`
-  - `useRegistrationAudit(registrationId: string)` — TanStack Query hook returning `AuditRow[]`
-  - `groupByDay(rows: AuditRow[]): { day: string; rows: AuditRow[] }[]`
+  - `groupByDay(rows: AuditRow[]): { day: string; rows: AuditRow[] }[]` — pure, in `lib/audit.ts`
   - `RegistrationHistory({ registrationId }: { registrationId: string })`
+
+**Do NOT add a field-label fix.** `apps/web/lib/field-labels.ts` already exports `fieldLabel`
+(with acronym overrides like `city_psgc_code` → "City (PSGC)") and `fieldValue`, and
+`RegistrationDetail.tsx` already renders `custom_data` through them. Import that existing
+`fieldLabel` for the history rows; do not write another.
+
+**Do NOT use TanStack Query here.** This component fetches with a plain `useEffect` +
+`useState` and the browser client — see the add-ons fetch in `RegistrationDetail.tsx`
+(`createClient` from `@/lib/supabase/client`, a `cancelled` guard, and `null` meaning
+not-yet-loaded versus `[]` meaning confirmed-empty). Match that idiom exactly.
 
 - [ ] **Step 1: Write the failing test**
 
-Create `apps/web/src/__tests__/registration-history.test.tsx`:
+Create `apps/web/lib/audit.test.ts`:
 
-```tsx
-import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { RegistrationHistory } from "../components/RegistrationHistory";
-import { groupByDay, type AuditRow } from "../lib/audit";
-import * as audit from "../lib/audit";
+```ts
+import { describe, it, expect } from "vitest";
+import { groupByDay, type AuditRow } from "./audit";
 
 const row = (over: Partial<AuditRow>): AuditRow => ({
-  id: crypto.randomUUID(), action: "field_changed",
+  id: Math.random().toString(36).slice(2), action: "field_changed",
   detail: { field: "shirt_size", from: "M", to: "L" },
   actor_role: "runner", created_at: "2026-08-08T06:22:00Z", ...over,
 });
-
-function renderHistory() {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(
-    <QueryClientProvider client={qc}>
-      <RegistrationHistory registrationId="r1" />
-    </QueryClientProvider>,
-  );
-}
 
 describe("groupByDay", () => {
   it("groups entries under one heading per day, newest day first", () => {
@@ -1977,72 +2011,87 @@ describe("groupByDay", () => {
   });
 });
 
+Create `apps/web/components/RegistrationHistory.test.tsx`. Mock the browser Supabase client
+the same way `RegistrationDetail.test.tsx` does — a module-level `vi.mock` of
+`@/lib/supabase/client` — and drive the result per test:
+
+```tsx
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import { RegistrationHistory } from "./RegistrationHistory";
+import type { AuditRow } from "@/lib/audit";
+
+let auditResult: { data: AuditRow[] | null; error: unknown } = { data: [], error: null };
+
+vi.mock("@/lib/supabase/client", () => ({
+  createClient: () => ({
+    from: () => ({
+      select: () => ({ eq: () => ({ order: () => Promise.resolve(auditResult) }) }),
+    }),
+  }),
+}));
+
+const row = (over: Partial<AuditRow>): AuditRow => ({
+  id: Math.random().toString(36).slice(2), action: "field_changed",
+  detail: { field: "shirt_size", from: "M", to: "L" },
+  actor_role: "runner", created_at: "2026-08-08T06:22:00Z", ...over,
+});
+
+beforeEach(() => { auditResult = { data: [], error: null }; });
+
 describe("RegistrationHistory", () => {
   it("shows the old value alongside the new one", async () => {
-    vi.spyOn(audit, "useRegistrationAudit").mockReturnValue({
-      data: [row({})], isLoading: false,
-    } as ReturnType<typeof audit.useRegistrationAudit>);
-    renderHistory();
+    auditResult = { data: [row({})], error: null };
+    render(<RegistrationHistory registrationId="r1" />);
     expect(await screen.findByText("Shirt size")).toBeInTheDocument();
     expect(screen.getByText("M")).toBeInTheDocument();
     expect(screen.getByText("L")).toBeInTheDocument();
   });
 
   it("renders an absent previous value as empty rather than blank", async () => {
-    vi.spyOn(audit, "useRegistrationAudit").mockReturnValue({
-      data: [row({ detail: { field: "blood_type", from: null, to: "B-" } })], isLoading: false,
-    } as ReturnType<typeof audit.useRegistrationAudit>);
-    renderHistory();
+    auditResult = { data: [row({ detail: { field: "blood_type", from: null, to: "B-" } })], error: null };
+    render(<RegistrationHistory registrationId="r1" />);
     expect(await screen.findByText("empty")).toBeInTheDocument();
   });
 
+  it("attributes an organiser edit to the organiser, not the runner", async () => {
+    auditResult = { data: [row({ actor_role: "admin" })], error: null };
+    render(<RegistrationHistory registrationId="r1" />);
+    expect(await screen.findByText(/organiser/i)).toBeInTheDocument();
+  });
+
   it("collapses a payment entry to a single line", async () => {
-    vi.spyOn(audit, "useRegistrationAudit").mockReturnValue({
-      data: [row({ action: "paid", detail: { method: "gcash", amount: 230000 }, actor_role: "system" })],
-      isLoading: false,
-    } as ReturnType<typeof audit.useRegistrationAudit>);
-    renderHistory();
+    auditResult = { data: [row({ action: "paid", detail: { method: "gcash", amount: 230000 }, actor_role: "system" })], error: null };
+    render(<RegistrationHistory registrationId="r1" />);
     expect(await screen.findByText(/paid/i)).toBeInTheDocument();
     expect(screen.queryByText("empty")).not.toBeInTheDocument();
   });
 
   it("says so plainly when there is no history yet", async () => {
-    vi.spyOn(audit, "useRegistrationAudit").mockReturnValue({
-      data: [], isLoading: false,
-    } as ReturnType<typeof audit.useRegistrationAudit>);
-    renderHistory();
+    auditResult = { data: [], error: null };
+    render(<RegistrationHistory registrationId="r1" />);
     expect(await screen.findByText(/no changes yet/i)).toBeInTheDocument();
+  });
+
+  it("renders nothing rather than an empty-state lie when the query fails", async () => {
+    auditResult = { data: null, error: new Error("boom") };
+    render(<RegistrationHistory registrationId="r1" />);
+    await waitFor(() => expect(screen.queryByText(/no changes yet/i)).not.toBeInTheDocument());
   });
 });
 ```
 
-Append to `apps/web/src/__tests__/registration-detail.test.tsx`:
-
-```tsx
-it("labels registration fields in words rather than raw JSONB keys", async () => {
-  renderDetail({ custom_data: { shirt_size: "L", running_club: "Malaybalay" } });
-  expect(await screen.findByText("Shirt size")).toBeInTheDocument();
-  expect(await screen.findByText("Running club")).toBeInTheDocument();
-  expect(screen.queryByText("shirt_size")).not.toBeInTheDocument();
-});
-```
-
-Use whatever render helper and row fixture the existing file already defines rather than
-introducing `renderDetail` if it is named differently.
-
 - [ ] **Step 2: Run them to make sure they fail**
 
-Run: `pnpm --filter web test src/__tests__/registration-history.test.tsx src/__tests__/registration-detail.test.tsx`
-Expected: FAIL — cannot resolve `../lib/audit`; the label test finds `shirt_size`.
+Run: `pnpm --filter web test lib/audit.test.ts components/RegistrationHistory.test.tsx`
+Expected: FAIL — cannot resolve `./audit` or `./RegistrationHistory`.
 
-- [ ] **Step 3: Write the audit query layer**
+- [ ] **Step 3: Write the pure audit helpers**
 
-Create `apps/web/src/lib/audit.ts`:
+Create `apps/web/lib/audit.ts` — types and grouping only. The fetch lives in the component,
+matching the add-ons idiom in `RegistrationDetail.tsx`.
 
 ```ts
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "./supabase";
-
 export type AuditRow = {
   id: string;
   action: string;
@@ -2051,26 +2100,9 @@ export type AuditRow = {
   created_at: string;
 };
 
-/** RLS `registration_audit_read_org_admin` scopes rows to the caller's org, so this
- *  needs no explicit org filter. */
-export function useRegistrationAudit(registrationId: string) {
-  return useQuery({
-    queryKey: ["registration-audit", registrationId],
-    enabled: !!registrationId,
-    queryFn: async (): Promise<AuditRow[]> => {
-      const { data, error } = await supabase
-        .from("registration_audit")
-        .select("id, action, detail, actor_role, created_at")
-        .eq("registration_id", registrationId)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return (data ?? []) as AuditRow[];
-    },
-  });
-}
-
 /** Newest day first, entries newest-first within each day. Grouping by local calendar day
- *  keeps a single afternoon of edits under one heading instead of repeating the date. */
+ *  keeps a single afternoon of edits under one heading instead of repeating the date on
+ *  every row. Input is expected already sorted newest-first by the query. */
 export function groupByDay(rows: AuditRow[]): { day: string; rows: AuditRow[] }[] {
   const buckets = new Map<string, AuditRow[]>();
   for (const r of rows) {
@@ -2083,17 +2115,20 @@ export function groupByDay(rows: AuditRow[]): { day: string; rows: AuditRow[] }[
 }
 ```
 
-Match the existing supabase client import used by `apps/web/src/lib/registrations.ts`
-rather than assuming `./supabase`.
-
 - [ ] **Step 4: Write the history component**
 
-Create `apps/web/src/components/RegistrationHistory.tsx`:
+Create `apps/web/components/RegistrationHistory.tsx`. It fetches on mount with the browser
+client and a `cancelled` guard, exactly like the add-ons fetch in `RegistrationDetail.tsx`:
+`null` means not-yet-loaded or failed, `[]` means confirmed empty.
 
 ```tsx
+"use client";
+
+import { useEffect, useState } from "react";
 import { ArrowRight } from "lucide-react";
-import { fieldLabel } from "@race-pace/shared";
-import { useRegistrationAudit, groupByDay, type AuditRow } from "../lib/audit";
+import { createClient } from "@/lib/supabase/client";
+import { fieldLabel } from "@/lib/field-labels";
+import { groupByDay, type AuditRow } from "@/lib/audit";
 
 const peso = (c: number) => `₱${(c / 100).toLocaleString()}`;
 const time = (iso: string) =>
@@ -2134,66 +2169,84 @@ function Entry({ row }: { row: AuditRow }) {
 }
 
 export function RegistrationHistory({ registrationId }: { registrationId: string }) {
-  const audit = useRegistrationAudit(registrationId);
-  if (audit.isLoading) return null;
+  const [rows, setRows] = useState<AuditRow[] | null>(null);
 
-  const groups = groupByDay(audit.data ?? []);
+  useEffect(() => {
+    let cancelled = false;
+    createClient()
+      .from("registration_audit")
+      .select("id,action,detail,actor_role,created_at")
+      .eq("registration_id", registrationId)
+      .order("created_at", { ascending: false })
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        setRows(error ? null : ((data ?? []) as AuditRow[]));
+      });
+    return () => { cancelled = true; };
+  }, [registrationId]);
+
+  // null covers both "still loading" and "the query failed". Rendering the empty state in
+  // either case would assert "nothing ever happened to this registration", which is a
+  // stronger claim than we can make — so render nothing until we actually know.
+  if (rows === null) return null;
+  if (rows.length === 0) return <p className="text-[13px] text-muted-foreground">No changes yet.</p>;
 
   return (
-    <div>
-      <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-        History
-      </div>
-      {groups.length === 0 ? (
-        <p className="text-[13px] text-muted-foreground">No changes yet.</p>
-      ) : (
-        groups.map((g) => (
-          <div key={g.day} className="mb-2.5">
-            <div className="mb-1 text-[11px] text-muted-foreground">{g.day}</div>
-            <div className="flex flex-col gap-1.5">
-              {g.rows.map((r) => <Entry key={r.id} row={r} />)}
-            </div>
+    <div className="flex flex-col gap-2.5">
+      {groupByDay(rows).map((g) => (
+        <div key={g.day}>
+          <div className="mb-1 text-[11px] text-muted-foreground">{g.day}</div>
+          <div className="flex flex-col gap-1.5">
+            {g.rows.map((r) => <Entry key={r.id} row={r} />)}
           </div>
-        ))
-      )}
+        </div>
+      ))}
     </div>
   );
 }
 ```
 
-- [ ] **Step 5: Wire it into the drawer and fix the labels**
+- [ ] **Step 5: Mount it in the drawer**
 
-In `apps/web/src/components/RegistrationDetail.tsx`:
-
-Add the imports:
+In `apps/web/components/RegistrationDetail.tsx`, add
+`import { RegistrationHistory } from "./RegistrationHistory";` and insert the section
+immediately after the "Registration fields" `Section` block closes (`) : null}`) and before
+the scroll region's closing `</div>` — so it sits inside the scrollable area, after the
+fields, above the refund footer. Wrap it in the file's existing local `Section` component so
+it gets the same heading treatment as its neighbours:
 
 ```tsx
-import { fieldLabel } from "@race-pace/shared";
-import { RegistrationHistory } from "./RegistrationHistory";
+        <Section title="History">
+          <RegistrationHistory registrationId={row.id} />
+        </Section>
 ```
 
-Change line 54 from `label={k}` to the real label:
+Do NOT touch the `custom_data` rendering — it already uses `fieldLabel` and `fieldValue`.
+
+`RegistrationDetail.test.tsx` mocks `@/lib/supabase/client` with a single `from()` shape that
+only serves the add-ons query. Mounting the history adds a second table, so that mock must now
+branch by table name — otherwise the existing drawer tests break on a missing `.order`:
 
 ```tsx
-            {customEntries.map(([k, v]) => <Row key={k} label={fieldLabel(k)} value={String(v)} />)}
-```
-
-Insert the history section immediately after the closing `) : null}` of the registration
-fields block (line 56), so it lands above the `mt-auto` refund footer:
-
-```tsx
-        <RegistrationHistory registrationId={row.id} />
+vi.mock("@/lib/supabase/client", () => ({
+  createClient: () => ({
+    from: (table: string) =>
+      table === "registration_audit"
+        ? { select: () => ({ eq: () => ({ order: () => Promise.resolve({ data: [], error: null }) }) }) }
+        : { select: selectMock },
+  }),
+}));
 ```
 
 - [ ] **Step 6: Run the tests and typecheck**
 
 Run: `pnpm --filter web test && pnpm --filter web typecheck`
-Expected: PASS, 7 new tests plus every pre-existing drawer test.
+Expected: PASS, 11 new tests plus every pre-existing drawer test.
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add apps/web/src/lib/audit.ts apps/web/src/components/RegistrationHistory.tsx apps/web/src/components/RegistrationDetail.tsx apps/web/src/__tests__/registration-history.test.tsx apps/web/src/__tests__/registration-detail.test.tsx
+git add apps/web/lib/audit.ts apps/web/lib/audit.test.ts apps/web/components/RegistrationHistory.tsx apps/web/components/RegistrationHistory.test.tsx apps/web/components/RegistrationDetail.tsx apps/web/components/RegistrationDetail.test.tsx
 git commit -m "feat(admin): show a registration change timeline in the drawer"
 ```
 
