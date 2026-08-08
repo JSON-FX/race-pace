@@ -14,7 +14,7 @@ beforeEach(() => {
 const rows: PaymentRow[] = [
   {
     registration_id: "r1", event_id: "e1", event_name: "Dahilayan Sky Ultra",
-    user_id: "u1", full_name: "Maria Josefa Santos",
+    user_id: "u1", full_name: "Maria Josefa Santos", avatar_url: null,
     amount: 285000, platform_fee: 14250, net_to_org: 270750,
     method: "gcash", status: "paid", created_at: "2026-08-03T09:14:00Z",
   },

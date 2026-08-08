@@ -6,7 +6,7 @@ import {
   Sidebar as UISidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent,
   SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarRail,
 } from "@/components/ui/sidebar";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { PhotoAvatar } from "@/components/PhotoAvatar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "./ThemeToggle";
@@ -50,8 +50,8 @@ function NavItem({ to, label, icon: Icon, count }: Item & { count?: number }) {
 }
 
 export function Sidebar({
-  roles, email, orgName, counts,
-}: { roles: MyRoles; email: string; orgName: string | null; counts: NavCounts }) {
+  roles, email, orgName, orgLogoUrl, counts,
+}: { roles: MyRoles; email: string; orgName: string | null; orgLogoUrl?: string | null; counts: NavCounts }) {
   const local = email.split("@")[0] || "admin";
   const initials = local.slice(0, 2).toUpperCase();
   const role = roles.isSuperAdmin ? "Super admin" : "Admin";
@@ -97,11 +97,15 @@ export function Sidebar({
 
       <SidebarFooter>
         <div className="flex items-center gap-2.5 border-t border-sidebar-border px-2 pt-3">
-          <Avatar className="size-[30px] shrink-0">
-            <AvatarFallback className="bg-accent text-[11.5px] font-bold text-accent-foreground">
-              {initials}
-            </AvatarFallback>
-          </Avatar>
+          {/* The org's own logo, the same one on its public event pages — this
+              footer names the organization the admin is signed in to, so showing
+              its branding beats two letters of an email local-part. */}
+          <PhotoAvatar
+            url={orgLogoUrl}
+            className="size-[30px]"
+            fallbackClassName="bg-accent text-[11.5px] font-bold text-accent-foreground"
+            fallback={initials}
+          />
           <div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
             <div className="truncate text-[12.5px] font-bold">{local}</div>
             <div className="text-[10.5px] text-muted-foreground">{role}</div>

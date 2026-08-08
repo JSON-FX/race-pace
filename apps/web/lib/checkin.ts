@@ -1,6 +1,8 @@
 export type RosterRow = {
   registration_id: string; ticket_token: string; runner: string;
   bib: string | null; category: string; status: string; checked_in_at: string | null;
+  /** Runner's profile photo; framing rides on the URL fragment. */
+  avatar_url: string | null;
 };
 
 /**

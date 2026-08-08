@@ -44,6 +44,7 @@ function row(overrides: Partial<RegistrationRow> = {}): RegistrationRow {
     category_label: "21K",
     full_name: "Ana Cruz",
     bib_name: "A1",
+    avatar_url: null,
     email: "WRONG-should-not-be-read-from-the-row",
     total_amount: 150000,
     payment_status: "paid",

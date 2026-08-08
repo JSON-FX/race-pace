@@ -46,13 +46,13 @@ beforeEach(() => {
 const rows: RegistrationRow[] = [
   {
     id: "r1", user_id: "u1", category_id: "c1", category_label: "50K Ultra",
-    full_name: "Maria Josefa Santos", bib_name: "D-1042", email: "maria.santos@gmail.com",
+    full_name: "Maria Josefa Santos", bib_name: "D-1042", avatar_url: null, email: "maria.santos@gmail.com",
     total_amount: 285000, payment_status: "paid", payment_method: "gcash",
     created_at: "2026-08-03T09:14:00Z", custom_data: {}, addons: [],
   },
   {
     id: "r2", user_id: "u2", category_id: "c1", category_label: "25K",
-    full_name: "Angelo Lim", bib_name: null, email: "angelo.lim@yahoo.com",
+    full_name: "Angelo Lim", bib_name: null, avatar_url: null, email: "angelo.lim@yahoo.com",
     total_amount: 195000, payment_status: "pending", payment_method: null,
     created_at: "2026-08-03T08:31:00Z", custom_data: {}, addons: [],
   },

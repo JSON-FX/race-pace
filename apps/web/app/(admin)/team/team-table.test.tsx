@@ -28,8 +28,8 @@ beforeEach(() => {
 });
 
 const rows: TeamMember[] = [
-  { user_id: "u1", email: "admin@racepace.test", full_name: "Ada Admin", role: "admin", created_at: "2026-07-01T00:00:00Z" },
-  { user_id: "u2", email: "marshal@racepace.test", full_name: null, role: "marshal", created_at: "2026-07-20T00:00:00Z" },
+  { user_id: "u1", email: "admin@racepace.test", full_name: "Ada Admin", avatar_url: null, role: "admin", created_at: "2026-07-01T00:00:00Z" },
+  { user_id: "u2", email: "marshal@racepace.test", full_name: null, avatar_url: null, role: "marshal", created_at: "2026-07-20T00:00:00Z" },
 ];
 
 const props = { rows, total: 2, page: 1, per: 25, sort: [], activeFilters: {}, q: "", orgId: "a1" };

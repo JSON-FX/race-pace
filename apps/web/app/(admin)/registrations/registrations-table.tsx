@@ -115,7 +115,12 @@ export function RegistrationsTable({
           aria-label={`View ${row.original.full_name ?? "registration"}`}
           className="text-left hover:underline"
         >
-          <RunnerAvatar id={row.original.id} name={row.original.full_name} email={row.original.email} />
+          <RunnerAvatar
+            id={row.original.id}
+            name={row.original.full_name}
+            email={row.original.email}
+            avatarUrl={row.original.avatar_url}
+          />
         </button>
       ),
     },
