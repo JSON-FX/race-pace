@@ -1,6 +1,7 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 import { createClient } from "@supabase/supabase-js";
 import { loadEnv } from "../../test/env";
+import { seededIds } from "../../test/seeded";
 
 const { url, anonKey, serviceKey } = loadEnv();
 const anon = () => createClient(url, anonKey, { auth: { persistSession: false } });
@@ -12,7 +13,14 @@ async function makeUser(email: string) {
   const s = await anon().auth.signInWithPassword({ email, password: "password123" });
   return { id: c.data.user!.id, token: s.data.session!.access_token };
 }
-const RWP = "00000000-0000-0000-0000-0000000000a1";
+// Resolved from the seed rather than restated — see test/seeded.ts. This suite
+// deliberately takes the SECOND seeded event so its aggregate assertions are not
+// polluted by rows other suites write against the first one; CATEGORY_A2 must
+// pair with EVENT_A2 or the registration insert breaks the event/category link.
+let RWP: string, EVT: string, C4: string;
+beforeAll(async () => {
+  ({ ORG_A: RWP, EVENT_A2: EVT, CATEGORY_A2: C4 } = await seededIds());
+});
 // NOTE: existing tests in this directory (admin-registrations.test.ts,
 // admin-list-views.test.ts) reference event e1 / category c4, but the
 // current supabase/seed.sql only seeds events e2 and e3 — those two files
@@ -20,8 +28,6 @@ const RWP = "00000000-0000-0000-0000-0000000000a1";
 // inserting a registration with event_id=e1, pre-existing, unrelated to
 // this change). Using the event/category IDs that actually exist in
 // seed.sql here rather than perpetuating that mismatch.
-const EVT = "00000000-0000-0000-0000-0000000000e3";
-const C4 = "00000000-0000-0000-0000-0000000000c4";
 
 // Mirrors apps/web/lib/queries/events.ts#toIlikePattern exactly. Duplicated here
 // (rather than imported) because that module also exports functions that pull in

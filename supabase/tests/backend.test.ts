@@ -1,6 +1,16 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 import { createClient } from "@supabase/supabase-js";
 import { loadEnv } from "../../test/env";
+import { seededIds } from "../../test/seeded";
+
+// Resolved from the seed rather than restated — see test/seeded.ts. Declared
+// once here for the whole file: the checkout suite above and the refund suite
+// below both work against the same two seeded orgs and the same event/category,
+// and previously each restated them as literals.
+let RWP_RF: string, APO_RF: string, E1_RF: string, C4_RF: string;
+beforeAll(async () => {
+  ({ ORG_A: RWP_RF, ORG_B: APO_RF, EVENT_A: E1_RF, CATEGORY_A: C4_RF } = await seededIds());
+});
 import { createHmac } from "node:crypto";
 
 const { url, anonKey, serviceKey } = loadEnv();
@@ -109,7 +119,7 @@ describe("seed", () => {
     const a = anon();
     const org = await a.from("organizations").select("slug").eq("slug", "race-pace").single();
     expect(org.data?.slug).toBe("race-pace");
-    const cats = await a.from("categories").select("code").eq("event_id", "00000000-0000-0000-0000-0000000000e1");
+    const cats = await a.from("categories").select("code").eq("event_id", E1_RF);
     expect((cats.data ?? []).map((c) => c.code).sort()).toEqual(["100k", "10k", "21k", "50k"]);
   });
 });
@@ -123,7 +133,7 @@ describe("registrations-checkout", () => {
       method: "POST",
       headers: { "content-type": "application/json", Authorization: `Bearer ${user.token}` },
       body: JSON.stringify({
-        event_id: "00000000-0000-0000-0000-0000000000e1",
+        event_id: E1_RF,
         category_id: "00000000-0000-0000-0000-0000000000c3",
         addon_ids: ["00000000-0000-0000-0000-0000000000d1"],
         custom_data: { blood_type: "O", shirt_size: "M" },
@@ -151,7 +161,7 @@ describe("registrations-checkout", () => {
       method: "POST",
       headers: { "content-type": "application/json", Authorization: `Bearer ${user.token}` },
       body: JSON.stringify({
-        event_id: "00000000-0000-0000-0000-0000000000e1",
+        event_id: E1_RF,
         category_id: "00000000-0000-0000-0000-0000000000c3",
         custom_data: { running_club: 12345 }, // event field `running_club` (f2) is a text field — number fails z.string()
         waiver_accepted: true,
@@ -173,7 +183,7 @@ describe("registrations-checkout", () => {
       method: "POST",
       headers: { "content-type": "application/json", Authorization: `Bearer ${user.token}` },
       body: JSON.stringify({
-        event_id: "00000000-0000-0000-0000-0000000000e1",
+        event_id: E1_RF,
         category_id: "00000000-0000-0000-0000-0000000000c3",
         custom_data: { blood_type: "O+", shirt_size: "XS", running_club: "Trailblazers" },
         waiver_accepted: true,
@@ -202,7 +212,7 @@ describe("registrations-checkout", () => {
       method: "POST",
       headers: { "content-type": "application/json", Authorization: `Bearer ${user.token}` },
       body: JSON.stringify({
-        event_id: "00000000-0000-0000-0000-0000000000e1",
+        event_id: E1_RF,
         category_id: "00000000-0000-0000-0000-0000000000c3",
         custom_data: { shirt_size: "M" }, // omits required blood_type (f1)
         waiver_accepted: true,
@@ -219,14 +229,14 @@ describe("payment confirmation (fake) e2e", () => {
     const svc = service();
     const user = await makeUser(`e2e_${Date.now()}@test.dev`);
 
-    const before = await svc.from("categories").select("slots_taken").eq("id", "00000000-0000-0000-0000-0000000000c4").single();
+    const before = await svc.from("categories").select("slots_taken").eq("id", C4_RF).single();
 
     const checkout = await fetch(`${FN}/registrations-checkout`, {
       method: "POST",
       headers: { "content-type": "application/json", Authorization: `Bearer ${user.token}` },
       body: JSON.stringify({
-        event_id: "00000000-0000-0000-0000-0000000000e1",
-        category_id: "00000000-0000-0000-0000-0000000000c4",
+        event_id: E1_RF,
+        category_id: C4_RF,
         custom_data: { blood_type: "A", shirt_size: "L" },
         waiver_accepted: true,
         idempotency_key: `idem-e2e-${Date.now()}`,
@@ -245,12 +255,12 @@ describe("payment confirmation (fake) e2e", () => {
     expect(pay.data?.platform_fee).toBe(Math.round(100000 * 0.10)); // 10K base, 10% commission
     expect(pay.data?.net_to_org).toBe(100000 - Math.round(100000 * 0.10));
 
-    const after = await svc.from("categories").select("slots_taken").eq("id", "00000000-0000-0000-0000-0000000000c4").single();
+    const after = await svc.from("categories").select("slots_taken").eq("id", C4_RF).single();
     expect(after.data!.slots_taken).toBe(before.data!.slots_taken + 1); // relative — robust to prior runs
 
     // A duplicate confirmation is a no-op — slot stays at +1 (idempotent through confirm_payment_tx).
     await postWebhook(paidEvent(checkout.registration_id));
-    const afterDup = await svc.from("categories").select("slots_taken").eq("id", "00000000-0000-0000-0000-0000000000c4").single();
+    const afterDup = await svc.from("categories").select("slots_taken").eq("id", C4_RF).single();
     expect(afterDup.data!.slots_taken).toBe(before.data!.slots_taken + 1);
 
     await svc.from("registrations").delete().eq("id", checkout.registration_id);
@@ -287,8 +297,8 @@ describe("fake-checkout sandbox page", () => {
       method: "POST",
       headers: { "content-type": "application/json", Authorization: `Bearer ${user.token}` },
       body: JSON.stringify({
-        event_id: "00000000-0000-0000-0000-0000000000e1",
-        category_id: "00000000-0000-0000-0000-0000000000c4",
+        event_id: E1_RF,
+        category_id: C4_RF,
         custom_data: { blood_type: "A", shirt_size: "L" },
         waiver_accepted: true,
         idempotency_key: `idem-fc-${Date.now()}`,
@@ -324,10 +334,6 @@ describe("psgc reference data", () => {
   });
 });
 
-const RWP_RF = "00000000-0000-0000-0000-0000000000a1";
-const APO_RF = "00000000-0000-0000-0000-0000000000a2";
-const E1_RF = "00000000-0000-0000-0000-0000000000e1";
-const C4_RF = "00000000-0000-0000-0000-0000000000c4";
 
 async function paidRegistration(runnerToken: string) {
   const checkout = await fetch(`${FN}/registrations-checkout`, {
