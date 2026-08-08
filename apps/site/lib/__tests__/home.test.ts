@@ -1,10 +1,14 @@
 import { describe, it, expect } from "vitest";
 import { homeMode } from "../home";
 
-// No deadline case only — isRegistrationClosed's own date-vs-status
-// precedence is covered by eventStatus.test.ts; this file is homeMode's
-// filter/count logic.
-const ev = (status: string) => ({ status, registration_closes_at: null });
+// isRegistrationClosed's own date-vs-status precedence is covered by
+// eventStatus.test.ts; this file is homeMode's filter/count logic, plus a
+// couple of deadline cases to prove homeMode actually forwards
+// registration_closes_at into that check rather than dropping it.
+const ev = (status: string, registration_closes_at: string | null = null) => ({
+  status,
+  registration_closes_at,
+});
 
 describe("homeMode", () => {
   it("is multi with exactly one registerable event — there is no longer a single-event mode", () => {
@@ -33,5 +37,13 @@ describe("homeMode", () => {
 
   it("counts only the registerable subset — one open among several closed is multi", () => {
     expect(homeMode([ev("closed"), ev("open"), ev("completed")])).toBe("multi");
+  });
+
+  it("is empty when the only event has status open but its registration_closes_at has passed", () => {
+    expect(homeMode([ev("open", "2020-01-01T00:00:00Z")])).toBe("empty");
+  });
+
+  it("is multi when the only event has status open and a future registration_closes_at", () => {
+    expect(homeMode([ev("open", "2099-01-01T00:00:00Z")])).toBe("multi");
   });
 });
