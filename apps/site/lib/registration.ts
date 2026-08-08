@@ -71,12 +71,15 @@ export type RegistrationRow = {
   eventStatus: string | null; eventDate: string | null; originalDate: string | null; statusNote: string | null;
   /** Null means "no deadline" — see lib/eventStatus.ts. */
   eventRegistrationClosesAt: string | null;
+  /** Null means "no cutoff" — see lib/kit.ts. */
+  kitEditClosesAt: string | null;
+  shirtSize: string | null;
   orgName: string | null; eventHeroUrl: string | null; basePrice: number | null; inclusions: string[] | null;
   payment: RegistrationPayment | null;
 };
 
 const REG_SELECT =
-  "id,status,total_amount,ticket_token,org_id,event_id,organizations(name),events(name,status,event_date,original_date,status_note,hero_image_url,inclusions,registration_closes_at),categories(label,distance_km,base_price),payments(checkout_url,created_at,method,amount,platform_fee,net_to_org,provider,provider_ref,status)";
+  "id,status,total_amount,ticket_token,org_id,event_id,custom_data,organizations(name),events(name,status,event_date,original_date,status_note,hero_image_url,inclusions,registration_closes_at,kit_edit_closes_at),categories(label,distance_km,base_price),payments(checkout_url,created_at,method,amount,platform_fee,net_to_org,provider,provider_ref,status)";
 
 export function mapReg(r: any): RegistrationRow {
   const payment = Array.isArray(r.payments) ? r.payments[0] : r.payments;
@@ -93,6 +96,8 @@ export function mapReg(r: any): RegistrationRow {
     checkoutUrl: payment?.checkout_url ?? null,
     eventStatus: r.events?.status ?? null,
     eventRegistrationClosesAt: r.events?.registration_closes_at ?? null,
+    kitEditClosesAt: r.events?.kit_edit_closes_at ?? null,
+    shirtSize: (r.custom_data as Record<string, unknown> | null)?.shirt_size as string ?? null,
     eventDate: r.events?.event_date ?? null,
     originalDate: r.events?.original_date ?? null,
     statusNote: r.events?.status_note ?? null,
