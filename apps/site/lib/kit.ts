@@ -17,6 +17,22 @@ export function daysUntil(iso: string): number {
   return Math.ceil(ms / 86_400_000);
 }
 
+/** A bare date reads as trivia; time remaining reads as an instruction. Inside the final
+ *  week the relative form carries the urgency, and before that the absolute date is what a
+ *  runner actually plans around. Returns null once the deadline passes, because the closed
+ *  state already says so more clearly than a countdown could. */
+export function deadlineNotice(registrationClosesAt: string | null): string | null {
+  if (!registrationClosesAt) return null;
+  const days = daysUntil(registrationClosesAt);
+  if (days === 0) return null;
+  if (days <= 7) return `Closes in ${days} ${days === 1 ? "day" : "days"}`;
+  const when = new Date(registrationClosesAt).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+  return `Registration closes ${when}`;
+}
+
 export type KitEditResult = "ok" | "locked" | "not_editable" | "no_change" | "error";
 
 const KNOWN_RESULTS: readonly KitEditResult[] = ["ok", "locked", "not_editable", "no_change", "error"];

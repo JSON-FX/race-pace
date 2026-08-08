@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { kitEditLocked, daysUntil, kitEditMessage, updateShirtSize } from "../kit";
+import { kitEditLocked, daysUntil, kitEditMessage, updateShirtSize, deadlineNotice } from "../kit";
 
 const rpc = vi.fn();
 vi.mock("@/lib/supabase/client", () => ({
@@ -97,5 +97,49 @@ describe("updateShirtSize", () => {
   it("maps an unrecognised RPC payload to 'error' rather than trusting it", async () => {
     rpc.mockResolvedValue({ data: "something_new", error: null });
     await expect(updateShirtSize("r1", "M")).resolves.toBe("error");
+  });
+});
+
+describe("deadlineNotice", () => {
+  it("says nothing when the event has no deadline", () => {
+    expect(deadlineNotice(null)).toBeNull();
+  });
+
+  it("says nothing once the deadline has passed — the closed state covers it", () => {
+    expect(deadlineNotice("2020-01-01T00:00:00Z")).toBeNull();
+  });
+
+  it("names the date when the deadline is far off, not a relative count", () => {
+    const far = new Date(Date.now() + 30 * 86_400_000).toISOString();
+    const notice = deadlineNotice(far);
+    expect(notice).toMatch(/^Registration closes /);
+    // A hardcoded-relative-form regression would still print *something*
+    // starting with a date-shaped string; assert the relative phrasing is
+    // specifically absent so that mutation is caught here, not just below.
+    expect(notice).not.toMatch(/Closes in/);
+  });
+
+  it("switches to relative time inside the final week, where urgency reads better", () => {
+    const soon = new Date(Date.now() + 3 * 86_400_000).toISOString();
+    expect(deadlineNotice(soon)).toBe("Closes in 3 days");
+  });
+
+  it("uses the singular on the last day", () => {
+    const tomorrow = new Date(Date.now() + 20 * 60 * 60 * 1000).toISOString();
+    expect(deadlineNotice(tomorrow)).toBe("Closes in 1 day");
+  });
+
+  // The boundary itself: 7 days out must still read as an instruction (relative),
+  // 8 days out must read as trivia (absolute). Neither the 3-day nor the 30-day
+  // case above exercises this edge, so a fence-post error in the `<= 7` check
+  // (e.g. `< 7`, or `< 8`) would slip past them undetected.
+  it("uses relative form at exactly seven days, the edge of the final week", () => {
+    const sevenDays = new Date(Date.now() + 7 * 86_400_000).toISOString();
+    expect(deadlineNotice(sevenDays)).toBe("Closes in 7 days");
+  });
+
+  it("uses absolute form at exactly eight days, just outside the final week", () => {
+    const eightDays = new Date(Date.now() + 8 * 86_400_000).toISOString();
+    expect(deadlineNotice(eightDays)).toMatch(/^Registration closes /);
   });
 });

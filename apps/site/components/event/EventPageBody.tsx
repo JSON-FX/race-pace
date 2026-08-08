@@ -5,6 +5,7 @@ import Link from "next/link";
 import { disciplineLayout, formatPeso, formatDateRange } from "@race-pace/shared";
 import type { EventRow, CategoryRow, AddonRow } from "@/lib/events";
 import { longDate } from "@/lib/format";
+import { deadlineNotice } from "@/lib/kit";
 import { RainbowButton } from "@/components/ui/rainbow-button";
 import { Reveal, ParallaxLayer, CountUp, ScrollProgress } from "./motion-primitives";
 import {
@@ -37,6 +38,7 @@ export function EventPageBody({
   categories,
   addons = [],
   closed,
+  registrationClosesAt,
 }: {
   event: EventRow;
   categories: CategoryRow[];
@@ -44,6 +46,9 @@ export function EventPageBody({
   /** Registration is cancelled/closed/completed. Derived by the caller from
    *  isRegistrationClosed() so the page and the server agree on one rule. */
   closed: boolean;
+  /** Presentational only — deadlineNotice() returns null once this has passed,
+   *  because the `closed` state above already says so more clearly. */
+  registrationClosesAt: string | null;
 }) {
   const layout = disciplineLayout(event.discipline);
   const trail = layout === "profile";
@@ -235,6 +240,11 @@ export function EventPageBody({
                   <a href="#distances">Choose your distance</a>
                 </RainbowButton>
               </div>
+              {deadlineNotice(registrationClosesAt) ? (
+                <p className={`mt-4 text-center text-[13px] ${trail ? "text-white/55" : "text-[#0B1220]/55"}`}>
+                  {deadlineNotice(registrationClosesAt)}
+                </p>
+              ) : null}
             </Reveal>
           )}
         </div>

@@ -53,7 +53,13 @@ export default async function EventPage({ params }: Params) {
     <>
       <SiteHeader />
       <main>
-        <EventPageBody event={event} categories={categories} addons={addons} closed={closed} />
+        <EventPageBody
+          event={event}
+          categories={categories}
+          addons={addons}
+          closed={closed}
+          registrationClosesAt={event.registration_closes_at}
+        />
       </main>
     </>
   );
