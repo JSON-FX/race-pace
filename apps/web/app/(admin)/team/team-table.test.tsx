@@ -82,7 +82,7 @@ describe("TeamTable", () => {
     const user = userEvent.setup();
     const claimingMember: TeamMember = {
       user_id: "u3", email: "kit@racepace.test", full_name: "Kit Claimer",
-      role: "claiming", created_at: "2026-08-01T00:00:00Z",
+      avatar_url: null, role: "claiming", created_at: "2026-08-01T00:00:00Z",
     };
     render(<TeamTable {...props} rows={[...props.rows, claimingMember]} total={3} />);
     const rowsEls = screen.getAllByRole("row");
