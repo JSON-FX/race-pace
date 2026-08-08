@@ -81,3 +81,70 @@ describe("one live registration per event", () => {
     expect(hours).toBeLessThan(24.1);
   });
 });
+
+/**
+ * The migration's one-time cleanup (20260809100100_one_registration_per_event.sql)
+ * ran once, irreversibly, against hosted data that genuinely had duplicates. That
+ * SQL is not re-runnable as written, so it was extracted into
+ * public.dedupe_live_registrations() (20260809100050_dedupe_live_registrations_fn.sql)
+ * -- same CTE, callable and testable on demand, and reusable by Task 10 to confirm
+ * the hosted push left zero stragglers.
+ *
+ * What this suite does NOT cover, and why: asserting the function actually resolves
+ * a genuine duplicate (earliest survives, losers expire, slots_taken drops by exactly
+ * the paid-loser count) requires staging two live 'pending'/'paid' rows for the same
+ * (event_id, user_id) -- which the partial unique index this migration creates makes
+ * impossible through ANY client, including service_role, by design. Verified directly:
+ * inserting two rows as 'cancelled' (outside the index's predicate) and then flipping
+ * both to 'paid', either as one multi-row UPDATE or as two sequential single-row
+ * UPDATEs, both 23505 on the second row -- Postgres checks each new partial-index
+ * tuple as it's written, even mid-statement, so there is no window in which two live
+ * rows for the same key coexist. The only way around that is DDL that drops or
+ * disables the index (this repo has no `pg`/raw-Postgres dependency to run that from
+ * a test, and none was added for this), which would mean shipping a path capable of
+ * making the production index disappear, even briefly, purely to satisfy a test --
+ * exactly the tradeoff the index exists to prevent. So this suite instead asserts the
+ * function's behaviour on the ONE thing that's safe to construct: a single genuine
+ * registration, confirming the function is a true no-op against it (idempotent, no
+ * false-positive expiry, no false slots_taken adjustment). The duplicate-resolution
+ * path itself (ranked/losers/released) was reviewed line-by-line against the original
+ * inline CTE it was extracted from character-for-character, and its outcome IS
+ * covered indirectly by the "allows a new registration once the previous one is
+ * cancelled, refunded or expired" test above, which exercises the same status
+ * transition semantics the dedupe relies on.
+ */
+describe("dedupe of pre-existing duplicates", () => {
+  it("is idempotent and leaves a genuine single registration untouched", async () => {
+    const svc = service();
+    const f = await makeEvent(`dedupe${Date.now()}`);
+    const runner = await makeUser(`gate_dedupe_${Date.now()}@test.dev`);
+
+    await svc.from("categories").update({ slots_taken: 5 }).eq("id", f.categoryId);
+
+    const reg = await svc.from("registrations").insert(regRow(f, runner.id)).select().single();
+    expect(reg.error).toBeNull();
+    // confirm_payment_tx (a later task) is what clears expires_at on a real payment;
+    // set both explicitly here to simulate a genuine paid registration's end state
+    // without depending on that wiring.
+    const paid = await svc.from("registrations").update({ status: "paid", expires_at: null }).eq("id", reg.data!.id);
+    expect(paid.error).toBeNull();
+
+    const first = await svc.rpc("dedupe_live_registrations");
+    expect(first.error).toBeNull();
+    expect(first.data).toBe(0);
+
+    const afterFirst = await svc.from("registrations").select("status,expires_at").eq("id", reg.data!.id).single();
+    expect(afterFirst.data!.status).toBe("paid");
+    expect(afterFirst.data!.expires_at).toBeNull();
+
+    const catAfterFirst = await svc.from("categories").select("slots_taken").eq("id", f.categoryId).single();
+    expect(catAfterFirst.data!.slots_taken).toBe(5);
+
+    const second = await svc.rpc("dedupe_live_registrations");
+    expect(second.error).toBeNull();
+    expect(second.data).toBe(0);
+
+    const catAfterSecond = await svc.from("categories").select("slots_taken").eq("id", f.categoryId).single();
+    expect(catAfterSecond.data!.slots_taken).toBe(5);
+  });
+});

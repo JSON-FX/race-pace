@@ -32,32 +32,21 @@ update public.registrations set expires_at = null where status <> 'pending';
 -- `db push` halfway. Keep the earliest entry per (event, runner) and expire
 -- the rest.
 --
--- slots_taken is deliberately NOT adjusted. Read
--- 20260806201000_admin_cancel_registration_rpc.sql before changing this: an
--- earlier version of that function decremented slots_taken when cancelling
+-- slots_taken is deliberately NOT adjusted for anything but 'paid' losers.
+-- Read 20260806201000_admin_cancel_registration_rpc.sql before changing this:
+-- an earlier version of that function decremented slots_taken when cancelling
 -- unpaid registrations and manufactured capacity nobody had vacated. Rows
 -- expired here that were 'paid' DID hold a slot, so those -- and only those --
 -- are released, one decrement per released row.
-with ranked as (
-  select id, category_id, status,
-         row_number() over (partition by event_id, user_id order by created_at, id) as rn
-    from public.registrations
-   where status in ('pending', 'paid')
-),
-losers as (
-  select id, category_id, status from ranked where rn > 1
-),
-released as (
-  update public.categories c
-     set slots_taken = greatest(c.slots_taken - sub.n, 0)
-    from (select category_id, count(*) as n from losers where status = 'paid' group by category_id) sub
-   where c.id = sub.category_id
-  returning c.id
-)
-update public.registrations r
-   set status = 'expired', expires_at = null
-  from losers l
- where r.id = l.id;
+--
+-- The dedupe itself lives in public.dedupe_live_registrations()
+-- (20260809100050_dedupe_live_registrations_fn.sql), not inline here, so
+-- Task 10 can re-invoke the identical logic after the hosted push and confirm
+-- it returns 0, and so it's callable directly from tests -- a partial unique
+-- index makes it impossible to stage genuine duplicate 'pending'/'paid' rows
+-- through any client once the index below exists, so this call is this
+-- migration's only chance to exercise it against real pre-existing data.
+select public.dedupe_live_registrations();
 
 create unique index registrations_one_live_per_event
   on public.registrations (event_id, user_id)
