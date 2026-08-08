@@ -9,22 +9,34 @@ const PAST = "2020-01-01T00:00:00Z";
 const FUTURE = "2099-01-01T00:00:00Z";
 
 /** kitClosesAt null = no kit deadline. Registration starts (by default) paid with shirt M;
- *  pass status = "pending" to cover the other editable state. */
+ *  pass status = "pending" to cover the other editable state.
+ *  Exception-safe: if an insert partway through fails, whatever this function already
+ *  created is torn down here before rethrowing. Every test below wraps its call to
+ *  fixture() + body in try/finally to cover assertion failures AFTER fixture() returns;
+ *  this catch covers the case where fixture() itself never gets that far. */
 async function fixture(tag: string, kitClosesAt: string | null, status: "pending" | "paid" = "paid") {
   const s = svc();
   const stamp = `${tag}_${Date.now()}`;
   const email = `edit_${stamp}@test.dev`;
-  const uid = (await s.auth.admin.createUser({ email, password: "password123", email_confirm: true })).data.user!.id;
-  const org = (await s.from("organizations").insert({ name: "Edit Org", slug: `ed-${stamp}` }).select().single()).data!;
-  const ev = (await s.from("events").insert({
-    org_id: org.id, name: "Edit Race", status: "open", kit_edit_closes_at: kitClosesAt,
-  }).select().single()).data!;
-  const cat = (await s.from("categories").insert({ org_id: org.id, event_id: ev.id, code: "10k", label: "10K", base_price: 100000, slots_total: 50, slots_taken: 0 }).select().single()).data!;
-  const reg = (await s.from("registrations").insert({
-    org_id: org.id, event_id: ev.id, category_id: cat.id, user_id: uid,
-    total_amount: 100000, status, custom_data: { shirt_size: "M", running_club: "Malaybalay" },
-  }).select().single()).data!;
-  return { s, uid, email, org, ev, reg };
+  const cleanups: Array<() => Promise<unknown>> = [];
+  try {
+    const uid = (await s.auth.admin.createUser({ email, password: "password123", email_confirm: true })).data.user!.id;
+    cleanups.push(() => s.auth.admin.deleteUser(uid));
+    const org = (await s.from("organizations").insert({ name: "Edit Org", slug: `ed-${stamp}` }).select().single()).data!;
+    cleanups.push(() => s.from("organizations").delete().eq("id", org.id));
+    const ev = (await s.from("events").insert({
+      org_id: org.id, name: "Edit Race", status: "open", kit_edit_closes_at: kitClosesAt,
+    }).select().single()).data!;
+    const cat = (await s.from("categories").insert({ org_id: org.id, event_id: ev.id, code: "10k", label: "10K", base_price: 100000, slots_total: 50, slots_taken: 0 }).select().single()).data!;
+    const reg = (await s.from("registrations").insert({
+      org_id: org.id, event_id: ev.id, category_id: cat.id, user_id: uid,
+      total_amount: 100000, status, custom_data: { shirt_size: "M", running_club: "Malaybalay" },
+    }).select().single()).data!;
+    return { s, uid, email, org, ev, reg };
+  } catch (err) {
+    for (const fn of cleanups.reverse()) await fn();
+    throw err;
+  }
 }
 
 async function signedIn(email: string): Promise<SupabaseClient> {

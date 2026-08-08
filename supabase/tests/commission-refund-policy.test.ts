@@ -12,9 +12,12 @@ describe("commission + refund policy columns", () => {
       .insert({ name: "Defaults", slug: `defaults-${Date.now()}` })
       .select("id,commission_type,refund_policy,commission_flat_cents,refund_fee_cents")
       .single()).data!;
-    expect(org.commission_type).toBe("fixed");
-    expect(org.refund_policy).toBe("flat_fee");
-    await s.from("organizations").delete().eq("id", org.id);
+    try {
+      expect(org.commission_type).toBe("fixed");
+      expect(org.refund_policy).toBe("flat_fee");
+    } finally {
+      await s.from("organizations").delete().eq("id", org.id);
+    }
   });
 
   it("no organization is left charging nothing", async () => {
@@ -73,40 +76,44 @@ describe("commission + refund policy columns", () => {
   it("counts a partially_refunded payment as revenue in admin_org_totals_v", async () => {
     const s = svc();
     const stamp = `partial-${Date.now()}`;
+    // org first, atomically — nothing else exists yet, so nothing to clean up if this itself fails.
     const org = (await s.from("organizations").insert({ name: "Partial", slug: stamp }).select().single()).data!;
-    const ev = (await s.from("events").insert({ org_id: org.id, name: "R", status: "open" }).select().single()).data!;
-    const cat = (await s.from("categories").insert({
-      org_id: org.id, event_id: ev.id, code: "10k", label: "10K",
-      base_price: 200000, slots_total: 50, slots_taken: 0,
-    }).select().single()).data!;
-    const u = await s.auth.admin.createUser({ email: `p_${stamp}@test.dev`, password: "password123", email_confirm: true });
-    const uid = u.data.user!.id;
-    const reg = (await s.from("registrations").insert({
-      org_id: org.id, event_id: ev.id, category_id: cat.id,
-      user_id: uid, total_amount: 200000, status: "paid",
-    }).select().single()).data!;
-    // Retained ₱300 of a ₱2,000 entry: amount/fee/net describe the RETAINED sale,
-    // refunded_amount records the ₱1,700 that went back.
-    const payIns = await s.from("payments").insert({
-      org_id: org.id, registration_id: reg.id, amount: 30000, platform_fee: 3000,
-      net_to_org: 27000, refunded_amount: 170000, status: "partially_refunded", provider: "fake",
-    });
-    if (payIns.error) throw new Error(`payment insert: ${payIns.error.message}`);
+    let uid: string | undefined;
+    try {
+      // status doesn't matter — this only exercises admin_org_totals_v via a service-role read.
+      const ev = (await s.from("events").insert({ org_id: org.id, name: "R", status: "draft" }).select().single()).data!;
+      const cat = (await s.from("categories").insert({
+        org_id: org.id, event_id: ev.id, code: "10k", label: "10K",
+        base_price: 200000, slots_total: 50, slots_taken: 0,
+      }).select().single()).data!;
+      const u = await s.auth.admin.createUser({ email: `p_${stamp}@test.dev`, password: "password123", email_confirm: true });
+      uid = u.data.user!.id;
+      const reg = (await s.from("registrations").insert({
+        org_id: org.id, event_id: ev.id, category_id: cat.id,
+        user_id: uid, total_amount: 200000, status: "paid",
+      }).select().single()).data!;
+      // Retained ₱300 of a ₱2,000 entry: amount/fee/net describe the RETAINED sale,
+      // refunded_amount records the ₱1,700 that went back.
+      const payIns = await s.from("payments").insert({
+        org_id: org.id, registration_id: reg.id, amount: 30000, platform_fee: 3000,
+        net_to_org: 27000, refunded_amount: 170000, status: "partially_refunded", provider: "fake",
+      });
+      if (payIns.error) throw new Error(`payment insert: ${payIns.error.message}`);
 
-    const totals = await s.from("admin_org_totals_v")
-      .select("gross_revenue,net_to_org,paid_count,pending_count")
-      .eq("org_id", org.id).single();
-    if (totals.error) throw new Error(`admin_org_totals_v: ${totals.error.message}`);
-    const t = totals.data!;
-    expect(Number(t.gross_revenue)).toBe(30000);
-    expect(Number(t.net_to_org)).toBe(27000);
-    expect(t.paid_count).toBe(1);
-    // Must NOT be counted as still awaiting payment.
-    expect(t.pending_count).toBe(0);
-
-    await s.from("payments").delete().eq("registration_id", reg.id);
-    await s.from("registrations").delete().eq("id", reg.id);
-    await s.from("organizations").delete().eq("id", org.id);
-    await s.auth.admin.deleteUser(uid);
+      const totals = await s.from("admin_org_totals_v")
+        .select("gross_revenue,net_to_org,paid_count,pending_count")
+        .eq("org_id", org.id).single();
+      if (totals.error) throw new Error(`admin_org_totals_v: ${totals.error.message}`);
+      const t = totals.data!;
+      expect(Number(t.gross_revenue)).toBe(30000);
+      expect(Number(t.net_to_org)).toBe(27000);
+      expect(t.paid_count).toBe(1);
+      // Must NOT be counted as still awaiting payment.
+      expect(t.pending_count).toBe(0);
+    } finally {
+      // org delete cascades event/category/registration/payment; the auth user is separate.
+      await s.from("organizations").delete().eq("id", org.id);
+      if (uid) await s.auth.admin.deleteUser(uid);
+    }
   });
 });

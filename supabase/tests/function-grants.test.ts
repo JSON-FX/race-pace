@@ -52,28 +52,40 @@ async function signedIn(email: string): Promise<SupabaseClient> {
 }
 
 /** Fresh org/event/category + one registration+payment, isolated from seed data.
- *  status "pending" backs the confirm_payment_tx tests; "paid" backs the refund tests. */
+ *  status "pending" backs the confirm_payment_tx tests; "paid" backs the refund tests.
+ *  Exception-safe: if an insert partway through fails, whatever this function already
+ *  created is torn down here before rethrowing — the caller's try/finally only runs
+ *  cleanup() when fixture() itself returns successfully. */
 async function fixture(tag: string, status: "pending" | "paid") {
   const s = svc();
   const stamp = `${tag}_${Date.now()}`;
   const email = `grants_${stamp}@test.dev`;
-  const uid = (await s.auth.admin.createUser({ email, password: "password123", email_confirm: true })).data.user!.id;
-  const org = (await s.from("organizations").insert({ name: "Grants Org", slug: `gr-${stamp}` }).select().single()).data!;
-  const ev = (await s.from("events").insert({ org_id: org.id, name: "Grants Race", status: "open" }).select().single()).data!;
-  const cat = (await s.from("categories").insert({
-    org_id: org.id, event_id: ev.id, code: "10k", label: "10K",
-    base_price: 100000, slots_total: 50, slots_taken: status === "paid" ? 1 : 0,
-  }).select().single()).data!;
-  const reg = (await s.from("registrations").insert({
-    org_id: org.id, event_id: ev.id, category_id: cat.id, user_id: uid,
-    total_amount: 100000, status, ticket_token: status === "paid" ? "real.ticket" : null,
-  }).select().single()).data!;
-  await s.from("payments").insert({
-    org_id: org.id, registration_id: reg.id, amount: 100000, provider: "fake",
-    status: status === "paid" ? "paid" : "pending",
-    ...(status === "paid" ? { platform_fee: 10000, net_to_org: 90000 } : {}),
-  });
-  return { s, uid, email, org, ev, cat, reg };
+  const cleanups: Array<() => Promise<unknown>> = [];
+  try {
+    const uid = (await s.auth.admin.createUser({ email, password: "password123", email_confirm: true })).data.user!.id;
+    cleanups.push(() => s.auth.admin.deleteUser(uid));
+    const org = (await s.from("organizations").insert({ name: "Grants Org", slug: `gr-${stamp}` }).select().single()).data!;
+    cleanups.push(() => s.from("organizations").delete().eq("id", org.id));
+    // status doesn't matter — these RPCs are called directly, never through an anon read.
+    const ev = (await s.from("events").insert({ org_id: org.id, name: "Grants Race", status: "draft" }).select().single()).data!;
+    const cat = (await s.from("categories").insert({
+      org_id: org.id, event_id: ev.id, code: "10k", label: "10K",
+      base_price: 100000, slots_total: 50, slots_taken: status === "paid" ? 1 : 0,
+    }).select().single()).data!;
+    const reg = (await s.from("registrations").insert({
+      org_id: org.id, event_id: ev.id, category_id: cat.id, user_id: uid,
+      total_amount: 100000, status, ticket_token: status === "paid" ? "real.ticket" : null,
+    }).select().single()).data!;
+    await s.from("payments").insert({
+      org_id: org.id, registration_id: reg.id, amount: 100000, provider: "fake",
+      status: status === "paid" ? "paid" : "pending",
+      ...(status === "paid" ? { platform_fee: 10000, net_to_org: 90000 } : {}),
+    });
+    return { s, uid, email, org, ev, cat, reg };
+  } catch (err) {
+    for (const fn of cleanups.reverse()) await fn();
+    throw err;
+  }
 }
 
 async function cleanup(s: ReturnType<typeof svc>, orgId: string, uid: string) {
