@@ -72,4 +72,16 @@ describe("RegistrationHistory", () => {
     render(<RegistrationHistory registrationId="r1" />);
     await waitFor(() => expect(screen.queryByText(/no changes yet/i)).not.toBeInTheDocument());
   });
+
+  it("renders the new value with a legible foreground token, not the pale accent tint", async () => {
+    auditResult = { data: [row({})], error: null };
+    render(<RegistrationHistory registrationId="r1" />);
+    const to = await screen.findByText("L");
+    // `--accent` is a pale background tint in light mode (234 243 238). Using it as a
+    // foreground paints near-white on near-white — the new value, which is the whole point
+    // of the row, becomes invisible. Every other accent usage in this app pairs bg-accent
+    // with text-accent-foreground; this asserts this one does too.
+    expect(to.className).toContain("text-accent-foreground");
+    expect(to.className).not.toMatch(/(^|\s)text-accent(\s|$)/);
+  });
 });
