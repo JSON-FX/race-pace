@@ -1622,7 +1622,7 @@ export function RaceKitCard({
 }
 ```
 
-- [ ] **Step 5: Expose the data and mount the card**
+- [ ] **Step 5: Expose the data**
 
 In `apps/site/lib/registration.ts`, add `events(kit_edit_closes_at)` to `REG_SELECT` and map
 in `mapReg`:
@@ -1632,21 +1632,9 @@ in `mapReg`:
     shirtSize: (r.custom_data as Record<string, unknown> | null)?.shirt_size as string ?? null,
 ```
 
-In `apps/site/app/ticket/[registrationId]/TicketPanel.tsx`, add the import and render the
-card immediately after the closing `/>` of `<TicketCard ... />` (line 53):
-
-```tsx
-      <RaceKitCard
-        shirtSize={reg.data.shirtSize}
-        kitEditClosesAt={reg.data.kitEditClosesAt}
-        onChange={() => setEditingSize(true)}
-      />
-```
-
-Add `const [editingSize, setEditingSize] = useState(false);` next to the existing `profile`
-state. The sheet it opens arrives in Task 10; for now the flag is set and unused, so add
-`void editingSize;` immediately after the state declaration to keep the linter quiet, and
-remove that line in Task 10.
+Do NOT mount the card in `TicketPanel.tsx` yet. Task 10 adds the card, the sheet, and the
+state that connects them in one coherent change — mounting a Change button here would wire
+it to a handler that does not exist until then.
 
 - [ ] **Step 6: Run the tests and typecheck**
 
@@ -1656,8 +1644,8 @@ Expected: PASS, 8 new tests.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add apps/site/components/RaceKitCard.tsx apps/site/lib/kit.ts apps/site/lib/registration.ts apps/site/app/ticket apps/site/components/__tests__/race-kit-card.test.tsx apps/site/lib/__tests__/kit.test.ts
-git commit -m "feat(site): show the race kit card with its lock state on the ticket"
+git add apps/site/components/RaceKitCard.tsx apps/site/lib/kit.ts apps/site/lib/registration.ts apps/site/components/__tests__/race-kit-card.test.tsx apps/site/lib/__tests__/kit.test.ts
+git commit -m "feat(site): add the race kit card with its lock state"
 ```
 
 ---
@@ -1668,7 +1656,7 @@ git commit -m "feat(site): show the race kit card with its lock state on the tic
 - Create: `apps/site/components/ShirtSizeSheet.tsx`
 - Modify: `apps/site/lib/kit.ts` — add the mutation and result mapping
 - Modify: `apps/site/lib/__tests__/kit.test.ts`
-- Modify: `apps/site/app/ticket/[registrationId]/TicketPanel.tsx` — render the sheet, drop `void editingSize;`
+- Modify: `apps/site/app/ticket/[registrationId]/TicketPanel.tsx` — mount the kit card and the sheet
 
 **Interfaces:**
 - Consumes: `update_registration_fields_tx` (Task 4), `kitEditLocked` (Task 9), `SHIRT_SIZES` from `@race-pace/shared`.
@@ -1878,10 +1866,22 @@ export function ShirtSizeSheet({
 }
 ```
 
-- [ ] **Step 5: Mount it on the ticket page**
+- [ ] **Step 5: Mount the card and the sheet on the ticket page**
 
-In `apps/site/app/ticket/[registrationId]/TicketPanel.tsx`, delete the `void editingSize;`
-line from Task 9 and render the sheet after `<RaceKitCard ... />`:
+In `apps/site/app/ticket/[registrationId]/TicketPanel.tsx`, add
+`const [editingSize, setEditingSize] = useState(false);` next to the existing `profile`
+state, import both components, and render the card immediately after the closing `/>` of
+`<TicketCard ... />` (line 53):
+
+```tsx
+      <RaceKitCard
+        shirtSize={reg.data.shirtSize}
+        kitEditClosesAt={reg.data.kitEditClosesAt}
+        onChange={() => setEditingSize(true)}
+      />
+```
+
+Then render the sheet after it:
 
 ```tsx
       {editingSize ? (
@@ -1904,6 +1904,14 @@ Expected: PASS, 8 new tests.
 ```bash
 git add apps/site/components/ShirtSizeSheet.tsx apps/site/lib/kit.ts apps/site/app/ticket apps/site/lib/__tests__/kit.test.ts apps/site/components/__tests__/race-kit-card.test.tsx
 git commit -m "feat(site): let runners change their shirt size before the kit cutoff"
+```
+
+The ticket page now renders the kit card for the first time, so run the full site suite
+rather than only the two changed test files — `TicketPanel` has existing tests that will see
+the new section.
+
+```bash
+pnpm --filter site test
 ```
 
 ---
