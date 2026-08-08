@@ -135,7 +135,8 @@ Visual execution goes through the `ui-ux-pro-max` skill.
 
 ### 6. Hosted data cleanup
 
-Keep the earliest entry per `(user_id, event_id)`, delete the 3 extras, and
+Keep one entry per `(user_id, event_id)` — the paid one where there is one, otherwise
+the earliest — delete the 3 extras, and
 decrement `categories.slots_taken` by the number deleted per category — otherwise
 the `slots_taken == paid-registration-count` invariant that the demo seed
 maintains is broken.

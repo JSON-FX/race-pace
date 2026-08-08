@@ -239,8 +239,8 @@ update public.registrations set expires_at = null where status <> 'pending';
 -- Pre-existing duplicates would abort the CREATE UNIQUE INDEX below, so they
 -- are resolved here rather than in a separate script that could be skipped:
 -- a standalone cleanup is one more thing to remember, and forgetting it fails
--- `db push` halfway. Keep the earliest entry per (event, runner) and expire
--- the rest.
+-- `db push` halfway. Keep ONE entry per (event, runner) -- the paid one if
+-- there is one, otherwise the earliest -- and expire the rest.
 --
 -- slots_taken is deliberately NOT adjusted. Read
 -- 20260806201000_admin_cancel_registration_rpc.sql before changing this: an
@@ -248,9 +248,18 @@ update public.registrations set expires_at = null where status <> 'pending';
 -- unpaid registrations and manufactured capacity nobody had vacated. Rows
 -- expired here that were 'paid' DID hold a slot, so those -- and only those --
 -- are released, one decrement per released row.
+-- Paid outranks pending regardless of timestamp. Ordering by created_at alone
+-- is wrong: the realistic way a duplicate forms is a first checkout that goes
+-- pending and is abandoned, followed by a later attempt that actually pays. On
+-- creation order the pending stub would survive and the PAID row would be
+-- expired and its slot released -- destroying capacity a runner genuinely
+-- bought. created_at then id breaks ties within a status.
 with ranked as (
   select id, category_id, status,
-         row_number() over (partition by event_id, user_id order by created_at, id) as rn
+         row_number() over (
+           partition by event_id, user_id
+           order by (status = 'paid') desc, created_at, id
+         ) as rn
     from public.registrations
    where status in ('pending', 'paid')
 ),
