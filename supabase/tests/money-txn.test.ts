@@ -229,3 +229,57 @@ describe("money RPCs write to registration_audit", () => {
     }
   });
 });
+
+describe("refund_registration_tx tolerates a deleted actor", () => {
+  // registration_audit.actor_id used to carry `references auth.users(id) on delete set null`
+  // (registration_audit_actor_id_fkey, 20260808100100_registration_audit.sql). That clause only
+  // protects a row that already exists — it cannot retroactively null out an INSERT that names
+  // a user who was deleted before the insert runs, which is exactly what
+  // supabase/functions/payments-webhook/index.ts does: p_refunded_by is a uuid parked in
+  // payments.raw.refund.refunded_by at refund-REQUEST time (possibly days earlier), replayed
+  // here when PayMongo's async refund.updated webhook settles. If that admin has since been
+  // offboarded, the registration_audit insert added by 20260808140000_money_txn_audit.sql /
+  // 20260808150000_partial_refund_audit.sql raised 23503 and aborted the whole
+  // refund_registration_tx transaction — the webhook returned 500, PayMongo retried forever, and
+  // the registration was left 'paid' (slot still taken) despite the provider having already
+  // moved the money. 20260808160000_drop_registration_audit_actor_fk.sql drops the FK so an
+  // audit-log insert can never abort the transaction it's recording.
+  //
+  // A random uuid is a closer match to the real bug than reusing then deleting a user: the
+  // failure isn't "the user existed and was later removed from under a live reference" (which
+  // the old `on delete set null` clause DID handle, for rows that predate the deletion) — it's
+  // "the uuid never has a corresponding row at INSERT time", which is what an INSERT naming an
+  // already-deleted user actually looks like from the database's point of view.
+  it("still refunds and still writes its audit row when p_refunded_by names a uuid that does not exist in auth.users", async () => {
+    const { s, uid, org, cat, reg } = await fixture("ghostactor");
+    try {
+      await s.rpc("confirm_payment_tx", { p_registration_id: reg.id, p_method: "gcash", p_fee: 10000, p_net: 90000, p_token: "tok.sig", p_raw: {} });
+      expect((await s.from("categories").select("slots_taken").eq("id", cat.id).single()).data!.slots_taken).toBe(1);
+
+      const ghostActorId = crypto.randomUUID(); // stands in for "the admin who requested this refund, since offboarded"
+      const r = await s.rpc("refund_registration_tx", {
+        p_registration_id: reg.id, p_refunded_by: ghostActorId, p_note: "actor offboarded before webhook settled",
+        p_provider_refund: { id: "ref_ghost", status: "succeeded" },
+      });
+      // Against the pre-fix schema this is where the test fails: the RPC call returns a
+      // PostgrestError (23503 foreign_key_violation) instead of the string 'refunded', because
+      // the registration_audit insert inside the transaction aborts it.
+      expect(r.error).toBeNull();
+      expect(r.data).toBe("refunded");
+
+      expect((await s.from("registrations").select("status").eq("id", reg.id).single()).data!.status).toBe("refunded");
+      expect((await s.from("categories").select("slots_taken").eq("id", cat.id).single()).data!.slots_taken).toBe(0);
+      const payRow = (await s.from("payments").select("status").eq("registration_id", reg.id).single()).data!;
+      expect(payRow.status).toBe("refunded");
+
+      const rows = (await s.from("registration_audit").select("*").eq("registration_id", reg.id).order("created_at", { ascending: true })).data!;
+      expect(rows.length).toBe(2); // paid, then refunded
+      const refundedRow = rows[1];
+      expect(refundedRow.action).toBe("refunded");
+      expect(refundedRow.actor_id).toBe(ghostActorId); // the FK is gone; the informational value is still recorded
+      expect(refundedRow.actor_role).toBe("admin");
+    } finally {
+      await cleanup(s, org.id, reg.id, uid);
+    }
+  });
+});

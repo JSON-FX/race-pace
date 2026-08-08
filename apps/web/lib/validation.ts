@@ -8,9 +8,15 @@ const dateStr = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD").nullab
 const timeStr = z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/, "Use HH:MM").nullable();
 const scheduleTimeStr = z.string().regex(/^\d{2}:\d{2}$/, "Use HH:MM");
 const intNonNeg = z.number().int().min(0);
-// fromLocalInput (lib/deadlines.ts) always produces `new Date(...).toISOString()` output —
-// UTC, `Z`-suffixed, millisecond precision — so the default (non-offset) `.datetime()` matches.
-const isoDateTimeStr = z.string().datetime().nullable();
+// fromLocalInput (lib/deadlines.ts) writes `new Date(...).toISOString()` — UTC, `Z`-suffixed,
+// millisecond precision — but this schema also has to accept what comes BACK from the DB:
+// getEventForEditor reads PostgREST's `timestamptz` serialisation, which uses an explicit
+// `+00:00` offset (not `Z`) and microsecond precision, e.g. "2026-08-06T01:07:51.985367+00:00".
+// Zod's `.datetime()` defaults to `offset: false`, which accepts only the `Z` form — so without
+// `offset: true` here, an event saved with a deadline could never be reopened and re-saved:
+// safeParse would fail on the very value the DB just handed back, with an error naming no field
+// that looks wrong. `offset: true` still accepts the `Z` form (see validation.test.ts).
+const isoDateTimeStr = z.string().datetime({ offset: true }).nullable();
 
 /** One race-morning timeline row. Both fields required — a fully blank row
  *  isn't a meaningful entry, so it's dropped from the array by

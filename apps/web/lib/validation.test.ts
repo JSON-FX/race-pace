@@ -87,6 +87,20 @@ it("accepts ISO deadline strings and rejects a non-ISO value", () => {
   expect(eventInputSchema.safeParse({ ...validEvent, registration_closes_at: "2026-09-01T23:59:00.000Z", kit_edit_closes_at: "2026-09-06T23:59:00.000Z" }).success).toBe(true);
   expect(eventInputSchema.safeParse({ ...validEvent, registration_closes_at: "2026-09-01" }).success).toBe(false);
 });
+// Regression: PostgREST serialises `timestamptz` with an explicit offset (`+00:00`), not a
+// trailing `Z`, and with microsecond precision. A round trip through getEventForEditor reads
+// that shape back — not the `Z`-suffixed, millisecond string fromLocalInput() writes — so a
+// fixture built only from fromLocalInput() output can never catch a schema that only accepts
+// `Z`. These use literal strings in the exact shape PostgREST actually returns.
+it("accepts a PostgREST-shaped offset timestamp with microsecond precision (read-back, not the write shape)", () => {
+  expect(eventInputSchema.safeParse({ ...validEvent, registration_closes_at: "2026-08-06T01:07:51.985367+00:00" }).success).toBe(true);
+});
+it("still accepts the Z-suffixed millisecond form fromLocalInput() writes", () => {
+  expect(eventInputSchema.safeParse({ ...validEvent, registration_closes_at: "2026-09-01T15:59:00.000Z" }).success).toBe(true);
+});
+it("still rejects a bare date with no time component", () => {
+  expect(eventInputSchema.safeParse({ ...validEvent, registration_closes_at: "2026-09-01" }).success).toBe(false);
+});
 it("kitCutoffError mirrors events_kit_edit_after_reg_close: kit cutoff must not be earlier than registration close when both are set", () => {
   expect(kitCutoffError({ registration_closes_at: null, kit_edit_closes_at: null })).toBeNull();
   expect(kitCutoffError({ registration_closes_at: "2026-09-01T00:00:00.000Z", kit_edit_closes_at: null })).toBeNull();
