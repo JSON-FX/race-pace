@@ -271,25 +271,6 @@ export function fieldEditPolicy(key: string): FieldEditPolicy {
   if ((SAFETY_KEYS as readonly string[]).includes(key)) return "safety";
   return "immutable";
 }
-
-/** Human label for a custom_data key. The admin drawer and the audit timeline both
- *  render raw JSONB keys today; this gives them real words without a form_fields join
- *  (shirt_size is a profile key and may have no form_fields row at all). */
-const FIELD_LABELS: Record<string, string> = {
-  bib_name: "Bib name",
-  date_of_birth: "Date of birth",
-  gender: "Gender",
-  shirt_size: "Shirt size",
-  blood_type: "Blood type",
-  emergency_contact: "Emergency contact",
-};
-
-export function fieldLabel(key: string): string {
-  if (FIELD_LABELS[key]) return FIELD_LABELS[key];
-  if (!key) return "";
-  const spaced = key.replace(/_/g, " ");
-  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
-}
 ```
 
 - [ ] **Step 4: Mirror into the Deno copy**
