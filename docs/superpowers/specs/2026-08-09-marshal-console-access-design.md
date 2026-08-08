@@ -69,7 +69,7 @@ Out of scope, deliberately:
 admin" and starts answering what they may do.
 
 ```ts
-type Capability = "manage_platform" | "manage_org" | "check_in";
+type Capability = "manage_platform" | "manage_team" | "manage_org" | "check_in";
 // spec #3 adds "release_kits"
 
 type MyAccess = {
@@ -80,20 +80,35 @@ type MyAccess = {
 };
 ```
 
-Three tiers, because the console already has three. `manage_platform` covers the
-pages that show **every** org's data — Organizations, Commission, Payouts — which
-`apps/web/app/(admin)/organizations/page.tsx` documents as a deliberate scope band,
-warning that reading a platform total as an org total "is how someone pays an
-organizer the whole platform's takings". Those are not `manage_org` pages and must
-not collapse into it.
+Four tiers, because the console already draws four distinctions — this formalises
+what is there rather than inventing a hierarchy.
+
+`manage_platform` covers pages showing **every** org's data — Organizations,
+Commission, Payouts. `apps/web/app/(admin)/organizations/page.tsx` documents this as
+a deliberate scope band, warning that mistaking a platform total for an org total
+"is how someone pays an organizer the whole platform's takings". Today these are
+`visibleSuperItems`, gated on `isSuperAdmin` (`nav-items.ts:53`).
+
+`manage_team` exists because `/team` is **admin-only within the org**, not
+editor-accessible: `visibleOrgItems` filters it on `isOrgAdmin` (`nav-items.ts:49`).
+Folding it into `manage_org` would hand editors team management — a privilege
+escalation introduced by a refactor that was supposed to be behaviour-preserving.
 
 | Role | Capabilities | `orgId` source |
 | --- | --- | --- |
-| `super_admin` | `manage_platform`, `manage_org`, `check_in` | the org switcher |
-| `admin` | `manage_org`, `check_in` | their `user_roles` row |
+| `super_admin` | `manage_platform`, `manage_team`, `manage_org`, `check_in` | the org switcher |
+| `admin` | `manage_team`, `manage_org`, `check_in` | their `user_roles` row |
 | `editor` | `manage_org`, `check_in` | their `user_roles` row |
 | `marshal` | `check_in` | their `user_roles` row |
 | `claiming` | none until spec #3 | — |
+
+**Preserve the resolved-row invariant.** `roles.ts:52-68` documents a fixed security
+bug: for a user with rows in two orgs, `orgId` came from one org while `isOrgAdmin`
+was computed from another, so the console showed org Y's data with org X's powers.
+The fix was to resolve a single `resolvedRow` first and derive everything from it.
+The capability set must be derived from that same single row for the same reason —
+computing capabilities by scanning all rows would reintroduce exactly that bug in a
+new shape.
 
 `orgId` resolves from whichever role row the user actually holds, not from a list
 that skips marshals. This is the fix for the second half of the problem.
@@ -143,13 +158,27 @@ the control.
 | Capability | Routes |
 | --- | --- |
 | `manage_platform` | organizations, commission, payouts |
-| `manage_org` | dashboard, events, events/new, events/[id]/edit, registrations, payments, team, settings |
+| `manage_team` | team |
+| `manage_org` | dashboard, events, events/new, events/[id]/edit, registrations, payments, settings |
 | `check_in` | check-in |
 
-The `manage_platform` rows preserve today's gating rather than changing it — the
-implementation must read each of those three pages and carry over whatever check it
-already performs, rather than trusting this table. Getting one of them wrong in the
-loosening direction exposes platform-wide financial data to an org admin.
+This table must **preserve** today's gating, not redefine it. The implementation
+reads each route's existing check and carries it over; where this table and the code
+disagree, the code wins and the table is wrong. Two directions of error matter and
+neither is symmetric with the other: loosening `manage_platform` exposes
+platform-wide financial data to an org admin, and loosening `manage_team` lets an
+editor manage org membership.
+
+The nav already encodes this split — `ORG_ITEMS`/`SUPER_ITEMS` with `visibleOrgItems`
+filtering `/team` on `isOrgAdmin` and `visibleSuperItems` gating on `isSuperAdmin`
+(`nav-items.ts:29-55`). The `requires` field replaces those two hand-written
+predicates with the same information stated once.
+
+Note `nav-items.ts` is deliberately free of server-only imports — its header explains
+that importing `@/lib/queries/roles`'s runtime surface would drag `next/headers` into
+every client component that imports it and break the build. The `Capability` type must
+therefore live somewhere client-safe; `lib/team-roles.ts` is the precedent that file
+itself cites.
 
 A user whose only capability is `check_in` lands on `/check-in` rather than the
 dashboard.
@@ -212,11 +241,19 @@ Cross-org: a user holding rows in two orgs resolves to one org and gets that org
 capabilities alone, never the union. This is the case most likely to be got wrong,
 and the one with the worst failure mode.
 
-Route enforcement: a marshal is redirected from a `manage_org` route; an org admin
-is redirected from a `manage_platform` route; an admin and an editor reach every
-route they reach today, proving this is not a regression. That last set is the
-regression guard for the whole spec — this change touches the gate on every console
-page, so "nobody lost access" needs asserting, not assuming.
+Route enforcement, one test per boundary:
+
+- a marshal is redirected from a `manage_org` route;
+- an org admin is redirected from a `manage_platform` route;
+- **an editor is redirected from `/team`** — this is the privilege-escalation guard.
+  `/team` is admin-only today via `isOrgAdmin`, and a refactor that folds it into
+  `manage_org` would silently grant it to editors. This test fails if that happens;
+- an admin and an editor reach every route they reach today.
+
+That last set is the regression guard for the whole spec. This change touches the
+gate on every console page, so "nobody lost access" needs asserting, not assuming —
+and the editor case needs asserting in both directions, since it is the one role
+whose capability set is a strict subset of another's.
 
 Nav: the rendered items equal exactly those whose `requires` the user holds.
 
