@@ -155,8 +155,29 @@ revoke all on function public.fn_notify_on_registration() from public;
 
 revoke execute on function public.fn_enqueue_event_reminders() from anon, authenticated;
 
-revoke execute on function public.rls_auto_enable() from anon, authenticated;
-revoke all on function public.rls_auto_enable() from public;
+-- rls_auto_enable exists on the hosted project this migration was written and applied against,
+-- but is defined by no migration in this repo — grep across the whole tree hits nothing else.
+-- Its origin is unknown, so a `create function` for it here would be worse than leaving the gap
+-- (we'd be guessing at a security-definer body). `revoke ... on function` against a function
+-- that doesn't exist raises 42883 and aborts the transaction — on an environment provisioned
+-- from these migrations alone (`supabase db reset`, or any project where this function was
+-- never separately provisioned), this line would kill this migration and, with it, every
+-- migration after it, since a later migration cannot rescue a replay sequence that already
+-- aborted here. Guarded so it's a no-op wherever the function is absent, unconditional (same
+-- net effect) wherever it's present.
+do $$
+begin
+  if exists (
+    select 1 from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and p.proname = 'rls_auto_enable'
+      and pg_get_function_identity_arguments(p.oid) = ''
+  ) then
+    execute 'revoke execute on function public.rls_auto_enable() from anon, authenticated';
+    execute 'revoke all on function public.rls_auto_enable() from public';
+  end if;
+end $$;
 
 -- ============================================================================================
 -- Stop new functions inheriting the problem. This only governs objects created AFTERWARDS by

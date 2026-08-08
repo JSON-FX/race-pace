@@ -125,4 +125,33 @@ describe("function grants — service-role-only RPCs reject anon", () => {
     expect(r.error!.code).toBe("42501");
     expect(r.data).toBeNull();
   });
+
+  // Regression guard for 20260808120200_close_new_function_public_execute_gap.sql. The obvious
+  // fix (naming PUBLIC in the ALTER DEFAULT PRIVILEGES revoke, 20260808120000) does NOT actually
+  // suppress Postgres's built-in "EXECUTE granted to PUBLIC" default for new functions — proven
+  // empirically while writing these migrations, see 20260808120000's header — so PUBLIC's grant
+  // applies to every role, and a brand-new function was exactly as anon/authenticated-executable
+  // as before the fix, silently. `_grants_regression_canary` (20260808120300) is a permanent
+  // fixture function created by a real migration with no grant statement of its own, exactly the
+  // shape a careless future migration would produce; this proves anon and authenticated cannot
+  // call it, rather than trusting that the schema-wide defaults still say what these migrations
+  // claim they say.
+  it("a function created with no explicit grant is anon- and authenticated-unreachable by default", async () => {
+    const anonResult = await anon().rpc("_grants_regression_canary");
+    expect(anonResult.error).not.toBeNull();
+    expect(anonResult.error!.code).toBe("42501");
+
+    const { data: { user }, error: signUpError } = await svc().auth.admin.createUser({
+      email: `grants_canary_${Date.now()}@test.dev`, password: "password123", email_confirm: true,
+    });
+    expect(signUpError).toBeNull();
+    try {
+      const c = await signedIn(user!.email!);
+      const authedResult = await c.rpc("_grants_regression_canary");
+      expect(authedResult.error).not.toBeNull();
+      expect(authedResult.error!.code).toBe("42501");
+    } finally {
+      await svc().auth.admin.deleteUser(user!.id);
+    }
+  });
 });
