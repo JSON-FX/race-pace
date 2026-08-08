@@ -41,7 +41,7 @@ export function RegistrationsTable({
   // it can't affect the query. And because `reg` isn't in
   // `preserveOnClear`, "Clear all" closes the sheet along with every other
   // non-`event` param.
-  const { setFilter, patch } = useTableParams();
+  const { patch } = useTableParams();
 
   // The URL stays the source of truth — `?reg=<id>` is what makes a
   // registration linkable, and a cold load of that URL still resolves

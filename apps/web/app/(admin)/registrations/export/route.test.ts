@@ -123,8 +123,11 @@ describe("GET /registrations/export", () => {
     // per-batch email lookup.
     expect(listEventRegistrationsMock).toHaveBeenCalledTimes(2);
     for (const call of listEventRegistrationsMock.mock.calls) {
-      const [, , opts] = call as [string, TableParams, { includeEmails?: boolean } | undefined];
+      const [, , opts] = call as [string, TableParams, { includeEmails?: boolean; includeAddons?: boolean } | undefined];
       expect(opts?.includeEmails).toBe(false);
+      // The export never renders add-ons — same O(n²)-avoidance reasoning as
+      // includeEmails, just for a read this route has no use for at all.
+      expect(opts?.includeAddons).toBe(false);
     }
   });
 

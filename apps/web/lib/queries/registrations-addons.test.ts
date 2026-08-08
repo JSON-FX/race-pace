@@ -45,11 +45,23 @@ describe("getRegistrationAddons", () => {
   // own test, back when it fetched add-ons itself from the browser. Now that
   // the read happens here, the degrade-on-failure behaviour belongs here too
   // — the component only ever sees the already-degraded `row.addons`.
+  //
+  // Asserting `console.error` was called, not just the empty-Map result, is
+  // load-bearing: `data ?? []` on a `data: null` failure response already
+  // produces an empty Map even with the `if (error)` guard deleted entirely,
+  // so a result-only assertion here would pass whether or not the guard
+  // (and its logging, the only signal an admin's console gets that this
+  // silently degraded) actually exists.
   it("degrades to an empty Map, not a thrown error, when the query fails", async () => {
     inMock.mockResolvedValue({ data: null, error: { message: "nope" } });
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     const byId = await getRegistrationAddons(["r1"]);
+
+    // Assert BEFORE mockRestore(): it does what mockReset() does (clears
+    // recorded calls) in addition to restoring the real console.error, so
+    // checking after would always see zero calls regardless of the guard.
+    expect(errorSpy).toHaveBeenCalledWith("getRegistrationAddons failed", { message: "nope" });
     errorSpy.mockRestore();
 
     expect(byId).toEqual(new Map());
