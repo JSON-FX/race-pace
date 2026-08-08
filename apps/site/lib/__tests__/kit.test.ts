@@ -20,6 +20,22 @@ describe("kitEditLocked", () => {
   it("is locked after the deadline", () => {
     expect(kitEditLocked("2020-01-01T00:00:00Z")).toBe(true);
   });
+
+  // The RPC gates on `v_kit_closes < now()` (strict). At the exact cutoff instant the
+  // client must agree and stay unlocked, or a runner could see "Locked" here while the
+  // RPC would still accept the edit — exactly backwards from the documented failure mode.
+  // Frozen system time makes the two Date.now() reads (fixture + comparison) line up
+  // exactly instead of racing a real clock.
+  it("is unlocked at the exact cutoff instant, matching the RPC's strict `<` comparison", () => {
+    const now = new Date("2030-06-15T12:00:00.000Z");
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+    try {
+      expect(kitEditLocked(now.toISOString())).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe("daysUntil", () => {

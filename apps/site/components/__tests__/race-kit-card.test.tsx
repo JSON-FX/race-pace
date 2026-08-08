@@ -42,6 +42,30 @@ describe("RaceKitCard", () => {
     const { container } = render(<RaceKitCard shirtSize="L" kitEditClosesAt={PAST} onChange={vi.fn()} />);
     expect(container.querySelectorAll("svg").length).toBeGreaterThan(0);
   });
+
+  // Regression coverage for the countdown badge itself — a prior review found nothing
+  // asserted its presence, its count, or the day/days split, so a mutation that always
+  // rendered null (or always said "days") passed the whole suite.
+  it("shows the days-left badge with the correct count for a future cutoff", () => {
+    // 5 days minus a minute of buffer: comfortably inside (4d, 5d] so Math.ceil is 5
+    // regardless of the few milliseconds the test takes to run.
+    const cutoff = new Date(Date.now() + 5 * 86_400_000 - 60_000).toISOString();
+    render(<RaceKitCard shirtSize="L" kitEditClosesAt={cutoff} onChange={vi.fn()} />);
+    expect(screen.getByText("5 days left")).toBeInTheDocument();
+  });
+
+  it("uses the singular 'day' when exactly one day remains", () => {
+    // A few hours out lands safely inside (0, 1d], giving Math.ceil(0.x) === 1 without
+    // racing a 24-hour boundary.
+    const cutoff = new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString();
+    render(<RaceKitCard shirtSize="L" kitEditClosesAt={cutoff} onChange={vi.fn()} />);
+    expect(screen.getByText("1 day left")).toBeInTheDocument();
+  });
+
+  it("renders no countdown badge when the event has no kit deadline", () => {
+    render(<RaceKitCard shirtSize="M" kitEditClosesAt={null} onChange={vi.fn()} />);
+    expect(screen.queryByText(/day.*left/i)).not.toBeInTheDocument();
+  });
 });
 
 describe("ShirtSizeSheet", () => {

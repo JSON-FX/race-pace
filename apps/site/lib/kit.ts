@@ -2,10 +2,11 @@ import { createClient } from "@/lib/supabase/client";
 
 /** Kit fields freeze at the event's cutoff so shirts can be printed and packed against a
  *  stable roster. This decides what the UI RENDERS; update_registration_fields_tx decides
- *  what is actually allowed. If the two disagree the RPC wins and returns 'locked'. */
+ *  what is actually allowed. The comparison is strict (`<`) to match the RPC's own
+ *  `v_kit_closes < now()` gate exactly, so the two never disagree at the boundary instant. */
 export function kitEditLocked(kitEditClosesAt: string | null): boolean {
   if (!kitEditClosesAt) return false;
-  return new Date(kitEditClosesAt).getTime() <= Date.now();
+  return new Date(kitEditClosesAt).getTime() < Date.now();
 }
 
 /** Whole days remaining, rounded up: a deadline later today reads as "1 day left" rather
