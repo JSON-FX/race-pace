@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import { Clock, TriangleAlert } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { formatPeso } from "@race-pace/shared";
@@ -9,6 +10,14 @@ import { useMyRegistrations, cancelRegistration, type RegistrationRow } from "@/
 import { StatusBadge } from "@/components/StatusBadge";
 import { TopoPattern } from "@/components/TopoPattern";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { longDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -18,6 +27,56 @@ import { cn } from "@/lib/utils";
 function isPast(eventDate: string | null): boolean {
   if (!eventDate) return false;
   return eventDate < new Date().toISOString().slice(0, 10);
+}
+
+/** Coarse on purpose: a to-the-second countdown on a 24-hour hold reads as
+ *  panic, and the sweep that actually reclaims the slot only runs every 15
+ *  minutes, so second-level precision would be a lie anyway. Hour buckets
+ *  cover the bulk of the window; once under an hour the entry can vanish
+ *  inside a single sweep cycle, so it switches to minutes and to `urgent`,
+ *  which callers use to swap the calm amber treatment for the destructive
+ *  one — the last hour is a genuinely different situation, not just a
+ *  smaller number.
+ *
+ *  Returns null both when there is no hold (paid, or no expiry) AND when the
+ *  hold has already lapsed — a pending row can still be in the list moments
+ *  before the 15-minute sweep deletes it, and this list's own fetch does not
+ *  re-apply the server's lazy-expiry check the way lib/entry.ts does for the
+ *  event page. Showing "0m left to pay" for an entry the server already
+ *  considers gone would be worse than showing nothing.
+ *
+ *  Computed from Date.now() at render time, not a ticking interval: this
+ *  hook's data comes from react-query with default options, which refetches
+ *  (and re-renders this component) on mount and on every window/tab focus —
+ *  precisely the moments a runner is actually looking at the page. Between
+ *  those moments the number can drift, but at hour/minute granularity that
+ *  drift is invisible until it would cross a bucket anyway, and a setInterval
+ *  re-rendering the whole list every minute for a number nobody is reading
+ *  is cost without benefit. */
+export function holdRemaining(expiresAt: string | null): { label: string; urgent: boolean } | null {
+  if (!expiresAt) return null;
+  const ms = Date.parse(expiresAt) - Date.now();
+  if (ms <= 0) return null;
+  const hours = Math.floor(ms / 3_600_000);
+  if (hours >= 1) return { label: `${hours}h left to pay`, urgent: false };
+  return { label: `${Math.max(1, Math.round(ms / 60_000))}m left to pay`, urgent: true };
+}
+
+function HoldBadge({ expiresAt }: { expiresAt: string | null }) {
+  const hold = holdRemaining(expiresAt);
+  if (!hold) return null;
+  const Icon = hold.urgent ? TriangleAlert : Clock;
+  return (
+    <span
+      className={cn(
+        "font-eyebrow inline-flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[1.5px]",
+        hold.urgent ? "border-destructive bg-destructive-tint text-destructive" : "border-amber bg-amber-tint text-amber",
+      )}
+    >
+      <Icon size={11} aria-hidden="true" />
+      {hold.label}
+    </span>
+  );
 }
 
 function Thumb({ reg, past }: { reg: RegistrationRow; past: boolean }) {
@@ -45,6 +104,11 @@ export function RacesList() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<"upcoming" | "finished">("upcoming");
+  // Holds the registration id awaiting confirmation, not the deletion itself —
+  // cancelRegistration hard-DELETEs the row (see lib/registration.ts), so a
+  // bare button click here would be one mis-tap away from destroying a real
+  // entry. The dialog is the only path to `discard`.
+  const [confirmTarget, setConfirmTarget] = useState<RegistrationRow | null>(null);
 
   const { upcoming, finished } = useMemo(() => {
     const rows = data ?? [];
@@ -82,6 +146,12 @@ export function RacesList() {
     } finally {
       setBusyId(null);
     }
+  }
+
+  async function confirmDiscard() {
+    if (!confirmTarget) return;
+    await discard(confirmTarget.id);
+    setConfirmTarget(null);
   }
 
   const rows = tab === "upcoming" ? upcoming : finished;
@@ -172,7 +242,15 @@ export function RacesList() {
                           .join(" · ")}
                       </p>
                     </div>
-                    <StatusBadge status={r.status} />
+                    {/* Status and hold stack rather than sit side by side: both
+                        are facts about the same clock (paid has no hold, so
+                        only pending ever grows a second line), and stacking
+                        keeps the row from fighting the CTAs below for width
+                        on narrow screens. */}
+                    <div className="flex shrink-0 flex-col items-end gap-1.5">
+                      <StatusBadge status={r.status} />
+                      {r.status === "pending" ? <HoldBadge expiresAt={r.expiresAt} /> : null}
+                    </div>
                   </div>
 
                   <div className="mt-3.5 flex flex-wrap gap-2">
@@ -190,7 +268,7 @@ export function RacesList() {
                           type="button"
                           variant="outline"
                           disabled={busyId === r.id}
-                          onClick={() => discard(r.id)}
+                          onClick={() => setConfirmTarget(r)}
                           className="h-auto rounded-pill px-5 py-2.5 text-[13px] font-semibold text-destructive hover:text-destructive"
                         >
                           {busyId === r.id ? "Discarding…" : "Discard"}
@@ -211,6 +289,38 @@ export function RacesList() {
           })}
         </div>
       )}
+
+      <Dialog open={!!confirmTarget} onOpenChange={(open) => !open && setConfirmTarget(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Discard this entry?</DialogTitle>
+            <DialogDescription>
+              {confirmTarget ? (
+                <>
+                  You&apos;ll lose your spot for{" "}
+                  <span className="font-semibold text-foreground">{confirmTarget.eventName}</span>
+                  {confirmTarget.categoryLabel ? ` (${confirmTarget.categoryLabel})` : ""}. This can&apos;t be
+                  undone — the slot goes back into the pool immediately, and if you change your mind you&apos;ll
+                  need to register again with no guarantee of space.
+                </>
+              ) : null}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setConfirmTarget(null)}>
+              Keep entry
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={!!confirmTarget && busyId === confirmTarget.id}
+              onClick={confirmDiscard}
+            >
+              {confirmTarget && busyId === confirmTarget.id ? "Discarding…" : "Yes, discard entry"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
