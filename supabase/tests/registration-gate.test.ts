@@ -711,6 +711,209 @@ describe("registrations-checkout duplicate handling", () => {
     const body = await res.json();
     expect(body.error).toBe("already_registered");
     expect(body.registration_id).toBe(reg.data!.id);
+    expect(body.status).toBe("pending");
     expect(body.checkout_url).toBe("https://checkout.test/abc");
   });
+
+  /**
+   * Fix round 1 (review finding, CRITICAL): the pre-check's lazy-expiry logic
+   * only IGNORED a lapsed pending row -- it never wrote anything. The row
+   * stayed 'pending' in the database, so the insert two lines later still
+   * collided with registrations_one_live_per_event, and the 23505 handler
+   * (which had no expiry awareness of its own) re-found that same dead row
+   * and told the runner already_registered. Correctness depended on the
+   * 15-minute sweep after all, contradicting the code's own comment.
+   *
+   * Fix: the pre-check now EXPIRES a lapsed row it finds (status='expired',
+   * expires_at=null) before falling through to the insert, so there is no
+   * collision left to hit. This test seeds exactly that stale row, calls the
+   * real function, and asserts both ends of the contract: the runner gets a
+   * genuine new registration (200, a different id), and the stale row is
+   * actually 'expired' in the database afterward -- not merely skipped.
+   */
+  it.skipIf(!functionsUp)(
+    "expires a lapsed pending hold in the pre-check and issues a real new registration, not already_registered",
+    async () => {
+      const svc = service();
+      const f = await makeEvent(`lazy${Date.now()}`);
+      const runner = await makeUser(`gate_lazy_${Date.now()}@test.dev`);
+
+      const stale = await svc.from("registrations").insert(regRow(f, runner.id)).select().single();
+      await svc.from("payments").insert({
+        org_id: f.orgId, registration_id: stale.data!.id, amount: 100000, status: "pending",
+      });
+      await svc.from("registrations")
+        .update({ expires_at: new Date(Date.now() - 60_000).toISOString() }).eq("id", stale.data!.id);
+
+      const res = await fetch(`${FN}/registrations-checkout`, {
+        method: "POST",
+        headers: { "content-type": "application/json", Authorization: `Bearer ${runner.token}` },
+        body: JSON.stringify({
+          event_id: f.eventId, category_id: f.categoryId, addon_ids: [],
+          custom_data: {}, waiver_accepted: true, idempotency_key: `k_lazy_${Date.now()}`,
+        }),
+      });
+
+      expect(res.status, "a lapsed hold must not block a fresh checkout").toBe(200);
+      const body = await res.json();
+      expect(body.registration_id).toBeTruthy();
+      expect(body.registration_id).not.toBe(stale.data!.id);
+
+      const after = await svc.from("registrations").select("status,expires_at").eq("id", stale.data!.id).single();
+      expect(after.data!.status, "the stale row must actually be written to 'expired', not merely skipped").toBe("expired");
+      expect(after.data!.expires_at).toBeNull();
+    },
+  );
+});
+
+/**
+ * Fix round 1 (review finding, IMPORTANT): the 23505 handler in
+ * registrations-checkout was covered by no test at all. The seeded-row test
+ * above always resolves via the PRE-CHECK (its row is live and visible before
+ * the insert even runs), so the insert-time race branch -- where the Critical
+ * fix above also lives -- was completely dark.
+ *
+ * A genuine race is staged the same way "races two late captures" does it
+ * earlier in this file: a raw pg connection opens a transaction and inserts
+ * a conflicting registrations row directly, WITHOUT committing. That row is
+ * invisible to the edge function's pre-check (ordinary MVCC/READ COMMITTED
+ * visibility -- an uncommitted row is invisible to any other connection,
+ * PostgREST's included) but still occupies the partial unique index entry,
+ * so the edge function's own insert -- once it gets that far -- blocks on
+ * it. The test polls pg_stat_activity for that lock wait before committing,
+ * exactly like the earlier race test, so the collision is proven to have
+ * happened rather than hoped for via a fixed sleep; if the poll times out,
+ * the test fails loudly on that assertion rather than passing for the wrong
+ * reason.
+ */
+async function waitForRegistrationsLockWait(poller: Client, excludePid: number, timeoutMs = 5000): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const r = await poller.query<{ pid: number }>(
+      "select pid from pg_stat_activity " +
+        "where wait_event_type = 'Lock' and pid <> $1 and query ilike '%registrations%'",
+      [excludePid],
+    );
+    if (r.rows.length > 0) return true;
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  return false;
+}
+
+describe("registrations-checkout 23505 handler (genuine concurrent race)", () => {
+  it.skipIf(!functionsUp)(
+    "the pre-check misses an uncommitted sibling, the insert collides, and the loser gets already_registered pointing at the real winner",
+    async () => {
+      const f = await makeEvent(`race_co${Date.now()}`);
+      const runner = await makeUser(`gate_race_co_${Date.now()}@test.dev`);
+
+      const holder = new Client({ connectionString: dbUrl });
+      const poller = new Client({ connectionString: dbUrl });
+      await holder.connect();
+      await poller.connect();
+
+      try {
+        await holder.query("begin");
+        const holderPid = (await holder.query<{ pid: number }>("select pg_backend_pid() as pid")).rows[0]!.pid;
+        const ins = await holder.query<{ id: string }>(
+          "insert into registrations (org_id, event_id, category_id, user_id, total_amount, status) " +
+            "values ($1, $2, $3, $4, 100000, 'pending') returning id",
+          [f.orgId, f.eventId, f.categoryId, runner.id],
+        );
+        const holderRegId = ins.rows[0]!.id;
+
+        const resPromise = fetch(`${FN}/registrations-checkout`, {
+          method: "POST",
+          headers: { "content-type": "application/json", Authorization: `Bearer ${runner.token}` },
+          body: JSON.stringify({
+            event_id: f.eventId, category_id: f.categoryId, addon_ids: [],
+            custom_data: {}, waiver_accepted: true, idempotency_key: `k_race_${Date.now()}`,
+          }),
+        });
+
+        const blocked = await waitForRegistrationsLockWait(poller, holderPid);
+        expect(blocked, "test setup requires the edge function's insert to actually block on the " +
+          "uncommitted sibling row -- if this is false the race was not reproduced and the " +
+          "assertions below are meaningless").toBe(true);
+
+        await holder.query("commit");
+        const res = await resPromise;
+
+        expect(res.status).toBe(409);
+        const body = await res.json();
+        expect(body.error).toBe("already_registered");
+        expect(body.registration_id).toBe(holderRegId);
+        expect(body.status).toBe("pending");
+        expect(body.checkout_url).toBeNull();
+      } finally {
+        await holder.query("rollback").catch(() => {});
+        await holder.end();
+        await poller.end();
+      }
+    },
+  );
+
+  /**
+   * The specific branch added in this fix round: the row that beat us in the
+   * 23505 handler can itself be a lapsed pending hold (two runners' clients
+   * racing at the exact moment one of them's hold was about to lapse). That
+   * must expire the winner and retry the insert once, producing a real new
+   * registration -- not report already_registered against a dead row, which
+   * is exactly the Critical bug relocated one level down.
+   */
+  it.skipIf(!functionsUp)(
+    "when the row that wins the race is itself lapsed, the 23505 handler expires it and retries once, producing a real new registration",
+    async () => {
+      const svc = service();
+      const f = await makeEvent(`race_lazy${Date.now()}`);
+      const runner = await makeUser(`gate_race_lazy_${Date.now()}@test.dev`);
+
+      const holder = new Client({ connectionString: dbUrl });
+      const poller = new Client({ connectionString: dbUrl });
+      await holder.connect();
+      await poller.connect();
+
+      try {
+        await holder.query("begin");
+        const holderPid = (await holder.query<{ pid: number }>("select pg_backend_pid() as pid")).rows[0]!.pid;
+        const lapsed = new Date(Date.now() - 60_000).toISOString();
+        const ins = await holder.query<{ id: string }>(
+          "insert into registrations (org_id, event_id, category_id, user_id, total_amount, status, expires_at) " +
+            "values ($1, $2, $3, $4, 100000, 'pending', $5) returning id",
+          [f.orgId, f.eventId, f.categoryId, runner.id, lapsed],
+        );
+        const holderRegId = ins.rows[0]!.id;
+
+        const resPromise = fetch(`${FN}/registrations-checkout`, {
+          method: "POST",
+          headers: { "content-type": "application/json", Authorization: `Bearer ${runner.token}` },
+          body: JSON.stringify({
+            event_id: f.eventId, category_id: f.categoryId, addon_ids: [],
+            custom_data: {}, waiver_accepted: true, idempotency_key: `k_race_lazy_${Date.now()}`,
+          }),
+        });
+
+        const blocked = await waitForRegistrationsLockWait(poller, holderPid);
+        expect(blocked, "test setup requires the edge function's insert to actually block on the " +
+          "uncommitted sibling row -- if this is false the race was not reproduced and the " +
+          "assertions below are meaningless").toBe(true);
+
+        await holder.query("commit");
+        const res = await resPromise;
+
+        expect(res.status, "a lapsed race winner must not block a fresh checkout").toBe(200);
+        const body = await res.json();
+        expect(body.registration_id).toBeTruthy();
+        expect(body.registration_id).not.toBe(holderRegId);
+
+        const after = await svc.from("registrations").select("status,expires_at").eq("id", holderRegId).single();
+        expect(after.data!.status, "the lapsed winner must actually be written to 'expired'").toBe("expired");
+        expect(after.data!.expires_at).toBeNull();
+      } finally {
+        await holder.query("rollback").catch(() => {});
+        await holder.end();
+        await poller.end();
+      }
+    },
+  );
 });

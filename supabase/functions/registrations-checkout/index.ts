@@ -52,34 +52,52 @@ Deno.serve(async (req) => {
     // case returns something the client can act on: the existing entry and its
     // checkout URL, so a runner who wandered off mid-payment lands back on the
     // pay screen instead of a dead end.
-    //
+    const liveEntryQuery = () =>
+      db
+        .from("registrations")
+        .select("id,status,expires_at,payments(checkout_url)")
+        .eq("event_id", input.event_id)
+        .eq("user_id", userId)
+        .in("status", ["pending", "paid"])
+        .maybeSingle();
+
     // `expires_at <= now()` is the lazy backstop: a pending row past its hold
     // window is already gone as far as the runner is concerned, whether or not
-    // the 15-minute sweep has run yet. Correctness must not depend on cron.
-    const { data: existing } = await db
-      .from("registrations")
-      .select("id,status,expires_at,payments(checkout_url)")
-      .eq("event_id", input.event_id)
-      .eq("user_id", userId)
-      .in("status", ["pending", "paid"])
-      .maybeSingle();
+    // the 15-minute sweep has run yet. Correctness must not depend on cron --
+    // which means this check has to WRITE, not just ignore. A row that is
+    // merely skipped here is still 'pending' in the database, the unique
+    // index still sees it, and the insert below would collide with it -- at
+    // which point the 23505 handler would find that same stale row and
+    // wrongly report already_registered. Expiring it for real removes the
+    // collision instead of relocating it.
+    const isLapsedPending = (row: { status: string; expires_at: string | null }) =>
+      row.status === "pending" && !!row.expires_at && Date.parse(row.expires_at) <= Date.now();
 
-    const liveEntry =
-      existing && !(existing.status === "pending" && existing.expires_at && Date.parse(existing.expires_at) <= Date.now())
-        ? existing
-        : null;
+    const expireLapsedRow = (id: string) =>
+      db.from("registrations").update({ status: "expired", expires_at: null }).eq("id", id);
 
-    if (liveEntry) {
-      const pay = Array.isArray(liveEntry.payments) ? liveEntry.payments[0] : liveEntry.payments;
+    const alreadyRegisteredResponse = (row: { id: string; status: string; payments: unknown }) => {
+      const pay = Array.isArray(row.payments) ? row.payments[0] : row.payments;
       return json(
         {
           error: "already_registered",
-          registration_id: liveEntry.id,
-          status: liveEntry.status,
-          checkout_url: pay?.checkout_url ?? null,
+          registration_id: row.id,
+          status: row.status,
+          checkout_url: (pay as { checkout_url: string | null } | null)?.checkout_url ?? null,
         },
         409,
       );
+    };
+
+    const { data: existing, error: existingErr } = await liveEntryQuery();
+    if (existingErr) return json({ error: "registration_failed", details: existingErr.message }, 500);
+
+    if (existing) {
+      if (isLapsedPending(existing)) {
+        await expireLapsedRow(existing.id);
+      } else {
+        return alreadyRegisteredResponse(existing);
+      }
     }
 
     const { data: fieldRows } = await db.from("form_fields").select("*").eq("event_id", input.event_id).eq("is_active", true);
@@ -112,37 +130,55 @@ Deno.serve(async (req) => {
     const addonTotal = (addons ?? []).reduce((s, a) => s + a.price, 0);
     const total = category.base_price + addonTotal;
 
-    const { data: reg, error: regErr } = await db.from("registrations").upsert({
-      org_id: category.org_id, event_id: input.event_id, category_id: input.category_id,
-      user_id: userId, status: "pending", total_amount: total,
-      custom_data: input.custom_data, waiver_accepted_at: new Date().toISOString(),
-      idempotency_key: input.idempotency_key,
-    }, { onConflict: "user_id,idempotency_key" }).select().single();
-    if (regErr || !reg) {
+    const insertRegistration = () =>
+      db.from("registrations").upsert({
+        org_id: category.org_id, event_id: input.event_id, category_id: input.category_id,
+        user_id: userId, status: "pending", total_amount: total,
+        custom_data: input.custom_data, waiver_accepted_at: new Date().toISOString(),
+        idempotency_key: input.idempotency_key,
+      }, { onConflict: "user_id,idempotency_key" }).select().single();
+
+    const isLiveGateViolation = (err: { code?: string; message?: string | null } | null) =>
+      err?.code === "23505" && (err.message ?? "").includes("registrations_one_live_per_event");
+
+    let { data: reg, error: regErr } = await insertRegistration();
+
+    if ((regErr || !reg) && isLiveGateViolation(regErr)) {
       // 23505 on registrations_one_live_per_event: a concurrent checkout won
       // the race between the pre-check above and this insert. Same outcome as
-      // the pre-check, just discovered a moment later.
-      if (regErr?.code === "23505" && (regErr.message ?? "").includes("registrations_one_live_per_event")) {
-        const { data: winner } = await db
-          .from("registrations")
-          .select("id,status,payments(checkout_url)")
-          .eq("event_id", input.event_id)
-          .eq("user_id", userId)
-          .in("status", ["pending", "paid"])
-          .maybeSingle();
-        const pay = winner && (Array.isArray(winner.payments) ? winner.payments[0] : winner.payments);
-        return json(
-          {
-            error: "already_registered",
-            registration_id: winner?.id ?? null,
-            status: winner?.status ?? "pending",
-            checkout_url: pay?.checkout_url ?? null,
-          },
-          409,
-        );
+      // the pre-check, just discovered a moment later -- including the same
+      // lazy-expiry duty: if the row that beat us is itself a lapsed pending
+      // hold, expiring-and-ignoring it here would leave the caller wrongly
+      // told already_registered against a dead row. Expire it for real and
+      // retry the insert exactly once (bounded -- this must never loop).
+      const { data: winner, error: winnerErr } = await liveEntryQuery();
+      if (winnerErr) return json({ error: "registration_failed", details: winnerErr.message }, 500);
+
+      if (winner && isLapsedPending(winner)) {
+        await expireLapsedRow(winner.id);
+        const retry = await insertRegistration();
+        if (!retry.error && retry.data) {
+          reg = retry.data;
+          regErr = null;
+        } else if (isLiveGateViolation(retry.error)) {
+          // Someone else won in the time it took to expire and retry --
+          // report that genuine winner rather than retrying again.
+          const { data: winner2, error: winner2Err } = await liveEntryQuery();
+          if (winner2Err) return json({ error: "registration_failed", details: winner2Err.message }, 500);
+          if (winner2) return alreadyRegisteredResponse(winner2);
+          return json({ error: "registration_failed", details: retry.error?.message }, 500);
+        } else {
+          return json({ error: "registration_failed", details: retry.error?.message }, 500);
+        }
+      } else if (winner) {
+        return alreadyRegisteredResponse(winner);
+      } else {
+        // Constraint fired but no live row matches now -- surface the
+        // original error rather than manufacturing a response with no id.
+        return json({ error: "registration_failed", details: regErr?.message }, 500);
       }
-      return json({ error: "registration_failed", details: regErr?.message }, 500);
     }
+    if (regErr || !reg) return json({ error: "registration_failed", details: regErr?.message }, 500);
 
     if ((addons ?? []).length) {
       await db.from("registration_addons").upsert(
