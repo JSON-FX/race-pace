@@ -9,21 +9,36 @@ export type CheckoutResult = { registration_id: string; checkout_url: string };
 // The deep link PayMongo's hosted checkout redirects back to after pay/cancel.
 export const PAY_RETURN_PATH = "pay-callback";
 
+/** Thrown by startCheckout. `registrationId` is only set for the
+ *  already_registered 409 (registrations-checkout's contract:
+ *  { error: "already_registered", registration_id, status, checkout_url }) —
+ *  it's what lets the register screen redirect straight to the runner's
+ *  existing entry instead of just showing an error string. */
+export class CheckoutError extends Error {
+  registrationId?: string;
+  constructor(message: string, registrationId?: string) {
+    super(message);
+    this.registrationId = registrationId;
+  }
+}
+
 export async function startCheckout(input: RegistrationInput): Promise<CheckoutResult> {
   // Pass the app's return deep link so the server can set PayMongo's success/cancel URLs.
   const body = { ...input, return_url: Linking.createURL(PAY_RETURN_PATH) };
   const { data, error } = await supabase.functions.invoke("registrations-checkout", { body });
   if (error) {
     let message = error.message || "Checkout failed";
+    let registrationId: string | undefined;
     if (error instanceof FunctionsHttpError) {
       try {
         const body = await error.context.json();
         if (body?.error) message = String(body.error);
+        if (typeof body?.registration_id === "string") registrationId = body.registration_id;
       } catch {
         // keep default message
       }
     }
-    throw new Error(message);
+    throw new CheckoutError(message, registrationId);
   }
   return data as CheckoutResult;
 }

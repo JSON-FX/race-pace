@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { View, ScrollView, Pressable, ActivityIndicator } from "react-native";
+import { View, ScrollView, Pressable, ActivityIndicator, Alert } from "react-native";
 import Svg, { Line } from "react-native-svg";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { customDataSchema, formatPeso, formatDateRange, isProfileKey, BLOOD_TYPES, SHIRT_SIZES, GENDERS, type FormField } from "@race-pace/shared";
 import { useCategory, useEvent, useFormFields, useAddons } from "../../lib/events";
-import { startCheckout } from "../../lib/registration";
+import { startCheckout, CheckoutError } from "../../lib/registration";
 import { getProfile, upsertProfile, type Profile } from "../../lib/profile";
 import { longDate } from "../../lib/format";
 import { useAuth } from "../../lib/auth";
@@ -121,6 +121,19 @@ export default function Register() {
       });
       router.replace({ pathname: "/pay/[registrationId]", params: { registrationId: res.registration_id, checkoutUrl: res.checkout_url } });
     } catch (e) {
+      // Lost a race with another device/tab, or the event page's own gate was
+      // stale — either way the server is the source of truth. Route straight
+      // to the entry that already exists instead of leaving the runner stuck
+      // on a form for a distance they can't have.
+      if (e instanceof CheckoutError && e.message === "already_registered" && e.registrationId) {
+        const rid = e.registrationId;
+        Alert.alert(
+          "You're already entered",
+          "You can only hold one entry per race. We'll take you to it.",
+          [{ text: "OK", onPress: () => router.replace(`/pay/${rid}`) }],
+        );
+        return;
+      }
       setError(e instanceof Error ? e.message : "Registration failed");
     } finally { setBusy(false); }
   }
