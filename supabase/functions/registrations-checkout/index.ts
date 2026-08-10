@@ -45,6 +45,43 @@ Deno.serve(async (req) => {
 
     if (category.slots_taken >= category.slots_total) return json({ error: "sold_out" }, 409);
 
+    // One live entry per event. The partial unique index
+    // registrations_one_live_per_event is the real enforcement -- this read
+    // races by nature (two concurrent calls both see zero rows) and the 23505
+    // handler below is what actually holds the line. This exists so the common
+    // case returns something the client can act on: the existing entry and its
+    // checkout URL, so a runner who wandered off mid-payment lands back on the
+    // pay screen instead of a dead end.
+    //
+    // `expires_at <= now()` is the lazy backstop: a pending row past its hold
+    // window is already gone as far as the runner is concerned, whether or not
+    // the 15-minute sweep has run yet. Correctness must not depend on cron.
+    const { data: existing } = await db
+      .from("registrations")
+      .select("id,status,expires_at,payments(checkout_url)")
+      .eq("event_id", input.event_id)
+      .eq("user_id", userId)
+      .in("status", ["pending", "paid"])
+      .maybeSingle();
+
+    const liveEntry =
+      existing && !(existing.status === "pending" && existing.expires_at && Date.parse(existing.expires_at) <= Date.now())
+        ? existing
+        : null;
+
+    if (liveEntry) {
+      const pay = Array.isArray(liveEntry.payments) ? liveEntry.payments[0] : liveEntry.payments;
+      return json(
+        {
+          error: "already_registered",
+          registration_id: liveEntry.id,
+          status: liveEntry.status,
+          checkout_url: pay?.checkout_url ?? null,
+        },
+        409,
+      );
+    }
+
     const { data: fieldRows } = await db.from("form_fields").select("*").eq("event_id", input.event_id).eq("is_active", true);
     // Model B: profile-key fields (bib_name, date_of_birth, gender, shirt_size, blood_type,
     // emergency_contact) are prefilled from the runner's profile and validated client-side
@@ -81,7 +118,31 @@ Deno.serve(async (req) => {
       custom_data: input.custom_data, waiver_accepted_at: new Date().toISOString(),
       idempotency_key: input.idempotency_key,
     }, { onConflict: "user_id,idempotency_key" }).select().single();
-    if (regErr || !reg) return json({ error: "registration_failed", details: regErr?.message }, 500);
+    if (regErr || !reg) {
+      // 23505 on registrations_one_live_per_event: a concurrent checkout won
+      // the race between the pre-check above and this insert. Same outcome as
+      // the pre-check, just discovered a moment later.
+      if (regErr?.code === "23505" && (regErr.message ?? "").includes("registrations_one_live_per_event")) {
+        const { data: winner } = await db
+          .from("registrations")
+          .select("id,status,payments(checkout_url)")
+          .eq("event_id", input.event_id)
+          .eq("user_id", userId)
+          .in("status", ["pending", "paid"])
+          .maybeSingle();
+        const pay = winner && (Array.isArray(winner.payments) ? winner.payments[0] : winner.payments);
+        return json(
+          {
+            error: "already_registered",
+            registration_id: winner?.id ?? null,
+            status: winner?.status ?? "pending",
+            checkout_url: pay?.checkout_url ?? null,
+          },
+          409,
+        );
+      }
+      return json({ error: "registration_failed", details: regErr?.message }, 500);
+    }
 
     if ((addons ?? []).length) {
       await db.from("registration_addons").upsert(

@@ -678,3 +678,39 @@ describe("late capture via the real payments-webhook (needs `supabase functions 
     },
   );
 });
+
+/**
+ * Task 5: registrations-checkout must turn a duplicate live entry into a
+ * 409 the client can act on (existing registration id + checkout url),
+ * instead of letting registrations_one_live_per_event's 23505 surface raw.
+ * This exercises the real Edge Function, so it needs `supabase functions
+ * serve` -- same probe/skip pattern as the webhook tests above.
+ */
+describe("registrations-checkout duplicate handling", () => {
+  it.skipIf(!functionsUp)("returns already_registered with the existing entry", async () => {
+    const svc = service();
+    const f = await makeEvent(`co${Date.now()}`);
+    const runner = await makeUser(`gate_co_${Date.now()}@test.dev`);
+
+    const reg = await svc.from("registrations").insert(regRow(f, runner.id)).select().single();
+    await svc.from("payments").insert({
+      org_id: f.orgId, registration_id: reg.data!.id, amount: 100000,
+      status: "pending", checkout_url: "https://checkout.test/abc",
+    });
+
+    const res = await fetch(`${FN}/registrations-checkout`, {
+      method: "POST",
+      headers: { "content-type": "application/json", Authorization: `Bearer ${runner.token}` },
+      body: JSON.stringify({
+        event_id: f.eventId, category_id: f.categoryId, addon_ids: [],
+        custom_data: {}, waiver_accepted: true, idempotency_key: `k_${Date.now()}`,
+      }),
+    });
+
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.error).toBe("already_registered");
+    expect(body.registration_id).toBe(reg.data!.id);
+    expect(body.checkout_url).toBe("https://checkout.test/abc");
+  });
+});
