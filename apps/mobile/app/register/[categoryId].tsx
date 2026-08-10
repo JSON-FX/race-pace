@@ -125,13 +125,19 @@ export default function Register() {
       // stale — either way the server is the source of truth. Route straight
       // to the entry that already exists instead of leaving the runner stuck
       // on a form for a distance they can't have.
-      if (e instanceof CheckoutError && e.message === "already_registered" && e.registrationId) {
-        const rid = e.registrationId;
-        Alert.alert(
-          "You're already entered",
-          "You can only hold one entry per race. We'll take you to it.",
-          [{ text: "OK", onPress: () => router.replace(`/pay/${rid}`) }],
-        );
+      if (e instanceof CheckoutError && e.message === "already_registered") {
+        if (e.registrationId) {
+          const rid = e.registrationId;
+          Alert.alert(
+            "You're already entered",
+            "You can only hold one entry per race. We'll take you to it.",
+            [{ text: "OK", onPress: () => router.replace(`/pay/${rid}`) }],
+          );
+          return;
+        }
+        // Same 409, but the body didn't carry a registration_id to redirect to — still avoid
+        // showing the raw error code as if it were a sentence.
+        setError("You're already entered in this race. Check My Races for your entry.");
         return;
       }
       setError(e instanceof Error ? e.message : "Registration failed");

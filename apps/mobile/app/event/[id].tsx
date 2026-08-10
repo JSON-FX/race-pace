@@ -36,7 +36,7 @@ export default function EventDetail() {
   // expiry check mirrors apps/site/lib/holdExpiry.ts's holdExpired: a pending
   // row past its expires_at is already gone to the server (registrations-
   // checkout), whether or not the 15-minute sweep has flipped its status yet.
-  const { data: myEntry } = useQuery({
+  const { data: myEntry, isLoading: myEntryLoading } = useQuery({
     queryKey: ["my-entry", id],
     queryFn: async (): Promise<MyEntry | null> => {
       const { data: auth } = await supabase.auth.getUser();
@@ -54,7 +54,13 @@ export default function EventDetail() {
     },
   });
 
-  if (ev.isLoading || cats.isLoading) return <View className="flex-1 items-center justify-center bg-background"><ActivityIndicator className="text-primary" /></View>;
+  // myEntry has to gate the initial paint too, not just ev/cats — it resolves later than
+  // both (an extra auth.getUser() round-trip ahead of its own DB query), so without this the
+  // ungated Register CTA and stale "N slots left" rows render for a beat, then snap to the
+  // gated view once it lands. A signed-out runner still sees Register normally: myEntry
+  // resolves to null quickly for them (no session to look up an entry for), it just has to
+  // actually resolve first rather than defaulting registerable to false in the meantime.
+  if (ev.isLoading || cats.isLoading || myEntryLoading) return <View className="flex-1 items-center justify-center bg-background"><ActivityIndicator className="text-primary" /></View>;
   const event = ev.data;
   if (!event) return <View className="flex-1 items-center justify-center bg-background"><Text className="text-muted-foreground text-[13px]">Event not found.</Text></View>;
 
@@ -194,19 +200,28 @@ export default function EventDetail() {
                   <View
                     className={cn(
                       "w-[22px] h-[22px] rounded-[11px] border-2 items-center justify-center",
+                      // Colored ring + colored icon on the theme's own base surface
+                      // (bg-background), not a solid paid/amber fill — a solid fill sitting
+                      // on top of the row's own bg-paid-tint/bg-amber-tint would need a
+                      // foreground color that flips with the fill in dark mode, and neither
+                      // token has one (unlike primary/destructive, which define -foreground
+                      // pairs). text-paid/text-amber on bg-background is the same base
+                      // foreground/background pairing every other icon in this file already
+                      // relies on for contrast, just recolored — both sides move together
+                      // under .dark, so there's nothing here for dark mode to break.
                       paidMine
-                        ? "bg-paid border-paid"
+                        ? "bg-background border-paid"
                         : pendingMine
-                          ? "bg-amber border-amber"
+                          ? "bg-background border-amber"
                           : on
                             ? "bg-primary border-primary"
                             : "bg-transparent border-border"
                     )}
                   >
                     {paidMine ? (
-                      <Icon as={Check} size={12} className="text-white" />
+                      <Icon as={Check} size={12} className="text-paid" />
                     ) : pendingMine ? (
-                      <Icon as={Clock} size={12} className="text-white" />
+                      <Icon as={Clock} size={12} className="text-amber" />
                     ) : on ? (
                       <Text className="text-primary-foreground text-[12px] font-bold">✓</Text>
                     ) : null}
