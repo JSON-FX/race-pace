@@ -61,6 +61,20 @@ export function EventPageBody({
   const slotsLeft = categories.reduce((n, c) => n + Math.max(0, c.slots_total - c.slots_taken), 0);
   const tone = { dark: trail };
 
+  // The page-level CTAs (hero + closing band) have to agree with the row-level
+  // ones: a runner with a live entry gets pointed straight at it, same as
+  // DistanceRow does — and, same as DistanceRow, that takes priority over
+  // `closed`. A completed/cancelled event can still owe a runner a look at
+  // the entry they already hold; "See race details" would bury it.
+  const topHref = myEntry ? (myEntry.status === "paid" ? "/races" : `/pay/${myEntry.id}`) : "#distances";
+  const topLabel = myEntry
+    ? myEntry.status === "paid"
+      ? "View your entry"
+      : "Finish payment"
+    : closed
+      ? "See race details"
+      : "Choose your distance";
+
   return (
     <div className={trail ? "bg-[#06120C] text-white" : "bg-white text-[#0B1220]"}>
       <ScrollProgress />
@@ -157,7 +171,11 @@ export function EventPageBody({
           <Reveal delay={0.24}>
             <div className="mt-10">
               <RainbowButton asChild className="h-auto w-full rounded-pill px-8 py-4 text-[16px] font-semibold sm:w-auto">
-                <a href="#distances">{closed ? "See race details" : "Choose your distance"}</a>
+                {myEntry ? (
+                  <Link href={topHref}>{topLabel}</Link>
+                ) : (
+                  <a href={topHref}>{topLabel}</a>
+                )}
               </RainbowButton>
             </div>
           </Reveal>
@@ -226,23 +244,38 @@ export function EventPageBody({
       <GalleryCarousel event={event} tone={tone} />
 
       {/* Closing CTA: by here the runner has read everything, and sending them
-          back up to the hero to act would be the page's own fault. */}
+          back up to the hero to act would be the page's own fault. Same
+          myEntry-first precedence as the hero: a runner who already owes a
+          payment or wants their ticket should never be told to go pick a
+          distance again, on the way out any more than on the way in. */}
       <section className={trail ? "border-t border-white/10" : "border-t border-black/10"}>
         <div className="mx-auto w-full max-w-6xl px-5 py-20 text-center sm:px-8 sm:py-28">
           <Reveal>
             <h2 className="font-display text-[clamp(1.9rem,5.5vw,3.6rem)] font-black uppercase leading-[0.95] tracking-[-1px]">
-              {closed ? "Registration is closed" : trail ? "Still reading? Enter." : "See you at the start."}
+              {myEntry
+                ? myEntry.status === "paid"
+                  ? "You're in."
+                  : "Almost there."
+                : closed
+                  ? "Registration is closed"
+                  : trail
+                    ? "Still reading? Enter."
+                    : "See you at the start."}
             </h2>
           </Reveal>
-          {closed ? null : (
+          {myEntry || !closed ? (
             <Reveal delay={0.08}>
               <div className="mt-8 flex justify-center">
                 <RainbowButton asChild className="h-auto rounded-pill px-9 py-4 text-[16.5px] font-semibold">
-                  <a href="#distances">Choose your distance</a>
+                  {myEntry ? (
+                    <Link href={topHref}>{topLabel}</Link>
+                  ) : (
+                    <a href={topHref}>{topLabel}</a>
+                  )}
                 </RainbowButton>
               </div>
             </Reveal>
-          )}
+          ) : null}
         </div>
       </section>
     </div>
@@ -319,8 +352,14 @@ function DistanceRow({
                 longer the fact that matters most about this row. */}
             {mine && myEntry ? (
               <span
-                className={`font-eyebrow inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[1.5px] ${
-                  myEntry.status === "paid" ? "bg-paid-tint text-forest" : "bg-amber text-white"
+                className={`font-eyebrow inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[1.5px] ${
+                  myEntry.status === "paid"
+                    ? "border-transparent bg-paid-tint text-paid"
+                    : // Bordered, not just tinted: paid is a flat confirmation, pending
+                      // carries a deadline and money, so it keeps a visible outline on
+                      // top of the same tint/text pairing to read as the more urgent
+                      // of the two — same border width on both to avoid a size jump.
+                      "border-amber bg-amber-tint text-amber"
                 }`}
               >
                 {myEntry.status === "paid" ? (
@@ -368,13 +407,24 @@ function DistanceRow({
           {myEntry ? (
             mine ? (
               // The runner's own distance: a confirmation, not a call to
-              // action to reconsider. Paid reads calm (tint, checkmark);
-              // pending reads urgent (solid amber, clock) because it is the
-              // one state here with a deadline attached.
+              // action to reconsider. Paid reads calm (tint, checkmark, no
+              // border); pending reads urgent (same tint pairing but with a
+              // visible amber border) because it is the one state here with
+              // a deadline attached — see the badge above for why this is a
+              // border and not a solid fill (WCAG contrast in a future dark
+              // mode; StatusBadge.tsx's bg-*-tint/text-* is the established
+              // pairing).
               <Link
                 href={myEntry.status === "paid" ? "/races" : `/pay/${myEntry.id}`}
-                className={`inline-flex w-full items-center justify-center gap-1.5 rounded-pill px-6 py-3 text-[14.5px] font-semibold ${
-                  myEntry.status === "paid" ? "bg-paid-tint text-forest" : "bg-amber text-white"
+                aria-label={
+                  myEntry.status === "paid"
+                    ? `You're in — view entry — ${category.label}`
+                    : `Finish payment — ${category.label}`
+                }
+                className={`inline-flex w-full items-center justify-center gap-1.5 rounded-pill border px-6 py-3 text-[14.5px] font-semibold ${
+                  myEntry.status === "paid"
+                    ? "border-transparent bg-paid-tint text-paid"
+                    : "border-amber bg-amber-tint text-amber"
                 }`}
               >
                 {myEntry.status === "paid" ? (
@@ -391,6 +441,11 @@ function DistanceRow({
               // "Join" pill on another card.
               <Link
                 href={myEntry.status === "paid" ? "/races" : `/pay/${myEntry.id}`}
+                aria-label={
+                  myEntry.status === "paid"
+                    ? `${category.label} — you're registered on another distance`
+                    : `${category.label} — payment pending on another distance`
+                }
                 className={`inline-flex w-full items-center justify-center gap-1.5 rounded-pill border px-6 py-3 text-[13.5px] font-semibold transition-colors ${
                   trail
                     ? "border-white/20 text-white/70 hover:bg-white/5"
