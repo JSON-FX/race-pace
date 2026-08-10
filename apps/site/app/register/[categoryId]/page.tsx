@@ -4,6 +4,7 @@ import { fetchCategory, fetchEvent, fetchAddons, fetchFormFields } from "@/lib/e
 import { isRegistrationClosed } from "@/lib/eventStatus";
 import { SiteHeader } from "@/components/SiteHeader";
 import { RegisterWizard } from "./RegisterWizard";
+import { fetchMyEntry } from "@/lib/entry";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +37,14 @@ export default async function RegisterPage({ params }: { params: Promise<{ categ
   // reason to walk a runner through three steps just to reject them.
   if (category.slots_taken >= category.slots_total) {
     redirect(`/events/${category.event_id}?soldout=${categoryId}`);
+  }
+
+  // One entry per event. Same reasoning as the closed/sold-out redirects above:
+  // the authoritative rejection is registrations-checkout's 409, but there is
+  // no reason to walk a runner through three steps to reach it.
+  const myEntry = await fetchMyEntry(db, category.event_id, user.id);
+  if (myEntry) {
+    redirect(`/events/${category.event_id}?registered=${myEntry.id}`);
   }
 
   return (

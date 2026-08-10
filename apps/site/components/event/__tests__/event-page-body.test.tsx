@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import type { EventRow, CategoryRow, AddonRow } from "@/lib/events";
+import type { MyEntry } from "@/lib/entry";
 import { EventPageBody } from "../EventPageBody";
 
 // The course map pulls in maplibre (WebGL, workers) — neither exists in jsdom,
@@ -29,9 +30,21 @@ const cat = (over: Partial<CategoryRow> = {}): CategoryRow => ({
   ...over,
 });
 
-function renderBody(event: Partial<EventRow> = {}, categories = [cat()], addons: AddonRow[] = [], closed = false) {
+function renderBody(
+  event: Partial<EventRow> = {},
+  categories = [cat()],
+  addons: AddonRow[] = [],
+  closed = false,
+  myEntry: MyEntry | null = null,
+) {
   return render(
-    <EventPageBody event={{ ...baseEvent, ...event }} categories={categories} addons={addons} closed={closed} />,
+    <EventPageBody
+      event={{ ...baseEvent, ...event }}
+      categories={categories}
+      addons={addons}
+      closed={closed}
+      myEntry={myEntry}
+    />,
   );
 }
 
@@ -78,6 +91,43 @@ describe("EventPageBody — distances", () => {
     renderBody({}, [cat({ elevation_gain_m: null, cutoff_hours: null, blurb: null })]);
     expect(screen.queryByText(/0 m gain/)).not.toBeInTheDocument();
     expect(screen.queryByText(/0 h cut-off/)).not.toBeInTheDocument();
+  });
+});
+
+describe("EventPageBody — existing entry", () => {
+  const categories = [cat({ id: "c1", label: "60K Ultra" }), cat({ id: "c2", label: "30K" })];
+
+  it("offers a view-entry link, not Join, on the distance the runner is paid into", () => {
+    const myEntry: MyEntry = { id: "r1", status: "paid", categoryId: "c1", expiresAt: null };
+    renderBody({}, categories, [], false, myEntry);
+    expect(screen.getByText("Your entry")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /You're in — view entry/ })).toHaveAttribute("href", "/races");
+  });
+
+  it("offers finish-payment, not Join, on the distance the runner has a pending hold on", () => {
+    const myEntry: MyEntry = { id: "r1", status: "pending", categoryId: "c1", expiresAt: "2099-01-01T00:00:00Z" };
+    renderBody({}, categories, [], false, myEntry);
+    expect(screen.getByText("Payment pending")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Finish payment" })).toHaveAttribute("href", "/pay/r1");
+  });
+
+  it("re-labels a distance the runner did NOT enter too, instead of leaving Join live", () => {
+    // One registration is per EVENT, not per distance — every row has to say
+    // so, or the other distance walks the runner into a 409.
+    const myEntry: MyEntry = { id: "r1", status: "paid", categoryId: "c1", expiresAt: null };
+    renderBody({}, categories, [], false, myEntry);
+    expect(screen.getByText("Registered — other distance")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /^Join/ })).not.toBeInTheDocument();
+  });
+
+  it("shows Join everywhere when there is no entry — the shape fetchMyEntry returns for an expired hold", () => {
+    // The expiry rule itself lives in fetchMyEntry (lib/entry.ts), which
+    // returns null for a pending row past its expires_at — this pins what
+    // the component does with that null, which is the half of the contract
+    // that actually reaches the page.
+    renderBody({}, categories, [], false, null);
+    expect(screen.getAllByRole("link", { name: /^Join/ })).toHaveLength(2);
+    expect(screen.queryByText("Payment pending")).not.toBeInTheDocument();
   });
 });
 
