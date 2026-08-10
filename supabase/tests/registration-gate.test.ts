@@ -1,11 +1,46 @@
 import { describe, it, expect } from "vitest";
 import { createClient } from "@supabase/supabase-js";
 import { Client } from "pg";
+import { createHmac } from "node:crypto";
 import { loadEnv } from "../../test/env";
 
 const { url, anonKey, serviceKey, dbUrl } = loadEnv();
 const anon = () => createClient(url, anonKey, { auth: { persistSession: false } });
 const service = () => createClient(url, serviceKey, { auth: { persistSession: false } });
+
+/** Edge Functions run in a separate process (`supabase functions serve`) that a plain
+ *  `pnpm test` does not start -- see backend.test.ts, which is in the known-bad file
+ *  set for exactly this reason (it has no guard and fails outright when serve is down).
+ *  The webhook-path tests below probe for it up front, at module load (before `describe`
+ *  registers any tests), and skip -- not fail -- when nothing answers. A skipped test is
+ *  honest signal; a test that red's out because a second process isn't running trains
+ *  everyone to ignore red. */
+const FN = `${url}/functions/v1`;
+async function probeFunctionsServe(): Promise<boolean> {
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 1500);
+    // A deliberately-bad signature exercises payments-webhook's own signature check,
+    // which only runs if the function itself is up and answering -- it responds 401.
+    // When `supabase functions serve` is down, Kong is still up (it's a separate
+    // container) but has nothing to proxy to, so it answers with a 503/502 of its own
+    // rather than reaching the function. Checking for exactly 401 (not "any response")
+    // is what tells the two apart -- a bare `res.status > 0` check was tried first and
+    // wrongly reported "up" against Kong's 503, which is why this is exact-status, not
+    // reachability-only.
+    const res = await fetch(`${FN}/payments-webhook`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "Paymongo-Signature": "t=1,te=deadbeef" },
+      body: "{}",
+      signal: ctrl.signal,
+    });
+    clearTimeout(timer);
+    return res.status === 401;
+  } catch {
+    return false;
+  }
+}
+const functionsUp = await probeFunctionsServe();
 
 /** Seed ids drifted out of seed.sql once already (see the Global Constraints
  *  note). Every fixture here is created by the test that needs it. */
@@ -416,4 +451,230 @@ describe("late capture on an expired registration", () => {
     const res = await svc.rpc("confirm_payment_tx", confirmArgs(reg.data!.id));
     expect(res.data).toBe("not_pending");
   });
+
+  /**
+   * Fix round 1 (review finding): the v_live pre-check inside confirm_payment_tx is a
+   * plain unlocked `select count(*)`, not a lock. Two late captures landing concurrently
+   * for two DIFFERENT expired registrations of the same runner+event can both read
+   * v_live = 0 before either has committed its 'paid' write, and both proceed to the
+   * UPDATE. registrations_one_live_per_event (a plain, non-deferrable unique index --
+   * see the header comment above `withRolledBackTx`) still prevents an actual
+   * double-booking, but without the exception handler added in this fix round, the
+   * second writer's UPDATE would raise a raw, uncaught unique_violation (23505) instead
+   * of gracefully returning 'conflict'.
+   *
+   * This is staged as a genuine two-connection race, not merely asserted by reading the
+   * function body: two raw `pg` connections each start a transaction and call
+   * confirm_payment_tx for a different expired sibling of the same runner+event. Client
+   * A's call is awaited to completion but NOT committed, so its 'paid' write to regA is
+   * on-disk but invisible to any other transaction (ordinary MVCC/READ COMMITTED
+   * visibility -- ROW LOCKS play no part in this: a plain, non-FOR-UPDATE select never
+   * blocks on another transaction's row lock, it simply doesn't see the uncommitted
+   * version). Client B's call is then dispatched -- its own pre-check therefore also
+   * reads v_live = 0, for the same reason -- and it proceeds to attempt the same UPDATE.
+   * That UPDATE has to insert a new tuple into registrations_one_live_per_event, which
+   * DOES contend with A's not-yet-committed entry for the same (event_id, user_id): index
+   * uniqueness enforcement in Postgres must account for concurrent uncommitted inserts
+   * (otherwise two transactions could each insert the "same" key and only discover the
+   * violation after both commit), so B's backend blocks on A's transaction, waiting to
+   * learn whether A commits or aborts. The test polls pg_stat_activity for that lock wait
+   * before committing A, so the collision is forced deterministically rather than hoped
+   * for via a fixed sleep -- if B never actually blocks, the test fails loudly on that
+   * assertion rather than passing for the wrong reason.
+   */
+  it("races two late captures for the same runner+event: exactly one 'paid', the other 'conflict', slots_taken +1 only", async () => {
+    const svc = service();
+    const f = await makeEvent(`race${Date.now()}`);
+    const runner = await makeUser(`gate_race_${Date.now()}@test.dev`);
+
+    // Two siblings, both eventually expired -- mirrors a runner whose first checkout
+    // expired and who tried again, and that second attempt also expired before either
+    // payment captured.
+    const regA = await svc.from("registrations").insert(regRow(f, runner.id)).select().single();
+    await svc.from("payments").insert({ org_id: f.orgId, registration_id: regA.data!.id, amount: 100000, status: "pending" });
+    await svc.from("registrations").update({ status: "expired", expires_at: null }).eq("id", regA.data!.id);
+
+    const regB = await svc.from("registrations").insert(regRow(f, runner.id)).select().single();
+    await svc.from("payments").insert({ org_id: f.orgId, registration_id: regB.data!.id, amount: 100000, status: "pending" });
+    await svc.from("registrations").update({ status: "expired", expires_at: null }).eq("id", regB.data!.id);
+
+    const before = (await svc.from("categories").select("slots_taken").eq("id", f.categoryId).single()).data!.slots_taken;
+
+    const clientA = new Client({ connectionString: dbUrl });
+    const clientB = new Client({ connectionString: dbUrl });
+    await clientA.connect();
+    await clientB.connect();
+
+    async function waitForLockWait(poller: Client, pid: number, timeoutMs = 5000): Promise<boolean> {
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        const r = await poller.query<{ wait_event_type: string | null }>(
+          "select wait_event_type from pg_stat_activity where pid = $1", [pid],
+        );
+        if (r.rows[0]?.wait_event_type === "Lock") return true;
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+      return false;
+    }
+
+    try {
+      await clientA.query("begin");
+      const resA = await clientA.query<{ confirm_payment_tx: string }>(
+        "select confirm_payment_tx($1,$2,$3,$4,$5,$6)",
+        [regA.data!.id, "gcash", 0, 100000, `tok_${regA.data!.id}`, {}],
+      );
+      // regA's write is complete inside A's still-open (uncommitted) transaction.
+      expect(resA.rows[0].confirm_payment_tx).toBe("paid");
+
+      await clientB.query("begin");
+      const bPid = (await clientB.query<{ pid: number }>("select pg_backend_pid() as pid")).rows[0]!.pid;
+      // Dispatched, not awaited yet: B's pre-check will also read v_live = 0 (A's write
+      // is still uncommitted and thus invisible), so B proceeds to the same UPDATE and
+      // blocks on A's uncommitted conflicting index entry.
+      const bPromise = clientB.query<{ confirm_payment_tx: string }>(
+        "select confirm_payment_tx($1,$2,$3,$4,$5,$6)",
+        [regB.data!.id, "gcash", 0, 100000, `tok_${regB.data!.id}`, {}],
+      );
+
+      const blocked = await waitForLockWait(clientA, bPid);
+      expect(blocked, "test setup requires B to actually block on A's uncommitted write -- " +
+        "if this is false the race was not reproduced and the assertions below are meaningless").toBe(true);
+
+      await clientA.query("commit");
+      const resB = await bPromise;
+      expect(resB.rows[0].confirm_payment_tx).toBe("conflict");
+
+      await clientB.query("commit");
+    } finally {
+      await clientA.end();
+      await clientB.end();
+    }
+
+    const after = await svc.from("registrations").select("id,status").in("id", [regA.data!.id, regB.data!.id]);
+    const byId = Object.fromEntries((after.data ?? []).map((r) => [r.id, r.status]));
+    expect(byId[regA.data!.id]).toBe("paid");
+    expect(byId[regB.data!.id]).toBe("expired"); // B's write was rolled back by the exception handler's implicit savepoint
+
+    const afterCat = await svc.from("categories").select("slots_taken").eq("id", f.categoryId).single();
+    expect(afterCat.data!.slots_taken).toBe(before + 1); // exactly one winner incremented the slot
+  });
+});
+
+/**
+ * Fix round 1 (review finding): every "late capture" test above calls
+ * confirm_payment_tx directly via svc.rpc(...), which bypasses confirm.ts entirely.
+ * The two changes made to confirm.ts beyond the brief -- narrowing the early
+ * short-circuit so 'expired' actually reaches the RPC, and treating 'conflict' as
+ * terminal so it can't fall through to the ticket-email step -- were the highest-risk
+ * part of that diff (without them the SQL-level fix is dead code from the webhook's
+ * point of view) and had zero coverage through the layer that would normally exercise
+ * them. backend.test.ts is exactly that layer, but it's in the known-bad set because
+ * `supabase functions serve` isn't up under a plain `pnpm test`.
+ *
+ * These two tests go through the real payments-webhook Edge Function (signed request,
+ * same HMAC scheme as backend.test.ts's signHeader/postWebhook -- reused here rather
+ * than reinvented, since duplicating it locally is simpler than exporting private
+ * helpers from another test file) so confirm.ts's actual code path runs, not just the
+ * SQL underneath it. They probe for the edge runtime at module load (see
+ * `probeFunctionsServe` above) and skip -- not fail -- when it isn't answering.
+ */
+describe("late capture via the real payments-webhook (needs `supabase functions serve`)", () => {
+  const WEBHOOK_SECRET = "whsec_test_localdev"; // must match supabase/functions/.env, same as backend.test.ts
+  function signHeader(rawBody: string): string {
+    const t = Math.floor(Date.now() / 1000).toString();
+    const sig = createHmac("sha256", WEBHOOK_SECRET).update(`${t}.${rawBody}`).digest("hex");
+    return `t=${t},te=${sig}`;
+  }
+  function postWebhook(payload: unknown) {
+    const raw = JSON.stringify(payload);
+    return fetch(`${FN}/payments-webhook`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "Paymongo-Signature": signHeader(raw) },
+      body: raw,
+    });
+  }
+  const paidEvent = (registrationId: string) => ({
+    data: {
+      attributes: {
+        type: "checkout_session.payment.paid",
+        data: {
+          attributes: {
+            metadata: { registration_id: registrationId },
+            payments: [{ attributes: { source: { type: "gcash" } } }],
+          },
+        },
+      },
+    },
+  });
+
+  it.skipIf(!functionsUp)(
+    "resurrects an expired registration to paid through the real webhook path",
+    async () => {
+      const svc = service();
+      const f = await makeEvent(`wh_res${Date.now()}`);
+      const runner = await makeUser(`gate_wh_res_${Date.now()}@test.dev`);
+
+      const reg = await svc.from("registrations").insert(regRow(f, runner.id)).select().single();
+      await svc.from("payments").insert({ org_id: f.orgId, registration_id: reg.data!.id, amount: 100000, status: "pending" });
+      await svc.from("registrations").update({ status: "expired", expires_at: null }).eq("id", reg.data!.id);
+
+      const res = await postWebhook(paidEvent(reg.data!.id));
+      expect(res.status).toBe(200);
+
+      const after = await svc.from("registrations").select("status,ticket_token").eq("id", reg.data!.id).single();
+      expect(after.data!.status).toBe("paid");
+      expect(after.data!.ticket_token).toBeTruthy(); // proves confirm.ts's early short-circuit no longer eats 'expired'
+    },
+  );
+
+  it.skipIf(!functionsUp)(
+    "returns 200 without confirming (and without a ticket to email) when a live sibling exists",
+    async () => {
+      const svc = service();
+      const f = await makeEvent(`wh_conf${Date.now()}`);
+      const runner = await makeUser(`gate_wh_conf_${Date.now()}@test.dev`);
+
+      const stale = await svc.from("registrations").insert(regRow(f, runner.id)).select().single();
+      await svc.from("payments").insert({ org_id: f.orgId, registration_id: stale.data!.id, amount: 100000, status: "pending" });
+      await svc.from("registrations").update({ status: "expired", expires_at: null }).eq("id", stale.data!.id);
+      // The runner gave up and registered again; that new entry is the live one.
+      const fresh = await svc.from("registrations").insert(regRow(f, runner.id)).select().single();
+      expect(fresh.error).toBeNull();
+
+      const res = await postWebhook(paidEvent(stale.data!.id));
+      // 200/ok:true, not 500 -- a capture conflict is not a transient failure, so the
+      // webhook must not signal PayMongo to retry it (confirm.ts's early-return on
+      // 'conflict', not the generic error branch).
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.ok).toBe(true);
+
+      const after = await svc.from("registrations").select("status,ticket_token").eq("id", stale.data!.id).single();
+      expect(after.data!.status).toBe("expired"); // untouched -- confirm_payment_tx never wrote
+      // No ticket_token, so there is nothing a ticket email could have been built from.
+      //
+      // HONEST LIMIT OF THIS TEST -- read before trusting it as email coverage. These
+      // assertions do NOT discriminate confirm.ts's `return` on 'conflict' from a
+      // fall-through: if the early return were deleted, `already` would compute to false,
+      // functions.invoke("send-ticket-email") WOULD fire -- and every assertion here
+      // would still pass, because send-ticket-email refuses (409 not_paid) for any
+      // registration that isn't 'paid', and supabase-js's invoke() returns that error
+      // rather than throwing, so nothing observable outside the edge-runtime process
+      // changes. There is no seam from a Node test to intercept a function-to-function
+      // invoke inside that process.
+      //
+      // The early return is nonetheless load-bearing (defence in depth, and it keeps a
+      // pointless cross-function call off the capture path), and it IS verified -- by a
+      // counterfactual run recorded in task-4-report.md: with the return in place the
+      // edge-runtime log shows only `serving the request with .../payments-webhook`;
+      // with it deleted the same log gains `serving the request with
+      // .../send-ticket-email`. Reproduce it by deleting the return, re-running this
+      // test with `supabase functions serve` in the foreground, and grepping that log.
+      //
+      // What this test DOES prove on its own: 'expired' reaches confirm_payment_tx, a
+      // conflict answers 200 (so PayMongo does not retry) rather than 500, and no
+      // registration/payment state moves.
+      expect(after.data!.ticket_token).toBeNull();
+    },
+  );
 });

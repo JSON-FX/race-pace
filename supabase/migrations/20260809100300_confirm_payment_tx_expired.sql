@@ -14,6 +14,25 @@
 --     registrations_one_live_per_event and give one runner two slots. The
 --     webhook logs it for manual refund rather than failing on a raw 23505.
 --
+-- Fix round 1: the v_live pre-check above is NOT a lock -- it is a plain
+-- unlocked select. Two webhooks landing concurrently for two different
+-- expired registrations of the same runner+event can both read v_live = 0
+-- (neither has committed yet, so neither is visible to the other) and both
+-- proceed to write 'paid'. registrations_one_live_per_event still prevents
+-- an actual double-booking -- the second writer blocks on the first
+-- writer's uncommitted index entry, then raises unique_violation once the
+-- first commits -- but without a handler that violation used to escape the
+-- function entirely as a raw, uncaught 23505, which confirm.ts's generic
+-- error branch turns into a 500 ("confirm_write_failed"). That defeats the
+-- whole point of returning 'conflict': the guaranteed-graceful outcome
+-- would only be reached via PayMongo's retry, not on this call. The
+-- pre-check stays (it is still the fast, common-case path, and avoids the
+-- write + lock-wait entirely for the ordinary case); the exception handler
+-- below is the backstop for the race the pre-check cannot see. It is scoped
+-- to the registrations_one_live_per_event constraint by name specifically
+-- so a unique_violation from some unrelated constraint still surfaces as a
+-- hard error instead of being silently reported as 'conflict'.
+--
 -- Everything else is unchanged from 20260723100000_money_txn_rpcs.sql:
 -- 'paid' is still 'already' (replay-safe), refunded/cancelled still
 -- 'not_pending' (never re-confirm).
@@ -30,6 +49,7 @@ declare
   v_event uuid;
   v_user uuid;
   v_live integer;
+  v_constraint text;
 begin
   select status, category_id, event_id, user_id
     into v_status, v_category, v_event, v_user
@@ -51,14 +71,22 @@ begin
     return 'not_pending';  -- refunded/cancelled: never re-confirm (replay-safe)
   end if;
 
-  update public.payments
-     set status = 'paid', method = p_method, platform_fee = p_fee,
-         net_to_org = p_net, raw = p_raw
-   where registration_id = p_registration_id;
+  begin
+    update public.payments
+       set status = 'paid', method = p_method, platform_fee = p_fee,
+           net_to_org = p_net, raw = p_raw
+     where registration_id = p_registration_id;
 
-  update public.registrations
-     set status = 'paid', ticket_token = p_token, expires_at = null
-   where id = p_registration_id;
+    update public.registrations
+       set status = 'paid', ticket_token = p_token, expires_at = null
+     where id = p_registration_id;
+  exception when unique_violation then
+    get stacked diagnostics v_constraint = constraint_name;
+    if v_constraint = 'registrations_one_live_per_event' then
+      return 'conflict';
+    end if;
+    raise;  -- some other constraint: a real bug, must not be swallowed
+  end;
 
   update public.categories set slots_taken = slots_taken + 1 where id = v_category;
 
