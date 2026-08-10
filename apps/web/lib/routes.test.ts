@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isProtectedPath, signInRedirectPath, safeNextPath } from "./routes";
+import { isProtectedPath, signInRedirectPath, safeNextPath, homePathFor } from "./routes";
 
 describe("isProtectedPath", () => {
   it("leaves the OAuth callback PUBLIC — it is the request that creates the session", () => {
@@ -45,43 +45,65 @@ describe("signInRedirectPath", () => {
 });
 
 describe("safeNextPath", () => {
+  // `fallback` has no default (see routes.ts's comment on why: a hardcoded
+  // "/events" default is exactly how the OAuth-callback bug happened), so
+  // every call below passes one explicitly.
+
   it("rejects protocol-relative URLs disguised as a path", () => {
-    expect(safeNextPath("//evil.com")).toBe("/events");
+    expect(safeNextPath("//evil.com", "/events")).toBe("/events");
   });
 
   it("rejects absolute URLs with a scheme", () => {
-    expect(safeNextPath("https://evil.com")).toBe("/events");
+    expect(safeNextPath("https://evil.com", "/events")).toBe("/events");
   });
 
   it("rejects backslash variants that browsers treat as protocol-relative", () => {
-    expect(safeNextPath("/\\evil.com")).toBe("/events");
+    expect(safeNextPath("/\\evil.com", "/events")).toBe("/events");
   });
 
   it("allows an ordinary internal path with a query string", () => {
-    expect(safeNextPath("/events?status=paid")).toBe("/events?status=paid");
+    expect(safeNextPath("/events?status=paid", "/events")).toBe("/events?status=paid");
   });
 
   it("allows the bare root path", () => {
-    expect(safeNextPath("/")).toBe("/");
+    expect(safeNextPath("/", "/events")).toBe("/");
   });
 
   it("falls back for an empty string", () => {
-    expect(safeNextPath("")).toBe("/events");
+    expect(safeNextPath("", "/events")).toBe("/events");
   });
 
   it("falls back for null", () => {
-    expect(safeNextPath(null)).toBe("/events");
+    expect(safeNextPath(null, "/events")).toBe("/events");
   });
 
   it("falls back for a value containing a backslash anywhere", () => {
-    expect(safeNextPath("/events\\..\\evil")).toBe("/events");
+    expect(safeNextPath("/events\\..\\evil", "/events")).toBe("/events");
   });
 
   it("falls back for a value containing a control character", () => {
-    expect(safeNextPath("/events\n.evil.com")).toBe("/events");
+    expect(safeNextPath("/events\n.evil.com", "/events")).toBe("/events");
   });
 
-  it("honors a custom fallback", () => {
+  it("honors whatever fallback the caller passes", () => {
     expect(safeNextPath(undefined, "/login")).toBe("/login");
+  });
+});
+
+describe("homePathFor", () => {
+  // The regression this whole fix is about: a check_in-only (marshal)
+  // account must land on /check-in, never on /events (a manage_org page that
+  // would immediately bounce it to /no-access).
+  it("sends a check_in-only caller to /check-in", () => {
+    expect(homePathFor(["check_in"])).toBe("/check-in");
+  });
+
+  it("sends anyone holding manage_org to /events, even alongside check_in", () => {
+    expect(homePathFor(["manage_org"])).toBe("/events");
+    expect(homePathFor(["manage_org", "check_in"])).toBe("/events");
+  });
+
+  it("sends a caller with no capabilities to /no-access", () => {
+    expect(homePathFor([])).toBe("/no-access");
   });
 });
