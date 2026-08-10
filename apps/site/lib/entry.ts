@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { holdExpired } from "./holdExpiry";
 
 /** The one live entry a runner may hold for an event, if they hold one.
  *  `expiresAt` is only meaningful while `status` is "pending". */
@@ -29,7 +30,7 @@ export async function fetchMyEntry(
     .maybeSingle();
 
   if (!data) return null;
-  if (data.status === "pending" && data.expires_at && Date.parse(data.expires_at) <= Date.now()) return null;
+  if (holdExpired(data.status, data.expires_at ?? null)) return null;
 
   return {
     id: data.id,

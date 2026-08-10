@@ -7,6 +7,7 @@ import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { formatPeso } from "@race-pace/shared";
 import { useMyRegistrations, cancelRegistration, type RegistrationRow } from "@/lib/registration";
+import { holdExpired } from "@/lib/holdExpiry";
 import { StatusBadge } from "@/components/StatusBadge";
 import { TopoPattern } from "@/components/TopoPattern";
 import { Button } from "@/components/ui/button";
@@ -39,11 +40,15 @@ function isPast(eventDate: string | null): boolean {
  *  smaller number.
  *
  *  Returns null both when there is no hold (paid, or no expiry) AND when the
- *  hold has already lapsed — a pending row can still be in the list moments
- *  before the 15-minute sweep deletes it, and this list's own fetch does not
- *  re-apply the server's lazy-expiry check the way lib/entry.ts does for the
- *  event page. Showing "0m left to pay" for an entry the server already
- *  considers gone would be worse than showing nothing.
+ *  hold has already lapsed — delegates that second check to `holdExpired`
+ *  rather than re-deriving it from `ms <= 0` locally, so this can never
+ *  disagree with the CTA gating in `RacesList` below (or with the event
+ *  page's `fetchMyEntry`) about which pending rows are actually still live.
+ *  A pending row can still be in the list moments before the 15-minute sweep
+ *  deletes it, and this list's own fetch does not re-apply the server's
+ *  lazy-expiry check the way lib/entry.ts does for the event page. Showing
+ *  "0m left to pay" for an entry the server already considers gone would be
+ *  worse than showing nothing.
  *
  *  Computed from Date.now() at render time, not a ticking interval: this
  *  hook's data comes from react-query with default options, which refetches
@@ -53,17 +58,24 @@ function isPast(eventDate: string | null): boolean {
  *  drift is invisible until it would cross a bucket anyway, and a setInterval
  *  re-rendering the whole list every minute for a number nobody is reading
  *  is cost without benefit. */
-export function holdRemaining(expiresAt: string | null): { label: string; urgent: boolean } | null {
-  if (!expiresAt) return null;
+export function holdRemaining(
+  status: string,
+  expiresAt: string | null,
+): { label: string; urgent: boolean } | null {
+  if (!expiresAt || holdExpired(status, expiresAt)) return null;
   const ms = Date.parse(expiresAt) - Date.now();
+  // Belt-and-braces beyond `holdExpired`, which only fires for `status ===
+  // "pending"`: `expiresAt` is documented as meaningful only while pending, so
+  // a paid row should never carry a future-dated one, but a stale one left
+  // over from before capture must not compute as a bogus "1m left to pay".
   if (ms <= 0) return null;
   const hours = Math.floor(ms / 3_600_000);
   if (hours >= 1) return { label: `${hours}h left to pay`, urgent: false };
   return { label: `${Math.max(1, Math.round(ms / 60_000))}m left to pay`, urgent: true };
 }
 
-function HoldBadge({ expiresAt }: { expiresAt: string | null }) {
-  const hold = holdRemaining(expiresAt);
+function HoldBadge({ status, expiresAt }: { status: string; expiresAt: string | null }) {
+  const hold = holdRemaining(status, expiresAt);
   if (!hold) return null;
   const Icon = hold.urgent ? TriangleAlert : Clock;
   return (
@@ -102,13 +114,18 @@ export function RacesList() {
   const { data, isLoading } = useMyRegistrations();
   const queryClient = useQueryClient();
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<"upcoming" | "finished">("upcoming");
   // Holds the registration id awaiting confirmation, not the deletion itself —
   // cancelRegistration hard-DELETEs the row (see lib/registration.ts), so a
   // bare button click here would be one mis-tap away from destroying a real
   // entry. The dialog is the only path to `discard`.
   const [confirmTarget, setConfirmTarget] = useState<RegistrationRow | null>(null);
+  // Lives on the dialog, not a page-top banner: a failed discard has to be
+  // seen where the runner is actually looking at the moment it fails, which
+  // is inside the dialog they just clicked "Yes, discard entry" in — closing
+  // the dialog on failure the same as on success would be indistinguishable
+  // from a success that silently didn't happen.
+  const [dialogError, setDialogError] = useState<string | null>(null);
 
   const { upcoming, finished } = useMemo(() => {
     const rows = data ?? [];
@@ -131,27 +148,50 @@ export function RacesList() {
     );
   }
 
-  async function discard(id: string) {
+  // Returns whether the delete actually landed. RLS blocks deleting anything
+  // that is not the owner's own still-pending row (e.g. it stopped being
+  // cancellable between render and click — paid in another tab, or the sweep
+  // beat the runner to it) — a zero-row delete throws in cancelRegistration.
+  // The caller decides what "false" means for the UI; this function only
+  // reports the outcome, it does not silently swallow it.
+  async function discard(id: string): Promise<boolean> {
     setBusyId(id);
-    setError(null);
     try {
       await cancelRegistration(id);
       await queryClient.invalidateQueries({ queryKey: ["my-registrations"] });
+      return true;
     } catch {
-      // RLS blocks deleting anything that is not the owner's own pending row —
-      // a zero-row delete throws in cancelRegistration, so this catch is the
-      // only place that failure can be told to the runner. Silence here would
-      // read as a successful discard that never happened.
-      setError("That registration can no longer be discarded. Refresh and try again.");
+      return false;
     } finally {
       setBusyId(null);
     }
   }
 
+  function openConfirm(r: RegistrationRow) {
+    setDialogError(null);
+    setConfirmTarget(r);
+  }
+
+  function closeConfirm() {
+    setConfirmTarget(null);
+    setDialogError(null);
+  }
+
   async function confirmDiscard() {
     if (!confirmTarget) return;
-    await discard(confirmTarget.id);
-    setConfirmTarget(null);
+    setDialogError(null);
+    const ok = await discard(confirmTarget.id);
+    if (ok) {
+      closeConfirm();
+    } else {
+      // Stay open — closing here would read as a success that never
+      // happened. The runner is looking at this dialog right now; that is
+      // where the failure has to surface, not a banner at the top of a page
+      // they may already have scrolled past.
+      setDialogError(
+        "This entry can no longer be discarded — it may have just been paid, or already removed. Refresh and try again.",
+      );
+    }
   }
 
   const rows = tab === "upcoming" ? upcoming : finished;
@@ -184,15 +224,6 @@ export function RacesList() {
         ))}
       </div>
 
-      {error ? (
-        <p
-          role="alert"
-          className="mt-5 rounded-lg border border-destructive/30 bg-destructive-tint px-4 py-3 text-[14px] text-destructive"
-        >
-          {error}
-        </p>
-      ) : null}
-
       {rows.length === 0 ? (
         <p className="py-16 text-center text-[15px] text-muted-foreground">
           {tab === "upcoming" ? "Nothing coming up." : "No finished races yet."}
@@ -201,6 +232,13 @@ export function RacesList() {
         <div className="mt-5 flex flex-col gap-4">
           {rows.map((r) => {
             const past = isPast(r.eventDate);
+            // A pending row whose hold ran out is still literally `status:
+            // 'pending'` until the 15-minute sweep flips it — the CTA area
+            // has to derive the real verdict from `expires_at` itself
+            // (`holdExpired`, shared with the event page's `fetchMyEntry`),
+            // or a runner can be offered a "Complete payment" link the
+            // server will refuse the moment they click it.
+            const lapsed = holdExpired(r.status, r.expiresAt);
             return (
               <article
                 key={r.id}
@@ -249,11 +287,11 @@ export function RacesList() {
                         on narrow screens. */}
                     <div className="flex shrink-0 flex-col items-end gap-1.5">
                       <StatusBadge status={r.status} />
-                      {r.status === "pending" ? <HoldBadge expiresAt={r.expiresAt} /> : null}
+                      {r.status === "pending" ? <HoldBadge status={r.status} expiresAt={r.expiresAt} /> : null}
                     </div>
                   </div>
 
-                  <div className="mt-3.5 flex flex-wrap gap-2">
+                  <div className="mt-3.5 flex flex-wrap items-center gap-2">
                     {r.status === "paid" ? (
                       <Button asChild className="h-auto rounded-pill px-5 py-2.5 text-[13px] font-semibold">
                         <Link href={`/ticket/${r.id}`}>View ticket</Link>
@@ -261,14 +299,33 @@ export function RacesList() {
                     ) : null}
                     {r.status === "pending" ? (
                       <>
-                        <Button asChild className="h-auto rounded-pill px-5 py-2.5 text-[13px] font-semibold">
-                          <Link href={`/pay/${r.id}`}>Complete payment</Link>
-                        </Button>
+                        {lapsed ? (
+                          // No "Complete payment" here on purpose — the hold
+                          // is gone, and the server will refuse the payment
+                          // the moment this link is clicked. Say so, and
+                          // point at the actual next step (re-entering)
+                          // instead of leaving a dead-end button live.
+                          <p className="text-[13px] leading-relaxed text-muted-foreground">
+                            Payment window closed — this hold ran out and the slot is back in the
+                            pool.{" "}
+                            <Link
+                              href={`/events/${r.event_id}`}
+                              className="font-semibold text-foreground underline underline-offset-2"
+                            >
+                              Enter again
+                            </Link>
+                            .
+                          </p>
+                        ) : (
+                          <Button asChild className="h-auto rounded-pill px-5 py-2.5 text-[13px] font-semibold">
+                            <Link href={`/pay/${r.id}`}>Complete payment</Link>
+                          </Button>
+                        )}
                         <Button
                           type="button"
                           variant="outline"
                           disabled={busyId === r.id}
-                          onClick={() => setConfirmTarget(r)}
+                          onClick={() => openConfirm(r)}
                           className="h-auto rounded-pill px-5 py-2.5 text-[13px] font-semibold text-destructive hover:text-destructive"
                         >
                           {busyId === r.id ? "Discarding…" : "Discard"}
@@ -290,7 +347,7 @@ export function RacesList() {
         </div>
       )}
 
-      <Dialog open={!!confirmTarget} onOpenChange={(open) => !open && setConfirmTarget(null)}>
+      <Dialog open={!!confirmTarget} onOpenChange={(open) => !open && closeConfirm()}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Discard this entry?</DialogTitle>
@@ -306,8 +363,16 @@ export function RacesList() {
               ) : null}
             </DialogDescription>
           </DialogHeader>
+          {dialogError ? (
+            <p
+              role="alert"
+              className="rounded-lg border border-destructive/30 bg-destructive-tint px-3.5 py-2.5 text-[13.5px] text-destructive"
+            >
+              {dialogError}
+            </p>
+          ) : null}
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setConfirmTarget(null)}>
+            <Button type="button" variant="outline" onClick={closeConfirm}>
               Keep entry
             </Button>
             <Button
