@@ -18,7 +18,15 @@ const OAUTH_MESSAGES: Record<string, string> = {
 
 export function LoginForm() {
   const search = useSearchParams();
-  const next = search.get("next") ?? "/events";
+  // NOT `?? "/events"`. That default was the actual defect behind the
+  // marshal-lockout bug: it turned "no explicit destination" into an
+  // explicit one before it ever reached the server, so both signInAction and
+  // the OAuth callback saw a valid, honoured `next` of "/events" and never
+  // got a chance to fall back by capability via homePathFor. `next` now
+  // stays null when the caller didn't ask for a specific page, and that
+  // absence is what lets the server route a check_in-only account to
+  // /check-in instead.
+  const next = search.get("next");
   const oauthMessage = OAUTH_MESSAGES[search.get("oauth") ?? ""];
   const [state, formAction, pending] = useActionState<AuthState, FormData>(signInAction, {});
 
@@ -42,7 +50,11 @@ export function LoginForm() {
       </div>
 
       <form action={formAction} className="space-y-4">
-        <input type="hidden" name="next" value={next} />
+        {/* Omitted entirely, not rendered with an empty/default value, when
+            there is no explicit destination — formData.get("next") must come
+            back null so signInAction can tell "no destination" apart from
+            "destination is the empty string" and fall back by capability. */}
+        {next ? <input type="hidden" name="next" value={next} /> : null}
         <div className="space-y-1.5">
           <Label htmlFor="email">Email</Label>
           <Input id="email" name="email" type="email" autoComplete="email" required />

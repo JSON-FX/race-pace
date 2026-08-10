@@ -3,14 +3,19 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { safeNextPath } from "@/lib/routes";
+import { getMyRoles } from "@/lib/queries/roles";
+import { safeNextPath, homePathFor } from "@/lib/routes";
 
 export type AuthState = { error?: string };
 
 export async function signInAction(_prev: AuthState, formData: FormData): Promise<AuthState> {
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
-  const next = String(formData.get("next") ?? "/events");
+  // Absent, not defaulted to "/events" — see login-form.tsx's comment. A
+  // hidden field the form omits comes back as `null` from formData.get, so
+  // this stays a real "no destination" state through to the fallback below.
+  const nextRaw = formData.get("next");
+  const next = typeof nextRaw === "string" && nextRaw.length > 0 ? nextRaw : null;
 
   if (!email || !password) return { error: "Enter your email and password." };
 
@@ -54,14 +59,18 @@ export async function signInAction(_prev: AuthState, formData: FormData): Promis
   }
 
   revalidatePath("/", "layout");
+  // The session now exists, so getMyRoles() can resolve capabilities — it
+  // could not before signInWithPassword above succeeded. This mirrors
+  // auth/callback/route.ts exactly: both entry points into the console
+  // resolve "no explicit destination" through the same homePathFor, so a
+  // check_in-only (marshal) account signing in with a password from a bare
+  // /login lands on /check-in here too, not on a manage_org page it can't
+  // reach. Only the fallback is capability-aware; an explicit `next` is
+  // still honoured as-is and the destination page's own guard still applies.
+  const roles = await getMyRoles();
+  const fallback = homePathFor(roles?.capabilities ?? []);
   // redirect() throws internally; it must be outside any try/catch.
-  //
-  // "/events" here, not homePathFor: `next` already defaults to "/events" in
-  // this action's own signature above, mirroring the pre-capability-model
-  // behaviour of the password form specifically. Unlike the OAuth callback,
-  // this path was not the one that broke — see the report for why it was
-  // left alone rather than folded into the same fix.
-  redirect(safeNextPath(next, "/events"));
+  redirect(safeNextPath(next, fallback));
 }
 
 export async function signOutAction(): Promise<void> {

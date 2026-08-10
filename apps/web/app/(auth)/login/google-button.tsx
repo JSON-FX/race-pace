@@ -24,7 +24,7 @@ import { Button } from "@/components/ui/button";
  * white surface with the exact wording Google's branding guidelines mandate.
  * Do not recolour it, substitute an icon-font glyph, or reword the label.
  */
-export function GoogleButton({ next }: { next: string }) {
+export function GoogleButton({ next }: { next: string | null }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -45,8 +45,20 @@ export function GoogleButton({ next }: { next: string }) {
     // navigation from Supabase to our origin, which Lax permits and Strict would
     // drop. 10 minutes outlasts a Google consent screen without letting a stale
     // value misroute a later visit.
-    document.cookie =
-      `${OAUTH_NEXT_COOKIE}=${encodeURIComponent(next)}; path=/; max-age=600; samesite=lax`;
+    //
+    // When there is no explicit destination, the cookie is CLEARED rather than
+    // simply not written. A previous sign-in attempt (or a stale tab) could
+    // have already set it; leaving it in place would let a 10-minute-old
+    // destination silently hijack a fresh, destination-less sign-in — the same
+    // shape of bug as defaulting `next` to "/events" client-side, just with a
+    // cookie instead of a form field. Absence of a destination must actually
+    // reach the callback as absence.
+    if (next) {
+      document.cookie =
+        `${OAUTH_NEXT_COOKIE}=${encodeURIComponent(next)}; path=/; max-age=600; samesite=lax`;
+    } else {
+      document.cookie = `${OAUTH_NEXT_COOKIE}=; path=/; max-age=0`;
+    }
 
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
