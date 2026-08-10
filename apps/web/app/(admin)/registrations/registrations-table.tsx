@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Mail, Hash, CheckCircle2, XCircle } from "lucide-react";
 import { DataTable, type FilterDef, type BulkAction } from "@/components/data-table";
-import { PaymentStatusBadge } from "@/components/StatusBadge";
+import { PaymentStatusBadge, RegistrationStatusBadge } from "@/components/StatusBadge";
 import { RegistrationDetail } from "@/components/RegistrationDetail";
 import { RunnerAvatar } from "@/components/RunnerAvatar";
 import { BulkCancelDialog } from "@/components/BulkCancelDialog";
@@ -21,6 +21,13 @@ const STATUS_FILTER: FilterDef = {
     { value: "pending", label: "Pending" },
     { value: "refunded", label: "Refunded" },
     { value: "failed", label: "Failed" },
+    // Routed to the registration_status column, not payment_status — see
+    // listEventRegistrations in lib/queries/registrations.ts. Neither value
+    // can ever appear on payment_status (that enum has no such members), so
+    // these two MUST stay routed there or picking them throws a Postgres
+    // enum-cast error instead of filtering anything.
+    { value: "expired", label: "Expired" },
+    { value: "cancelled", label: "Cancelled" },
   ],
 };
 
@@ -96,7 +103,20 @@ export function RegistrationsTable({
     {
       accessorKey: "payment_status",
       header: "Status",
-      cell: ({ row }) => <PaymentStatusBadge status={row.original.payment_status} />,
+      // registration_status wins ONLY for 'expired'/'cancelled' — the two
+      // terminal states payment_status can never represent (it has no such
+      // enum values; a 'failed'/null payment_status is otherwise ambiguous
+      // between "hold expired", "card declined", and "never started
+      // checkout"). Every other state (paid/pending/refunded) keeps showing
+      // payment_status exactly as before — it's the more precise signal for
+      // those, and the two columns agree there anyway.
+      cell: ({ row }) => {
+        const regStatus = row.original.registration_status;
+        if (regStatus === "expired" || regStatus === "cancelled") {
+          return <RegistrationStatusBadge status={regStatus} />;
+        }
+        return <PaymentStatusBadge status={row.original.payment_status} />;
+      },
     },
     {
       id: "__chevron",

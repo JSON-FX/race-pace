@@ -10,7 +10,7 @@ import { peso, fmtDateTime, initials } from "@/lib/format";
 import { fieldLabel, fieldValue } from "@/lib/field-labels";
 import { cn } from "@/lib/utils";
 import type { RegistrationRow } from "@/lib/queries/registrations";
-import { PaymentStatusBadge } from "./StatusBadge";
+import { PaymentStatusBadge, RegistrationStatusBadge } from "./StatusBadge";
 import { MethodBadge } from "./MethodBadge";
 import { RefundModal } from "./RefundModal";
 import { CopyButton } from "./CopyButton";
@@ -166,7 +166,15 @@ export function RegistrationDetail({ row, onClose, onRefunded }: {
                   {row.bib_name}
                 </span>
               ) : null}
-              <PaymentStatusBadge status={row.payment_status} />
+              {/* Same registration_status-wins-for-expired/cancelled swap as
+                  the table's Status column (registrations-table.tsx) — an
+                  organizer opening the sheet for an abandoned or cancelled
+                  entry should see the same badge they clicked through on. */}
+              {row.registration_status === "expired" || row.registration_status === "cancelled" ? (
+                <RegistrationStatusBadge status={row.registration_status} />
+              ) : (
+                <PaymentStatusBadge status={row.payment_status} />
+              )}
             </div>
           </div>
 

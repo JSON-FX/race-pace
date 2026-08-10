@@ -48,6 +48,7 @@ function row(overrides: Partial<RegistrationRow> = {}): RegistrationRow {
     total_amount: 150000,
     payment_status: "paid",
     payment_method: "card",
+    registration_status: "paid",
     created_at: "2026-08-04T11:35:15.624Z",
     custom_data: {},
     ...overrides,

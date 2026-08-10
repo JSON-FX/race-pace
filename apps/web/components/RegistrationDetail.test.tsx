@@ -25,10 +25,10 @@ vi.mock("@/lib/actions/registrations", () => ({
 const paidRow: RegistrationRow = {
   id: "r1", user_id: "u1", category_id: "c4", category_label: "10K",
   full_name: "Ana Cruz", bib_name: "ANA", email: "ana@example.com",
-  total_amount: 100000, payment_status: "paid", payment_method: "gcash",
+  total_amount: 100000, payment_status: "paid", payment_method: "gcash", registration_status: "paid",
   created_at: "2026-07-01T00:00:00Z", custom_data: { blood_type: "O", first_ultra: true },
 };
-const pendingRow: RegistrationRow = { ...paidRow, payment_status: "pending", payment_method: null };
+const pendingRow: RegistrationRow = { ...paidRow, payment_status: "pending", payment_method: null, registration_status: "pending" };
 
 /** The refund button's label carries the amount, so every lookup has to be a
  *  prefix match — an exact "Refund" would silently stop matching the moment
@@ -70,6 +70,23 @@ describe("RegistrationDetail", () => {
 
     rerender(<RegistrationDetail row={pendingRow} onClose={vi.fn()} onRefunded={vi.fn()} />);
     expect(screen.getByText("Awaiting payment")).toBeInTheDocument();
+  });
+
+  // Task 9: the header badge must show the registration's own lifecycle
+  // state for expired/cancelled, same swap as the table's Status column —
+  // an organizer who clicked through from an "Expired" row should not land
+  // on a sheet that says "Failed" or "—" instead.
+  it("shows Expired instead of the payment status badge for an expired registration", () => {
+    const expiredRow: RegistrationRow = { ...paidRow, payment_status: null, registration_status: "expired" };
+    render(<RegistrationDetail row={expiredRow} onClose={vi.fn()} onRefunded={vi.fn()} />);
+    expect(screen.getByText("Expired")).toBeInTheDocument();
+  });
+
+  it("shows Cancelled instead of the payment status badge for a cancelled registration", () => {
+    const cancelledRow: RegistrationRow = { ...paidRow, payment_status: "failed", registration_status: "cancelled" };
+    render(<RegistrationDetail row={cancelledRow} onClose={vi.fn()} onRefunded={vi.fn()} />);
+    expect(screen.getByText("Cancelled")).toBeInTheDocument();
+    expect(screen.queryByText("Failed")).not.toBeInTheDocument();
   });
 
   it("itemises the total into entry fee plus add-ons, which sum back to it", async () => {

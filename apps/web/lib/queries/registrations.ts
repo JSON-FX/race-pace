@@ -17,10 +17,18 @@ function searchPattern(q: string): string | null {
 
 // Mirrors the Postgres `payment_status` enum (pending, paid, failed,
 // refunded — see supabase/migrations/20260718182546_init_orgs_profiles.sql).
-// `registration_status` is a DIFFERENT enum (pending, paid, refunded,
-// cancelled) on a different column — this page filters on the
-// `payment_status` column of `admin_registrations_v`, not that one.
+// `registration_status` (below) is a DIFFERENT enum (pending, paid, refunded,
+// cancelled, expired) on a different column of the same view. They mostly
+// move together (confirm_payment_tx/refund_registration_tx set both), EXCEPT
+// for 'expired' and 'cancelled', which only ever land on registration_status
+// — see admin_registrations_v's header comment
+// (supabase/migrations/20260809100400_admin_registrations_v_registration_status.sql)
+// for why. Filter routing below reflects that split.
 export type PaymentStatus = "pending" | "paid" | "failed" | "refunded";
+
+// The registration's own lifecycle state, distinct from PaymentStatus above.
+// 'expired'/'cancelled' can ONLY appear here, never on payment_status.
+export type RegistrationStatus = "pending" | "paid" | "refunded" | "cancelled" | "expired";
 
 export type RegistrationRow = {
   id: string;
@@ -40,12 +48,19 @@ export type RegistrationRow = {
   total_amount: number;
   payment_status: PaymentStatus | null;
   payment_method: string | null;
+  /** registrations.status, added in
+   *  supabase/migrations/20260809100400_admin_registrations_v_registration_status.sql.
+   *  Only meaningfully DIFFERENT from payment_status-derived state for
+   *  'expired'/'cancelled' — see RegistrationStatus above. The Status column
+   *  (registrations-table.tsx) and the detail sheet (RegistrationDetail.tsx)
+   *  both prefer this over payment_status for exactly those two values. */
+  registration_status: RegistrationStatus | null;
   created_at: string;
   custom_data: Record<string, unknown>;
 };
 
 const SELECT =
-  "id,user_id,category_id,category_label,full_name,bib_name,total_amount,payment_status,payment_method,custom_data,created_at";
+  "id,user_id,category_id,category_label,full_name,bib_name,total_amount,payment_status,payment_method,registration_status,custom_data,created_at";
 
 /** The email side-lookup from `listEventRegistrations`, split out so a
  *  caller paging through MANY batches (the CSV export route) can fetch it
@@ -98,8 +113,18 @@ export async function listEventRegistrations(
     .select(SELECT, includeCount ? { count: "exact" } : undefined)
     .eq("event_id", eventId);
 
+  // 'expired'/'cancelled' only ever live on registration_status — routing them
+  // at payment_status (the pre-existing behaviour) throws a hard Postgres
+  // "invalid input value for enum payment_status" error, since that enum has
+  // no such values. Every other status value (including 'all') keeps
+  // filtering on payment_status exactly as before. See RegistrationStatus's
+  // doc comment above for why the two columns can't just be OR'd together.
   const status = params.filters.status ?? "all";
-  if (status !== "all") req = req.eq("payment_status", status);
+  if (status === "expired" || status === "cancelled") {
+    req = req.eq("registration_status", status);
+  } else if (status !== "all") {
+    req = req.eq("payment_status", status);
+  }
 
   const category = params.filters.category ?? "all";
   if (category !== "all") req = req.eq("category_id", category);
