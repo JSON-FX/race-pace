@@ -230,6 +230,104 @@ describe("payout_open_statement v2", () => {
     }
   });
 
+  it("claws back a PARTIAL refund on an entry that was already settled", async () => {
+    const f = await fixture("pv2i", 1);
+    try {
+      const admin = await signedInAs(f.adminEmail);
+
+      // Statement A transfers the organizer's ₱1,910 and stamps the row.
+      const first = await openStatement(admin, f.ev.id);
+      expect((await stmt(f.s, first)).net_owed_cents).toBe(191000);
+      expect((await admin.rpc("payout_mark_paid", {
+        p_statement_id: first, p_reference: "ref-1", p_note: null,
+      })).data).toBe("paid");
+
+      // THEN the runner cancels under a flat_fee policy: ₱1,610 goes back to them out
+      // of money the organizer has already been paid, and ₱300 is retained.
+      const refund = await f.s.rpc("refund_registration_tx", {
+        p_registration_id: f.regIds[0], p_refunded_by: null, p_note: null,
+        p_provider_refund: {}, p_refunded_amount: 161000, p_retained_net: 30000,
+      });
+      expect(refund.error).toBeNull();
+      expect(refund.data).toBe("partially_refunded");
+
+      const secondId = await openStatement(admin, f.ev.id);
+      const second = await stmt(f.s, secondId);
+
+      // THE LEAK. The row matches neither of the old filters — the earn filter wants an
+      // unstamped row and this one is stamped; the clawback filter wanted status
+      // 'refunded' and this one is 'partially_refunded' — so this read 0 and Race Pace
+      // ate the ₱1,610 it had already paid the runner.
+      expect(second.gross_cents).toBe(0);
+      expect(second.refunds_cents).toBe(161000);
+      expect(second.net_owed_cents).toBe(-161000);
+      // A CLAWBACK, not an in-period refund, exactly as on the full-refund path. The two
+      // are disjoint by the stamp: refunds_in_period_cents only ever sums UNSTAMPED rows,
+      // and this row carries statement A's stamp. Counting it in both would double it.
+      expect(second.refunds_in_period_cents).toBe(0);
+
+      // ONCE ONLY. Settling the recovery stamps payout_clawback_id, which is the same
+      // gate the full-refund path uses, so a third statement finds nothing left.
+      expect((await admin.rpc("payout_mark_paid", {
+        p_statement_id: secondId, p_reference: "rec-1", p_note: null,
+      })).data).toBe("paid");
+
+      const third = await stmt(f.s, await openStatement(admin, f.ev.id));
+      expect(third.refunds_cents).toBe(0);
+      expect(third.net_owed_cents).toBe(0);
+    } finally {
+      await f.cleanup();
+    }
+  });
+
+  it("does not clawback-stamp a partial refund it is settling for the FIRST time", async () => {
+    const f = await fixture("pv2j", 1);
+    try {
+      const admin = await signedInAs(f.adminEmail);
+
+      // Refunded BEFORE any statement, so the ₱1,610 is netted out of earnings that have
+      // not been transferred — refunds_in_period, not a clawback.
+      expect((await f.s.rpc("refund_registration_tx", {
+        p_registration_id: f.regIds[0], p_refunded_by: null, p_note: null,
+        p_provider_refund: {}, p_refunded_amount: 161000, p_retained_net: 30000,
+      })).data).toBe("partially_refunded");
+
+      const first = await openStatement(admin, f.ev.id);
+      expect(await stmt(f.s, first)).toMatchObject({
+        net_owed_cents: 30000, refunds_in_period_cents: 161000, refunds_cents: 0,
+      });
+      expect((await admin.rpc("payout_mark_paid", {
+        p_statement_id: first, p_reference: "ref-1", p_note: null,
+      })).data).toBe("paid");
+
+      // THE ORDERING HAZARD. payout_mark_paid's earn UPDATE stamps this row first; the
+      // clawback UPDATE runs next and now sees a stamped 'partially_refunded' row. If it
+      // claimed that row too, the refund would be marked "recovered" when it was only
+      // netted — and the clawback stamp, once set, can never be set again, so a LATER
+      // refund on the same row would be silently unrecoverable forever.
+      const p = (await f.s.from("payments")
+        .select("payout_statement_id,payout_clawback_id")
+        .eq("registration_id", f.regIds[0]).single()).data!;
+      expect(p.payout_statement_id).toBe(first);
+      expect(p.payout_clawback_id).toBeNull();
+
+      // Prove the consequence, not just the column: a SECOND partial refund on the now
+      // settled row — ₱200 more back, ₱100 retained — must still be recoverable.
+      expect((await f.s.rpc("refund_registration_tx", {
+        p_registration_id: f.regIds[0], p_refunded_by: null, p_note: null,
+        p_provider_refund: {}, p_refunded_amount: 20000, p_retained_net: 10000,
+      })).data).toBe("partially_refunded");
+
+      const second = await stmt(f.s, await openStatement(admin, f.ev.id));
+      // refunded_amount is the delta since settlement, which is what makes it the right
+      // size here: the organizer was paid ₱300 on statement A and keeps ₱100.
+      expect(second.refunds_cents).toBe(20000);
+      expect(second.net_owed_cents).toBe(-20000);
+    } finally {
+      await f.cleanup();
+    }
+  });
+
   it("excludes a 'historical' row's processor fee from processing, but pays its full net_to_org", async () => {
     const f = await fixture("pv2e", 0);
     try {
