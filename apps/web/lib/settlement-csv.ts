@@ -21,10 +21,23 @@ const HEADER = [
   "status", "refunded_amount", "refunded_at",
 ] as const;
 
-/** RFC 4180: wrap in quotes when the value contains a comma, quote or newline,
- *  and double any embedded quote. A single unescaped comma in a runner's name
- *  shifts every money column one place left for that row. */
+/**
+ * RFC 4180 CSV cell escaping with formula injection prevention.
+ *
+ * Wraps in quotes and doubles any embedded quote when the value contains
+ * comma, quote, newline, or carriage return. Additionally, prepends an
+ * apostrophe if the value begins with a formula lead-in character (=, +, -,
+ * @, tab, or carriage return). The apostrophe must be applied BEFORE RFC 4180
+ * quoting so it sits inside the quotes; otherwise the spreadsheet still
+ * executes the formula (quoting alone does not prevent this in Excel/Sheets).
+ * The apostrophe is not displayed in the cell — it forces text interpretation.
+ */
 function cell(value: string): string {
+  // Neutralize formula injection: prefix apostrophe if value starts with formula lead-in.
+  if (/^[=+\-@\t\r]/.test(value)) {
+    value = "'" + value;
+  }
+  // RFC 4180: wrap in quotes and escape embedded quotes.
   return /[",\n\r]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value;
 }
 
