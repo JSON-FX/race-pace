@@ -637,7 +637,7 @@ export function grossUpCharge(target: number, rate: ProcessorRate): number {
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `pnpm test -- supabase/tests/processor-fee.test.ts`
-Expected: PASS (10 tests, including the round-trip property across 28 rate/target combinations)
+Expected: PASS (9 tests, including the round-trip property across 28 rate/target combinations)
 
 - [ ] **Step 5: Commit**
 
@@ -699,6 +699,21 @@ describe("pmFeeFromAttributes", () => {
       { id: "pay_x", attributes: { status: "paid", amount: 200000 } },
     ]))).toBeNull();
   });
+
+  it("returns null when any ONE of the three figures is missing or mistyped", () => {
+    // Each checked independently. `amount` matters as much as the other two:
+    // the caller's integrity check is `amount - fee === net_amount`, so a
+    // fabricated amount would make that check compare an invented number.
+    const attrs = (over: Record<string, unknown>) =>
+      session([{ id: "pay_x", attributes: { status: "paid", ...over } }]);
+
+    expect(pmFeeFromAttributes(attrs({ fee: 3000, net_amount: 197000 }))).toBeNull();   // no amount
+    expect(pmFeeFromAttributes(attrs({ amount: 200000, net_amount: 197000 }))).toBeNull(); // no fee
+    expect(pmFeeFromAttributes(attrs({ amount: 200000, fee: 3000 }))).toBeNull();       // no net_amount
+    // A numeric STRING is not a number — never coerce money.
+    expect(pmFeeFromAttributes(attrs({ amount: "200000", fee: 3000, net_amount: 197000 }))).toBeNull();
+    expect(pmFeeFromAttributes(attrs({ amount: 200000, fee: null, net_amount: 197000 }))).toBeNull();
+  });
 });
 ```
 
@@ -728,9 +743,18 @@ Append to `supabase/functions/_shared/paymongo.ts`:
  * pmMethodFromAttributes: payment-verify holds a parsed session, payments-webhook
  * holds only the raw event resource.
  *
- * Returns null rather than zero when the shape is absent. A zero fee is
- * indistinguishable from a genuinely free payment, and would write a net_to_org
- * that overpays the organizer by exactly the processor's cut.
+ * Returns null rather than zero when ANY of the three figures is absent. A zero
+ * fee is indistinguishable from a genuinely free payment, and would write a
+ * net_to_org that overpays the organizer by exactly the processor's cut.
+ *
+ * `amount` is held to the same standard, and that is load-bearing rather than
+ * tidiness. The caller's integrity check is `amount - fee === net_amount`; if a
+ * missing `amount` were allowed to become 0, that check would be comparing a
+ * fabricated number, and the guard that skips it for a zero amount would let an
+ * unverified fee be recorded as 'actual'. The one safeguard that validates the
+ * provider's own arithmetic would disarm itself in precisely the case where the
+ * payload was malformed. PayMongo's payment object always carries `amount`, so
+ * requiring it rejects only genuinely broken payloads.
  */
 // deno-lint-ignore no-explicit-any
 export function pmFeeFromAttributes(
@@ -741,15 +765,18 @@ export function pmFeeFromAttributes(
   const chosen = (payments as any[]).find((p) => p?.attributes?.status === "paid") ?? payments[0];
   // deno-lint-ignore no-explicit-any
   const a = (chosen as any)?.attributes;
-  if (!a || typeof a.fee !== "number" || typeof a.net_amount !== "number") return null;
-  return { fee: a.fee, netAmount: a.net_amount, amount: typeof a.amount === "number" ? a.amount : 0 };
+  if (
+    !a || typeof a.fee !== "number" || typeof a.net_amount !== "number" ||
+    typeof a.amount !== "number"
+  ) return null;
+  return { fee: a.fee, netAmount: a.net_amount, amount: a.amount };
 }
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `pnpm test -- supabase/tests/processor-fee.test.ts`
-Expected: PASS (14 tests)
+Expected: PASS (all tests green — 9 from Task 3 plus the pmFeeFromAttributes block)
 
 - [ ] **Step 5: Commit**
 
@@ -1004,7 +1031,12 @@ Replace with:
   if (reported) {
     // PayMongo's own arithmetic must hold. A figure that fails it is not one we
     // can defend to an organizer, so it does not get to be called 'actual'.
-    if (reported.amount > 0 && reported.amount - reported.fee !== reported.netAmount) {
+    // No `amount > 0` guard: pmFeeFromAttributes returns null unless all three
+    // figures are real numbers, so `reported` here always carries a genuine
+    // amount. Guarding on it would mean a malformed payload SKIPS this check and
+    // records an unverified fee as 'actual' — disarming the safeguard in exactly
+    // the case it exists for.
+    if (reported.amount - reported.fee !== reported.netAmount) {
       console.error(
         `[confirm] FEE INTEGRITY FAILURE registration=${reg.id} — ` +
           `amount ${reported.amount} - fee ${reported.fee} != net_amount ${reported.netAmount}. ` +
