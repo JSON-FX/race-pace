@@ -133,3 +133,36 @@ export async function pmCreateRefund(input: { paymentId: string; amount: number;
   const d = body?.data;
   return { id: d?.id, status: (d?.attributes?.status ?? "pending") as PmRefund["status"], raw: body };
 }
+
+/**
+ * What the processor actually charged, from a checkout session's attributes.
+ *
+ * PayMongo settles NET: on a ₱2,000 payment, ₱1,970 arrives. The payment object
+ * reports both halves — `fee` and `net_amount`, integers in centavos — and
+ * `payments.raw` has been storing this whole payload all along without anyone
+ * reading it.
+ *
+ * This is what makes the ledger immune to rate drift. Recording what was
+ * actually charged, rather than what a rate card predicted, means a PayMongo
+ * pricing change is reflected the same day with nobody noticing anything.
+ *
+ * Takes `attributes` rather than a PmSession so both callers can use it, matching
+ * pmMethodFromAttributes: payment-verify holds a parsed session, payments-webhook
+ * holds only the raw event resource.
+ *
+ * Returns null rather than zero when the shape is absent. A zero fee is
+ * indistinguishable from a genuinely free payment, and would write a net_to_org
+ * that overpays the organizer by exactly the processor's cut.
+ */
+// deno-lint-ignore no-explicit-any
+export function pmFeeFromAttributes(
+  attributes: any,
+): { fee: number; netAmount: number; amount: number } | null {
+  const payments: unknown[] = Array.isArray(attributes?.payments) ? attributes.payments : [];
+  // deno-lint-ignore no-explicit-any
+  const chosen = (payments as any[]).find((p) => p?.attributes?.status === "paid") ?? payments[0];
+  // deno-lint-ignore no-explicit-any
+  const a = (chosen as any)?.attributes;
+  if (!a || typeof a.fee !== "number" || typeof a.net_amount !== "number") return null;
+  return { fee: a.fee, netAmount: a.net_amount, amount: typeof a.amount === "number" ? a.amount : 0 };
+}

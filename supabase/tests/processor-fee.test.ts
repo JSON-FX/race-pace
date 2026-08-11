@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { predictProcessorFee, grossUpCharge, type ProcessorRate } from "../functions/_shared/processorFee.ts";
+import { pmFeeFromAttributes } from "../functions/_shared/paymongo.ts";
 
 const CARD: ProcessorRate = { percent_bps: 350, fixed_cents: 1500 };
 const GCASH: ProcessorRate = { percent_bps: 150, fixed_cents: 0 };
@@ -60,5 +61,41 @@ describe("grossUpCharge", () => {
     // A silently negative charge is money moving the wrong way.
     expect(() => grossUpCharge(200000, { percent_bps: 10000, fixed_cents: 0 })).toThrow();
     expect(() => grossUpCharge(200000, { percent_bps: 12000, fixed_cents: 0 })).toThrow();
+  });
+});
+
+const session = (payments: unknown[]) => ({ payments });
+const payment = (status: string, amount: number, fee: number, net: number) => ({
+  id: `pay_${status}`, attributes: { status, amount, fee, net_amount: net },
+});
+
+describe("pmFeeFromAttributes", () => {
+  it("reads fee and net_amount off the PAID payment", () => {
+    expect(pmFeeFromAttributes(session([payment("paid", 200000, 3000, 197000)])))
+      .toEqual({ fee: 3000, netAmount: 197000, amount: 200000 });
+  });
+
+  it("prefers the paid payment over an earlier failed attempt", () => {
+    // A session can carry an abandoned attempt followed by a successful one.
+    // payments[0] would report the instrument and fee the runner did NOT use.
+    const s = session([
+      payment("failed", 200000, 0, 0),
+      payment("paid", 200000, 8500, 191500),
+    ]);
+    expect(pmFeeFromAttributes(s)).toEqual({ fee: 8500, netAmount: 191500, amount: 200000 });
+  });
+
+  it("returns null when there is no payment at all", () => {
+    expect(pmFeeFromAttributes(session([]))).toBeNull();
+    expect(pmFeeFromAttributes({})).toBeNull();
+    expect(pmFeeFromAttributes(null)).toBeNull();
+  });
+
+  it("returns null when the fee field is absent — a known-unknown, not a zero", () => {
+    // Reporting 0 here would be indistinguishable from a genuinely free payment
+    // and would write a wrong net_to_org.
+    expect(pmFeeFromAttributes(session([
+      { id: "pay_x", attributes: { status: "paid", amount: 200000 } },
+    ]))).toBeNull();
   });
 });
