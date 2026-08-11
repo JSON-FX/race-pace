@@ -2070,6 +2070,23 @@ Carry a header comment recording that `20260807090200`'s "the RPC rewrites `amou
 
 `apps/web/lib/queries/commission.ts:218-221` computes refunded value from `amount`. Change it to `refunded_amount`. Check `:162`'s `gross_revenue / paid_count` average-entry figure still means what its label claims once gross is corrected.
 
+- [ ] **Step 4b: Make the payout statement's breakdown reconcile**
+
+A payout statement covering a partially-refunded entry currently reads `₱2,000 − ₱60 − ₱30` beside a net owed of `₱300`. The net is correct and nothing multiplies the breakdown back into a total — the console pays from `net_owed_cents` — so no money moves wrong. But this statement is the **source document for a manual bank transfer**, and an operator reading a document that contradicts itself by ₱1,610 per entry is exactly the confusion this whole design exists to prevent.
+
+The missing term is what went back to the runner. Add a column:
+
+```sql
+alter table payout_statements
+  add column if not exists refunds_in_period_cents bigint not null default 0;
+```
+
+Sum `payments.refunded_amount` for the rows the statement covers, and add it to `payout_open_statement`'s insert.
+
+**Do not overload `refunds_cents`.** That column means *clawback* — money already transferred to the organizer and since refunded — and the two are different quantities that must not be conflated. This is the same shape Task 12's own settlement totals already use: `gross − commission − processing − refunds = net`.
+
+This must land before Task 13 adds the processing column to the payout console, or the console will render a breakdown that visibly does not add up.
+
 - [ ] **Step 5: Verify**
 
 Run: `pnpm test` (full suite, after `pnpm exec supabase db reset`), then `cd apps/web && pnpm test && pnpm typecheck`.
@@ -2079,6 +2096,88 @@ Run: `pnpm test` (full suite, after `pnpm exec supabase db reset`), then `cd app
 ```bash
 git add supabase/migrations/20260811095500_money_aggregates_three_party.sql supabase/tests/commission-refund-policy.test.ts apps/web/lib/queries/commission.ts
 git commit -m "fix(reports): read net_to_org and refunded_amount, not amount"
+```
+
+---
+
+## Task 8c: Claw back a partial refund on an already-settled entry
+
+**Added after Task 8's review.** Pre-existing money leak, surfaced by this work, covered by no other task.
+
+**Files:**
+- Create: `supabase/migrations/20260811095700_clawback_partial_refunds.sql`
+- Test: `supabase/tests/payout-statements-v2.test.ts` (extend)
+
+**Interfaces:**
+- Consumes: Tasks 1, 7, 8
+- Produces: `payout_open_statement` and `payout_mark_paid` that recover partial refunds on settled entries
+
+### The leak
+
+A settled entry that is later PARTIALLY refunded is never recovered.
+
+Trace it. A ₱2,000 entry confirms at `net_to_org` 191000 and is settled — statement A pays the organizer ₱1,910 and stamps the row with `payout_statement_id`. The runner then cancels under a `flat_fee` policy: `refund_registration_tx` refunds them ₱1,610 and drops `net_to_org` to the ₱300 retention, setting status `partially_refunded`.
+
+The next statement matches that row against neither filter:
+
+- the **earn** filter requires `payout_statement_id is null` — the row is stamped, so it is excluded;
+- the **clawback** filter requires `status = 'refunded'` — the row is `partially_refunded`, so it is excluded.
+
+Race Pace paid the runner ₱1,610 out of its own account and never recovers it from an organizer who was already paid ₱1,910 for that entry. Nothing flags it: both statements look internally consistent.
+
+The same gap exists in `payout_mark_paid`'s clawback UPDATE (`20260807090300_payout_statements.sql:161`), which also keys on `status = 'refunded'`.
+
+### Why it was invisible
+
+Under the old rule this could not arise in the same way: a partial refund rewrote `amount` down to the retained figure and re-struck commission, so the row described a smaller sale rather than a settled sale with money clawed back. Task 7 stopped rewriting `amount` — correctly, because rewriting it permanently breaks `amount − processor_fee_cents = the provider's net_amount` — which is what leaves the row in a state neither filter anticipates.
+
+### The rule
+
+**A stamped row owes back whatever the organizer was paid minus what they are still entitled to keep.**
+
+For a settled row that has since been partially refunded, that is `(the net_to_org at settlement) − (the current net_to_org)`. The current value is the retention; the difference is what went back to the runner out of already-transferred money.
+
+This needs the settled figure to still be knowable. `net_to_org` has been overwritten by the partial refund, so the clawback must be sized from `payments.refunded_amount`, which records exactly what was returned and is written by both refund branches.
+
+### Steps
+
+- [ ] **Step 1: Write the failing test**
+
+Extend `supabase/tests/payout-statements-v2.test.ts`:
+
+```ts
+it("claws back a PARTIAL refund on an entry that was already settled", async () => {
+  // Settle a ₱2,000 GCash entry (organizer paid ₱1,910), then partially refund it:
+  // runner gets ₱1,610 back, organizer keeps ₱300.
+  // The next statement must show the organizer owing ₱1,610 back —
+  // NOT zero, which is what the status='refunded' filter produces today.
+});
+```
+
+Assert `net_owed_cents` is `-161000` on the follow-up statement, and that a THIRD statement recovers nothing further — the clawback must happen exactly once, the same guarantee the full-refund path already has.
+
+- [ ] **Step 2: Run it and confirm it fails**
+
+Run: `pnpm test -- supabase/tests/payout-statements-v2.test.ts`
+Expected: FAIL — `expected 0 to be -161000`.
+
+- [ ] **Step 3: Write the migration**
+
+Widen both the clawback SUM in `payout_open_statement` and the clawback UPDATE in `payout_mark_paid` to cover `status in ('refunded','partially_refunded')`, sizing the recovery from `refunded_amount` rather than `net_to_org`.
+
+Preserve the once-only guarantee: `payout_clawback_id is null` remains the gate, and `payout_mark_paid` must stamp these rows exactly as it stamps fully-refunded ones.
+
+Take both function bodies from a live `pg_get_functiondef` dump, per the procedure this repo established — do not reconstruct them from migration files.
+
+- [ ] **Step 4: Verify**
+
+Run: `pnpm test` after `pnpm exec supabase db reset`, plus the targeted payout suites. The full-refund clawback behaviour must be byte-identical to before.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add supabase/migrations/20260811095700_clawback_partial_refunds.sql supabase/tests/payout-statements-v2.test.ts
+git commit -m "fix(payouts): recover partial refunds on already-settled entries"
 ```
 
 ---
