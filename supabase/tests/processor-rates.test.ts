@@ -36,6 +36,44 @@ describe("processor_rates", () => {
     expect(byKey.get("paymaya:local")).toMatchObject({ percent_bps: 150, fixed_cents: 0 });
   });
 
+  /**
+   * `offered` is the DB half of a product fact whose other half is METHOD_MAP in
+   * payment-session/index.ts (`{ card, gcash, maya }`) — Deno, and therefore not
+   * importable by apps/web. This test is the shared check the two halves would
+   * otherwise lack.
+   *
+   * It also guards the column's default. `offered` defaults to FALSE, so a rate
+   * CHANGE — closing a row with effective_to and opening its successor — drops
+   * that method out of every organizer-facing forecast unless the new row sets
+   * it. That would be invisible: the projection would simply quote a narrower
+   * range. Asserting the exact offered set of CURRENT rows is what makes it
+   * loud.
+   */
+  it("marks exactly the methods a runner can choose as offered", async () => {
+    const s = svc();
+    const { data, error } = await s.from("processor_rates")
+      .select("method,scope,offered,note")
+      .eq("provider", "paymongo").is("effective_to", null);
+    expect(error).toBeNull();
+
+    const offered = (data ?? []).filter((r) => r.offered).map((r) => `${r.method}:${r.scope}`).sort();
+    // card on both scopes: whether a card is issued abroad is not something the
+    // runner picks, so `offered` is a property of the METHOD and scope stays a
+    // separate filter at every call site.
+    expect(offered).toEqual(["card:international", "card:local", "gcash:local", "paymaya:local"]);
+
+    // `dob` is the row that mattered: at 80 bps it is the cheapest in the table,
+    // seeded so enabling the method is a UI change rather than a schema change,
+    // and unreachable until then. It is also the one no other test touches.
+    // (`qrph` is asserted only through the set above, on purpose — the rate
+    // test below opens and closes rows on it.)
+    const dob = (data ?? []).find((r) => r.method === "dob");
+    expect(dob?.offered).toBe(false);
+    // Independently of `offered`: an organizer-facing forecast must not rank
+    // over a rate whose own note says it is a guess.
+    expect(dob?.note).toMatch(/UNCONFIRMED/);
+  });
+
   it("returns the rate in force at a given time, not today's", async () => {
     const s = svc();
     const stamp = `rate-${Date.now()}`;

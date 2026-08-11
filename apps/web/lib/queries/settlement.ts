@@ -1,8 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
 import type { SettlementRow } from "@/lib/settlement-csv";
 import {
-  settlementTotals, projectedRange, unreconciledCount,
-  type ProcessorRateLite, type SettlementTotals,
+  settlementTotals, projectedRange, unreconciledCount, forecastRates,
+  remainingCapacity, soldAverages, toSettlementRows,
+  type ProcessorRateCandidate, type RunnerName, type SettlementPayment,
+  type SettlementTotals,
 } from "@/lib/settlement-math";
 
 // Re-exported so the page has one import for the whole read model, while the
@@ -20,9 +22,10 @@ export type EventSettlement = {
   rows: SettlementRow[];
   totals: SettlementTotals;
   feeMode: "absorb" | "pass_on";
-  /** Only meaningful in absorb mode, where the organizer's net depends on how
-   *  runners happen to pay. Null in pass-on mode, where it is a fixed figure. */
-  projected: { low: number; high: number } | null;
+  /** The forecast over entries NOT YET SOLD, with the exact banked net already
+   *  added in — null whenever there is nothing left to forecast. Only ever set
+   *  in absorb mode, where the organizer's net moves with the payment mix. */
+  projected: { low: number; high: number; remaining: number } | null;
   /** How many payments still carry an ESTIMATED processing fee, or `null` when
    *  the check itself failed. Null is NOT zero: see `unreconciledCount`. */
   unreconciled: number | null;
@@ -40,15 +43,110 @@ const SELECT =
   // user_id below and the separate profiles read in getEventSettlement.
   "registrations!inner(event_id,user_id,categories(label))";
 
-type Join = {
-  registration_id: string; amount: number; platform_fee: number;
-  processor_fee_cents: number; processor_fee_source: string; net_to_org: number;
-  status: string; refunded_amount: number; method: string | null; created_at: string;
-  registrations: {
-    user_id: string | null;
-    categories: { label: string } | null;
-  } | null;
-};
+/**
+ * The payment statuses that are settlement, in the sense the organizer means.
+ *
+ * `registrations-checkout` upserts a payments row at FULL sticker price with
+ * status 'pending' the moment a runner OPENS checkout, and
+ * `expire_stale_registrations` later flips abandoned ones to 'failed' with
+ * `amount` left intact. Filtering on event alone therefore counted every
+ * abandoned cart as revenue: it landed in Gross collected at full price while
+ * contributing nothing to commission, processing or net — breaking this page's
+ * own waterfall by exactly that sum, and disagreeing with `payout_open_statement`,
+ * `admin_payment_aggregates` and the Payments KPIs, all of which filter status.
+ *
+ * 'refunded' is deliberately IN. It is the clawback row: the money was really
+ * collected, really given back, and the organizer's statement will really be
+ * reduced by it, so hiding it would make the refund column silently zero on the
+ * page that exists to explain deductions. `settlementTotals` is what stops it
+ * being counted as money still owed.
+ *
+ * 'pending' and 'failed' are deliberately OUT. Neither is money: one is a
+ * checkout somebody opened, the other is one they abandoned.
+ */
+const COUNTED_STATUSES = ["paid", "partially_refunded", "refunded"] as const;
+
+// Matches PGRST_DB_MAX_ROWS on this instance — see the identical constant and
+// its measured provenance in app/(admin)/payments/export/route.ts. PostgREST
+// silently caps a single request at this many rows: past 1,000 it returns 200
+// with 1,000 rows and supabase-js does NOT error, so a summary summed from one
+// unbatched read would print an authoritative wrong number.
+const BATCH = 1000;
+
+// A settlement that needed more than this many round trips is not a settlement,
+// it is a bug. THROWING is the point: every alternative — stopping early,
+// capping — is the truncation this batching exists to prevent, dressed up.
+const MAX_BATCHES = 100;
+
+// `.in()` becomes a query string, and a long one meets Kong's header buffer
+// before it meets PostgREST. 100 uuids is ~4KB of URL, comfortably inside it;
+// events big enough to need several chunks fetch them in parallel below.
+const PROFILE_CHUNK = 100;
+
+/** The server client, exactly as `createClient()` hands it back — no generated
+ *  Database generic exists in this app, so naming the type any other way would
+ *  invent one. */
+type Db = Awaited<ReturnType<typeof createClient>>;
+
+/**
+ * EVERY counted payment for the event, in a deterministic order.
+ *
+ * The order is not cosmetic. Two `.range()` calls have no guaranteed relative
+ * order without an ORDER BY, so rows can repeat on one page and vanish from the
+ * next — a batch seam that silently double-counts money. `created_at` is not
+ * unique (a batch, or two webhooks in the same millisecond), so
+ * `registration_id` — which `payments` holds a UNIQUE constraint on — breaks
+ * the tie into a total order.
+ */
+async function fetchAllPayments(
+  supabase: Db, eventId: string,
+): Promise<SettlementPayment[]> {
+  const all: SettlementPayment[] = [];
+  for (let batch = 0; batch < MAX_BATCHES; batch++) {
+    const from = batch * BATCH;
+    const { data, error } = await supabase
+      .from("payments")
+      .select(SELECT)
+      .eq("registrations.event_id", eventId)
+      .in("status", [...COUNTED_STATUSES])
+      .order("created_at", { ascending: true })
+      .order("registration_id", { ascending: true })
+      .range(from, from + BATCH - 1);
+    if (error) throw error;
+    const page = (data ?? []) as unknown as SettlementPayment[];
+    all.push(...page);
+    // A short page is the end of the set. A full one may or may not be, so it
+    // always costs one more request to find out — the alternative is trusting a
+    // count, which is a second query that can disagree with the first.
+    if (page.length < BATCH) return all;
+  }
+  throw new Error(
+    `getEventSettlement: event ${eventId} has more than ${MAX_BATCHES * BATCH} payments; ` +
+    "refusing to render a settlement summed from a truncated set.",
+  );
+}
+
+/** Runner names by user_id, chunked so a large event does not overrun the URL. */
+async function fetchRunnerNames(
+  supabase: Db, userIds: string[],
+): Promise<Map<string, RunnerName>> {
+  const byId = new Map<string, RunnerName>();
+  const chunks: string[][] = [];
+  for (let i = 0; i < userIds.length; i += PROFILE_CHUNK) {
+    chunks.push(userIds.slice(i, i + PROFILE_CHUNK));
+  }
+  await Promise.all(chunks.map(async (ids) => {
+    const { data, error } = await supabase
+      .from("profiles").select("id,full_name,bib_name").in("id", ids);
+    // Not fatal: a missing name degrades one cell to "Unknown runner", whereas
+    // throwing would hide every correct figure on the page behind a 500.
+    if (error) { console.error("getEventSettlement profiles read failed", error); return; }
+    for (const p of (data ?? []) as { id: string; full_name: string | null; bib_name: string | null }[]) {
+      byId.set(p.id, { full_name: p.full_name, bib_name: p.bib_name });
+    }
+  }));
+  return byId;
+}
 
 /**
  * One event's settlement, org-scoped.
@@ -67,95 +165,67 @@ type Join = {
  * race name over an all-zero summary: no money leaks (RLS saw to that), but the
  * page silently reports "₱0 net" for an event that is not theirs. Same guard,
  * same reason, as app/(admin)/events/[id]/edit/page.tsx.
+ *
+ * Everything below fetches; every figure is decided in `lib/settlement-math.ts`,
+ * where a test can reach it. This module cannot be unit-tested at all — the
+ * Supabase server client imports next/headers — so the split is what makes the
+ * arithmetic testable rather than merely reviewed.
  */
 export async function getEventSettlement(eventId: string): Promise<EventSettlement | null> {
   const supabase = await createClient();
 
   const { data: ev, error: evErr } = await supabase
     .from("events")
-    .select("name,org_id,organizations(name,fee_mode,commission_type,commission_rate,commission_flat_cents)")
+    .select("name,org_id,organizations(name,fee_mode)")
     .eq("id", eventId)
     .maybeSingle();
   if (evErr) throw evErr;
   if (!ev) return null;
 
-  const [paysRes, ratesRes, unrecRes] = await Promise.all([
-    supabase.from("payments").select(SELECT).eq("registrations.event_id", eventId),
+  const [pays, ratesRes, unrecRes, catsRes] = await Promise.all([
+    // The money itself must never be guessed at: a failed — or truncated —
+    // payments read throws rather than rendering an authoritative-looking
+    // settlement that is missing rows.
+    fetchAllPayments(supabase, eventId),
     supabase.from("processor_rates")
-      .select("method,scope,percent_bps,fixed_cents")
+      .select("method,scope,percent_bps,fixed_cents,offered,note")
       .eq("provider", "paymongo").is("effective_to", null),
     supabase.rpc("payout_unreconciled_count", { p_event_id: eventId }),
+    supabase.from("categories").select("slots_total,slots_taken").eq("event_id", eventId),
   ]);
-  // The money itself must never be guessed at. A failed payments read throws
-  // rather than rendering an empty, authoritative-looking ₱0 settlement.
-  if (paysRes.error) throw paysRes.error;
 
-  const pays = (paysRes.data ?? []) as unknown as Join[];
-
-  // Runner names, keyed on user_id, because the embed above cannot reach them.
+  const userIds = [...new Set(
+    pays.map((p) => p.registrations?.user_id).filter((id): id is string => !!id),
+  )];
   // `profiles_read_org_admin` (20260722100000) scopes this to profiles of people
   // who registered in an org the caller administers — the same boundary the
   // payments read just cleared — so no second authorization rule is introduced.
-  const userIds = [...new Set(pays.map((p) => p.registrations?.user_id).filter((id): id is string => !!id))];
-  const nameById = new Map<string, { full_name: string | null; bib_name: string | null }>();
-  if (userIds.length > 0) {
-    const { data: profiles, error: profErr } = await supabase
-      .from("profiles").select("id,full_name,bib_name").in("id", userIds);
-    // Not fatal: a missing name degrades one cell to "Unknown runner", whereas
-    // throwing would hide every correct figure on the page behind a 500.
-    if (profErr) console.error("getEventSettlement profiles read failed", profErr);
-    for (const p of (profiles ?? []) as { id: string; full_name: string | null; bib_name: string | null }[]) {
-      nameById.set(p.id, { full_name: p.full_name, bib_name: p.bib_name });
-    }
-  }
+  const names = await fetchRunnerNames(supabase, userIds);
 
-  const rows: SettlementRow[] = pays.map((p) => {
-    const who = p.registrations?.user_id ? nameById.get(p.registrations.user_id) : undefined;
-    return {
-      registration_id: p.registration_id,
-      runner_name: who?.full_name ?? who?.bib_name ?? "Unknown runner",
-      category: p.registrations?.categories?.label ?? "—",
-      paid_at: p.created_at,
-      method: p.method,
-      gross_paid: p.amount,
-      rp_commission: p.platform_fee,
-      // A 'historical' fee was absorbed by the platform, not deducted from the
-      // organizer. Reporting it in their column would show them a cost they never
-      // paid — see the ledger-invariant note on payments.processor_fee_source,
-      // and the identical filter in payout_open_statement (20260811095000).
-      processing_fee: p.processor_fee_source === "historical" ? 0 : p.processor_fee_cents,
-      net_to_org: p.net_to_org,
-      status: p.status,
-      refunded_amount: p.refunded_amount,
-      // `payments` has no refunded_at column — the refund RPCs stamp it into
-      // `raw` (20260807090400). Left null rather than dug out of jsonb, which is
-      // what the CSV's own column already expects.
-      refunded_at: null,
-    };
-  });
-
-  const org = ev.organizations as unknown as {
-    name: string; fee_mode: "absorb" | "pass_on";
-    commission_type: string; commission_rate: number | null; commission_flat_cents: number;
-  };
+  const rows = toSettlementRows(pays, names);
   const totals = settlementTotals(rows);
 
-  let projected: { low: number; high: number } | null = null;
-  if (org.fee_mode === "absorb" && rows.length > 0) {
-    // A failed rate read costs the page its projection banner, nothing else —
-    // the banner is a forecast, not a ledger figure. Logged so it is not silent.
+  const org = ev.organizations as unknown as { name: string; fee_mode: "absorb" | "pass_on" };
+
+  let projected: EventSettlement["projected"] = null;
+  if (org.fee_mode === "absorb") {
+    // A failed read costs the page its projection banner and nothing else — a
+    // forecast is not a ledger figure. Logged so neither failure is silent.
     if (ratesRes.error) console.error("getEventSettlement processor_rates read failed", ratesRes.error);
-    const local = (ratesRes.data ?? []).filter((r) => r.scope === "local") as ProcessorRateLite[];
-    if (local.length > 0) {
-      const cost = (r: ProcessorRateLite) => r.percent_bps * 100 + r.fixed_cents;
-      const cheap = local.reduce((a, b) => (cost(a) <= cost(b) ? a : b));
-      const dear = local.reduce((a, b) => (cost(a) >= cost(b) ? a : b));
-      const paid = rows.filter((r) => r.status !== "refunded");
-      const avg = paid.length
-        ? Math.round(paid.reduce((s, r) => s + r.gross_paid, 0) / paid.length) : 0;
-      const comm = paid.length
-        ? Math.round(paid.reduce((s, r) => s + r.rp_commission, 0) / paid.length) : 0;
-      projected = projectedRange(paid.length, avg, comm, { cheap, dear });
+    if (catsRes.error) console.error("getEventSettlement categories read failed", catsRes.error);
+
+    const { avgEntry: avg, avgCommission: comm } = soldAverages(rows);
+    const remaining = remainingCapacity(
+      (catsRes.data ?? []) as { slots_total: number; slots_taken: number }[],
+    );
+    const rates = forecastRates((ratesRes.data ?? []) as ProcessorRateCandidate[], avg);
+
+    if (remaining !== null && rates) {
+      // totals.net is the EXACT money already banked; only the unsold entries
+      // are forecast. Null back means there is nothing left to forecast, and the
+      // page then shows no band at all rather than one around a known figure.
+      const range = projectedRange(totals.net, remaining, avg, comm, rates);
+      if (range) projected = { ...range, remaining };
     }
   }
 

@@ -349,7 +349,13 @@ describe("settlement RLS isolation", () => {
         .select("registration_id,net_to_org,registrations!inner(event_id)")
         .eq("registrations.event_id", eventId);
 
-      expect((await asPage(b.ev.id)).data ?? []).toHaveLength(0);
+      // `toHaveLength(0)` on its own passes VACUOUSLY if the query errors — a
+      // renamed column or a malformed embed would return no rows and read as
+      // perfect isolation. The error assertion is what makes the empty result
+      // mean "RLS filtered them", same as the sibling assertion above.
+      const other = await asPage(b.ev.id);
+      expect(other.error).toBeNull();
+      expect(other.data ?? []).toHaveLength(0);
 
       // The control. Same query, own event — must return the row, or the
       // isolation assertion above proves nothing.

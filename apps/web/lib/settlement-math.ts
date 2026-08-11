@@ -8,6 +8,11 @@ import type { SettlementRow } from "@/lib/settlement-csv";
  * in `lib/queries/settlement.ts` re-exports everything here, which keeps the
  * page's import list short without dragging server-only modules into the
  * browser bundle. Same split, and same reason, as `lib/commission-terms.ts`.
+ *
+ * Everything that DECIDES a figure lives here rather than beside the query, on
+ * purpose: `lib/queries/settlement.ts` cannot be unit-tested at all (it reaches
+ * next/headers through the Supabase server client), so every line left in it is
+ * a line no test can hold. What remains there is fetching and nothing else.
  */
 
 export type ProcessorRateLite = { percent_bps: number; fixed_cents: number };
@@ -36,26 +41,211 @@ export function settlementTotals(rows: SettlementRow[]): SettlementTotals {
   return t;
 }
 
+/** One `payments` row as the settlement read model selects it. */
+export type SettlementPayment = {
+  registration_id: string;
+  amount: number;
+  platform_fee: number;
+  processor_fee_cents: number;
+  processor_fee_source: string;
+  net_to_org: number;
+  status: string;
+  refunded_amount: number;
+  method: string | null;
+  created_at: string;
+  registrations: {
+    user_id: string | null;
+    categories: { label: string } | null;
+  } | null;
+};
+
+/** The two name columns on `profiles`, in fallback order. */
+export type RunnerName = { full_name: string | null; bib_name: string | null };
+
 /**
- * What the organizer will be paid, cheapest to dearest payment method.
+ * A payment row as the organizer's settlement table and CSV show it.
  *
- * In absorb mode the organizer bears processing, so their net genuinely depends
- * on how runners choose to pay: a ₱2,000 entry costs ₱30 on GCash and ₱85 on a
- * card. Across 500 entries that is ₱27,500 they cannot forecast.
+ * This mapping is pure and lives here — NOT beside the query — because of the
+ * one line inside it. `processor_fee_source = 'historical'` marks a real
+ * processing fee that the PLATFORM absorbed under pre-2026-08-11 terms
+ * (20260811090000's column comment), so it was never deducted from the
+ * organizer: `net_to_org` on such a row deliberately violates
+ * `amount - processor_fee - commission`. Reporting the stored fee in the
+ * organizer's "Payment processing" column would bill them for a cost they never
+ * bore AND break the page's own waterfall for exactly those rows.
+ * `payout_open_statement` applies the identical filter (20260811095000), and
+ * these two must agree or an organizer's page disagrees with their statement.
  *
- * Stating the range up front is the whole point. An organizer who discovers the
- * swing at settlement experiences it as an unexplained shortfall.
+ * Names are resolved from a map rather than embedded in the payments select:
+ * there is no foreign key from `registrations` to `profiles` (user_id points at
+ * auth.users, profiles.id points at auth.users separately), so PostgREST cannot
+ * embed them. See `lib/queries/settlement.ts`.
+ */
+export function toSettlementRow(
+  p: SettlementPayment,
+  names: ReadonlyMap<string, RunnerName>,
+): SettlementRow {
+  const who = p.registrations?.user_id ? names.get(p.registrations.user_id) : undefined;
+  // `.trim() ||` rather than `??`: an empty full_name is present-but-useless and
+  // would otherwise render a blank cell in the middle of a money table.
+  const runner_name =
+    (who?.full_name ?? "").trim() || (who?.bib_name ?? "").trim() || "Unknown runner";
+  return {
+    registration_id: p.registration_id,
+    runner_name,
+    category: p.registrations?.categories?.label ?? "—",
+    // `payments` has no paid_at column; created_at is the row's creation, which
+    // for a paid row is when its checkout was opened. Close enough to date-stamp
+    // the entry, and only ever shown for rows that really did pay — the read
+    // model filters status before this mapping ever sees them.
+    paid_at: p.created_at,
+    method: p.method,
+    gross_paid: p.amount,
+    rp_commission: p.platform_fee,
+    processing_fee: p.processor_fee_source === "historical" ? 0 : p.processor_fee_cents,
+    net_to_org: p.net_to_org,
+    status: p.status,
+    refunded_amount: p.refunded_amount,
+    // `payments` has no refunded_at column either — the refund RPCs stamp it
+    // into `raw` (20260807090400). Left null rather than dug out of jsonb.
+    refunded_at: null,
+  };
+}
+
+export function toSettlementRows(
+  pays: SettlementPayment[],
+  names: ReadonlyMap<string, RunnerName>,
+): SettlementRow[] {
+  return pays.map((p) => toSettlementRow(p, names));
+}
+
+/** A rate-card row as the forecast reads it. */
+export type ProcessorRateCandidate = ProcessorRateLite & {
+  scope: string;
+  offered: boolean;
+  note: string | null;
+};
+
+/** What one entry costs to process at a given rate, at THIS event's price. */
+function processorCost(entryCents: number, r: ProcessorRateLite): number {
+  return Math.round((entryCents * r.percent_bps) / 10000) + r.fixed_cents;
+}
+
+/**
+ * The cheapest and dearest rate an organizer's runners can actually reach.
+ *
+ * Two filters, and both are load-bearing:
+ *
+ * 1. `offered` — a runner can only pick what METHOD_MAP offers
+ *    (payment-session/index.ts: card, gcash, maya). The rate card seeds more
+ *    than that so enabling a method is a UI change rather than a schema change,
+ *    and ranking over all of them made `dob` at 80 bps the cheapest — quoting an
+ *    optimistic end of a money forecast that no runner could reach.
+ * 2. `note` mentioning UNCONFIRMED — independent of `offered`, and deliberately
+ *    so. A row whose own seed note says the figure is unconfirmed has no place
+ *    at either end of a number an organizer will plan around; if such a method
+ *    is ever enabled, the note comes off when the rate is confirmed from real
+ *    settlements, not when the button is added.
+ *
+ * Ranked at the event's own average entry, not at a notional one. `percent_bps`
+ * alone would misorder a future rate with a small percentage and a large fixed
+ * fee on a cheap event — 0 bps + ₱20 beats 350 bps only above ₱571.
+ */
+export function forecastRates(
+  rows: ProcessorRateCandidate[],
+  entryCents: number,
+  scope = "local",
+): { cheap: ProcessorRateLite; dear: ProcessorRateLite } | null {
+  const usable = rows.filter(
+    (r) => r.scope === scope && r.offered && !/unconfirmed/i.test(r.note ?? ""),
+  );
+  if (usable.length === 0) return null;
+  const cost = (r: ProcessorRateLite) => processorCost(entryCents, r);
+  const cheap = usable.reduce((a, b) => (cost(a) <= cost(b) ? a : b));
+  const dear = usable.reduce((a, b) => (cost(a) >= cost(b) ? a : b));
+  return {
+    cheap: { percent_bps: cheap.percent_bps, fixed_cents: cheap.fixed_cents },
+    dear: { percent_bps: dear.percent_bps, fixed_cents: dear.fixed_cents },
+  };
+}
+
+/**
+ * Entries this event can still sell, or `null` when that is not knowable.
+ *
+ * `slots_total` defaults to 0 (20260718182858), so "no capacity configured" and
+ * "sold out" are the same zero on a category read in isolation. They are told
+ * apart at the event level: an event whose categories sum to zero total slots
+ * has not configured capacity, and `null` says so rather than claiming it is
+ * full. Both cases end the same way on the page — no forecast — but only one of
+ * them is a fact.
+ */
+export function remainingCapacity(
+  cats: { slots_total: number; slots_taken: number }[],
+): number | null {
+  if (cats.length === 0) return null;
+  const total = cats.reduce((s, c) => s + c.slots_total, 0);
+  if (total <= 0) return null;
+  const taken = cats.reduce((s, c) => s + c.slots_taken, 0);
+  return Math.max(0, total - taken);
+}
+
+/**
+ * What this event's next entry is worth, judged by the ones already sold.
+ *
+ * Refunded rows are excluded from both means. They tell you what an entry
+ * fetched, but not what the organizer kept — their commission went back with the
+ * refund — and a forecast of future net that averaged in a returned commission
+ * would understate every unsold entry.
+ *
+ * Zeroes when nothing has sold, which `projectedRange` reads as "no basis" and
+ * answers with no forecast at all.
+ */
+export function soldAverages(
+  rows: SettlementRow[],
+): { avgEntry: number; avgCommission: number } {
+  const sold = rows.filter((r) => r.status !== "refunded");
+  if (sold.length === 0) return { avgEntry: 0, avgCommission: 0 };
+  const mean = (pick: (r: SettlementRow) => number) =>
+    Math.round(sold.reduce((s, r) => s + pick(r), 0) / sold.length);
+  return { avgEntry: mean((r) => r.gross_paid), avgCommission: mean((r) => r.rp_commission) };
+}
+
+/**
+ * What the organizer ends up with once the entries they have NOT yet sold sell.
+ *
+ * The forecast is over the unknown part only. `bankedNet` is the exact net from
+ * entries already paid — it is not estimated, not ranged, and it appears at both
+ * ends of the band unchanged. Only the remaining capacity moves.
+ *
+ * This is the correction to a projection that used to forecast money already
+ * collected: a one-entry event read "Projected net ₱1,855–₱1,924" directly under
+ * a summary card stating "Net to you ₱1,910", because the range was struck over
+ * runners who had already chosen how to pay. Nothing about them is unknown.
+ *
+ * In absorb mode the organizer bears processing, so a ₱2,000 entry nets them
+ * ₱1,970 on GCash and ₱1,915 on a card. Across 500 unsold entries that is
+ * ₱27,500 they cannot forecast — and an organizer who first meets that swing at
+ * settlement experiences it as an unexplained shortfall.
+ *
+ * Returns `null` — no band at all — when there is nothing left to forecast:
+ * capacity is full or unconfigured (`remaining <= 0`), or no entry has sold yet
+ * so there is no price to extrapolate from (`avgEntry <= 0`). A band around a
+ * figure that is already exact only casts doubt on a known number.
  */
 export function projectedRange(
-  paidCount: number,
+  bankedNet: number,
+  remaining: number,
   avgEntry: number,
-  commissionCents: number,
+  avgCommission: number,
   rates: { cheap: ProcessorRateLite; dear: ProcessorRateLite },
-): { low: number; high: number } {
-  if (paidCount <= 0) return { low: 0, high: 0 };
-  const per = (r: ProcessorRateLite) =>
-    avgEntry - commissionCents - (Math.round((avgEntry * r.percent_bps) / 10000) + r.fixed_cents);
-  return { low: per(rates.dear) * paidCount, high: per(rates.cheap) * paidCount };
+): { low: number; high: number } | null {
+  if (remaining <= 0 || avgEntry <= 0) return null;
+  const per = (r: ProcessorRateLite) => avgEntry - avgCommission - processorCost(avgEntry, r);
+  // The CHEAPEST rate produces the HIGHEST net: less is taken out per entry.
+  return {
+    low: bankedNet + per(rates.dear) * remaining,
+    high: bankedNet + per(rates.cheap) * remaining,
+  };
 }
 
 /**

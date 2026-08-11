@@ -73,13 +73,23 @@ export default async function SettlementPage({
         </dl>
       </Card>
 
-      {s.projected ? (
+      {/* `!== null`, not a truthiness check: `{low: 0, high: 0}` is an OBJECT and
+          therefore truthy, which is how an all-refunded event used to render
+          "Projected net ₱0–₱0". The read model now returns null whenever there
+          is nothing left to forecast — sold out, capacity never configured, or
+          no entry sold yet to extrapolate a price from — and null is the whole
+          signal: the net above is exact, and a band around a known number only
+          casts doubt on it. */}
+      {s.projected !== null ? (
         <p className="mb-4 rounded-[9px] border border-l-[3px] border-l-primary bg-card px-3.5 py-[11px] text-[13px] text-muted-foreground">
           <b className="font-semibold text-foreground">
-            Projected net {peso(s.projected.low)}–{peso(s.projected.high)}
+            Projected total {peso(s.projected.low)}–{peso(s.projected.high)}
           </b>{" "}
-          depending on how runners pay. Your organization absorbs payment processing, and a card
-          costs more to process than an e-wallet — so the final figure moves with the payment mix.
+          if the {s.projected.remaining} remaining{" "}
+          {s.projected.remaining === 1 ? "entry sells" : "entries sell"} at your current average
+          entry price. The {peso(s.totals.net)} above is already banked and exact — only the unsold
+          entries are a range, because your organization absorbs payment processing and a card
+          costs more to process than an e-wallet.
         </p>
       ) : null}
 
