@@ -253,7 +253,13 @@ describe("describeRateDrift", () => {
     const all = Object.values(n).join(" ");
     expect(all).not.toMatch(/rate has changed|has been repriced|provider (has )?raised/i);
     expect(n.headline).toBe("Card payments are costing more than the rate card predicts.");
-    expect(n.observation).toBe("The last 18 of 20 implied 4.50%, against the local rate card's 3.50%.");
+    // "18 OF THE LAST 20", not "the last 18 of 20". `disagreeing` is
+    // greatest(over, under) WITHIN the sample, not its most recent slice — the
+    // recency phrasing made a claim about rows the view never identified.
+    expect(n.observation).toBe(
+      "18 of the last 20 Card payments came in higher than predicted; " +
+      "the median across the sample implied 4.50%, against the local rate card's 3.50%.",
+    );
   });
 
   it("names the explanation the sample cannot rule out, and asks for a check", () => {
@@ -277,6 +283,28 @@ describe("describeRateDrift", () => {
     expect(n.headline).toContain("costing less");
     expect(n.money).toContain("over-collected ₱1,000");
     expect(n.money).not.toContain("-₱");
+  });
+
+  it("takes its direction from the RATES, so a sample that nets to zero still reads right", () => {
+    // 16 payments ₱2 over and 4 payments ₱8 under: `drifting` fires (16 of 20 in
+    // the dominant direction, over the 80% floor) while delta_cents sums to
+    // EXACTLY ZERO. Reading the sign of the money gave "costing less … Race Pace
+    // over-collected ₱0" — wrong direction and a meaningless amount, in one
+    // sentence. The rate comparison still points the right way.
+    const n = describeRateDrift({ ...CARD_DRIFT, disagreeing: 16, delta_cents: 0 }, "Card");
+    expect(n.headline).toBe("Card payments are costing more than the rate card predicts.");
+    expect(n.money).not.toContain("₱0");
+    expect(n.money).toMatch(/cancelled out across the sample, so nothing was absorbed on balance/);
+    expect(n.money).toMatch(/Organizers were paid in full/);
+  });
+
+  it("picks no direction at all when neither the rates nor the totals point anywhere", () => {
+    // The degenerate flag: the sample disagrees consistently and cancels
+    // perfectly, at the same median as the card. Guessing a direction here would
+    // be inventing one.
+    const n = describeRateDrift({ ...CARD_DRIFT, median_implied_bps: 350, delta_cents: 0 }, "Card");
+    expect(n.headline).toBe("Card payments are not matching the rate card, in both directions.");
+    expect(n.observation).toContain("came in differently than predicted");
   });
 
   it("falls back to the raw method when no label is supplied", () => {

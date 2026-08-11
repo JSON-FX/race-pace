@@ -298,6 +298,19 @@ export async function getCommissionOverview(): Promise<CommissionOverview> {
  * The view is `security_invoker`, so a super admin's sample is platform-wide
  * while an org admin's would be computed from their own payments only. This page
  * is super-admin-gated, so in practice it is always the former.
+ *
+ * DEGRADES TO SILENCE, AND DOES NOT THROW. Unlike `getCommissionOverview`, whose
+ * failure means the page has nothing to render, this one is ADVISORY: the reason
+ * an operator opens /commission is the fee and refund tables, not the banner.
+ * These two are awaited together in one `Promise.all`, so a `throw` here would
+ * 500 the whole page and take the terms editors down with it — and the most
+ * likely cause is `processor_rate_drift_v` not existing yet, which is precisely
+ * the state of any environment that has not had `db push` run since
+ * 20260811096000. A decorative banner must never be able to do that.
+ *
+ * Logged, never swallowed silently: an empty banner area and an empty log would
+ * be indistinguishable from "no method is drifting", which is the reading that
+ * suppresses the alarm.
  */
 export async function getRateDrift(): Promise<RateDrift[]> {
   const supabase = await createClient();
@@ -305,7 +318,16 @@ export async function getRateDrift(): Promise<RateDrift[]> {
     .from("processor_rate_drift_v")
     .select("method,scope,sample_size,disagreeing,median_implied_bps,card_bps,delta_cents,drifting")
     .eq("drifting", true);
-  if (error) throw error;
+  if (error) {
+    console.error("[commission] rate drift unavailable — banner suppressed", {
+      view: "processor_rate_drift_v",
+      code: (error as { code?: string }).code,
+      message: error.message,
+      details: (error as { details?: string }).details,
+      hint: (error as { hint?: string }).hint,
+    });
+    return [];
+  }
   return ((data ?? []) as RateDrift[]).map((d) => ({
     ...d,
     // delta_cents is `bigint`, which PostgREST serialises as a JSON number here

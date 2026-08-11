@@ -1,10 +1,25 @@
 import { describe, it, expect } from "vitest";
 import { createClient } from "@supabase/supabase-js";
+import { Client } from "pg";
+import { createHmac } from "node:crypto";
 import { loadEnv } from "../../test/env";
 import { reportedProcessorFee } from "../functions/_shared/confirm.ts";
 
-const { url, anonKey, serviceKey } = loadEnv();
+const { url, anonKey, serviceKey, dbUrl, jwtSecret } = loadEnv();
 const svc = () => createClient(url, serviceKey, { auth: { persistSession: false } });
+
+const b64url = (v: object) => Buffer.from(JSON.stringify(v)).toString("base64url");
+
+/** A token PostgREST will accept, with whatever claims are asked for — including
+ *  claims GoTrue would never issue. Used to pose the caller a fail-open guard
+ *  would have let through: `role: authenticated` with no `sub`. */
+function mintJwt(claims: Record<string, unknown>): string {
+  const now = Math.floor(Date.now() / 1000);
+  const header = b64url({ alg: "HS256", typ: "JWT" });
+  const payload = b64url({ iss: "supabase-demo", iat: now, exp: now + 3600, ...claims });
+  const sig = createHmac("sha256", jwtSecret).update(`${header}.${payload}`).digest("base64url");
+  return `${header}.${payload}.${sig}`;
+}
 
 describe("processor fee columns", () => {
   it("defaults a new payment to zero fee from an unknown source", async () => {
@@ -131,9 +146,144 @@ describe("processor fee columns", () => {
         const noop = await oa.from("organizations")
           .update({ fee_mode: "absorb" }).eq("id", SEED_ORG).select("id,fee_mode");
         expect(noop.error).toBeNull();
+        // The row count, not just the absence of an error. A regression that
+        // turned this into an RLS-blocked write would report success with zero
+        // rows, and "no error" alone would sail straight past it.
+        expect(noop.data).toHaveLength(1);
+        expect(noop.data![0].fee_mode).toBe("absorb");
       } finally {
         await svc().from("organizations").update({ logo_url: before.logo_url }).eq("id", SEED_ORG);
       }
+    });
+
+    /**
+     * THE INVARIANT THE MIGRATION ACTUALLY EXISTS TO DEFEND, which none of the
+     * behavioural tests above would catch.
+     *
+     * 20260811097000's stated headline risk is table-level grant drift — this
+     * repo has hit it three times (branding, rename, commercial terms). But
+     * every fee_mode assertion above would still pass if a future migration
+     * wrote `grant update on organizations to authenticated`: fee_mode would
+     * keep behaving correctly (the trigger sees to that) while `is_active`,
+     * `slug` and every other column quietly became writable by any org admin.
+     *
+     * Read straight out of the catalog rather than inferred from behaviour,
+     * because that is where the drift happens. supabase-js cannot run arbitrary
+     * SQL, so this goes through `pg` on DB_URL — the same escape hatch
+     * registration-gate.test.ts uses.
+     */
+    describe("the organizations UPDATE grant stays column-scoped", () => {
+      /** Every column `authenticated` is deliberately allowed to write, and why:
+       *  branding (20260724130000), rename (20260806180000), commercial terms
+       *  (20260807090600), fee mode (20260811097000). */
+      const GRANTED = [
+        "logo_url", "banner_url", "name",
+        "commission_type", "commission_rate", "commission_flat_cents",
+        "refund_policy", "refund_fee_cents",
+        "fee_mode",
+      ];
+
+      async function withPg<T>(fn: (c: Client) => Promise<T>): Promise<T> {
+        const c = new Client({ connectionString: dbUrl });
+        await c.connect();
+        try { return await fn(c); } finally { await c.end(); }
+      }
+
+      it("does not let authenticated write is_active or slug", async () => {
+        // The two that matter most if the grant ever goes table-level:
+        // `is_active` gates `orgs_read_active`, so an org admin flipping it
+        // hides or resurrects an organization platform-wide; `slug` is the
+        // public identity every URL is built from.
+        const rows = await withPg((c) => c.query<{ col: string; can: boolean }>(
+          `select col, has_column_privilege('authenticated','public.organizations',col,'UPDATE') as can
+             from unnest($1::text[]) as col`,
+          [["is_active", "slug", "id", "created_at"]],
+        ).then((r) => r.rows));
+        for (const r of rows) {
+          expect(r.can, `authenticated can UPDATE organizations.${r.col}`).toBe(false);
+        }
+      });
+
+      it("keeps the write set to exactly the columns four migrations granted", async () => {
+        // Enumerated, not spot-checked. A table-level grant makes this list the
+        // whole table and fails loudly; a NEW column added to the grant without
+        // a decision fails here too, which is the point — every entry above is
+        // traceable to a migration that argued for it.
+        const granted = await withPg((c) => c.query<{ column_name: string }>(
+          `select column_name
+             from information_schema.column_privileges
+            where grantee = 'authenticated'
+              and table_schema = 'public'
+              and table_name = 'organizations'
+              and privilege_type = 'UPDATE'
+            order by column_name`,
+        ).then((r) => r.rows.map((x) => x.column_name)));
+        expect(granted.sort()).toEqual([...GRANTED].sort());
+      });
+    });
+
+    /**
+     * ITEM 3: the trigger's exemption must be FAIL-CLOSED.
+     *
+     * An earlier version exempted `auth.uid() is null`, which is fail-open — the
+     * guard would silently switch off for any caller reaching Postgres without a
+     * `sub`, and "silently off" is the failure this whole migration exists to
+     * prevent. The exemption is now stated by ROLE: only roles that already
+     * bypass RLS get past it.
+     */
+    describe("the trigger exemption is reachable only by RLS-bypassing roles", () => {
+      it("does not exempt authenticated or anon in the catalog", async () => {
+        const c = new Client({ connectionString: dbUrl });
+        await c.connect();
+        try {
+          const { rows } = await c.query<{ rolname: string; exempt: boolean }>(
+            `select rolname, (rolbypassrls or rolsuper) as exempt
+               from pg_roles
+              where rolname in ('anon','authenticated','authenticator','service_role','postgres')`,
+          );
+          const by = Object.fromEntries(rows.map((r) => [r.rolname, r.exempt]));
+          // The guarded set. `authenticated` is every signed-in user, so if it
+          // ever gained BYPASSRLS the trigger would stop applying to the console
+          // itself — and so would every RLS policy in the schema.
+          expect(by.authenticated).toBe(false);
+          expect(by.anon).toBe(false);
+          expect(by.authenticator).toBe(false);
+          // The exempt set: trusted infrastructure only.
+          expect(by.service_role).toBe(true);
+          expect(by.postgres).toBe(true);
+        } finally {
+          await c.end();
+        }
+      });
+
+      it("does not let an authenticated caller carrying NO sub claim move fee_mode", async () => {
+        // The literal shape of the fail-open case: a token signed with the
+        // project secret, `role: authenticated`, and no `sub` at all, so
+        // auth.uid() is null. The old `auth.uid() is null` exemption was written
+        // to wave exactly this caller through, with a real UPDATE grant behind
+        // it.
+        //
+        // TWO LOCKS, AND THIS ASSERTS THE OUTCOME OF BOTH. In today's schema the
+        // RLS layer refuses first — organizations' UPDATE policies are
+        // `auth_can_admin_org(id)` and `auth_is_super_admin()`, both of which
+        // need a uid — so the statement matches ZERO ROWS and the trigger is
+        // never reached. That is why this expects an empty result rather than
+        // 42501; asserting the error code would be asserting the wrong lock.
+        //
+        // The role-based exemption is what keeps that outcome true if the first
+        // lock ever loosens: a permissive UPDATE policy added for some unrelated
+        // reason would immediately make `auth.uid() is null` a live bypass,
+        // while `rolbypassrls` on `authenticated` stays false regardless.
+        const noSub = createClient(url, anonKey, {
+          auth: { persistSession: false },
+          global: { headers: { Authorization: `Bearer ${mintJwt({ role: "authenticated" })}` } },
+        });
+        const res = await noSub.from("organizations")
+          .update({ fee_mode: "pass_on" }).eq("id", SEED_ORG).select("id,fee_mode");
+        expect(res.data ?? []).toHaveLength(0);
+        const after = await svc().from("organizations").select("fee_mode").eq("id", SEED_ORG).single();
+        expect(after.data!.fee_mode).toBe("absorb");
+      });
     });
   });
 

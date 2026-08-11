@@ -12,6 +12,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
  * that records the money, and keeping "charged" apart from "retained".
  */
 let byTable: Record<string, unknown[]> = {};
+/** Tables that should answer with a Postgres error instead of rows. */
+let errorByTable: Record<string, { code?: string; message: string }> = {};
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: async () => ({
@@ -22,13 +24,17 @@ vi.mock("@/lib/supabase/server", () => ({
       // themselves are enforced (and tested) in Postgres.
       ["select", "order", "in", "is", "eq"].forEach((m) => { builder[m] = () => builder; });
       (builder as { then: unknown }).then = (resolve: (v: unknown) => unknown) =>
-        resolve({ data: byTable[table] ?? [], error: null });
+        resolve(
+          errorByTable[table]
+            ? { data: null, error: errorByTable[table] }
+            : { data: byTable[table] ?? [], error: null },
+        );
       return builder;
     },
   }),
 }));
 
-import { getCommissionOverview } from "./commission";
+import { getCommissionOverview, getRateDrift } from "./commission";
 
 const ORG = "org-1";
 const EV = "ev-1";
@@ -41,6 +47,7 @@ const PARTIAL = { ...PAID, status: "partially_refunded", refunded_amount: 161000
 const REFUNDED = { ...PAID, status: "refunded", refunded_amount: 191000 };
 
 beforeEach(() => {
+  errorByTable = {};
   byTable = {
     organizations: [{
       id: ORG, name: "RunWithPoint", created_at: null,
@@ -139,5 +146,59 @@ describe("getCommissionOverview — charged vs retained", () => {
     expect(orgs[0].avg_entry_cents).toBe(0);
     expect(totals.refunded_cents).toBe(0);
     expect(totals.charged_gross).toBe(0);
+  });
+});
+
+describe("getRateDrift — advisory, and never able to take the page down", () => {
+  const DRIFT = {
+    method: "card", scope: "local", sample_size: 20, disagreeing: 18,
+    median_implied_bps: 450, card_bps: 350, delta_cents: 22000, drifting: true,
+  };
+
+  it("returns the flagged rows, with delta_cents as a number", async () => {
+    // delta_cents is `bigint`. PostgREST serialises it as a JSON number here,
+    // but some drivers hand back a string — and `peso("22000")` downstream would
+    // render nonsense rather than fail.
+    byTable.processor_rate_drift_v = [{ ...DRIFT, delta_cents: "22000" as unknown as number }];
+    const rows = await getRateDrift();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].delta_cents).toBe(22000);
+  });
+
+  it("degrades to no banner — not a 500 — when the view is missing or errors", async () => {
+    // THE FAILURE THIS GUARDS. getRateDrift is awaited in the same Promise.all
+    // as getCommissionOverview, so a throw here would take out the fee and
+    // refund tables — the actual reason anyone opens /commission — on behalf of
+    // a decorative banner. The most likely cause is the most mundane one: the
+    // view does not exist yet in an environment that has not had `db push` run
+    // since 20260811096000.
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    errorByTable.processor_rate_drift_v = {
+      code: "42P01", message: 'relation "public.processor_rate_drift_v" does not exist',
+    };
+
+    await expect(getRateDrift()).resolves.toEqual([]);
+
+    // Logged, never silent: an empty banner area with an empty log is
+    // indistinguishable from "no method is drifting", which is the reading that
+    // suppresses the alarm.
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("[commission]"),
+      expect.objectContaining({ code: "42P01", view: "processor_rate_drift_v" }),
+    );
+    errorSpy.mockRestore();
+  });
+
+  it("still renders the terms tables when drift is unavailable", async () => {
+    // The consequence stated as the page sees it: the overview query is
+    // untouched by the drift failure, because the two no longer share a fate.
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    errorByTable.processor_rate_drift_v = { code: "42501", message: "permission denied" };
+
+    const [overview, drift] = await Promise.all([getCommissionOverview(), getRateDrift()]);
+    expect(drift).toEqual([]);
+    expect(overview.orgs).toHaveLength(1);
+    expect(overview.totals.charged_gross).toBe(400000);
+    errorSpy.mockRestore();
   });
 });

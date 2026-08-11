@@ -305,23 +305,51 @@ const bpsLabel = (bps: number): string => `${(bps / 100).toFixed(2)}%`;
  * difference is Race Pace's, not the organizer's.
  */
 export function describeRateDrift(d: RateDrift, methodLabel = d.method): DriftNotice {
-  // delta_cents is Σ(actual − predicted), so positive means the provider took
-  // MORE than the rate card said. Direction, not just magnitude: an
-  // over-collection is a refund problem and an under-collection is a margin
-  // problem, and they read as opposite instructions.
-  const costingMore = d.delta_cents > 0;
+  // DIRECTION COMES FROM THE RATES, NOT FROM THE MONEY. The headline is about
+  // what a payment costs, so it is struck on median implied vs carded bps.
+  //
+  // delta_cents cannot carry it alone, because `drifting` counts payments in the
+  // dominant direction while delta_cents SUMS signed differences over the whole
+  // sample: 16 rows at +₱2 and 4 rows at −₱8 flags (16 of 20, over 80%) with a
+  // delta of exactly ₱0. Reading the sign of that gave "costing less … Race Pace
+  // over-collected ₱0", which is wrong twice in one sentence.
+  const rateDelta = d.median_implied_bps - d.card_bps;
+  // Falls back to the money only when the two rates are equal to the basis point
+  // — reachable when the difference lives in the card's fixed component.
+  const direction = rateDelta !== 0 ? Math.sign(rateDelta) : Math.sign(d.delta_cents);
   const amount = peso(Math.abs(d.delta_cents));
 
+  const headline =
+    direction > 0
+      ? `${methodLabel} payments are costing more than the rate card predicts.`
+      : direction < 0
+        ? `${methodLabel} payments are costing less than the rate card predicts.`
+        // Neither the rates nor the totals point anywhere: the sample disagrees
+        // consistently enough to flag, and cancels out. Say that, rather than
+        // picking a direction by accident.
+        : `${methodLabel} payments are not matching the rate card, in both directions.`;
+
+  // Every sentence about the sample is what the view actually computed.
+  // `disagreeing` is greatest(over, under) WITHIN the last `sample_size`
+  // payments, not the most recent N of them — "the last 18 of 20" read as a
+  // recency slice and was the wrong claim about the wrong rows.
+  const moved = direction > 0 ? "higher" : direction < 0 ? "lower" : "differently";
+
   return {
-    headline: `${methodLabel} payments are costing ${costingMore ? "more" : "less"} than the rate card predicts.`,
+    headline,
     observation:
-      `The last ${d.disagreeing} of ${d.sample_size} implied ${bpsLabel(d.median_implied_bps)}, ` +
+      `${d.disagreeing} of the last ${d.sample_size} ${methodLabel} payments came in ${moved} than predicted; ` +
+      `the median across the sample implied ${bpsLabel(d.median_implied_bps)}, ` +
       `against the ${d.scope} rate card's ${bpsLabel(d.card_bps)}.`,
-    money: costingMore
-      ? `Race Pace under-collected ${amount} across those payments and absorbed it. ` +
-        "Organizers were paid in full and no report is wrong — the ledger records what was actually charged."
-      : `Race Pace over-collected ${amount} across those payments. ` +
-        "Organizers were paid in full and no report is wrong — the ledger records what was actually charged.",
+    money:
+      d.delta_cents > 0
+        ? `Race Pace under-collected ${amount} across those payments and absorbed it. ` +
+          "Organizers were paid in full and no report is wrong — the ledger records what was actually charged."
+        : d.delta_cents < 0
+          ? `Race Pace over-collected ${amount} across those payments. ` +
+            "Organizers were paid in full and no report is wrong — the ledger records what was actually charged."
+          : "The over- and under-collections cancelled out across the sample, so nothing was absorbed on balance. " +
+            "Organizers were paid in full and no report is wrong — the ledger records what was actually charged.",
     // The sentence that keeps this from being a claim.
     caveat:
       "This does not on its own mean the provider repriced. Payments carry no local/international marker, " +

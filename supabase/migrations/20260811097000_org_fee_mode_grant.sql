@@ -2,6 +2,13 @@
 -- Commission console. Two things were in the way, and only the first was
 -- expected.
 --
+-- (§3 below was revised after review, IN PLACE rather than as a follow-up
+-- migration. That is only safe because this version has never been applied
+-- anywhere but a local stack that `db reset` replays from scratch — `db push`
+-- skips a version it has already recorded regardless of content, so editing a
+-- file that HAS reached hosted silently diverges from what is live. See
+-- 20260808120000's header for the incident that established the rule.)
+--
 -- ---------------------------------------------------------------------------
 -- 1. THE MISSING COLUMN GRANT
 -- ---------------------------------------------------------------------------
@@ -72,33 +79,80 @@ grant update (fee_mode) on organizations to authenticated;
 -- What IS in scope is not making it worse. A BEFORE UPDATE trigger is the only
 -- mechanism that can express "this one column, only for this one caller", since
 -- a policy cannot see the column list and cannot compare OLD to NEW.
+--
+-- ---------------------------------------------------------------------------
+-- 3. WHY THE EXEMPTION IS BY ROLE AND NOT BY `auth.uid() is null`
+-- ---------------------------------------------------------------------------
+-- The obvious way to let migrations and the service key through is
+-- `auth.uid() is null` — auth.uid() reads `request.jwt.claims->>'sub'`, which is
+-- absent for both. It is also FAIL-OPEN, and fail-open is the exact failure mode
+-- this file exists to prevent: the guard would be silently disabled for ANY
+-- caller reaching Postgres without a `sub`, including a signed `authenticated`
+-- token that simply has no `sub` claim, and including any future server path
+-- that writes with the service key without forwarding the end user's JWT.
+--
+-- So the exemption is stated in terms of WHO IS CONNECTED rather than what a
+-- claim happens to say. `rolbypassrls or rolsuper` is exactly the set of roles
+-- that already ignore row-level security, i.e. the ones for which this guard was
+-- never going to be the boundary anyway:
+--
+--   rolname       | rolsuper | rolbypassrls     reachable how
+--   --------------+----------+-------------     -------------------------------
+--   postgres      | f        | t                migrations, seed.sql, db reset
+--   supabase_admin| t        | t                platform internals, restores
+--   service_role  | f        | t                the service key
+--   authenticator | f        | f                PostgREST's login role
+--   authenticated | f        | f                every signed-in user  <- guarded
+--   anon          | f        | f                (no UPDATE grant at all)
+--
+-- `authenticated` does not bypass RLS, so it can NEVER reach the exemption —
+-- with a `sub`, without one, or with a forged-but-unsigned one. It always falls
+-- through to auth_is_super_admin(). Pinned by processor-fee-ledger.test.ts,
+-- which mints an `authenticated` JWT carrying NO `sub` and asserts it is still
+-- refused, and which reads rolbypassrls straight out of pg_roles.
+--
+-- IF YOU ARE ADDING A SERVER PATH THAT WRITES organizations WITH THE SERVICE
+-- KEY: it will bypass this guard, by design and by role. That is fine for a
+-- trusted backend job and is not fine for anything that takes a fee_mode value
+-- from a request. Route user-driven writes through an authenticated session so
+-- the guard applies.
+--
+-- SECURITY INVOKER, not definer — and here that is load-bearing rather than
+-- hygiene. `current_user` under a definer function is the OWNER (postgres),
+-- which bypasses RLS, so a definer version of this function would exempt
+-- everybody. Invoker is also all it needs: it takes no input, reads no table of
+-- its own, and auth_is_super_admin() is already security definer.
 create or replace function public.organizations_guard_fee_mode()
 returns trigger
 language plpgsql
-security definer
 set search_path = ''
 as $$
 begin
-  -- auth.uid() is null for service_role, for seeds and for migrations. Those
-  -- callers are trusted and already bypass RLS entirely; failing them here would
-  -- only break fixtures without protecting anything. anon is not a concern —
-  -- it holds no UPDATE grant on this table at all.
-  if new.fee_mode is distinct from old.fee_mode
-     and auth.uid() is not null
-     and not public.auth_is_super_admin() then
-    raise exception 'fee_mode is a platform term: only a super admin may change it'
-      using errcode = '42501';
+  -- A save that merely mentions an unchanged fee_mode is not a change. Checked
+  -- first so the common branding/rename write costs nothing.
+  if new.fee_mode is not distinct from old.fee_mode then
+    return new;
   end if;
-  return new;
+  if public.auth_is_super_admin() then
+    return new;
+  end if;
+  if exists (
+    select 1 from pg_catalog.pg_roles r
+     where r.rolname = current_user
+       and (r.rolbypassrls or r.rolsuper)
+  ) then
+    return new;
+  end if;
+  raise exception 'fee_mode is a platform term: only a super admin may change it'
+    using errcode = '42501';
 end;
 $$;
 
 -- No `grant execute` on purpose, and none is needed: Postgres checks EXECUTE on
 -- a trigger function when the TRIGGER is created (here, as the owner), not on
--- every fire. Leaving it owner-only also keeps it clean under
--- `_function_grant_audit` / function-grants.test.ts, which requires every
--- security-definer function in `public` to be neither anon- nor
--- authenticated-executable unless it is on the allowlist. The event trigger from
+-- every fire — verified against this trigger with `authenticated` holding no
+-- EXECUTE on it. Leaving it owner-only also keeps it clean under
+-- `_function_grant_audit` / function-grants.test.ts. The event trigger from
 -- 20260808120200 revokes PUBLIC/anon/authenticated on creation anyway; this
 -- comment records that that outcome is intended, not tolerated.
 revoke all on function public.organizations_guard_fee_mode() from public, anon, authenticated;

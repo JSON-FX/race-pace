@@ -111,7 +111,7 @@ describe("CommissionPage — the three-party surfaces", () => {
     await renderPage();
 
     expect(screen.getByText("Card payments are costing more than the rate card predicts.")).toBeInTheDocument();
-    expect(screen.getByText(/The last 11 of 11 implied 4\.50%/)).toBeInTheDocument();
+    expect(screen.getByText(/11 of the last 11 Card payments came in higher than predicted/)).toBeInTheDocument();
     expect(screen.getByText(/under-collected ₱220 across those payments/)).toBeInTheDocument();
     // The sentence that keeps it from being a claim. `processor_rate_drift_v`
     // hardcodes scope='local', so an international card is sampled here at its
