@@ -1262,6 +1262,50 @@ Finally, change the `createCheckout` call's `amount` from `reg.total_amount` to 
     });
 ```
 
+**And write `amount` back onto the payment row.** The existing update after `createCheckout` sets only `provider_ref` and `checkout_url`; add `amount: chargeAmount` to it:
+
+```ts
+    await db.from("payments").update({
+      provider_ref: checkout.providerRef,
+      checkout_url: checkout.checkoutUrl,
+      amount: chargeAmount,
+    }).eq("registration_id", reg.id);
+```
+
+This is not bookkeeping — it is the difference between paying the organizer correctly and not. `payments.amount` was set to the BASE total when the row was created in `registrations-checkout:197`, and in pass-on mode that is no longer what the runner is charged. Leaving it stale records a ₱2,000 sale against a ₱2,091.38 charge, and ₱91.38 per transaction goes unaccounted for with nothing to flag it.
+
+### Step 5b: `confirm.ts` must compute `net` from the CHARGED amount
+
+`_shared/confirm.ts` currently does `const net = reg.total_amount - fee - processorFee`. In absorb mode `reg.total_amount` IS the charged amount, so this is right. In pass-on mode it is the base, and the two now differ by design.
+
+Change it to compute from what was actually charged, while keeping the commission struck on the base:
+
+```ts
+  // Race Pace's commission is struck on the BASE the organizer priced — the same
+  // figure in both modes, so a pass-on org's ₱2,000 event still yields ₱60.
+  const fee = computeFee(reg.total_amount, terms);
+
+  // ...but the organizer's net comes out of what the runner ACTUALLY paid.
+  // In absorb mode charged === reg.total_amount and this is unchanged. In pass-on
+  // mode the runner paid the grossed-up total, and using the base here would pay
+  // the organizer LESS than the amount the surcharge was collected to protect.
+  const charged = payment?.amount ?? reg.total_amount;
+  const net = charged - fee - processorFee;
+```
+
+Verify with both worked examples:
+
+| Mode | charged | fee | processor | net |
+| --- | --- | --- | --- | --- |
+| absorb, GCash | 200000 | 6000 | 3000 | **191000** |
+| pass-on, GCash | 209138 | 6000 | 3137 | **200001** |
+
+The pass-on organizer receives their full ₱2,000 (plus the ₱0.01 the `ceil` rounds their way), which is the entire point of the mode.
+
+You will need to fetch the payment row's `amount` in the same query that already reads the registration, or in the existing payment lookup — do not add a third round trip.
+
+Add a test asserting the pass-on case end to end: an org with `fee_mode = 'pass_on'`, a payment row whose `amount` is the grossed-up figure, and an assertion that `net_to_org` equals the base the organizer priced.
+
 - [ ] **Step 6: Verify the function still serves**
 
 Run:
