@@ -1126,7 +1126,7 @@ describe("passOnBreakdown", () => {
   it("grosses up so the organizer receives the full base", () => {
     // ₱2,000 base, RP 3% = ₱60, GCash 1.5%.
     const b = passOnBreakdown(200000, 6000, GCASH);
-    expect(b).toEqual({ base: 200000, platformFee: 6000, processorFee: 3137, total: 209138 });
+    expect(b).toEqual({ base: 200000, platformFee: 6000, processorFee: 3138, total: 209138 });
     // What survives covers base + commission.
     expect(b.total - b.processorFee).toBeGreaterThanOrEqual(206000);
   });
@@ -1999,6 +1999,86 @@ Expected: The v2 suite PASSES (3 tests). The original `payout-statements.test.ts
 ```bash
 git add supabase/migrations/20260811095000_payout_open_statement_v2.sql supabase/tests/payout-statements-v2.test.ts supabase/tests/payout-statements.test.ts
 git commit -m "feat(payouts): sum net_to_org and break out processing costs"
+```
+
+---
+
+## Task 8b: Reporting surfaces under the new refund semantics
+
+**Added after Task 7's review.** Not in the original plan — a confirmed gap.
+
+**Files:**
+- Create: `supabase/migrations/20260811095500_money_aggregates_three_party.sql`
+- Modify: `apps/web/lib/queries/commission.ts`
+- Test: `supabase/tests/commission-refund-policy.test.ts` (extend)
+
+**Interfaces:**
+- Consumes: Tasks 1, 5, 6, 7
+- Produces: corrected `admin_org_totals_v`, `admin_event_totals_v`, `admin_payment_aggregates`
+
+### Why
+
+Two independent breakages, both introduced by Task 7's refund rule and neither covered by any other task.
+
+**1. `gross_revenue` over-counts every partial refund.** `20260807090200_widen_money_aggregates.sql:24` sums `p.amount` for `status in ('paid','partially_refunded')`. Its own header states the premise explicitly: that the refund RPC rewrites `amount` down to the retained figure, so summing `amount` counts retained revenue. Task 7 deliberately stopped rewriting `amount` — that was required, because rewriting it permanently breaks `amount − processor_fee_cents = the provider's net_amount`. So the premise is now false and the sum reports ₱2,000 where the organizer retained ₱300. Same defect in `admin_event_totals_v` (`:38`) and `admin_payment_aggregates.gross_cents` (`20260807100000_payment_aggregates_by_event.sql:36`).
+
+**2. `refunded_cents` over-states every full refund.** Three surfaces compute a full refund's value as `amount` (or `registrations.total_amount`): `apps/web/lib/queries/commission.ts:218-221`, `20260807100000_payment_aggregates_by_event.sql:38-40`, and `20260809150000_admin_registrations_v_registration_status.sql:118`. That was exactly right under the old rule, where a full refund returned the whole charge. It now returns `net_to_org`, so each of these over-states by `platform_fee + processor_fee_cents` per refund.
+
+The correct column already exists and is already populated: `refunded_amount` is written by both branches of `refund_registration_tx`. Nothing needs to be computed — the surfaces are reading the wrong column.
+
+### The rule
+
+**Money reports read the column that records the money, not a proxy for it.**
+
+- What the organizer earned on a row is `net_to_org`. Never `amount − platform_fee`, which now ignores the processor.
+- What went back to the runner is `refunded_amount`. Never `amount`.
+- `gross_revenue` should remain what the runner actually paid — `amount` is correct there for a *paid* row. The bug is including `partially_refunded` rows at their full `amount` as though it were still retained revenue.
+
+### Steps
+
+- [ ] **Step 1: Write the failing test**
+
+Extend `supabase/tests/commission-refund-policy.test.ts` with a case that drives a real partial refund through `refund_registration_tx` (do not hand-build the payment row — that is the drift the existing test was criticised for) and then asserts the aggregate views:
+
+```ts
+it("reports a partial refund at its retained value, not the original charge", async () => {
+  // ₱2,000 GCash entry, 3% commission: RP 6000, PayMongo 3000, organizer 191000.
+  // Organizer retains ₱300 -> runner gets 161000.
+  // gross_revenue must NOT report 200000 as retained revenue.
+  // refunded_cents must report 161000 -- what actually went back -- not 200000.
+});
+```
+
+Assert against `admin_org_totals_v` and `admin_payment_aggregates` for the event.
+
+- [ ] **Step 2: Run it and confirm it fails**
+
+Run: `pnpm test -- supabase/tests/commission-refund-policy.test.ts`
+Expected: FAIL — `gross_revenue` reports the full charge.
+
+- [ ] **Step 3: Write the migration**
+
+Create `supabase/migrations/20260811095500_money_aggregates_three_party.sql`, recreating the three aggregates so that:
+
+- a `partially_refunded` row contributes `net_to_org + platform_fee + processor_fee_cents` to gross (i.e. the part of the original charge that was NOT returned), not its full `amount`;
+- `refunded_cents` sums `payments.refunded_amount` rather than `amount`/`total_amount`;
+- a plain `paid` row is unchanged.
+
+Carry a header comment recording that `20260807090200`'s "the RPC rewrites `amount` down" premise was deliberately retired by `20260811094000_refund_net_to_org.sql`, and why — otherwise the next person reads the old header and reintroduces this.
+
+- [ ] **Step 4: Fix the web query**
+
+`apps/web/lib/queries/commission.ts:218-221` computes refunded value from `amount`. Change it to `refunded_amount`. Check `:162`'s `gross_revenue / paid_count` average-entry figure still means what its label claims once gross is corrected.
+
+- [ ] **Step 5: Verify**
+
+Run: `pnpm test` (full suite, after `pnpm exec supabase db reset`), then `cd apps/web && pnpm test && pnpm typecheck`.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add supabase/migrations/20260811095500_money_aggregates_three_party.sql supabase/tests/commission-refund-policy.test.ts apps/web/lib/queries/commission.ts
+git commit -m "fix(reports): read net_to_org and refunded_amount, not amount"
 ```
 
 ---
