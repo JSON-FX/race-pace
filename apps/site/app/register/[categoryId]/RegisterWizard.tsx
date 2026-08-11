@@ -10,7 +10,7 @@ import type { CategoryRow, AddonRow, FormFieldRow, EventRow } from "@/lib/events
 import { loadDraft, newDraft, saveDraft, clearDraft, type RegistrationDraft } from "@/lib/draft";
 import { totalAmount, stepOneErrors, showSaveBack, WAIVER_TEXT } from "@/lib/wizard";
 import { getProfile, upsertProfile, type Profile } from "@/lib/profile";
-import { startCheckout } from "@/lib/registration";
+import { startCheckout, CheckoutError } from "@/lib/registration";
 import { longDate } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -168,6 +168,16 @@ export function RegisterWizard({ userId, category, event, addons, formFields }: 
       clearDraft(category.id);
       router.replace(`/pay/${res.registration_id}`);
     } catch (e) {
+      // Lost a race with another device/tab, or the event page's own gate was
+      // stale — either way the server is the source of truth. Route straight
+      // to the entry that already exists instead of stranding the runner on a
+      // completed three-step form with a generic error string. Mirrors
+      // apps/mobile/app/register/[categoryId].tsx's handling of the same 409.
+      if (e instanceof CheckoutError && e.code === "already_registered" && e.registrationId) {
+        clearDraft(category.id);
+        router.replace(`/pay/${e.registrationId}`);
+        return;
+      }
       setFormError(e instanceof Error ? e.message : "Registration failed.");
     } finally {
       setBusy(false);

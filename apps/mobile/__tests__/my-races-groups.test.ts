@@ -6,6 +6,7 @@ const TODAY = "2026-07-23";
 function row(overrides: Partial<RegistrationRow> = {}): RegistrationRow {
   return {
     id: "r1", status: "paid", total_amount: 120000, ticket_token: "a.b", org_id: "o1",
+    event_id: "e1", expiresAt: null,
     eventName: "Test Race", categoryLabel: "21K", categoryDistance: 21, checkoutUrl: null,
     eventStatus: "open", eventDate: "2026-10-18", originalDate: null, statusNote: null,
     orgName: null, eventHeroUrl: null,
@@ -40,6 +41,36 @@ describe("groupMyRaces", () => {
   it("puts pending races in unpaid", () => {
     const g = groupMyRaces([row({ id: "a", status: "pending" })], TODAY);
     expect(g.unpaid.map((r) => r.id)).toEqual(["a"]);
+  });
+  // Fix round: a pending row whose hold has actually run out must not sit in
+  // unpaid — that segment offers a Pay button the server will refuse the
+  // instant it's tapped. `status` alone can't tell the two apart (it stays
+  // 'pending' until the 15-minute sweep runs), so this has to be driven by
+  // `expiresAt` via holdExpired. Reverting groupMyRaces to route on `status`
+  // alone fails this.
+  it("puts a pending race whose hold has lapsed in completed, not unpaid", () => {
+    const g = groupMyRaces(
+      [row({ id: "a", status: "pending", expiresAt: new Date(Date.now() - 60_000).toISOString() })],
+      TODAY,
+    );
+    expect(g.unpaid).toHaveLength(0);
+    expect(g.completed.map((r) => r.id)).toEqual(["a"]);
+  });
+  it("still puts a pending race with time left on its hold in unpaid", () => {
+    const g = groupMyRaces(
+      [row({ id: "a", status: "pending", expiresAt: new Date(Date.now() + 60_000).toISOString() })],
+      TODAY,
+    );
+    expect(g.unpaid.map((r) => r.id)).toEqual(["a"]);
+    expect(g.completed).toHaveLength(0);
+  });
+  // Fix round: an `expired` row used to fall through every branch and vanish
+  // from all three segments — a registration that just silently disappeared.
+  it("puts an expired race in completed, not nowhere", () => {
+    const g = groupMyRaces([row({ id: "a", status: "expired" })], TODAY);
+    expect(g.completed.map((r) => r.id)).toEqual(["a"]);
+    expect(g.registered).toHaveLength(0);
+    expect(g.unpaid).toHaveLength(0);
   });
   it("excludes cancelled races from every group", () => {
     const g = groupMyRaces([row({ id: "a", status: "cancelled" })], TODAY);

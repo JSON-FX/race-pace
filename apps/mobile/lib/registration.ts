@@ -79,6 +79,15 @@ export type RegistrationPayment = {
 
 export type RegistrationRow = {
   id: string; status: string; total_amount: number; ticket_token: string | null; org_id: string;
+  /** The race this entry is for — needed to route a lapsed hold back to
+   *  re-entry instead of a dead Pay button. Mirrors apps/site's field of the
+   *  same name (apps/site/lib/registration.ts's RegistrationRow). */
+  event_id: string;
+  /** When an unpaid entry stops holding this runner's one-per-event slot.
+   *  Null once paid — a paid entry has no hold to run out. Callers must derive
+   *  "is this hold actually still live" from this via holdExpired
+   *  (lib/holdExpiry.ts), not from `status` alone — see that file's header. */
+  expiresAt: string | null;
   eventName: string; categoryLabel: string; categoryDistance: number | null; checkoutUrl: string | null;
   eventStatus: string | null; eventDate: string | null; originalDate: string | null; statusNote: string | null;
   orgName: string | null; eventHeroUrl: string | null; basePrice?: number | null; inclusions?: string[] | null;
@@ -86,12 +95,13 @@ export type RegistrationRow = {
 };
 
 const REG_SELECT =
-  "id,status,total_amount,ticket_token,org_id,organizations(name),events(name,status,event_date,original_date,status_note,hero_image_url,inclusions),categories(label,distance_km,base_price),payments(checkout_url,created_at,method,amount,platform_fee,net_to_org,provider,provider_ref,status)";
+  "id,status,total_amount,ticket_token,org_id,event_id,expires_at,organizations(name),events(name,status,event_date,original_date,status_note,hero_image_url,inclusions),categories(label,distance_km,base_price),payments(checkout_url,created_at,method,amount,platform_fee,net_to_org,provider,provider_ref,status)";
 
 function mapReg(r: any): RegistrationRow {
   const payment = Array.isArray(r.payments) ? r.payments[0] : r.payments;
   return {
     id: r.id, status: r.status, total_amount: r.total_amount, ticket_token: r.ticket_token ?? null, org_id: r.org_id,
+    event_id: r.event_id, expiresAt: r.expires_at ?? null,
     eventName: r.events?.name ?? "Event", categoryLabel: r.categories?.label ?? "", categoryDistance: r.categories?.distance_km ?? null,
     orgName: r.organizations?.name ?? null,
     eventHeroUrl: r.events?.hero_image_url ?? null,

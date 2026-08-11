@@ -5,6 +5,7 @@ const STATUSES: Record<string, { label: string; className: string }> = {
   pending: { label: "Awaiting payment", className: "bg-amber-tint text-amber" },
   refunded: { label: "Refunded", className: "bg-muted text-muted-foreground" },
   cancelled: { label: "Cancelled", className: "bg-destructive-tint text-destructive" },
+  expired: { label: "Expired", className: "bg-muted text-muted-foreground" },
 };
 
 export function StatusBadge({ status }: { status: string }) {

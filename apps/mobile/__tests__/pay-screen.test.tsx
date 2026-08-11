@@ -11,6 +11,7 @@ jest.mock("../lib/ticketCache", () => ({ cacheTicket: jest.fn() }));
 
 let mockRegData: any = {
   id: "r1", status: "pending", total_amount: 210000, ticket_token: null, org_id: "o1",
+  event_id: "ev1", expiresAt: null,
   eventName: "Apo Sky Ultra 2026", categoryLabel: "21K", checkoutUrl: "http://x/functions/v1/fake-checkout?rid=r1",
 };
 jest.mock("../lib/registration", () => ({ useRegistration: () => ({ data: mockRegData, refetch: jest.fn() }), verifyPayment: (...a: unknown[]) => mockVerify(...a), createMethodCheckout: (...a: unknown[]) => mockCreateMethodCheckout(...a) }));
@@ -40,5 +41,34 @@ describe("Pay screen", () => {
     expect(screen.getByText("Payment confirmed")).toBeOnTheScreen();
     fireEvent.press(screen.getByText("View ticket"));
     expect(mockReplace).toHaveBeenCalledWith("/ticket/r1");
+  });
+
+  // Fix round: this screen used to gate only on `paid` and event-closed, never
+  // on expires_at — a bookmarked /pay/<rid> for a lapsed hold rendered a live
+  // Pay button that payment-session would refuse the instant it was tapped.
+  // `status` alone can't tell "lapsed" from "still live" (it stays 'pending'
+  // until the 15-minute sweep runs), so this must be driven by expiresAt.
+  describe("a lapsed pending hold", () => {
+    it("refuses to render a Pay button and offers Enter again instead", () => {
+      mockRegData = {
+        ...mockRegData, status: "pending", event_id: "ev1",
+        expiresAt: new Date(Date.now() - 60_000).toISOString(),
+      };
+      render(<Pay />);
+      expect(screen.getByText("Payment window closed")).toBeOnTheScreen();
+      expect(screen.queryByText(/^Pay /)).toBeNull();
+      fireEvent.press(screen.getByText("Enter again"));
+      expect(mockReplace).toHaveBeenCalledWith("/event/ev1");
+    });
+
+    it("still renders the normal Pay screen when the hold has time left", () => {
+      mockRegData = {
+        ...mockRegData, status: "pending", event_id: "ev1",
+        expiresAt: new Date(Date.now() + 60 * 60_000).toISOString(),
+      };
+      render(<Pay />);
+      expect(screen.queryByText("Payment window closed")).toBeNull();
+      expect(screen.getByText(/^Pay /)).toBeOnTheScreen();
+    });
   });
 });

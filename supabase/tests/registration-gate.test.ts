@@ -7,6 +7,13 @@ import { loadEnv } from "../../test/env";
 const { url, anonKey, serviceKey, dbUrl } = loadEnv();
 const anon = () => createClient(url, anonKey, { auth: { persistSession: false } });
 const service = () => createClient(url, serviceKey, { auth: { persistSession: false } });
+// admin_registrations_v / admin_registration_aggregates are `security invoker`, granted
+// to `authenticated` only -- service_role has no EXECUTE/SELECT grant of its own on
+// either (confirmed: svc.rpc/svc.from against them both return 42501 permission denied),
+// unlike the security-definer functions elsewhere in this file that ARE granted to
+// service_role and so are callable via svc directly. An authenticated admin session is
+// the only way to exercise these two, same as admin-kpi-aggregates.test.ts.
+const authed = (t: string) => createClient(url, anonKey, { global: { headers: { Authorization: `Bearer ${t}` } }, auth: { persistSession: false } });
 
 /** Edge Functions run in a separate process (`supabase functions serve`) that a plain
  *  `pnpm test` does not start -- see backend.test.ts, which is in the known-bad file
@@ -181,8 +188,19 @@ describe("dedupe of pre-existing duplicates", () => {
  * a first checkout going 'pending' and being abandoned, then a later attempt actually
  * completing payment -- in that order, the OLD abandoned pending row ranked first and
  * survived, while the row the runner actually PAID for was expired and its slot
- * released. Ruled fix (20260809100150_dedupe_paid_wins_tiebreak.sql): PAID ALWAYS WINS,
+ * released. Ruled fix (20260809100060_dedupe_paid_wins_tiebreak.sql): PAID ALWAYS WINS,
  * THEN EARLIEST -- `order by (status = 'paid') desc, created_at, id`.
+ *
+ * Fix round 3 (final whole-branch review, pre-merge): that migration originally shipped
+ * as 20260809100150 -- a timestamp that sorts AFTER 20260809100100_one_registration_per_event.sql,
+ * the migration that invokes `select public.dedupe_live_registrations();` as a one-time
+ * cleanup of pre-existing data. Migrations apply in filename order, so on a fresh apply
+ * the invocation ran while only the pre-fix (round 1) body existed -- the fix below never
+ * covers this, because it calls the function directly, after every migration (including
+ * the rename) has already finished applying and settled on the correct body. Renamed via
+ * `git mv` to 20260809100060 (sorts before 100100); see
+ * supabase/tests/dedupe-migration-order.test.ts for the regression test, which inspects
+ * the migration files themselves rather than the function's eventual behaviour.
  *
  * Fix round 2: this used to be covered by two test-only probe functions shipped in a
  * permanent migration (20260809100160). Review correctly rejected that: shipping
@@ -680,6 +698,69 @@ describe("late capture via the real payments-webhook (needs `supabase functions 
 });
 
 /**
+ * Fix round (final whole-branch review, pre-merge): payment-session used to gate only on
+ * `reg.status !== "pending"`, never on expires_at -- it would mint a BRAND-NEW 24-hour
+ * PayMongo session for a hold that had already lapsed. That defeats the design's central
+ * safety argument (20260809100200's header: "a PayMongo hosted checkout session itself
+ * expires at 24 hours, so a session that old cannot capture") -- a fresh session handed
+ * out here is exactly as capturable as one issued at registration time, just issued
+ * later. Scenario this closes: a runner abandons a hold, opens a stale /pay/<rid> 25h
+ * later, gets a fresh session; meanwhile they also re-enter from the event page
+ * (expiring the old row and creating a new live one); they then pay the OLD session ->
+ * confirm_payment_tx -> 'conflict' -> money captured with a manual refund required. This
+ * exercises the real Edge Function, so it needs `supabase functions serve` -- same
+ * probe/skip pattern as the webhook tests above.
+ */
+describe("payment-session expiry gate", () => {
+  it.skipIf(!functionsUp)("refuses to mint a new session for a lapsed hold, and writes the expiry", async () => {
+    const svc = service();
+    const f = await makeEvent(`ps_lapsed${Date.now()}`);
+    const runner = await makeUser(`gate_ps_lapsed_${Date.now()}@test.dev`);
+
+    const reg = await svc.from("registrations").insert(regRow(f, runner.id)).select().single();
+    await svc.from("payments").insert({ org_id: f.orgId, registration_id: reg.data!.id, amount: 100000, status: "pending" });
+    await svc.from("registrations")
+      .update({ expires_at: new Date(Date.now() - 60_000).toISOString() }).eq("id", reg.data!.id);
+
+    const res = await fetch(`${FN}/payment-session`, {
+      method: "POST",
+      headers: { "content-type": "application/json", Authorization: `Bearer ${runner.token}` },
+      body: JSON.stringify({ registration_id: reg.data!.id, method: "gcash" }),
+    });
+
+    expect(res.status, "a lapsed hold must not get a fresh checkout session").toBe(409);
+    const body = await res.json();
+    expect(body.error).toBe("hold_expired");
+
+    const after = await svc.from("registrations").select("status,expires_at").eq("id", reg.data!.id).single();
+    expect(after.data!.status, "must actually be written to 'expired', not merely refused").toBe("expired");
+    expect(after.data!.expires_at).toBeNull();
+  });
+
+  it.skipIf(!functionsUp)("still mints a session for a hold with time left", async () => {
+    const svc = service();
+    const f = await makeEvent(`ps_live${Date.now()}`);
+    const runner = await makeUser(`gate_ps_live_${Date.now()}@test.dev`);
+
+    const reg = await svc.from("registrations").insert(regRow(f, runner.id)).select().single();
+    await svc.from("payments").insert({ org_id: f.orgId, registration_id: reg.data!.id, amount: 100000, status: "pending" });
+
+    const res = await fetch(`${FN}/payment-session`, {
+      method: "POST",
+      headers: { "content-type": "application/json", Authorization: `Bearer ${runner.token}` },
+      body: JSON.stringify({ registration_id: reg.data!.id, method: "gcash" }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.checkout_url).toBeTruthy();
+
+    const after = await svc.from("registrations").select("status").eq("id", reg.data!.id).single();
+    expect(after.data!.status, "an untouched live hold must not be expired as a side effect").toBe("pending");
+  });
+});
+
+/**
  * Task 5: registrations-checkout must turn a duplicate live entry into a
  * 409 the client can act on (existing registration id + checkout url),
  * instead of letting registrations_one_live_per_event's 23505 surface raw.
@@ -916,4 +997,133 @@ describe("registrations-checkout 23505 handler (genuine concurrent race)", () =>
       }
     },
   );
+});
+
+/**
+ * Fix round (review finding): this branch's load-bearing SQL —
+ * admin_registrations_v.registration_status (20260809100400) and
+ * admin_registration_aggregates' expired/cancelled routing (also 20260809100400) — had
+ * no test against a real database. apps/web/lib/queries/registrations-status-filter.test.ts
+ * only asserts which column `.eq()` is called on against a MOCK query builder; it proves
+ * listEventRegistrations() routes the filter to the right column name, but nothing in the
+ * branch actually exercised the view or the RPC's WHERE clause against Postgres. Both are
+ * exactly the kind of thing that's fragile by construction: `create or replace view`
+ * silently reorders/breaks on column changes, and the aggregate's routing
+ * (`p_status in ('expired','cancelled') and v.registration_status::text = p_status`) is a
+ * hand-written branch with no enum or type system backing it up.
+ *
+ * Both are `security invoker`, granted to `authenticated` only, so an authenticated
+ * admin session is required (svc.from/svc.rpc against them return 42501 permission
+ * denied — service_role has no grant of its own here, unlike the security-definer
+ * functions elsewhere in this file). No `supabase functions serve` needed, so these run
+ * by default under a plain `pnpm test`.
+ */
+describe("admin_registrations_v / admin_registration_aggregates — expired & cancelled routing", () => {
+  it("exposes registration_status as 'expired' for a swept row and 'cancelled' for a cancelled row, distinct from payment_status", async () => {
+    const svc = service();
+    const f = await makeEvent(`view${Date.now()}`);
+    const admin = await makeUser(`gate_view_adm_${Date.now()}@test.dev`);
+    await svc.from("user_roles").insert({ user_id: admin.id, role: "admin", org_id: f.orgId });
+
+    const expiredRunner = await makeUser(`gate_view_exp_${Date.now()}@test.dev`);
+    const expiredReg = await svc.from("registrations").insert(regRow(f, expiredRunner.id)).select().single();
+    expect(expiredReg.error).toBeNull();
+    await svc.from("payments").insert({ org_id: f.orgId, registration_id: expiredReg.data!.id, amount: 100000, status: "pending" });
+    // Simulates what expire_stale_registrations() does: registrations.status = 'expired',
+    // payments.status = 'failed' -- never 'expired'. This is exactly the case
+    // admin_registrations_v's header says payment_status alone cannot represent.
+    await svc.from("registrations").update({ status: "expired", expires_at: null }).eq("id", expiredReg.data!.id);
+    await svc.from("payments").update({ status: "failed" }).eq("registration_id", expiredReg.data!.id);
+
+    const cancelledRunner = await makeUser(`gate_view_can_${Date.now()}@test.dev`);
+    const cancelledReg = await svc.from("registrations").insert(regRow(f, cancelledRunner.id)).select().single();
+    expect(cancelledReg.error).toBeNull();
+    // admin_cancel_registration never touches payments.status at all -- no payment row
+    // exists here, mirroring that.
+    await svc.from("registrations").update({ status: "cancelled" }).eq("id", cancelledReg.data!.id);
+
+    const rows = await authed(admin.token)
+      .from("admin_registrations_v")
+      .select("id,registration_status,payment_status")
+      .in("id", [expiredReg.data!.id, cancelledReg.data!.id]);
+    expect(rows.error).toBeNull();
+    const byId = Object.fromEntries((rows.data ?? []).map((r) => [r.id, r]));
+
+    expect(byId[expiredReg.data!.id].registration_status).toBe("expired");
+    // The underlying payment genuinely is 'failed' -- the view must not paper over that,
+    // it must expose BOTH so the admin console can tell "hold ran out" apart from "card
+    // declined" (registration_status), while still knowing what happened to the money
+    // (payment_status).
+    expect(byId[expiredReg.data!.id].payment_status).toBe("failed");
+
+    expect(byId[cancelledReg.data!.id].registration_status).toBe("cancelled");
+    expect(byId[cancelledReg.data!.id].payment_status).toBeNull();
+  });
+
+  it("routes an 'expired' filter to registration_status and returns exactly the expired row's count, not 0", async () => {
+    const svc = service();
+    const f = await makeEvent(`agg_exp${Date.now()}`);
+    const admin = await makeUser(`gate_agg_exp_adm_${Date.now()}@test.dev`);
+    await svc.from("user_roles").insert({ user_id: admin.id, role: "admin", org_id: f.orgId });
+
+    const expiredRunner = await makeUser(`gate_agg_exp_${Date.now()}@test.dev`);
+    const expiredReg = await svc.from("registrations").insert(regRow(f, expiredRunner.id)).select().single();
+    await svc.from("registrations").update({ status: "expired", expires_at: null }).eq("id", expiredReg.data!.id);
+
+    const paidRunner = await makeUser(`gate_agg_paid_${Date.now()}@test.dev`);
+    const paidReg = await svc.from("registrations").insert(regRow(f, paidRunner.id)).select().single();
+    await svc.from("registrations").update({ status: "paid", expires_at: null }).eq("id", paidReg.data!.id);
+    // admin_registration_aggregates' `paid`/`gross_cents` figures come from
+    // v.payment_status (the payments table join), not registrations.status --
+    // a real 'paid' registration always has a payments row (registrations-
+    // checkout creates one at the same time), so this test must too.
+    await svc.from("payments").insert({ org_id: f.orgId, registration_id: paidReg.data!.id, amount: 100000, status: "paid" });
+
+    const client = authed(admin.token);
+    // `where payment_status = 'expired'` (the pre-fix routing) is a hard
+    // `invalid input value for enum payment_status` Postgres error, not an empty
+    // result -- this call succeeding at all is part of what this test pins.
+    const expiredAgg = await client.rpc("admin_registration_aggregates", { p_event_id: f.eventId, p_status: "expired" });
+    expect(expiredAgg.error).toBeNull();
+    expect(expiredAgg.data![0].total).toBe(1);
+    // The 'expired' filter must not be silently satisfied by payment_status
+    // agreeing -- 'paid' must never count toward it.
+    expect(expiredAgg.data![0].paid).toBe(0);
+
+    const allAgg = await client.rpc("admin_registration_aggregates", { p_event_id: f.eventId, p_status: "all" });
+    expect(allAgg.error).toBeNull();
+    expect(allAgg.data![0].total).toBe(2);
+    expect(allAgg.data![0].paid).toBe(1);
+  });
+
+  it("routes a 'cancelled' filter to registration_status and returns exactly the cancelled row's count, not 0", async () => {
+    const svc = service();
+    const f = await makeEvent(`agg_can${Date.now()}`);
+    const admin = await makeUser(`gate_agg_can_adm_${Date.now()}@test.dev`);
+    await svc.from("user_roles").insert({ user_id: admin.id, role: "admin", org_id: f.orgId });
+
+    const cancelledRunner = await makeUser(`gate_agg_can_${Date.now()}@test.dev`);
+    const cancelledReg = await svc.from("registrations").insert(regRow(f, cancelledRunner.id)).select().single();
+    await svc.from("registrations").update({ status: "cancelled" }).eq("id", cancelledReg.data!.id);
+
+    const pendingRunner = await makeUser(`gate_agg_pend_${Date.now()}@test.dev`);
+    const pendingReg = await svc.from("registrations").insert(regRow(f, pendingRunner.id)).select().single();
+    // The 'pending' filter routes to v.payment_status (the payments join), not
+    // registrations.status -- give this row the payments row a real checkout
+    // would have created alongside it.
+    await svc.from("payments").insert({ org_id: f.orgId, registration_id: pendingReg.data!.id, amount: 100000, status: "pending" });
+
+    const client = authed(admin.token);
+    const cancelledAgg = await client.rpc("admin_registration_aggregates", { p_event_id: f.eventId, p_status: "cancelled" });
+    expect(cancelledAgg.error).toBeNull();
+    expect(cancelledAgg.data![0].total).toBe(1);
+
+    // An ordinary value, unaffected by the new routing, still matches payment_status --
+    // this is the "every other value keeps matching payment_status exactly as before"
+    // half of the fix (20260809100400's header), and it's what stops an unconditional
+    // OR across both columns from double-counting.
+    const pendingAgg = await client.rpc("admin_registration_aggregates", { p_event_id: f.eventId, p_status: "pending" });
+    expect(pendingAgg.error).toBeNull();
+    expect(pendingAgg.data![0].total).toBe(1);
+  });
 });

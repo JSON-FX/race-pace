@@ -30,6 +30,7 @@ const EMPTY_COPY: Record<SegmentKey, { title: string; body: string }> = {
 function cachedToRows(cached: CachedTicket[]): RegistrationRow[] {
   return cached.map((c) => ({
     id: c.rid, status: c.status, total_amount: 0, ticket_token: c.token, org_id: c.orgId,
+    event_id: c.eventId ?? "", expiresAt: c.expiresAt ?? null,
     eventName: c.eventName, categoryLabel: c.categoryLabel, categoryDistance: null, checkoutUrl: null,
     eventStatus: null, eventDate: null, originalDate: null, statusNote: null,
     orgName: c.orgName ?? null, eventHeroUrl: c.eventHeroUrl ?? null, payment: null,
@@ -55,6 +56,7 @@ export default function MyRaces() {
         rid: r.id, token: r.ticket_token, eventName: r.eventName, categoryLabel: r.categoryLabel,
         runnerName: "", status: r.status, orgId: r.org_id,
         orgName: r.orgName, eventHeroUrl: r.eventHeroUrl,
+        eventId: r.event_id, expiresAt: r.expiresAt,
       })));
     }
   }, [data]);
@@ -111,11 +113,18 @@ export default function MyRaces() {
     const meta = [item.categoryLabel, item.eventDate ? shortDate(item.eventDate) : null].filter(Boolean).join(" · ");
     if (activeSegment === "completed") {
       const refunded = item.status === "refunded";
+      // A row lands here either because it's genuinely `expired` (the sweep
+      // already flipped it) or because it's still literally `pending` but its
+      // hold has lapsed (groupMyRaces routes both the same way — see that
+      // file). Either way there is no receipt to show: app/registration/[id]
+      // renders payment details that were never captured. Point at the event
+      // instead, so the runner's next step is re-entering, not a dead end.
+      const expired = item.status === "expired" || item.status === "pending";
       return (
         <RaceCard
-          variant={refunded ? "refunded" : "completed"} title={item.eventName} meta={meta}
+          variant={refunded ? "refunded" : expired ? "expired" : "completed"} title={item.eventName} meta={meta}
           orgName={item.orgName} eventHeroUrl={item.eventHeroUrl}
-          onPress={() => router.push(`/registration/${item.id}`)}
+          onPress={() => (expired ? router.push(`/event/${item.event_id}`) : router.push(`/registration/${item.id}`))}
         />
       );
     }

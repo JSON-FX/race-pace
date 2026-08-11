@@ -8,6 +8,7 @@ import { ChevronLeft, ChevronRight, Calendar, MapPin, Flag, Mountain, Clock, Che
 import { formatPeso, formatDateRange } from "@race-pace/shared";
 import { useEvent, useCategories } from "../../lib/events";
 import { supabase } from "../../lib/supabase";
+import { holdExpired } from "../../lib/holdExpiry";
 import { EventGallery } from "../../components/EventGallery";
 import { OrgAvatar } from "../../components/OrgAvatar";
 import { StatusBanner } from "../../components/StatusBadge";
@@ -33,8 +34,9 @@ export default function EventDetail() {
 
   // One entry per event, so this gates EVERY distance below, not just the one
   // the runner picked. Mirrors apps/site/lib/entry.ts's fetchMyEntry, and the
-  // expiry check mirrors apps/site/lib/holdExpiry.ts's holdExpired: a pending
-  // row past its expires_at is already gone to the server (registrations-
+  // expiry check uses this app's own holdExpired copy (lib/holdExpiry.ts,
+  // itself a deliberate copy of apps/site/lib/holdExpiry.ts): a pending row
+  // past its expires_at is already gone to the server (registrations-
   // checkout), whether or not the 15-minute sweep has flipped its status yet.
   const { data: myEntry, isLoading: myEntryLoading } = useQuery({
     queryKey: ["my-entry", id],
@@ -49,7 +51,7 @@ export default function EventDetail() {
         .in("status", ["pending", "paid"])
         .maybeSingle();
       if (!data) return null;
-      if (data.status === "pending" && data.expires_at && Date.parse(data.expires_at) <= Date.now()) return null;
+      if (holdExpired(data.status, data.expires_at ?? null)) return null;
       return data as MyEntry;
     },
   });

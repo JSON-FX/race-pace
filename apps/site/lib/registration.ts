@@ -1,9 +1,10 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { FunctionsHttpError } from "@supabase/supabase-js";
 import type { RegistrationInput } from "@race-pace/shared";
 import { createClient } from "@/lib/supabase/client";
-import { parseFunctionError } from "@/lib/errors";
+import { checkoutErrorMessage } from "@/lib/errors";
 
 export type CheckoutResult = { registration_id: string; checkout_url: string };
 
@@ -14,6 +15,23 @@ export function payReturnUrl(registrationId: string): string {
   return `${origin}/pay/callback?rid=${encodeURIComponent(registrationId)}`;
 }
 
+/** Thrown by startCheckout. `registrationId` is only set for the
+ *  already_registered 409 (registrations-checkout's contract:
+ *  { error: "already_registered", registration_id, status, checkout_url }) —
+ *  it's what lets RegisterWizard route straight to the runner's existing
+ *  entry instead of dead-ending them on a completed three-step form with a
+ *  generic error string. Mirrors apps/mobile/lib/registration.ts's
+ *  CheckoutError of the same name and shape. */
+export class CheckoutError extends Error {
+  code: string;
+  registrationId?: string;
+  constructor(code: string, registrationId?: string) {
+    super(checkoutErrorMessage(code));
+    this.code = code;
+    this.registrationId = registrationId;
+  }
+}
+
 export async function startCheckout(input: RegistrationInput): Promise<CheckoutResult> {
   const supabase = createClient();
   // The registration id isn't known yet, so the return URL carries no rid here;
@@ -22,7 +40,24 @@ export async function startCheckout(input: RegistrationInput): Promise<CheckoutR
   const origin = process.env.NEXT_PUBLIC_SITE_URL ?? window.location.origin;
   const body = { ...input, return_url: `${origin}/pay/callback` };
   const { data, error } = await supabase.functions.invoke("registrations-checkout", { body });
-  if (error) throw new Error(await parseFunctionError(error));
+  if (error) {
+    // Edge Functions return their error code in the response BODY, not the
+    // message — supabase-js only surfaces "Edge Function returned a non-2xx
+    // status code" without this. Mirrors apps/mobile/lib/registration.ts's
+    // startCheckout.
+    let code = "server_error";
+    let registrationId: string | undefined;
+    if (error instanceof FunctionsHttpError) {
+      try {
+        const body = await error.context.json();
+        if (body?.error) code = String(body.error);
+        if (typeof body?.registration_id === "string") registrationId = body.registration_id;
+      } catch {
+        // keep the generic code
+      }
+    }
+    throw new CheckoutError(code, registrationId);
+  }
   return data as CheckoutResult;
 }
 

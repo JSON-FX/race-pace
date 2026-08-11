@@ -187,7 +187,7 @@ export function EventPageBody({
         <section className={trail ? "border-t border-white/10" : "border-t border-black/10"}>
           <div className="mx-auto w-full max-w-6xl px-5 pt-14 sm:px-8">
             <Reveal>
-              <p className="rounded-xl border border-amber bg-amber-tint px-5 py-4 text-[15.5px] leading-relaxed text-[#7A4A00]">
+              <p className="rounded-xl border border-amber bg-amber-tint px-5 py-4 text-[15.5px] leading-relaxed text-amber">
                 {event.status_note}
               </p>
             </Reveal>
@@ -370,7 +370,7 @@ function DistanceRow({
                 {myEntry.status === "paid" ? "Your entry" : "Payment pending"}
               </span>
             ) : scarce ? (
-              <span className="font-eyebrow rounded-full bg-amber-tint px-2.5 py-1 text-[10px] font-bold uppercase tracking-[1.5px] text-[#7A4A00]">
+              <span className="font-eyebrow rounded-full bg-amber-tint px-2.5 py-1 text-[10px] font-bold uppercase tracking-[1.5px] text-amber">
                 {remaining} left
               </span>
             ) : null}
