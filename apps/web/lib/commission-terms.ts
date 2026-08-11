@@ -76,10 +76,10 @@ export function percentToRate(percent: number): number {
  *
  *  `peso()` (@/lib/format) deliberately hides `.00` so a table of round amounts
  *  reads cleanly. The refund example is the one place that must not: it splits
- *  one number into three, and `₱300 = ₱30 + ₱270` invites the reader to check
- *  the arithmetic, which only works if every term is shown at the same
- *  precision. A retained ₱300.50 splitting into ₱30 and ₱270 looks wrong even
- *  when it is right. */
+ *  one number into four, and `₱2,000 = ₱1,610 + ₱300 + ₱60 + ₱30` invites the
+ *  reader to check the arithmetic, which only works if every term is shown at
+ *  the same precision. A ₱1,610.50 refund beside a round ₱300 retention looks
+ *  wrong even when it is right. */
 function pesoExact(centavos: number): string {
   const sign = centavos < 0 ? "-" : "";
   const abs = Math.abs(centavos) / 100;
@@ -99,28 +99,96 @@ function percentLabel(rate: number | null): string {
  * says nothing about who ends up with the retained money. Spelling it out is the
  * reason the refund table is on this page rather than behind a settings toggle.
  *
- * The retained amount is treated as a smaller sale: the org's normal commission
- * rule (`feeOn`, i.e. `computeFee`) runs against it, which is exactly what
- * `refund_registration_tx` does server-side. No new rule per refund, and the
- * payout statement picks it up with no special case.
+ * THE RUNNER IS REFUNDED EXACTLY WHAT THE ORGANIZER WOULD HAVE BEEN PAID —
+ * `net_to_org`, i.e. the entry less Race Pace's commission and less what the
+ * payment processor took. Race Pace's commission is an EARNED SERVICE FEE and is
+ * retained; the processor never returns its cut under any circumstances. Under
+ * `flat_fee` the organizer additionally keeps `refund_fee_cents`, and keeps it
+ * ENTIRELY: no commission is re-struck on a retention, because Race Pace already
+ * kept its full commission at capture and striking a second one would charge
+ * twice for one sale. See `supabase/functions/_shared/refund.ts` (the three lines
+ * that ARE the policy) and `20260811094000_refund_net_to_org.sql`, which dropped
+ * the RPC's `p_retained_fee` parameter so a caller still re-striking commission
+ * fails loudly rather than silently double-charging.
+ *
+ * THIS FUNCTION USED TO SAY THE OPPOSITE, and said it on the screen an operator
+ * negotiates refund terms from: that the runner gets `entry - retained` back,
+ * that the retention is "a smaller sale" with `feeOn` run against it, and that a
+ * `full` policy returns the whole entry with nobody keeping anything. All three
+ * were superseded on 2026-08-11 and none of them was ever true of the server
+ * afterwards. On a 3% org's ₱2,000 GCash entry with a ₱300 retention it quoted
+ * the runner ₱1,700 where the server pays ₱1,610, and gave the organizer ₱291 of
+ * a retention that is wholly theirs.
+ *
+ * `processorFeeCents` is not decoration: without it there is no `net_to_org` and
+ * therefore no refund figure at all. `null` means the caller could observe no
+ * processing cost for this org — a brand-new org, or one whose payments all
+ * predate the three-party ledger and had their fee ABSORBED by the platform
+ * ('historical', where net_to_org deliberately has no processor deduction). The
+ * copy then states the rule and names the missing term rather than quoting a
+ * number nobody can stand behind. See `avg_processor_fee_cents` in
+ * `lib/queries/commission.ts` for how it is sourced.
  */
-export function describeRefund(terms: RefundTerms, entryCents: number): string {
+export function describeRefund(
+  terms: RefundTerms,
+  entryCents: number,
+  processorFeeCents: number | null,
+): string {
   if (terms.refund_policy === "none") {
     return "Refunds are not offered. The entry stands as a paid sale.";
   }
-  if (terms.refund_policy === "full") {
-    return `Gets all ${pesoExact(entryCents)} back. Neither the organizer nor Race Pace keeps anything.`;
+
+  const entry = Math.max(entryCents, 0);
+  // The commission on the ENTRY, not on the retention. It was struck once, at
+  // capture, and is frozen onto the payment row — a refund neither returns it
+  // nor strikes another.
+  const commission = feeOn(entry, terms);
+  const asked = Math.max(terms.refund_fee_cents, 0);
+
+  // NO PROCESSOR FIGURE, NO PESO FIGURE. Everything downstream is struck off
+  // net_to_org, so without the processor's cut there is no refund total to
+  // quote — and a ₱0.00 in its place would be a claim rather than a gap. This
+  // branch says what it does know (the entry, the commission, the retention) and
+  // names the term it does not, including the clamp it therefore cannot evaluate.
+  if (processorFeeCents === null) {
+    const unknown =
+      `Race Pace keeps its ${pesoExact(commission)} commission and the processor keeps its fee; ` +
+      "neither comes back on a refund. No payment of theirs records a processor fee — either " +
+      "none has been processed yet, or they predate the three-party ledger and Race Pace " +
+      "absorbed the processing — so the exact figures cannot be shown here.";
+    return terms.refund_policy === "full"
+      ? `Gets back the ${pesoExact(entry)} entry less Race Pace's commission and the ` +
+        `processor's fee — the whole of what the organizer would have been paid. ${unknown}`
+      : `Gets back the ${pesoExact(entry)} entry less Race Pace's commission, the processor's ` +
+        `fee, and the ${pesoExact(asked)} the organizer retains in full — no commission is ` +
+        `struck on a retention. ${unknown}`;
   }
-  // Clamped for the same reason `feeOn` clamps: a retention larger than the
-  // entry cannot return negative money to the runner. It keeps the whole entry.
-  const retained = Math.min(Math.max(terms.refund_fee_cents, 0), Math.max(entryCents, 0));
-  const returned = Math.max(entryCents, 0) - retained;
-  const commission = feeOn(retained, terms);
-  const organizer = retained - commission;
-  return (
-    `Gets ${pesoExact(returned)} back. Of the ${pesoExact(retained)} retained, ` +
-    `${pesoExact(commission)} is commission and ${pesoExact(organizer)} goes to the organizer.`
-  );
+
+  const processor = Math.max(processorFeeCents, 0);
+  // net_to_org. Floored at zero for the same reason `feeOn` clamps: the ledger
+  // never lets an organizer owe money on a sale they made.
+  const net = Math.max(entry - commission - processor, 0);
+  const kept =
+    `Race Pace keeps its ${pesoExact(commission)} commission and the processor keeps ` +
+    `${pesoExact(processor)}; neither comes back on a refund.`;
+
+  if (terms.refund_policy === "full") {
+    return `Gets ${pesoExact(net)} back — the whole of what the organizer would have been paid. ${kept}`;
+  }
+
+  // Clamped to NET, not to the entry — `_shared/refund.ts` clamps to
+  // `pay.net_to_org`, and an organizer cannot retain money they were never going
+  // to receive. Said out loud when it bites, on the same principle as
+  // `flatFeeWarning`: a silent clamp is worse than a visible one.
+  const retained = Math.min(asked, net);
+  const returned = net - retained;
+  const split =
+    asked > net
+      ? `The ${pesoExact(asked)} retention is more than the ${pesoExact(net)} the organizer ` +
+        `would have been paid, so the organizer keeps that whole ${pesoExact(net)} and nothing ` +
+        "goes back."
+      : `The organizer keeps the ${pesoExact(retained)} retained in full — no commission is struck on it.`;
+  return `Gets ${pesoExact(returned)} back. ${split} ${kept}`;
 }
 
 /**

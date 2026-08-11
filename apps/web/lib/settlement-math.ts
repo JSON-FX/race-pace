@@ -89,6 +89,26 @@ export type SettlementPayment = {
 export type RunnerName = { full_name: string | null; bib_name: string | null };
 
 /**
+ * The only two `processor_fee_source` values on which the ORGANIZER bore the
+ * processing cost — i.e. the only two on which `net_to_org` had a processor fee
+ * deducted from it, and so the only two whose fee may be shown as a cost of
+ * theirs.
+ *
+ * AN ALLOWLIST, and the shape is the point. `payout_open_statement`
+ * (20260811095000, re-emitted by 20260811095500), the clawback
+ * (20260811095700) and `admin_payment_aggregates` (20260811095500) all spell
+ * `processor_fee_source in ('actual','predicted')`. This file used to spell the
+ * complement — "anything except 'historical'" — which is the same set only for
+ * as long as the enum has exactly four values and no `'none'` row ever carries a
+ * non-zero fee. Both of those are assumptions about OTHER files:
+ * 20260811092000's own header calls "never 'none' with a non-zero fee" an
+ * invariant it maintains by construction, and a fifth source value would split
+ * the two definitions with nothing to notice. Stating the same two values the
+ * server states makes the agreement a fact rather than a coincidence.
+ */
+const ORG_BORNE_FEE_SOURCES = ["actual", "predicted"];
+
+/**
  * A payment row as the organizer's settlement table and CSV show it.
  *
  * This mapping is pure and lives here — NOT beside the query — because of the
@@ -98,9 +118,10 @@ export type RunnerName = { full_name: string | null; bib_name: string | null };
  * organizer: `net_to_org` on such a row deliberately violates
  * `amount - processor_fee - commission`. Reporting the stored fee in the
  * organizer's "Payment processing" column would bill them for a cost they never
- * bore AND break the page's own waterfall for exactly those rows.
- * `payout_open_statement` applies the identical filter (20260811095000), and
- * these two must agree or an organizer's page disagrees with their statement.
+ * bore AND break the page's own waterfall for exactly those rows. A `'none'` row
+ * is excluded for the ordinary reason — no fee was deducted there either.
+ * `payout_open_statement` applies the same allowlist (20260811095000); these two
+ * must agree or an organizer's page disagrees with their statement.
  *
  * Names are resolved from a map rather than embedded in the payments select:
  * there is no foreign key from `registrations` to `profiles` (user_id points at
@@ -128,7 +149,7 @@ export function toSettlementRow(
     method: p.method,
     gross_paid: p.amount,
     rp_commission: p.platform_fee,
-    processing_fee: p.processor_fee_source === "historical" ? 0 : p.processor_fee_cents,
+    processing_fee: ORG_BORNE_FEE_SOURCES.includes(p.processor_fee_source) ? p.processor_fee_cents : 0,
     net_to_org: p.net_to_org,
     status: p.status,
     refunded_amount: p.refunded_amount,

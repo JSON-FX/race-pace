@@ -83,7 +83,9 @@
 -- Guessing it would write a money figure derived from an assumption. Refusing to
 -- deploy is the only safe answer, so this RAISES rather than warns. It fires only
 -- on rows that are genuinely at risk — a legacy row with no payout stamp was
--- never settled, so there is nothing to claw back and nothing to over-recover.
+-- never settled, so there is nothing to claw back and nothing to over-recover —
+-- and 20260811095800 is what keeps that true once it IS settled, by stamping
+-- payout_clawback_id in the same breath as the earn stamp (see the hint below).
 -- Clearing it is per-row bookkeeping, not a code change; see
 -- .superpowers/sdd/2026-08-11-commission-payouts-money-model/task-9-report.md
 -- for the reconstruction recipe (the settling statement's own commission_cents
@@ -124,7 +126,15 @@ begin
         '''partially_refunded'' and raw ? ''original_amount'' and payout_statement_id is not null '
         'and payout_clawback_id is null; then restate refunded_amount as '
         '(net_to_org at settlement - current net_to_org) using the settling statement''s '
-        'commission_cents snapshot. See task-9-report.md.';
+        'commission_cents snapshot. See task-9-report.md. '
+        'THIS GATE DEPENDS ON 20260811095800_clawback_only_after_settlement.sql AS WELL AS '
+        'ON 20260811095700. It ignores UNSTAMPED legacy rows only because 095800 has '
+        'payout_mark_paid set payout_clawback_id on any row that is already '
+        '''partially_refunded'' when it is first earn-stamped, which permanently excludes it '
+        'from the clawback. Under 095700 alone that row is earn-stamped with a NULL clawback '
+        'stamp and the NEXT statement recovers its GROSS-scale refunded_amount — so reverting '
+        '095800 turns every unstamped legacy row into this same over-recovery hazard, and this '
+        'gate must then be widened to fire on all of them regardless of payout_statement_id.';
   end if;
 end;
 $$;

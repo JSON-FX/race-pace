@@ -158,11 +158,26 @@ describe("toSettlementRow", () => {
     expect(r.net_to_org).toBe(194000);
   });
 
-  it.each(["actual", "predicted", "none"])(
+  it.each(["actual", "predicted"])(
     "passes a '%s' processing fee through unchanged",
     (source) => {
       expect(toSettlementRow(pay({ processor_fee_source: source }), names).processing_fee)
         .toBe(3000);
+    },
+  );
+
+  // The filter is an ALLOWLIST — `in ('actual','predicted')`, exactly as
+  // payout_open_statement (20260811095000), the clawback (20260811095700) and
+  // admin_payment_aggregates (20260811095500) spell it. It used to be the
+  // complement, "anything except 'historical'", which agrees only while the enum
+  // has four values and no 'none' row ever carries a fee. Both of those are
+  // assumptions about other files, and when either breaks the page bills an
+  // organizer for a cost their own statement says they never bore.
+  it.each(["none", "a_future_fifth_source"])(
+    "reports a '%s' processing fee as ZERO — the allowlist admits only what the statement admits",
+    (source) => {
+      expect(toSettlementRow(pay({ processor_fee_source: source, processor_fee_cents: 3000 }), names)
+        .processing_fee).toBe(0);
     },
   );
 

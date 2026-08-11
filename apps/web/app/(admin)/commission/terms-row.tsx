@@ -364,9 +364,11 @@ const refundDraftOf = (o: OrgCommissionRow): RefundDraft => ({
 const pendingRefund = (o: OrgCommissionRow, d: RefundDraft): RefundTerms => ({
   refund_policy: d.policy,
   refund_fee_cents: centsOf(d.retention),
-  // The SAVED fee terms, not the fee table's draft: the commission struck on a
-  // retained amount is the org's real, committed rule. Reading an unsaved fee
-  // edit from the other table would show a split that no refund would produce.
+  // The SAVED fee terms, not the fee table's draft. The commission in this
+  // example is the one struck on the ENTRY at capture and frozen onto the payment
+  // row — it is what a refund declines to give back, not something the refund
+  // re-strikes — so it must be the org's real, committed rule. Reading an unsaved
+  // fee edit from the other table would quote a net_to_org no payment carries.
   commission_type: o.commission_type,
   commission_rate: o.commission_rate,
   commission_flat_cents: o.commission_flat_cents,
@@ -423,7 +425,9 @@ function RefundRow({ org, draft, onChange }: {
         {org.example_entry_cents > 0 ? (
           <>
             <div>A runner cancelling a {peso(org.example_entry_cents)} entry:</div>
-            <div className="text-foreground">{describeRefund(terms, org.example_entry_cents)}</div>
+            <div className="text-foreground">
+              {describeRefund(terms, org.example_entry_cents, org.avg_processor_fee_cents)}
+            </div>
           </>
         ) : (
           "No paid entries or open categories yet to work an example from."
@@ -488,11 +492,19 @@ export function RefundTermsTable({ orgs }: { orgs: OrgCommissionRow[] }) {
         </Strip>
       ))}
 
+      {/* The rule this table is read against, stated once. It is NOT the rule
+          this strip used to state ("a retained fee is just a smaller sale", with
+          the commission re-struck against the retention): that was superseded by
+          20260811094000_refund_net_to_org.sql, which dropped the RPC parameter
+          that made it possible. */}
       <Strip tone="info">
-        <b className="font-extrabold">A retained fee is just a smaller sale.</b> The org&apos;s normal commission
-        rule runs against the retained amount, so nothing new has to be decided per refund — and the payout
-        statement picks it up with no special case. <b className="font-extrabold">None</b> refuses the refund
-        outright, and the org admin&apos;s refund button is disabled with the reason rather than failing on submit.
+        <b className="font-extrabold">A refund returns what the organizer would have been paid</b>, never the
+        whole entry. Race Pace&apos;s commission is an earned service fee and is kept, and the payment processor
+        does not return its cut — so a cancelling runner always gets back less than they paid. Under{" "}
+        <b className="font-extrabold">Flat fee</b> the organizer keeps the retained amount on top of that, and
+        keeps all of it: no commission is struck on a retention, because Race Pace already took its full
+        commission when the entry was paid. <b className="font-extrabold">None</b> refuses the refund outright,
+        and the org admin&apos;s refund button is disabled with the reason rather than failing on submit.
       </Strip>
     </>
   );

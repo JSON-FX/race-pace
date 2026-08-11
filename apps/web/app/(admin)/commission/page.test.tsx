@@ -87,14 +87,16 @@ const SUPER = roles({
   capabilities: ["manage_platform", "manage_team", "manage_org", "check_in"],
 });
 
-/** One org on 3% with a flat-fee refund policy, absorbing processing. */
+/** One org on 3% with a flat-fee refund policy, absorbing processing. The
+ *  design's own worked example: a ₱2,000 GCash entry costs ₱60 in commission and
+ *  ₱30 to the processor, so net_to_org is ₱1,910. */
 const ORG = {
   id: "o1", name: "Muspo", since: null, fee_mode: "absorb" as const,
   commission_type: "percent", commission_rate: 0.03, commission_flat_cents: 0,
   refund_policy: "flat_fee", refund_fee_cents: 30000,
   event_count: 2, paid_count: 5, gross_revenue: 900000, charged_gross: 1000000,
   platform_fee: 30000, net_to_org: 917500, avg_entry_cents: 200000,
-  cheapest_open: null, example_entry_cents: 200000,
+  cheapest_open: null, example_entry_cents: 200000, avg_processor_fee_cents: 3000,
 };
 
 async function renderPage() {
@@ -130,6 +132,38 @@ describe("CommissionPage — the three-party surfaces", () => {
     await renderPage();
     const control = screen.getByRole("combobox", { name: "Fee mode for Muspo" });
     expect(control).toHaveTextContent("Absorb · org pays fees");
+  });
+
+  // The refund worked example is the sentence an operator negotiates a refund
+  // policy from, and it was quoting the rule this branch superseded: the runner
+  // getting `entry - retained` back, and the retention split with Race Pace. Held
+  // at the page level as well as in commission.test.ts because the defect was
+  // that the SCREEN said it — a correct helper wired to a page that never passed
+  // it a processor fee would read exactly as wrong.
+  it("works the refund example from net_to_org, and gives the organizer the whole retention", async () => {
+    getCommissionOverview.mockResolvedValue({ ...emptyOverview, orgs: [ORG] });
+    await renderPage();
+
+    expect(screen.getByText("A runner cancelling a ₱2,000 entry:")).toBeInTheDocument();
+    expect(screen.getByText(/^Gets ₱1,610\.00 back\./)).toBeInTheDocument();
+    expect(screen.getByText(/The organizer keeps the ₱300\.00 retained in full/)).toBeInTheDocument();
+    expect(screen.getByText(/Race Pace keeps its ₱60\.00 commission and the processor keeps ₱30\.00/))
+      .toBeInTheDocument();
+    // The superseded arithmetic, in the two forms it took on this screen.
+    expect(screen.queryByText(/₱1,700\.00/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/is commission and .* goes to the organizer/)).not.toBeInTheDocument();
+  });
+
+  it("no longer tells the operator a retained fee is a smaller sale", async () => {
+    // The strip under the refund table asserted the org's commission rule runs
+    // against the retention. refund_registration_tx dropped the parameter that
+    // made that possible (20260811094000), so it is the opposite of what happens.
+    getCommissionOverview.mockResolvedValue({ ...emptyOverview, orgs: [ORG] });
+    await renderPage();
+
+    expect(screen.queryByText(/just a smaller sale/)).not.toBeInTheDocument();
+    expect(screen.getByText(/A refund returns what the organizer would have been paid/)).toBeInTheDocument();
+    expect(screen.getByText(/no commission is struck on a retention/)).toBeInTheDocument();
   });
 
   it("labels the charged figure as GMV throughout, never as bare 'Gross'", async () => {

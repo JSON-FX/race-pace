@@ -52,6 +52,17 @@ export type OrgCommissionRow = RefundTerms & {
   /** The entry price the refund worked example is rendered from: the org's own
    *  average paid entry, falling back to its cheapest open category. */
   example_entry_cents: number;
+  /**
+   * What the payment processor actually took out of one of this org's entries,
+   * on average — the third term of `net_to_org = amount - platform_fee -
+   * processor_fee_cents`, and therefore the term without which the refund worked
+   * example cannot state what a cancelling runner gets back.
+   *
+   * `null` when nothing was observed, which the copy says out loud instead of
+   * quoting a zero. See `processorBorneByOrg` below for how it is derived and
+   * why a 'historical' row contributes nothing.
+   */
+  avg_processor_fee_cents: number | null;
 };
 
 export type EventCommissionRow = {
@@ -109,9 +120,47 @@ type PaymentSlice = {
   event_name: string | null;
   amount: number;
   platform_fee: number;
+  net_to_org: number;
   status: string;
   refunded_amount: number;
 };
+
+/**
+ * What the processor took OUT OF THE ORGANIZER on one payment, derived rather
+ * than read.
+ *
+ * `admin_payments_v` carries no `processor_fee_cents` — but it does not need to,
+ * because the figure that matters here is not the stored fee, it is the fee that
+ * was actually DEDUCTED from what the organizer is owed, and that is recoverable
+ * from the columns this page already fetches:
+ *
+ *   paid                 amount - platform_fee - net_to_org
+ *   partially_refunded   amount - platform_fee - net_to_org - refunded_amount
+ *
+ * both of which are the same expression, since `refunded_amount` is 0 on a plain
+ * paid row. On a partial refund it is exactly the four-way split
+ * `refunded_amount + net_to_org + platform_fee + processor_fee_cents = amount`
+ * that `refund_registration_tx` raises `refund_split_mismatch` to enforce
+ * (20260811094000), so the term is trustworthy on both statuses.
+ *
+ * DERIVING IT IS WHAT MAKES THE 'historical' FILTER AUTOMATIC. On a
+ * `processor_fee_source = 'historical'` row the platform absorbed a real fee and
+ * `net_to_org` is `amount - platform_fee` with no processor deduction
+ * (20260811090000's column comment), so this expression is 0 there — the same
+ * answer the `('actual','predicted')` allowlist gives in `payout_open_statement`
+ * and in `lib/settlement-math.ts`, reached without needing the source column at
+ * all. A 'none' row is 0 for the ordinary reason: nothing was deducted.
+ *
+ * Non-positive results are DISCARDED rather than averaged in, which is the same
+ * decision: a zero says "no processing was charged against this organizer on this
+ * row", which is not an observation of what processing costs them, and a negative
+ * can only come from a pre-2026-08-11 partial refund whose `amount` was rewritten
+ * down (`raw.original_amount`; see 20260811092000's gate) — a row whose columns no
+ * longer satisfy any identity worth reading.
+ */
+function processorBorneByOrg(p: PaymentSlice): number {
+  return p.amount - p.platform_fee - p.net_to_org - p.refunded_amount;
+}
 
 /**
  * Everything the Commission page renders, in one pass.
@@ -136,9 +185,14 @@ export async function getCommissionOverview(): Promise<CommissionOverview> {
       .order("name"),
     supabase.from("admin_org_totals_v").select("org_id,paid_count,gross_revenue,charged_gross,platform_fee,net_to_org"),
     supabase.from("events").select("id,name,org_id,status"),
+    // net_to_org rides along on a select this page already makes, rather than
+    // arriving as a second read of `payments`: it is the only extra column the
+    // refund worked example needs (see processorBorneByOrg), and a query of its
+    // own would add a round trip and a second exposure to PostgREST's max_rows
+    // for a figure this row set already contains.
     supabase
       .from("admin_payments_v")
-      .select("org_id,event_id,event_name,amount,platform_fee,status,refunded_amount"),
+      .select("org_id,event_id,event_name,amount,platform_fee,net_to_org,status,refunded_amount"),
     // Only the column that is summed. `payout_statement_id` is not on
     // admin_payments_v (it was added to `payments` by the payouts migration
     // after the view was last replaced), so this is its own narrow read rather
@@ -185,6 +239,28 @@ export async function getCommissionOverview(): Promise<CommissionOverview> {
     }
   }
 
+  // Averaged over the rows that ACTUALLY BORE a processing cost, not over every
+  // paid entry. A mixed org — some entries settled under the old absorbed-fee
+  // terms, some under the new ones — would otherwise have its example dragged
+  // toward a fee nobody will be charged again, and an all-legacy org would read
+  // as "the processor kept ₱0.00", which is a false statement dressed as a
+  // figure. Averaging only over rows that were charged says what processing
+  // costs on this org's entries, which is what the next refund will be struck
+  // against; an org with no such row at all gets `null` and honest copy.
+  const processorByOrg = new Map<string, { total: number; rows: number }>();
+  for (const p of payments) {
+    if (!EARNING_STATUSES.includes(p.status)) continue;
+    const borne = processorBorneByOrg(p);
+    if (borne <= 0) continue;
+    const acc = processorByOrg.get(p.org_id);
+    if (acc) {
+      acc.total += borne;
+      acc.rows += 1;
+    } else {
+      processorByOrg.set(p.org_id, { total: borne, rows: 1 });
+    }
+  }
+
   const totalsByOrg = new Map(totals.map((t) => [t.org_id, t]));
   const eventCountByOrg = new Map<string, number>();
   for (const e of events) eventCountByOrg.set(e.org_id, (eventCountByOrg.get(e.org_id) ?? 0) + 1);
@@ -201,6 +277,7 @@ export async function getCommissionOverview(): Promise<CommissionOverview> {
     // refunded, so dividing it would quote an entry fee nobody was ever charged.
     const avg = paid_count > 0 ? Math.round(charged_gross / paid_count) : 0;
     const cheapest = cheapestByOrg.get(o.id) ?? null;
+    const proc = processorByOrg.get(o.id);
     return {
       id: o.id,
       name: o.name,
@@ -228,6 +305,10 @@ export async function getCommissionOverview(): Promise<CommissionOverview> {
       // entry is the most honest one; a brand-new org with no sales falls back
       // to what it is actually selling.
       example_entry_cents: avg > 0 ? avg : cheapest?.base_price ?? 0,
+      // `null`, never 0. The worked example turns this into either a peso figure
+      // or a sentence explaining that there is none, and those must not be the
+      // same branch.
+      avg_processor_fee_cents: proc ? Math.round(proc.total / proc.rows) : null,
     };
   });
 
