@@ -27,6 +27,14 @@ const AUTHENTICATED_ALLOWLIST = new Set([
   "payout_mark_paid",
   "payout_open_statement",
   "update_registration_fields_tx",
+  // Not Group B — processor_rate_at has no internal caller check to refuse anyone. It is a
+  // read over processor_rates, whose own RLS SELECT policy already grants `authenticated`
+  // blanket access (`for select to authenticated using (true)`): a versioned rate card is a
+  // published price list, not a secret. The pay screen (PayPanel.tsx, both apps/site and
+  // mobile) calls it client-side, as the signed-in runner, to reprice the pass-on surcharge
+  // live when the payment method changes. Added deliberately by task-2-brief.md
+  // (2026-08-11-commission-payouts-money-model) — see that migration's own grant block.
+  "processor_rate_at",
   ...AUTH_PREDICATES,
 ]);
 
