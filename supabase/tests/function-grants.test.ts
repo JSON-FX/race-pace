@@ -26,6 +26,11 @@ const AUTHENTICATED_ALLOWLIST = new Set([
   "checkin_undo",
   "payout_mark_paid",
   "payout_open_statement",
+  // 20260811095000_payout_open_statement_v2.sql. Deliberate addition, and it honours the
+  // contract above rather than bending it: the function raises 42501 for any caller that
+  // is not a super admin, exactly as its two payout siblings do. That refusal is asserted
+  // directly in payout-statements-v2.test.ts, so this entry is not taken on trust.
+  "payout_unreconciled_count",
   "update_registration_fields_tx",
   ...AUTH_PREDICATES,
 ]);

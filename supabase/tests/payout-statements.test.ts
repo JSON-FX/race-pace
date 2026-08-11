@@ -65,9 +65,15 @@ async function fixture(tag: string, count: number) {
         user_id: newUid, total_amount: 200000, status: "paid",
       }).select().single()).data!;
       regs.push(reg.id);
+      // A real three-party row, not a two-party one: PayMongo takes ₱30 as well as
+      // Race Pace's 10%, so net_to_org is 200000 - 20000 - 3000. Before Task 8 this
+      // fixture left processor_fee_cents at its 0 default, which made the old
+      // `gross - commission` arithmetic and the new `sum(net_to_org)` produce the
+      // identical number — these tests could not have told the two apart.
       await s.from("payments").insert({
         org_id: org.id, registration_id: reg.id, amount: 200000,
-        platform_fee: 20000, net_to_org: 180000, status: "paid", provider: "fake",
+        platform_fee: 20000, processor_fee_cents: 3000, processor_fee_source: "actual",
+        net_to_org: 177000, status: "paid", provider: "fake", method: "gcash",
       });
     }
 
@@ -107,8 +113,13 @@ describe("payout statements", () => {
       const st = await stmt(s, id);
       expect(Number(st.gross_cents)).toBe(600000);
       expect(Number(st.commission_cents)).toBe(60000);
+      expect(Number(st.processing_cents)).toBe(9000);
       expect(Number(st.refunds_cents)).toBe(0);
-      expect(Number(st.net_owed_cents)).toBe(540000);
+      expect(Number(st.net_owed_cents)).toBe(531000); // 3 x (200000 - 20000 - 3000)
+      // The processing line is not decoration: without it this total was 540000 and
+      // the platform absorbed PayMongo's ₱90.
+      expect(Number(st.gross_cents) - Number(st.commission_cents) - Number(st.processing_cents))
+        .toBe(Number(st.net_owed_cents));
     } finally {
       await cleanup(s, org.id, users);
     }
@@ -123,11 +134,12 @@ describe("payout statements", () => {
       const st = await stmt(s, id);
       // Only the surviving entry counts. The refunded one is invisible: the org was
       // never given that money, so there is nothing to claw back. Keying on status
-      // alone would have produced 200000 - 20000 - 180000 = 0 here, and a bare
-      // -180000 had there been no surviving entry.
+      // alone would have produced 200000 - 20000 - 3000 - 177000 = 0 here, and a bare
+      // -177000 had there been no surviving entry.
       expect(Number(st.gross_cents)).toBe(200000);
+      expect(Number(st.processing_cents)).toBe(3000);
       expect(Number(st.refunds_cents)).toBe(0);
-      expect(Number(st.net_owed_cents)).toBe(180000);
+      expect(Number(st.net_owed_cents)).toBe(177000);
     } finally {
       await cleanup(s, org.id, users);
     }
@@ -144,8 +156,10 @@ describe("payout statements", () => {
       const second = await openStatement(as, ev.id);
       const st2 = await stmt(s, second);
       expect(Number(st2.gross_cents)).toBe(0);
-      expect(Number(st2.refunds_cents)).toBe(180000);
-      expect(Number(st2.net_owed_cents)).toBe(-180000); // organizer owes it back
+      // The clawback is net_to_org — what was actually transferred for that row —
+      // so it tracks the processor line automatically.
+      expect(Number(st2.refunds_cents)).toBe(177000);
+      expect(Number(st2.net_owed_cents)).toBe(-177000); // organizer owes it back
       await as.rpc("payout_mark_paid", { p_statement_id: second, p_reference: "REC-1", p_note: null });
 
       // A THIRD statement must not re-subtract the same refund.
