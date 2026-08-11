@@ -43,9 +43,12 @@
 | `supabase/tests/refund-net-to-org.test.ts` | Refund invariant + partial balance |
 | `supabase/tests/payout-statements-v2.test.ts` | New statement arithmetic |
 | `supabase/tests/processor-fee-backfill.test.ts` | Backfill leaves `net_to_org` untouched |
-| `apps/web/lib/queries/settlement.ts` | Org-scoped settlement read model |
+| `apps/web/lib/settlement-math.ts` | Pure settlement arithmetic — no server imports |
+| `apps/web/lib/settlement-math.test.ts` | Totals + projected-range unit tests |
+| `apps/web/lib/queries/settlement.ts` | Org-scoped settlement read model (server) |
 | `apps/web/lib/settlement-csv.ts` | Pure CSV serialiser |
 | `apps/web/lib/settlement-csv.test.ts` | CSV unit tests |
+| `apps/site/lib/payment.test.ts` | Pass-on line unit tests (Task 14) |
 | `apps/web/app/(admin)/events/[eventId]/settlement/page.tsx` | Organizer settlement view |
 | `apps/web/app/(admin)/events/[eventId]/settlement/export-button.tsx` | Client CSV download |
 | `apps/web/app/(admin)/commission/fee-mode-row.tsx` | Super-admin `fee_mode` control |
@@ -63,6 +66,8 @@
 | `apps/web/lib/queries/commission.ts` | Drift + absorbed totals |
 | `apps/web/app/(admin)/commission/page.tsx` | Drift banner, fee-mode column |
 | `apps/site/app/pay/[registrationId]/PayPanel.tsx` | Itemised breakdown in pass-on mode |
+| `apps/site/lib/payment.ts` | `passOnLines` — display-only gross-up |
+| `apps/site/lib/registration.ts` | Carry `fee_mode` through `REG_SELECT` |
 
 ---
 
@@ -2439,26 +2444,33 @@ git commit -m "feat(admin): add settlement CSV serialiser"
 ## Task 12: Organizer settlement view
 
 **Files:**
-- Create: `apps/web/lib/queries/settlement.ts`
+- Create: `apps/web/lib/settlement-math.ts` (PURE — no server imports)
+- Create: `apps/web/lib/settlement-math.test.ts`
+- Create: `apps/web/lib/queries/settlement.ts` (server read model)
 - Create: `apps/web/app/(admin)/events/[eventId]/settlement/page.tsx`
 - Create: `apps/web/app/(admin)/events/[eventId]/settlement/export-button.tsx`
-- Create: `apps/web/lib/queries/settlement.test.ts`
 - Test: `supabase/tests/processor-fee-ledger.test.ts` (append the RLS isolation test)
+
+> **Why two modules.** `settlementTotals` and `projectedRange` are pure arithmetic and must be unit-testable, but `lib/queries/settlement.ts` imports `@/lib/supabase/server` and therefore `next/headers`. A test importing the query module would drag that in, and the client `export-button.tsx` would drag it into the browser bundle — a build error, not a size regression. This mirrors the existing `lib/commission-terms.ts` (pure) / `lib/queries/commission.ts` (server, re-exports) split, and that file's header documents exactly why.
 
 **Interfaces:**
 - Consumes: `SettlementRow`, `settlementCsv` (Task 11); Task 1 columns
-- Produces:
-  - `export type EventSettlement = { event_name: string; org_name: string; rows: SettlementRow[]; totals: { gross: number; commission: number; processing: number; refunds: number; net: number }; feeMode: "absorb" | "pass_on"; projected: { low: number; high: number } | null }`
+- Produces, from `lib/settlement-math.ts`:
+  - `export type ProcessorRateLite = { percent_bps: number; fixed_cents: number }`
+  - `export type SettlementTotals = { gross: number; commission: number; processing: number; refunds: number; net: number }`
+  - `export function settlementTotals(rows: SettlementRow[]): SettlementTotals`
+  - `export function projectedRange(paidCount: number, avgEntry: number, commissionCents: number, rates: { cheap: ProcessorRateLite; dear: ProcessorRateLite }): { low: number; high: number }`
+- Produces, from `lib/queries/settlement.ts`:
+  - `export type EventSettlement = { event_name: string; org_name: string; rows: SettlementRow[]; totals: SettlementTotals; feeMode: "absorb" | "pass_on"; projected: { low: number; high: number } | null; unreconciled: number }`
   - `export async function getEventSettlement(eventId: string): Promise<EventSettlement | null>`
-  - `export function projectedRange(paidCount: number, avgEntry: number, commissionCents: number, rates: {cheap: ProcessorRateLite; dear: ProcessorRateLite}): { low: number; high: number }`
 
 - [ ] **Step 1: Write the failing test**
 
-Create `apps/web/lib/queries/settlement.test.ts`:
+Create `apps/web/lib/settlement-math.test.ts`:
 
 ```ts
 import { describe, it, expect } from "vitest";
-import { projectedRange, settlementTotals } from "./settlement";
+import { projectedRange, settlementTotals } from "./settlement-math";
 import type { SettlementRow } from "@/lib/settlement-csv";
 
 const row = (over: Partial<SettlementRow> = {}): SettlementRow => ({
@@ -2522,33 +2534,30 @@ describe("projectedRange", () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd apps/web && pnpm test -- lib/queries/settlement.test.ts`
-Expected: FAIL — cannot resolve `./settlement`
+Run: `cd apps/web && pnpm test -- lib/settlement-math.test.ts`
+Expected: FAIL — cannot resolve `./settlement-math`
 
-- [ ] **Step 3: Write the read model**
+- [ ] **Step 3: Write the pure math module**
 
-Create `apps/web/lib/queries/settlement.ts`:
+Create `apps/web/lib/settlement-math.ts`:
 
 ```ts
-import { createClient } from "@/lib/supabase/server";
 import type { SettlementRow } from "@/lib/settlement-csv";
+
+/**
+ * Settlement arithmetic, deliberately server-free.
+ *
+ * No `@/lib/supabase/server`, no `next/headers`, no imports beyond a type —
+ * so unit tests and the client export button can both use it. The read model
+ * in `lib/queries/settlement.ts` re-exports everything here, which keeps the
+ * page's import list short without dragging server-only modules into the
+ * browser bundle. Same split, and same reason, as `lib/commission-terms.ts`.
+ */
 
 export type ProcessorRateLite = { percent_bps: number; fixed_cents: number };
 
 export type SettlementTotals = {
   gross: number; commission: number; processing: number; refunds: number; net: number;
-};
-
-export type EventSettlement = {
-  event_name: string;
-  org_name: string;
-  rows: SettlementRow[];
-  totals: SettlementTotals;
-  feeMode: "absorb" | "pass_on";
-  /** Only meaningful in absorb mode, where the organizer's net depends on how
-   *  runners happen to pay. Null in pass-on mode, where it is a fixed figure. */
-  projected: { low: number; high: number } | null;
-  unreconciled: number;
 };
 
 /**
@@ -2592,6 +2601,41 @@ export function projectedRange(
     avgEntry - commissionCents - (Math.round((avgEntry * r.percent_bps) / 10000) + r.fixed_cents);
   return { low: per(rates.dear) * paidCount, high: per(rates.cheap) * paidCount };
 }
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `cd apps/web && pnpm test -- lib/settlement-math.test.ts`
+Expected: PASS (6 tests)
+
+- [ ] **Step 5: Write the server read model**
+
+Create `apps/web/lib/queries/settlement.ts`:
+
+```ts
+import { createClient } from "@/lib/supabase/server";
+import type { SettlementRow } from "@/lib/settlement-csv";
+import {
+  settlementTotals, projectedRange,
+  type ProcessorRateLite, type SettlementTotals,
+} from "@/lib/settlement-math";
+
+// Re-exported so the page has one import for the whole read model, while the
+// pure half stays importable without pulling in next/headers. Same pattern as
+// lib/queries/commission.ts.
+export * from "@/lib/settlement-math";
+
+export type EventSettlement = {
+  event_name: string;
+  org_name: string;
+  rows: SettlementRow[];
+  totals: SettlementTotals;
+  feeMode: "absorb" | "pass_on";
+  /** Only meaningful in absorb mode, where the organizer's net depends on how
+   *  runners happen to pay. Null in pass-on mode, where it is a fixed figure. */
+  projected: { low: number; high: number } | null;
+  unreconciled: number;
+};
 
 const SELECT =
   "registration_id,amount,platform_fee,processor_fee_cents,processor_fee_source," +
@@ -2689,12 +2733,7 @@ export async function getEventSettlement(eventId: string): Promise<EventSettleme
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
-
-Run: `cd apps/web && pnpm test -- lib/queries/settlement.test.ts`
-Expected: PASS (6 tests)
-
-- [ ] **Step 5: Write the export button**
+- [ ] **Step 6: Write the export button**
 
 Create `apps/web/app/(admin)/events/[eventId]/settlement/export-button.tsx`:
 
@@ -2729,7 +2768,7 @@ export function ExportSettlementButton({
 }
 ```
 
-- [ ] **Step 6: Write the page**
+- [ ] **Step 7: Write the page**
 
 Create `apps/web/app/(admin)/events/[eventId]/settlement/page.tsx`:
 
@@ -2856,7 +2895,7 @@ export default async function SettlementPage({
 
 > **Capability note:** the four capabilities are `manage_platform`, `manage_team`, `manage_org`, `check_in` — there is no reporting-specific one, and inventing one would mean touching `capabilitiesFor`, `BY_ROLE` and the nav filters for no gain. `manage_org` covers Dashboard, Events, Registrations and Payments, which is exactly the audience for this page. A marshal (`check_in` only) correctly cannot reach it.
 
-- [ ] **Step 7: Add the RLS isolation test**
+- [ ] **Step 8: Add the RLS isolation test**
 
 Append to `supabase/tests/processor-fee-ledger.test.ts`:
 
@@ -2917,19 +2956,19 @@ describe("settlement RLS isolation", () => {
 });
 ```
 
-- [ ] **Step 8: Run both suites**
+- [ ] **Step 9: Run both suites**
 
 Run:
 ```bash
 pnpm test -- supabase/tests/processor-fee-ledger.test.ts
-cd apps/web && pnpm test -- lib/queries/settlement.test.ts lib/settlement-csv.test.ts && pnpm typecheck
+cd apps/web && pnpm test -- lib/settlement-math.test.ts lib/settlement-csv.test.ts && pnpm typecheck
 ```
 Expected: PASS
 
-- [ ] **Step 9: Commit**
+- [ ] **Step 10: Commit**
 
 ```bash
-git add apps/web/lib/queries/settlement.ts apps/web/lib/queries/settlement.test.ts "apps/web/app/(admin)/events/[eventId]/settlement" supabase/tests/processor-fee-ledger.test.ts
+git add apps/web/lib/settlement-math.ts apps/web/lib/settlement-math.test.ts apps/web/lib/queries/settlement.ts "apps/web/app/(admin)/events/[eventId]/settlement" supabase/tests/processor-fee-ledger.test.ts
 git commit -m "feat(admin): add per-event settlement view with CSV export"
 ```
 
@@ -3195,96 +3234,197 @@ git commit -m "feat(admin): surface processing costs, rate drift and fee mode"
 ## Task 14: Runner-facing breakdown
 
 **Files:**
+- Modify: `apps/site/lib/payment.ts` (add `passOnLines`)
+- Create: `apps/site/lib/payment.test.ts`
+- Modify: `apps/site/lib/registration.ts` (`REG_SELECT` + `RegistrationRow` gain `feeMode`)
 - Modify: `apps/site/app/pay/[registrationId]/PayPanel.tsx`
-- Modify: `apps/site/app/pay/[registrationId]/page.tsx`
 - Test: `apps/site/app/pay/[registrationId]/__tests__/PayPanel.test.tsx` (append)
 
+> **Read these three files before writing anything.** `PayPanel` takes only `registrationId` and loads everything client-side through `useRegistration`; it already holds `method` in `useState` and already calls `breakdown(total, basePrice)` from `@/lib/payment`. So the fee lines belong in that same client path — **not** as new props from the server page. Passing them as props would freeze the processing line at whatever method was current on the server render, and the whole point is that it moves when the runner switches method.
+
 **Interfaces:**
-- Consumes: `fee_mode`, `processor_rates`, `passOnBreakdown` logic (mirrored client-side for display only)
-- Produces: none
+- Consumes: `fee_mode` (Task 1), `processor_rates` (Task 2)
+- Produces: `export function passOnLines(baseTotal: number, platformFee: number, rate: { percent_bps: number; fixed_cents: number }): { base: number; platformFee: number; processorFee: number; total: number }`
+
+> **Why this duplicates `passOnBreakdown` from Task 6.** `apps/site` cannot import from `supabase/functions/` — different runtime, different tsconfig, no path alias. This is display-only and the server recomputes the authoritative amount in `payment-session`. The duplication is therefore deliberate and must be marked as such in a comment, with the test below asserting both implementations agree on the same worked examples.
 
 - [ ] **Step 1: Write the failing test**
 
-Append to `apps/site/app/pay/[registrationId]/__tests__/PayPanel.test.tsx`:
+Create `apps/site/lib/payment.test.ts`:
 
-```tsx
-describe("fee breakdown", () => {
-  const absorb = { feeMode: "absorb" as const, totalAmount: 200000, breakdown: null };
+```ts
+import { describe, it, expect } from "vitest";
+import { passOnLines } from "./payment";
 
-  it("shows only the total in absorb mode — the runner pays no fees", () => {
-    render(<PayPanel registrationId="r1" {...absorb} />);
-    expect(screen.getByText("₱2,000.00")).toBeInTheDocument();
-    expect(screen.queryByText(/service fee/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/payment processing/i)).not.toBeInTheDocument();
+const CARD = { percent_bps: 350, fixed_cents: 1500 };
+const GCASH = { percent_bps: 150, fixed_cents: 0 };
+
+describe("passOnLines", () => {
+  it("matches the server's gross-up for GCash", () => {
+    // Must equal supabase/functions/_shared/processorFee.ts passOnBreakdown.
+    expect(passOnLines(200000, 6000, GCASH)).toEqual({
+      base: 200000, platformFee: 6000, processorFee: 3138, total: 209138,
+    });
   });
 
-  it("itemises every line in pass-on mode, because each one changes the total", () => {
-    render(
-      <PayPanel
-        registrationId="r1"
-        feeMode="pass_on"
-        totalAmount={200000}
-        breakdown={{ base: 200000, platformFee: 6000, processorFee: 3138, total: 209138 }}
-      />,
-    );
-    expect(screen.getByText(/Race Pace service fee/i)).toBeInTheDocument();
-    expect(screen.getByText(/Payment processing/i)).toBeInTheDocument();
-    expect(screen.getByText("₱2,091.38")).toBeInTheDocument();
+  it("matches the server's gross-up for a local card", () => {
+    expect(passOnLines(200000, 6000, CARD)).toEqual({
+      base: 200000, platformFee: 6000, processorFee: 9026, total: 215026,
+    });
   });
 
-  it("keeps the itemised lines summing to the displayed total", () => {
-    const b = { base: 200000, platformFee: 6000, processorFee: 3138, total: 209138 };
-    expect(b.base + b.platformFee + b.processorFee).toBe(b.total);
+  it("keeps the three lines summing to the total", () => {
+    for (const rate of [CARD, GCASH, { percent_bps: 450, fixed_cents: 1500 }]) {
+      const l = passOnLines(200000, 6000, rate);
+      expect(l.base + l.platformFee + l.processorFee).toBe(l.total);
+    }
+  });
+
+  it("returns a zero total for a zero base", () => {
+    expect(passOnLines(0, 0, CARD).total).toBe(0);
   });
 });
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd apps/site && pnpm test -- app/pay`
-Expected: FAIL — `PayPanel` does not accept `feeMode`/`breakdown`
+Run: `cd apps/site && pnpm test -- lib/payment.test.ts`
+Expected: FAIL — `passOnLines is not a function`
 
-- [ ] **Step 3: Extend the page's data fetch**
+- [ ] **Step 3: Add `passOnLines`**
 
-In `apps/site/app/pay/[registrationId]/page.tsx`, fetch the org's `fee_mode` alongside the registration and, when it is `pass_on`, fetch the current rate for the default method (`gcash`) and compute the breakdown to pass as props. Mirror the shape returned by `passOnBreakdown`:
+Append to `apps/site/lib/payment.ts`:
 
 ```ts
-type Breakdown = { base: number; platformFee: number; processorFee: number; total: number };
+/**
+ * The itemised lines a pass-on runner sees, and the total they will be charged.
+ *
+ * DISPLAY ONLY. `payment-session` recomputes the authoritative amount server-side
+ * when the runner actually pays — this exists so the screen can show the total
+ * BEFORE that call, and so it updates when they switch payment method.
+ *
+ * DELIBERATE DUPLICATE of `passOnBreakdown` in
+ * supabase/functions/_shared/processorFee.ts. apps/site cannot import from
+ * supabase/functions (different runtime, no path alias), so the formula is
+ * written twice on purpose. lib/payment.test.ts asserts both agree on the same
+ * worked examples — if you change one, change the other and both tests.
+ *
+ * The gross-up is not optional: the processor charges its percentage on the
+ * FINAL amount, so adding the fee to the base under-collects on every payment.
+ * `ceil` puts the sub-centavo remainder on the organizer's side.
+ */
+export function passOnLines(
+  baseTotal: number,
+  platformFee: number,
+  rate: { percent_bps: number; fixed_cents: number },
+): { base: number; platformFee: number; processorFee: number; total: number } {
+  if (baseTotal <= 0) return { base: 0, platformFee: 0, processorFee: 0, total: 0 };
+  const target = baseTotal + platformFee;
+  const total = Math.ceil(((target + rate.fixed_cents) * 10000) / (10000 - rate.percent_bps));
+  return { base: baseTotal, platformFee, processorFee: total - baseTotal - platformFee, total };
+}
 ```
 
-> The server recomputes the authoritative amount in `payment-session` when the runner actually pays (Task 6). This is display only — it must never be the number sent to PayMongo, or two independent implementations of the same formula would drift.
+- [ ] **Step 4: Run test to verify it passes**
 
-- [ ] **Step 4: Render the breakdown**
+Run: `cd apps/site && pnpm test -- lib/payment.test.ts`
+Expected: PASS (4 tests)
 
-In `PayPanel.tsx`, accept the new props and render the itemised block in pass-on mode, the bare total otherwise:
+- [ ] **Step 5: Carry `fee_mode` through the registration query**
+
+In `apps/site/lib/registration.ts`:
+
+Add `fee_mode` to the `organizations(...)` embed inside `REG_SELECT` — it currently reads `organizations(name)`:
+
+```ts
+organizations(name,fee_mode)
+```
+
+Add to `RegistrationRow`:
+
+```ts
+  feeMode: "absorb" | "pass_on";
+```
+
+and to the mapper beside `orgName`:
+
+```ts
+    feeMode: (r.organizations?.fee_mode ?? "absorb") as "absorb" | "pass_on",
+```
+
+Defaulting to `absorb` rather than throwing: a missing embed must render the sticker price, never an unpriced screen.
+
+- [ ] **Step 6: Write the failing PayPanel test**
+
+Append to `apps/site/app/pay/[registrationId]/__tests__/PayPanel.test.tsx`, following the file's existing mocking of `useRegistration` (read it first and mirror how the other tests stub `reg.data`):
 
 ```tsx
-{breakdown ? (
+describe("fee breakdown", () => {
+  it("shows only the total in absorb mode — the runner pays no fees", () => {
+    renderWithRegistration({ total_amount: 200000, basePrice: 200000, feeMode: "absorb" });
+    expect(screen.getByText("₱2,000.00")).toBeInTheDocument();
+    expect(screen.queryByText(/service fee/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/payment processing/i)).not.toBeInTheDocument();
+  });
+
+  it("itemises every line in pass-on mode, because each one changes the total", () => {
+    renderWithRegistration({ total_amount: 200000, basePrice: 200000, feeMode: "pass_on" });
+    expect(screen.getByText(/Race Pace service fee/i)).toBeInTheDocument();
+    expect(screen.getByText(/Payment processing/i)).toBeInTheDocument();
+    // GCash is the default method.
+    expect(screen.getByText("₱2,091.38")).toBeInTheDocument();
+  });
+
+  it("updates the processing line when the runner switches to card", async () => {
+    const user = userEvent.setup();
+    renderWithRegistration({ total_amount: 200000, basePrice: 200000, feeMode: "pass_on" });
+    await user.click(screen.getByRole("button", { name: /card/i }));
+    expect(screen.getByText("₱2,150.26")).toBeInTheDocument();
+  });
+});
+```
+
+> `renderWithRegistration` is a helper you add to this file if one does not already exist — it renders `<PayPanel registrationId="r1" />` with `useRegistration` mocked to return the given row merged over a valid default. Do not change PayPanel's props.
+
+- [ ] **Step 7: Render the breakdown**
+
+In `PayPanel.tsx`, fetch the current rate for the selected method and render the lines. The rate lookup is a client Supabase read of `processor_rates` (readable by any authenticated user per Task 2's policy), keyed on the `method` already in state.
+
+Where the panel currently shows the total, branch on mode:
+
+```tsx
+{reg.data.feeMode === "pass_on" && rate ? (
   <dl className="space-y-1 text-sm">
     <div className="flex justify-between">
-      <dt>Entry fee</dt><dd className="tabular-nums">{peso(breakdown.base)}</dd>
+      <dt>Entry fee</dt>
+      <dd className="tabular-nums">{formatPeso(lines.base)}</dd>
     </div>
     <div className="flex justify-between text-muted-foreground">
-      <dt>Race Pace service fee</dt><dd className="tabular-nums">{peso(breakdown.platformFee)}</dd>
+      <dt>Race Pace service fee</dt>
+      <dd className="tabular-nums">{formatPeso(lines.platformFee)}</dd>
     </div>
     <div className="flex justify-between text-muted-foreground">
-      <dt>Payment processing</dt><dd className="tabular-nums">{peso(breakdown.processorFee)}</dd>
+      <dt>Payment processing</dt>
+      <dd className="tabular-nums">{formatPeso(lines.processorFee)}</dd>
     </div>
     <div className="mt-2 flex justify-between border-t pt-2 font-bold">
-      <dt>Total to pay</dt><dd className="tabular-nums">{peso(breakdown.total)}</dd>
+      <dt>Total to pay</dt>
+      <dd className="tabular-nums">{formatPeso(lines.total)}</dd>
     </div>
   </dl>
 ) : (
   <div className="flex justify-between font-bold">
     <span>Total to pay</span>
-    <span className="tabular-nums">{peso(totalAmount)}</span>
+    <span className="tabular-nums">{formatPeso(total)}</span>
   </div>
 )}
 ```
 
-When the runner changes method in pass-on mode, recompute the processing line for the newly selected method so the displayed total matches what they will actually be charged.
+Keep the existing `breakdown(total, basePrice)` entry/add-ons display in absorb mode exactly as it is — this task adds a branch, it does not restructure the panel.
 
-- [ ] **Step 5: Verify**
+The platform fee for `lines` comes from the org's commission terms. If `useRegistration` does not already carry them, add `commission_type,commission_rate,commission_flat_cents` to the `organizations(...)` embed in Step 5 and mirror `computeFee`'s rule — percent uses the rate (defaulting to 0.03), fixed uses the flat cents, both clamped at the total.
+
+- [ ] **Step 8: Verify**
 
 Run:
 ```bash
@@ -3292,10 +3432,10 @@ cd apps/site && pnpm test && pnpm typecheck && pnpm build
 ```
 Expected: PASS
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
-git add "apps/site/app/pay/[registrationId]"
+git add apps/site/lib/payment.ts apps/site/lib/payment.test.ts apps/site/lib/registration.ts "apps/site/app/pay/[registrationId]"
 git commit -m "feat(site): itemise the fee breakdown in pass-on mode"
 ```
 
