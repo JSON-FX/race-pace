@@ -118,7 +118,10 @@ describe("commission + refund policy columns", () => {
       if (roleIns.error) throw new Error(`grant admin: ${roleIns.error.message}`);
 
       const regIds: string[] = [];
-      for (let i = 0; i < count; i++) {
+      /** One more paid entry, with the money columns overridable so a test can pose
+       *  a 'historical' or otherwise odd-shaped row. */
+      async function addEntry(overrides: Record<string, unknown> = {}): Promise<string> {
+        const i = regIds.length;
         const u = await s.auth.admin.createUser({
           email: `p${i}_${stamp}@test.dev`, password: "password123", email_confirm: true,
         });
@@ -133,11 +136,14 @@ describe("commission + refund policy columns", () => {
           org_id: org.id, registration_id: reg.id, provider: "fake", method: "gcash",
           status: "paid", amount: 200000, platform_fee: 6000,
           processor_fee_cents: 3000, processor_fee_source: "actual", net_to_org: 191000,
+          ...overrides,
         });
         if (pay.error) throw new Error(`seed payment: ${pay.error.message}`);
+        return reg.id;
       }
+      for (let i = 0; i < count; i++) await addEntry();
       return {
-        s, org, ev, regIds, adminEmail,
+        s, org, ev, regIds, adminEmail, addEntry,
         cleanup: async () => {
           // org delete cascades event/category/registration/payment; auth users are separate.
           await s.from("organizations").delete().eq("id", org.id);
@@ -241,6 +247,50 @@ describe("commission + refund policy columns", () => {
       if (reg.error) throw new Error(`admin_registration_aggregates: ${reg.error.message}`);
       expect(Number(reg.data![0].refunded_cents)).toBe(191000);
       expect(Number(reg.data![0].refund_count)).toBe(1);
+    } finally {
+      await f.cleanup();
+    }
+  });
+
+  it("reports a 'historical' row at its full charge — the additive form would exceed it", async () => {
+    const f = await fixture("historical", 0);
+    try {
+      // Pre-2026-08-11 terms: PayMongo really took ₱30 but the PLATFORM absorbed it,
+      // so net_to_org is amount - platform_fee with NO processor deduction. That
+      // violation of the ledger identity is deliberate and is itself the record that
+      // Race Pace paid for processing on this entry (20260811090000's column comment).
+      await f.addEntry({
+        processor_fee_source: "historical", processor_fee_cents: 3000, net_to_org: 194000,
+      });
+
+      const totals = await f.s.from("admin_org_totals_v")
+        .select("gross_revenue,charged_gross,net_to_org,platform_fee")
+        .eq("org_id", f.org.id).single();
+      if (totals.error) throw new Error(`admin_org_totals_v: ${totals.error.message}`);
+      const t = totals.data!;
+
+      // THIS IS WHY GROSS IS `amount - refunded_amount` AND NOT
+      // `net_to_org + platform_fee + processor_fee_cents`. The two are equal by the
+      // four-way split on every 'actual'/'predicted' row, so an empirical test on
+      // those alone cannot tell them apart — and a future "simplification" to the
+      // additive form would pass. Here it computes 194000 + 6000 + 3000 = 203000
+      // against a ₱2,000 charge: gross_revenue > charged_gross, which is not a
+      // representable state. Task 9's backfill creates exactly these rows.
+      expect(Number(t.net_to_org) + Number(t.platform_fee) + 3000).toBe(203000);
+      expect(Number(t.gross_revenue)).toBe(200000);
+      expect(Number(t.charged_gross)).toBe(200000);
+      expect(Number(t.gross_revenue)).toBeLessThanOrEqual(Number(t.charged_gross));
+
+      const admin = await signedInAs(f.adminEmail);
+      const agg = await admin.rpc("admin_payment_aggregates", {
+        p_org_id: f.org.id, p_event_id: f.ev.id,
+      });
+      if (agg.error) throw new Error(`admin_payment_aggregates: ${agg.error.message}`);
+      const a = agg.data![0];
+      expect(Number(a.gross_cents)).toBe(200000);
+      // gross - fee - net is the processing the ORGANIZER bore: zero here, because
+      // the platform paid it. Not a broken identity — the correct answer.
+      expect(Number(a.gross_cents) - Number(a.fee_cents) - Number(a.net_cents)).toBe(0);
     } finally {
       await f.cleanup();
     }

@@ -197,7 +197,8 @@ function FeeRow({ org, draft, onChange }: {
         />
       </TableCell>
       <TableCell className="px-[14px] text-right tabular-nums">{org.paid_count.toLocaleString()}</TableCell>
-      <TableCell className="px-[14px] text-right tabular-nums">{peso(org.gross_revenue)}</TableCell>
+      {/* The GMV column: charged_gross, not gross_revenue. See the header. */}
+      <TableCell className="px-[14px] text-right tabular-nums">{peso(org.charged_gross)}</TableCell>
       <TableCell className="px-[14px] text-right font-semibold tabular-nums">{peso(org.platform_fee)}</TableCell>
       <TableCell className="px-[14px]">
         <Segmented

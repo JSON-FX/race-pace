@@ -114,6 +114,12 @@ export async function getOrgUpcomingEvents(
       .lte("event_date", localDay(60))
       .order("event_date", { ascending: true })
       .limit(5),
+    // gross_revenue (RETAINED), deliberately, not the charged figure: this feeds a
+    // column headed "Revenue" on the organizer's OWN dashboard, beneath a "Gross
+    // revenue" KPI reading the same quantity off admin_org_totals_v. An organizer
+    // who refunded part of an entry has that much less revenue, and both figures
+    // should say so together. The charged figure is for the platform's GMV
+    // surfaces — see admin_org_totals_v.charged_gross.
     supabase.from("admin_event_totals_v").select("event_id,reg_count,gross_revenue").eq("org_id", orgId),
   ]);
 

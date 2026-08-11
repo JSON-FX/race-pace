@@ -27,7 +27,7 @@ const emptyOverview = {
   orgs: [],
   events: [],
   totals: {
-    commission: 0, gross: 0, net_to_org: 0, paid_count: 0,
+    commission: 0, gross: 0, charged_gross: 0, net_to_org: 0, paid_count: 0,
     refunded_cents: 0, refund_count: 0, unpaid_out_cents: 0,
   },
 };

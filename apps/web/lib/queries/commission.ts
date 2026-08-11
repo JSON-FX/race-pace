@@ -20,7 +20,14 @@ export type OrgCommissionRow = RefundTerms & {
   since: string | null;
   event_count: number;
   paid_count: number;
+  /** Revenue RETAINED — the charge less anything already refunded. Never render
+   *  this under a "GMV" heading; that column is `charged_gross`. */
   gross_revenue: number;
+  /** Gross merchandise value: what runners were CHARGED, before any refund.
+   *  This is the denominator every rate on this page is struck against, so it is
+   *  what the GMV column and the effective rate must use — `gross_revenue`
+   *  would print 15.4% for a 3% org the moment one entry is partially refunded. */
+  charged_gross: number;
   platform_fee: number;
   net_to_org: number;
   /** What runners were CHARGED per paid entry — `charged_gross / paid_count`,
@@ -54,7 +61,12 @@ export type CommissionOverview = {
   events: EventCommissionRow[];
   totals: {
     commission: number;
+    /** Revenue RETAINED platform-wide. Kept because it is a real figure, but it
+     *  is NOT what a GMV card or an effective rate means — see `charged_gross`. */
     gross: number;
+    /** Platform GMV: what runners were charged, before refunds. The denominator
+     *  of the effective rate. */
+    charged_gross: number;
     net_to_org: number;
     paid_count: number;
     /** Returned to runners, from `payments.refunded_amount` on both refund kinds.
@@ -171,11 +183,12 @@ export async function getCommissionOverview(): Promise<CommissionOverview> {
     const t = totalsByOrg.get(o.id);
     const paid_count = t?.paid_count ?? 0;
     const gross_revenue = t?.gross_revenue ?? 0;
+    const charged_gross = t?.charged_gross ?? 0;
     // charged_gross, not gross_revenue. The label this feeds says "average entry"
     // and the worked example below says "A runner cancelling a ₱X entry" — both
     // are about the PRICE, and gross_revenue is now net of anything already
     // refunded, so dividing it would quote an entry fee nobody was ever charged.
-    const avg = paid_count > 0 ? Math.round((t?.charged_gross ?? 0) / paid_count) : 0;
+    const avg = paid_count > 0 ? Math.round(charged_gross / paid_count) : 0;
     const cheapest = cheapestByOrg.get(o.id) ?? null;
     return {
       id: o.id,
@@ -189,6 +202,7 @@ export async function getCommissionOverview(): Promise<CommissionOverview> {
       event_count: eventCountByOrg.get(o.id) ?? 0,
       paid_count,
       gross_revenue,
+      charged_gross,
       platform_fee: t?.platform_fee ?? 0,
       net_to_org: t?.net_to_org ?? 0,
       avg_entry_cents: avg,
@@ -215,10 +229,12 @@ export async function getCommissionOverview(): Promise<CommissionOverview> {
     org_id: rows[0].org_id,
     org_name: orgNameById.get(rows[0].org_id) ?? "—",
     paid_count: rows.length,
-    // Same quantity the org table's Gross column shows, so the two tables on this
-    // page cannot disagree: what was charged, less anything already returned. On
-    // a partially refunded row `amount` alone is the pre-refund charge.
-    gross: rows.reduce((s, r) => s + r.amount - (r.refunded_amount ?? 0), 0),
+    // CHARGED, matching the org table's GMV column above it and the "Fee charged"
+    // badge beside it — this page speaks in what runners were charged throughout,
+    // because that is what a commission rate is struck on. Netting the refund out
+    // here would make `commission / gross` read as a rate nobody was charged, the
+    // same falsehood as the effective-rate card.
+    gross: rows.reduce((s, r) => s + r.amount, 0),
     commission: rows.reduce((s, r) => s + r.platform_fee, 0),
     charged: describeChargedFee(rows),
   }));
@@ -232,6 +248,7 @@ export async function getCommissionOverview(): Promise<CommissionOverview> {
     totals: {
       commission: orgs.reduce((s, o) => s + o.platform_fee, 0),
       gross: orgs.reduce((s, o) => s + o.gross_revenue, 0),
+      charged_gross: orgs.reduce((s, o) => s + o.charged_gross, 0),
       net_to_org: orgs.reduce((s, o) => s + o.net_to_org, 0),
       paid_count: orgs.reduce((s, o) => s + o.paid_count, 0),
       // One column for both refund kinds. The `refunded` arm used to read

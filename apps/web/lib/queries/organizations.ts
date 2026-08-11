@@ -40,7 +40,13 @@ export type OrgListRow = {
   isActive: boolean;
   eventCount: number;
   regCount: number;
+  /** Revenue RETAINED — the charge less anything already refunded
+   *  (`admin_org_totals_v.gross_revenue`). NOT what the GMV column renders. */
   grossRevenue: number;
+  /** Gross merchandise value: what runners were CHARGED, before refunds
+   *  (`admin_org_totals_v.charged_gross`). This is the GMV column and the
+   *  denominator of the platform's average rate. */
+  chargedGross: number;
   platformFee: number;
   netToOrg: number;
 } & CommissionTerms;
@@ -88,7 +94,7 @@ export async function getPlatformOrganizations(): Promise<{ rows: OrgListRow[]; 
       .order("name"),
     supabase
       .from("admin_org_totals_v")
-      .select("org_id,reg_count,gross_revenue,platform_fee,net_to_org"),
+      .select("org_id,reg_count,gross_revenue,charged_gross,platform_fee,net_to_org"),
     // One column, tallied in memory rather than N head-count round trips. The
     // platform has tens of organizations and hundreds of events; when that stops
     // being true this wants its own aggregate view, not a bigger page size.
@@ -128,6 +134,7 @@ export async function getPlatformOrganizations(): Promise<{ rows: OrgListRow[]; 
       // row means zero, not missing data.
       regCount: num(t?.reg_count),
       grossRevenue: num(t?.gross_revenue),
+      chargedGross: num(t?.charged_gross),
       platformFee: num(t?.platform_fee),
       netToOrg: num(t?.net_to_org),
     };
@@ -143,7 +150,12 @@ export async function getPlatformOrganizations(): Promise<{ rows: OrgListRow[]; 
       // Platform-wide, so summed across every org rather than read off any one
       // of them — this is the number the scope band exists to distinguish from
       // the org-scoped one on Dashboard.
-      gmvCents: rows.reduce((s, r) => s + r.grossRevenue, 0),
+      //
+      // chargedGross, not grossRevenue: gross MERCHANDISE value is what was sold.
+      // It is also the denominator of the page's "avg rate" caption, which would
+      // otherwise report a rate above the highest rate any org is actually on as
+      // soon as one entry is partially refunded.
+      gmvCents: rows.reduce((s, r) => s + r.chargedGross, 0),
       commissionCents: rows.reduce((s, r) => s + r.platformFee, 0),
       owedCents: statements === null
         ? null

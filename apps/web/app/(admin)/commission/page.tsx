@@ -35,7 +35,11 @@ export default async function CommissionPage() {
 
   const { orgs, events, totals } = await getCommissionOverview();
 
-  const effectiveRate = totals.gross > 0 ? (totals.commission / totals.gross) * 100 : 0;
+  // charged_gross, NOT gross. A rate is struck on what the runner was charged, so
+  // dividing by revenue that a refund has already been netted out of prints a rate
+  // nobody is on: one partially refunded ₱2,000 entry retained at ₱300 turns a 3%
+  // org into "15.4%" on the page an operator negotiates rates from.
+  const effectiveRate = totals.charged_gross > 0 ? (totals.commission / totals.charged_gross) * 100 : 0;
 
   return (
     <div className="px-4 pb-10 pt-6 md:px-[30px]">
@@ -67,9 +71,12 @@ export default async function CommissionPage() {
           value={peso(totals.commission)}
           delta={{
             tone: "neutral",
-            // Refunds return the platform's fee too, so refunded entries have
-            // already dropped out of this figure. Stating what went back stops
-            // it reading as smaller than an operator's own tally of gross sales.
+            // A refund does NOT return the platform's fee — since
+            // 20260811094000 the commission is an earned service fee and is
+            // retained, and the runner gets net_to_org back. So this figure is
+            // NOT reduced by refunds; what went back is stated beside it, from
+            // payments.refunded_amount, so the card is not read as already
+            // netting something it does not.
             text:
               totals.refund_count > 0
                 ? `${peso(totals.refunded_cents)} returned on ${totals.refund_count} refund${totals.refund_count === 1 ? "" : "s"}`
@@ -79,7 +86,8 @@ export default async function CommissionPage() {
         <KpiCard
           icon={Wallet}
           label="PLATFORM GMV"
-          value={peso(totals.gross)}
+          // Gross MERCHANDISE value: what was sold, not what survived refunds.
+          value={peso(totals.charged_gross)}
           delta={{ tone: "neutral", text: `${totals.paid_count.toLocaleString()} paid entries` }}
         />
         <KpiCard

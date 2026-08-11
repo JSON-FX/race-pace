@@ -102,10 +102,13 @@ describe("admin_payment_aggregates — paid-only gross/fee/net (IMPORTANT 2)", (
     const svc = service();
     const admin = await makeUser(`kpi_paid_adm_${Date.now()}@test.dev`);
     await svc.from("user_roles").insert({ user_id: admin.id, role: "admin", org_id: RWP });
+    // Unique per run, and stamped into the runners' names so the aggregate below
+    // can be scoped to exactly the three rows this test created. See the RPC call.
+    const stamp = `kpirun${Date.now()}`;
 
     async function makeRegAndPayment(userSuffix: string, status: "paid" | "pending" | "refunded", amount: number, fee: number, net: number) {
       const runner = await makeUser(`kpi_paid_${userSuffix}_${Date.now()}@test.dev`);
-      await svc.from("profiles").insert({ id: runner.id, full_name: `Payer ${userSuffix}` });
+      await svc.from("profiles").insert({ id: runner.id, full_name: `Payer ${userSuffix} ${stamp}` });
       const reg = await svc.from("registrations")
         .insert({ org_id: RWP, event_id: EVT, category_id: C4, user_id: runner.id, status: "paid", total_amount: amount })
         .select().single();
@@ -135,7 +138,27 @@ describe("admin_payment_aggregates — paid-only gross/fee/net (IMPORTANT 2)", (
     const refundedRow = await makeRegAndPayment("refunded", "refunded", 120000, 6000, 114000);
 
     const client = authed(admin.token);
-    const agg = await client.rpc("admin_payment_aggregates", { p_org_id: RWP });
+    // SCOPED TO THIS TEST'S OWN ROWS, by event AND by a per-run name stamp.
+    //
+    // The org id alone was not enough, and the header's claim that EVENT_A2
+    // isolates this suite is false against the current seed: test/seeded.ts
+    // resolves EVENT_A2 as "the first open event with categories and no
+    // registrations", and on a fresh reset NONE of ORG_A's six open events has
+    // any — so EVENT_A2 and EVENT_A are the same event, the one
+    // admin-list-views.test.ts and admin-registrations.test.ts each insert a
+    // ₱1,000 paid payment into. Vitest runs files in parallel and both delete
+    // their rows afterwards, so whether they were counted here came down to
+    // timing: observed as "expected 435000 to be 285000" and
+    // "expected 385000 to be 285000" on two runs that passed on the next, with no
+    // code change between them.
+    //
+    // p_q is the RPC's own search filter and arrives pre-wildcarded, exactly as
+    // lib/queries/events.ts#toIlikePattern sends it. Filtering on a stamp unique
+    // to this run makes the totals below depend on nothing but the three rows
+    // above — including rows this same file left behind on an earlier run.
+    const agg = await client.rpc("admin_payment_aggregates", {
+      p_org_id: RWP, p_event_id: EVT, p_q: `%${stamp}%`,
+    });
     expect(agg.error).toBeNull();
     const row = agg.data![0];
 

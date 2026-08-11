@@ -152,7 +152,9 @@ export default async function OrganizationsPage() {
                     {/* Integer centavos through peso() — never a bare division
                         at the call site, and never JetBrains Mono, which has no
                         U+20B1 (₱). */}
-                    <TableCell className="text-right tabular-nums">{peso(org.grossRevenue)}</TableCell>
+                    {/* GMV = what was charged. `grossRevenue` is the retained
+                        figure and belongs under a different heading. */}
+                    <TableCell className="text-right tabular-nums">{peso(org.chargedGross)}</TableCell>
                     <TableCell
                       className={`text-right tabular-nums${rate.zero ? " font-semibold text-destructive" : ""}`}
                       // A ₱0 fee is not a formatting curiosity: it is an

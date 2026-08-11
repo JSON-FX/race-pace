@@ -110,6 +110,23 @@ grant select on admin_event_totals_v to authenticated;
 grant select on admin_org_totals_v   to service_role;
 grant select on admin_event_totals_v to service_role;
 
+-- These two are the pair most likely to be confused, and the confusion is
+-- asymmetric: `gross_revenue` is the name that SOUNDS like the charge, while
+-- `charged_gross` is the one that IS it. Said in the catalog so it reaches
+-- anyone reading the view in psql or Studio, not only a reader of this file.
+comment on column admin_org_totals_v.gross_revenue is
+  'Revenue RETAINED: amount - refunded_amount over paid/partially_refunded rows. What the '
+  'organizer still holds, gross of fees. Use for "revenue"/"money we have" surfaces. NOT a GMV '
+  'figure — a partially refunded entry contributes only its un-returned part.';
+comment on column admin_org_totals_v.charged_gross is
+  'Gross merchandise value: sum(amount) over paid/partially_refunded rows — what runners were '
+  'CHARGED, before any refund. Use for GMV columns, effective/average commission rates, and any '
+  '"average entry" price. This is the pre-2026-08-11 definition of gross_revenue.';
+comment on column admin_event_totals_v.gross_revenue is
+  'Revenue RETAINED for this event: amount - refunded_amount over paid/partially_refunded rows. '
+  'Same meaning as admin_org_totals_v.gross_revenue; there is deliberately no per-event GMV '
+  'column until something needs one.';
+
 -- ---------------------------------------------------------------------------
 -- admin_registrations_v
 -- ---------------------------------------------------------------------------
@@ -224,10 +241,18 @@ grant execute on function public.admin_registration_aggregates(uuid, text, text,
 -- other. fee_cents and net_cents are untouched; they already read the columns
 -- that record the money.
 --
--- The breakdown still reconciles: gross - fee - net = processor_fee_cents, on a
--- paid row by the ledger identity and on a partial one because the four-way split
--- (refunded_amount + net_to_org + platform_fee + processor_fee_cents = amount)
--- is enforced by refund_registration_tx.
+-- The breakdown still reconciles: gross - fee - net leaves exactly the processing
+-- cost the ORGANIZER bore. On an 'actual'/'predicted' row that is
+-- processor_fee_cents, by the ledger identity on a paid row and by the four-way
+-- split (refunded_amount + net_to_org + platform_fee + processor_fee_cents =
+-- amount) that refund_registration_tx enforces on a partial one. On a
+-- 'historical' row it is 0 — net_to_org there is amount - platform_fee with no
+-- processor deduction, because the platform absorbed that fee under
+-- pre-2026-08-11 terms (20260811090000's column comment; payout_open_statement
+-- filters those rows out of its processing line for the same reason). 0 is the
+-- correct answer for such a row, not a broken identity: the organizer really
+-- paid nothing for processing. Do NOT "fix" this by adding processor_fee_cents
+-- back in — that is the same additive trap the header above rejects.
 create or replace function public.admin_payment_aggregates(
   p_org_id uuid,
   p_status text default 'all',
