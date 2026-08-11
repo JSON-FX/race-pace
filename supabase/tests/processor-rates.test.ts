@@ -28,10 +28,12 @@ describe("processor_rates", () => {
     const cut = "2026-09-01T00:00:00Z";
     await s.from("processor_rates").update({ effective_to: cut })
       .eq("provider", "paymongo").eq("method", "gcash").eq("scope", "local").is("effective_to", null);
+    // No `!` here: the whole point of the fix below is that this can legitimately be
+    // null (an insert that violates processor_rates_one_current), so the type must say so.
     const inserted = (await s.from("processor_rates").insert({
       provider: "paymongo", method: "gcash", scope: "local",
       percent_bps: 200, fixed_cents: 0, effective_from: cut, note: stamp,
-    }).select().single()).data!;
+    }).select().single()).data;
     try {
       const before = await s.rpc("processor_rate_at", {
         p_provider: "paymongo", p_method: "gcash", p_scope: "local",
@@ -45,7 +47,19 @@ describe("processor_rates", () => {
       });
       expect(after.data![0]).toMatchObject({ percent_bps: 200 });
     } finally {
-      await s.from("processor_rates").delete().eq("id", inserted.id);
+      // Independent statements, not two steps of one cleanup. If the insert above ever
+      // failed (data: null — e.g. the update on line 29/30 matched zero rows, so this insert
+      // collides with processor_rates_one_current), a `finally` written as
+      // `.eq("id", inserted.id)` unconditionally would throw on the null access — and
+      // because that throw happens INSIDE `finally`, it skips whatever statement follows it.
+      // The one that must never be skipped is the reopen below: it's what un-does this
+      // test's own `effective_to: cut` update on the seeded row, and skipping it leaves that
+      // row permanently closed for every other test/suite sharing this database. Guarding
+      // the delete — and running the reopen unconditionally after it, not nested inside its
+      // success — keeps the reopen reachable even when the insert never produced a row.
+      if (inserted) {
+        await s.from("processor_rates").delete().eq("id", inserted.id);
+      }
       await s.from("processor_rates").update({ effective_to: null })
         .eq("provider", "paymongo").eq("method", "gcash").eq("scope", "local").eq("effective_to", cut);
     }

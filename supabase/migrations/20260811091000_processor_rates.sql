@@ -98,6 +98,14 @@ as $$
   limit 1;
 $$;
 
+-- service_role ONLY. Every caller of this function is server-side: _shared/confirm.ts
+-- and payment-session/index.ts both bind `db` to serviceClient(). The client-side
+-- readers (Task 12's settlement view, Task 14's pay screen) read the TABLE directly
+-- under processor_rates_read, not through this RPC.
+--
+-- An `authenticated` grant here would therefore have no caller — and adding one
+-- forces an entry into function-grants.test.ts's closed allowlist, documenting a
+-- call site that does not exist. A security allowlist is only worth as much as its
+-- comments. If a client ever needs the RPC, grant it then, with a real justification.
 revoke all on function public.processor_rate_at(text, text, text, timestamptz) from public;
-grant execute on function public.processor_rate_at(text, text, text, timestamptz) to authenticated;
 grant execute on function public.processor_rate_at(text, text, text, timestamptz) to service_role;
