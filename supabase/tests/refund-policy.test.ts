@@ -209,7 +209,12 @@ describe("refund_registration_tx with policy", () => {
         p_registration_id: reg.id, p_refunded_by: uid, p_note: null, p_provider_refund: {},
         p_refunded_amount: 150000, p_retained_fee: 3000, p_retained_net: 27000,
       });
-      expect(r.error).toBeTruthy();
+      // The specific signal, not merely "an error": a permission failure (42501)
+      // or a check violation would also be truthy while the overload was still
+      // there. PGRST202 is PostgREST failing to resolve the argument set at all.
+      expect(r.error?.code).toBe("PGRST202");
+      expect(r.error!.message).toContain("Could not find the function");
+      expect(r.error!.message).toContain("p_retained_fee");
       expect((await s.from("registrations").select("status").eq("id", reg.id).single()).data!.status).toBe("paid");
       expect((await payment(s, reg.id)).status).toBe("paid");
     } finally {

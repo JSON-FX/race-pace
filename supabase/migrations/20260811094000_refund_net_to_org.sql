@@ -38,13 +38,23 @@
 --      left alone.
 --
 -- p_refunded_amount KEEPS its `default null` from the dump. Deliberate, and not
--- the same question as p_retained_fee: null has always meant "refund
--- everything", which under this rule resolves to the whole of net_to_org — the
--- correct full refund, never an over-refund, since net_to_org is also the cap.
--- Removing the default would instead 404 the async settlement path in
--- payments-webhook, whose parked refunds predating this migration may carry no
--- refunded_amount at all, wedging PayMongo in a retry loop over money it has
--- already moved.
+-- the same question as p_retained_fee: the five edits above do not include
+-- removing it, and the standing instruction is to prefer the dump on anything
+-- they do not cover. Concretely, the default is what keeps the 4-key call form
+-- resolvable — refund-policy.test.ts's dropped-4-arg-overload regression test
+-- and the four-argument call sites in money-txn.test.ts both depend on it — and
+-- null has always meant "refund everything", which under this rule resolves to
+-- the whole of net_to_org: the correct full refund, never an over-refund, since
+-- net_to_org is also the cap.
+--
+-- It is NOT needed by payments-webhook. An earlier draft of this header claimed
+-- removing the default would 404 that caller; that was wrong and is corrected
+-- here, because the whole value of a dumped-body migration is that the next
+-- engineer can trust this block. PostgREST resolves an RPC by the set of
+-- argument NAMES present in the JSON body, and payments-webhook/index.ts always
+-- sends the key (`p_refunded_amount: parked.refunded_amount ?? null`); an
+-- explicit null survives JSON.stringify and binds fine to a parameter with no
+-- default. The webhook reaches this function either way.
 drop function if exists public.refund_registration_tx(uuid, uuid, text, jsonb, int, int, int);
 drop function if exists public.refund_registration_tx(uuid, uuid, text, jsonb);
 
@@ -91,8 +101,36 @@ begin
   end if;
 
   -- p_refunded_amount null means "refund everything", which now means the whole
-  -- of net_to_org — see the provenance note above.
+  -- of net_to_org — see the provenance note above. It therefore cancels the
+  -- entry and frees the slot, so a caller that ALSO names a retention is
+  -- self-contradictory: taking the full branch would silently discard the
+  -- retention both parties agreed to. The likeliest such caller is
+  -- payments-webhook settling a flat-fee refund parked before this migration, so
+  -- this must raise rather than resolve one way or the other.
+  if p_refunded_amount is null and coalesce(p_retained_net, 0) > 0 then
+    raise exception 'refund_retention_without_amount: retained % with no refunded amount', p_retained_net
+      using errcode = '22003';
+  end if;
+
   v_partial := p_refunded_amount is not null and p_refunded_amount < v_net;
+
+  -- THE SPLIT MUST BALANCE. `net_to_org` is written from p_retained_net
+  -- unvalidated, and the identity below is exactly what this function's own
+  -- guarantee — and payout_open_statement's `Σ net_to_org` — rests on:
+  --
+  --   refunded_amount + net_to_org + platform_fee + processor_fee_cents = amount
+  --
+  -- which reduces to `p_refunded_amount + p_retained_net = v_net` because the
+  -- other two terms are immutable here. Without this check a caller carrying a
+  -- pre-2026-08-11 split (refund struck off `amount`, retention off a re-struck
+  -- commission) passes the over-refund guard, writes a row that is short or long
+  -- by the difference, and is paid out on that figure with nothing to flag it.
+  -- Raising makes that corruption structurally impossible rather than a runbook
+  -- item.
+  if v_partial and p_refunded_amount + coalesce(p_retained_net, 0) <> v_net then
+    raise exception 'refund_split_mismatch: % + % <> %', p_refunded_amount, p_retained_net, v_net
+      using errcode = '22003';
+  end if;
 
   if v_partial then
     -- The entry SURVIVES: the runner keeps their place, so the registration

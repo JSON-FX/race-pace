@@ -165,9 +165,74 @@ describe("refund_registration_tx under the net_to_org rule", () => {
         p_provider_refund: {}, p_refunded_amount: 191000,
         p_retained_fee: 0, p_retained_net: 0,
       });
-      expect(r.error).toBeTruthy();
+      // The specific signal, not merely "an error": a permission failure or a
+      // check-constraint violation would also be truthy, and neither would prove
+      // the overload is gone. PGRST202 is PostgREST failing to resolve the name
+      // + argument set at all.
+      expect(r.error?.code).toBe("PGRST202");
+      expect(r.error!.message).toContain("Could not find the function");
+      expect(r.error!.message).toContain("p_retained_fee");
       const reg = (await f.s.from("registrations").select("status").eq("id", f.reg.id).single()).data!;
       expect(reg.status).toBe("paid");
+    } finally {
+      await f.cleanup();
+    }
+  });
+
+  it("refuses a partial split that does not add up to net_to_org", async () => {
+    // net_to_org is written straight from p_retained_net, so this identity is the
+    // only thing standing between a stale caller and a silently corrupt ledger:
+    //   refunded_amount + net_to_org + platform_fee + processor_fee_cents = amount
+    // The figures below are exactly what a pre-2026-08-11 caller would compute on
+    // this entry — refund struck off `amount` under a ₱300 flat fee (170000) and
+    // a retention re-struck for commission (27000). Both individually plausible;
+    // together they are ₱170 short of the ₱1,910 the organizer actually holds.
+    const f = await paidEntry("rsplit", "flat_fee", 30000);
+    try {
+      const r = await f.s.rpc("refund_registration_tx", {
+        p_registration_id: f.reg.id, p_refunded_by: null, p_note: null,
+        p_provider_refund: {}, p_refunded_amount: 170000, p_retained_net: 27000,
+      });
+      expect(r.error).toBeTruthy();
+      expect(r.error!.message).toContain("refund_split_mismatch");
+      expect(r.error!.message).toContain("170000 + 27000 <> 191000");
+
+      // Rolled back whole: the ledger is untouched and the entry still stands.
+      const pay = (await f.s.from("payments")
+        .select("amount,platform_fee,processor_fee_cents,net_to_org,refunded_amount,status")
+        .eq("registration_id", f.reg.id).single()).data!;
+      expect(pay).toMatchObject({
+        amount: 200000, platform_fee: 6000, processor_fee_cents: 3000,
+        net_to_org: 191000, refunded_amount: 0, status: "paid",
+      });
+      const reg = (await f.s.from("registrations").select("status").eq("id", f.reg.id).single()).data!;
+      expect(reg.status).toBe("paid");
+      const cat = (await f.s.from("categories").select("slots_taken").eq("id", f.cat.id).single()).data!;
+      expect(cat.slots_taken).toBe(1);
+    } finally {
+      await f.cleanup();
+    }
+  });
+
+  it("refuses a retention with no refunded amount, instead of discarding it", async () => {
+    // A null amount means "refund everything", which cancels the entry and frees
+    // the slot — so naming a retention alongside it is self-contradictory. The
+    // realistic caller is payments-webhook settling a flat-fee refund parked
+    // before this rule landed; taking the full branch there would quietly hand
+    // back money the organizer had agreed to keep AND release their slot.
+    const f = await paidEntry("rnullret", "flat_fee", 30000);
+    try {
+      const r = await f.s.rpc("refund_registration_tx", {
+        p_registration_id: f.reg.id, p_refunded_by: null, p_note: null,
+        p_provider_refund: {}, p_refunded_amount: null, p_retained_net: 30000,
+      });
+      expect(r.error).toBeTruthy();
+      expect(r.error!.message).toContain("refund_retention_without_amount");
+
+      const reg = (await f.s.from("registrations").select("status").eq("id", f.reg.id).single()).data!;
+      expect(reg.status).toBe("paid");
+      const cat = (await f.s.from("categories").select("slots_taken").eq("id", f.cat.id).single()).data!;
+      expect(cat.slots_taken).toBe(1);
     } finally {
       await f.cleanup();
     }
