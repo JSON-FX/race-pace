@@ -23,7 +23,12 @@ export type OrgCommissionRow = RefundTerms & {
   gross_revenue: number;
   platform_fee: number;
   net_to_org: number;
-  /** Gross / paid entries. The denominator of every "≈" on the row. */
+  /** What runners were CHARGED per paid entry — `charged_gross / paid_count`,
+   *  not `gross_revenue / paid_count`. The denominator of every "≈" on the row,
+   *  and the price the refund worked example is written about, so it has to be a
+   *  price somebody actually paid. gross_revenue now nets a partial refund out
+   *  (20260811095500), which is right for "revenue we hold" and wrong for "an
+   *  average entry". */
   avg_entry_cents: number;
   /** Cheapest `categories.base_price` across the org's OPEN events — what a
    *  flat fee is measured against. Null when the org has nothing on sale. */
@@ -52,10 +57,12 @@ export type CommissionOverview = {
     gross: number;
     net_to_org: number;
     paid_count: number;
-    /** Returned to runners: the full amount on a `refunded` row, the returned
-     *  part on a `partially_refunded` one. Not netted off `commission` — the
-     *  aggregates already exclude refunded rows — but stated in the KPI caption
-     *  so the figure is not silently smaller than an operator's own tally. */
+    /** Returned to runners, from `payments.refunded_amount` on both refund kinds.
+     *  NOT `amount`: a refund now returns `net_to_org` (20260811094000), so
+     *  reading the charge over-stated every full refund by the commission plus
+     *  the processor's fee. Not netted off `commission` — the aggregates already
+     *  exclude fully refunded rows — but stated in the KPI caption so the figure
+     *  is not silently smaller than an operator's own tally. */
     refunded_cents: number;
     refund_count: number;
     /** Net earnings on payments no statement has settled yet. */
@@ -64,9 +71,13 @@ export type CommissionOverview = {
 };
 
 /** Money we actually hold. Mirrors the view filters in
- *  `20260807090200_widen_money_aggregates.sql` — a `partially_refunded` row's
- *  columns were rewritten to the RETAINED figures, so it counts; a fully
- *  `refunded` row kept its originals, so it must not. */
+ *  `20260811095500_money_aggregates_three_party.sql` — a `partially_refunded`
+ *  row counts, but only for the part of its charge that was not returned; a
+ *  fully `refunded` row kept its original amount/fee/net, so it must not count
+ *  at all. (This used to cite 20260807090200 and its since-retired premise that
+ *  the refund RPC rewrites `amount` down to the retention. It does not, and has
+ *  not since 20260811094000 — `amount` must stay reconcilable against the
+ *  provider's reported net_amount.) */
 const EARNING_STATUSES = ["paid", "partially_refunded"];
 
 const OPEN_EVENT_STATUSES = ["open", "almost_full"];
@@ -100,7 +111,7 @@ export async function getCommissionOverview(): Promise<CommissionOverview> {
         "id,name,created_at,commission_type,commission_rate,commission_flat_cents,refund_policy,refund_fee_cents",
       )
       .order("name"),
-    supabase.from("admin_org_totals_v").select("org_id,paid_count,gross_revenue,platform_fee,net_to_org"),
+    supabase.from("admin_org_totals_v").select("org_id,paid_count,gross_revenue,charged_gross,platform_fee,net_to_org"),
     supabase.from("events").select("id,name,org_id,status"),
     supabase
       .from("admin_payments_v")
@@ -126,7 +137,8 @@ export async function getCommissionOverview(): Promise<CommissionOverview> {
     refund_policy: string; refund_fee_cents: number;
   }[];
   const totals = (totalsRes.data ?? []) as {
-    org_id: string; paid_count: number; gross_revenue: number; platform_fee: number; net_to_org: number;
+    org_id: string; paid_count: number; gross_revenue: number; charged_gross: number;
+    platform_fee: number; net_to_org: number;
   }[];
   const events = (eventsRes.data ?? []) as { id: string; name: string; org_id: string; status: string }[];
   const payments = (paymentsRes.data ?? []) as PaymentSlice[];
@@ -159,7 +171,11 @@ export async function getCommissionOverview(): Promise<CommissionOverview> {
     const t = totalsByOrg.get(o.id);
     const paid_count = t?.paid_count ?? 0;
     const gross_revenue = t?.gross_revenue ?? 0;
-    const avg = paid_count > 0 ? Math.round(gross_revenue / paid_count) : 0;
+    // charged_gross, not gross_revenue. The label this feeds says "average entry"
+    // and the worked example below says "A runner cancelling a ₱X entry" — both
+    // are about the PRICE, and gross_revenue is now net of anything already
+    // refunded, so dividing it would quote an entry fee nobody was ever charged.
+    const avg = paid_count > 0 ? Math.round((t?.charged_gross ?? 0) / paid_count) : 0;
     const cheapest = cheapestByOrg.get(o.id) ?? null;
     return {
       id: o.id,
@@ -199,7 +215,10 @@ export async function getCommissionOverview(): Promise<CommissionOverview> {
     org_id: rows[0].org_id,
     org_name: orgNameById.get(rows[0].org_id) ?? "—",
     paid_count: rows.length,
-    gross: rows.reduce((s, r) => s + r.amount, 0),
+    // Same quantity the org table's Gross column shows, so the two tables on this
+    // page cannot disagree: what was charged, less anything already returned. On
+    // a partially refunded row `amount` alone is the pre-refund charge.
+    gross: rows.reduce((s, r) => s + r.amount - (r.refunded_amount ?? 0), 0),
     commission: rows.reduce((s, r) => s + r.platform_fee, 0),
     charged: describeChargedFee(rows),
   }));
@@ -215,10 +234,11 @@ export async function getCommissionOverview(): Promise<CommissionOverview> {
       gross: orgs.reduce((s, o) => s + o.gross_revenue, 0),
       net_to_org: orgs.reduce((s, o) => s + o.net_to_org, 0),
       paid_count: orgs.reduce((s, o) => s + o.paid_count, 0),
-      refunded_cents: refunds.reduce(
-        (s, r) => s + (r.status === "refunded" ? r.amount : r.refunded_amount ?? 0),
-        0,
-      ),
+      // One column for both refund kinds. The `refunded` arm used to read
+      // `amount`, which was right only while a refund returned the whole charge —
+      // it now returns net_to_org, so that over-stated every full refund by
+      // platform_fee + processor_fee_cents.
+      refunded_cents: refunds.reduce((s, r) => s + (r.refunded_amount ?? 0), 0),
       refund_count: refunds.length,
       unpaid_out_cents: ((unpaidRes.data ?? []) as { net_to_org: number }[]).reduce(
         (s, r) => s + (r.net_to_org ?? 0),

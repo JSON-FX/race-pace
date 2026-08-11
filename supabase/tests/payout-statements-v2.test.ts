@@ -123,7 +123,7 @@ async function openStatement(as: SupabaseClient, eventId: string): Promise<strin
 
 async function stmt(s: SupabaseClient, id: string) {
   const r = await s.from("payout_statements")
-    .select("gross_cents,commission_cents,processing_cents,refunds_cents,net_owed_cents")
+    .select("gross_cents,commission_cents,processing_cents,refunds_in_period_cents,refunds_cents,net_owed_cents")
     .eq("id", id).single();
   if (r.error) throw new Error(`read statement ${id}: ${r.error.message}`);
   // bigint columns arrive as strings over PostgREST for values past 2^53; normalise so
@@ -144,13 +144,15 @@ describe("payout_open_statement v2", () => {
         gross_cents: 600000,       // 3 x ₱2,000
         commission_cents: 18000,   // 3 x ₱60
         processing_cents: 9000,    // 3 x ₱30
+        refunds_in_period_cents: 0,
         refunds_cents: 0,
         net_owed_cents: 573000,    // 3 x ₱1,910
       });
       // The breakdown must explain the total, not merely accompany it. Under the OLD
       // arithmetic this line read 600000 - 18000 - 0 = 582000, over-paying by the ₱90
       // PayMongo had already taken.
-      expect(st.gross_cents - st.commission_cents - st.processing_cents).toBe(st.net_owed_cents);
+      expect(st.gross_cents - st.commission_cents - st.processing_cents - st.refunds_in_period_cents)
+        .toBe(st.net_owed_cents);
     } finally {
       await f.cleanup();
     }
@@ -181,6 +183,11 @@ describe("payout_open_statement v2", () => {
       expect(second.gross_cents).toBe(0);
       expect(second.refunds_cents).toBe(191000);
       expect(second.net_owed_cents).toBe(-191000);
+      // A CLAWBACK, not an in-period refund. The two must never be conflated: this
+      // money was transferred on the first statement and is being recovered on the
+      // second, whereas refunds_in_period_cents nets a refund out of earnings that
+      // have not been transferred at all. Counting it in both would double it.
+      expect(second.refunds_in_period_cents).toBe(0);
     } finally {
       await f.cleanup();
     }
@@ -206,14 +213,18 @@ describe("payout_open_statement v2", () => {
       expect(st.net_owed_cents).toBe(30000);
       expect(st.refunds_cents).toBe(0); // a clawback needs a PRIOR statement stamp
 
-      // The presentational line still describes the ORIGINAL charge — Task 7 deliberately
-      // leaves amount/platform_fee/processor_fee_cents immutable on a partial refund — so
-      // gross - commission - processing does NOT reconcile to net_owed on this row. Pinned
-      // here rather than left to be discovered: the missing term is refunded_amount, which
-      // the statement does not yet carry a column for.
+      // The presentational lines still describe the ORIGINAL charge — Task 7 deliberately
+      // leaves amount/platform_fee/processor_fee_cents immutable on a partial refund.
       expect(st.gross_cents).toBe(200000);
       expect(st.commission_cents).toBe(6000);
       expect(st.processing_cents).toBe(3000);
+      // The fourth line is what makes them add up: ₱1,610 went back to the runner out of
+      // money this statement has not transferred yet. Without it the statement read
+      // ₱2,000 - ₱60 - ₱30 beside a net owed of ₱300 and contradicted itself by ₱1,610 —
+      // on the document an operator makes the bank transfer from.
+      expect(st.refunds_in_period_cents).toBe(161000);
+      expect(st.gross_cents - st.commission_cents - st.processing_cents - st.refunds_in_period_cents)
+        .toBe(st.net_owed_cents);
     } finally {
       await f.cleanup();
     }
@@ -238,7 +249,8 @@ describe("payout_open_statement v2", () => {
       expect(st.net_owed_cents).toBe(194000);    // the stored net_to_org, undisturbed
       // The filter keeps the breakdown honest rather than breaking it: 0 processing is
       // exactly what makes the identity hold for a row whose net_to_org never lost a fee.
-      expect(st.gross_cents - st.commission_cents - st.processing_cents).toBe(st.net_owed_cents);
+      expect(st.gross_cents - st.commission_cents - st.processing_cents - st.refunds_in_period_cents)
+        .toBe(st.net_owed_cents);
     } finally {
       await f.cleanup();
     }

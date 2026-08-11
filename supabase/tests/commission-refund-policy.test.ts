@@ -1,9 +1,20 @@
 import { describe, it, expect } from "vitest";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { loadEnv } from "../../test/env";
 
-const { url, serviceKey } = loadEnv();
+const { url, anonKey, serviceKey } = loadEnv();
 const svc = () => createClient(url, serviceKey, { auth: { persistSession: false } });
+
+/** admin_payment_aggregates and admin_registration_aggregates are `security
+ *  invoker` over `security_invoker` views, and service_role has no SELECT on
+ *  admin_registrations_v — so they must be driven by a real signed-in org admin,
+ *  which is also the only caller the console ever has. */
+async function signedInAs(email: string, password = "password123"): Promise<SupabaseClient> {
+  const c = createClient(url, anonKey, { auth: { persistSession: false } });
+  const { error } = await c.auth.signInWithPassword({ email, password });
+  if (error) throw new Error(`sign-in failed for ${email}: ${error.message}`);
+  return c;
+}
 
 describe("commission + refund policy columns", () => {
   it("defaults NEW orgs to a flat fee and a flat-fee refund", async () => {
@@ -73,58 +84,195 @@ describe("commission + refund policy columns", () => {
     expect(r.error).toBeTruthy();
   });
 
-  it("counts a partially_refunded payment as revenue in admin_org_totals_v", async () => {
+  /**
+   * One org + event + N paid ₱2,000 GCash entries under 2026-08-11 terms: the
+   * runner pays ₱2,000, Race Pace earns 3% = ₱60, PayMongo takes ₱30, the
+   * organizer is owed ₱1,910.
+   *
+   * The PAID row is seeded directly (the same shape payout-statements-v2.test.ts
+   * uses); every REFUND below is driven through the real refund_registration_tx,
+   * so nothing here can drift from what that function actually writes. Hand-built
+   * refunded rows are exactly how this file previously came to assert a
+   * `partially_refunded` shape the RPC had stopped producing.
+   */
+  async function fixture(tag: string, count: number) {
     const s = svc();
-    const stamp = `partial-${Date.now()}`;
-    // org first, atomically — nothing else exists yet, so nothing to clean up if this itself fails.
-    const org = (await s.from("organizations").insert({ name: "Partial", slug: stamp }).select().single()).data!;
-    let uid: string | undefined;
+    const stamp = `${tag}-${Date.now()}`;
+    const org = (await s.from("organizations").insert({
+      name: "Partial", slug: stamp, commission_type: "percent", commission_rate: 0.03,
+    }).select().single()).data!;
+    const users: string[] = [];
     try {
-      // status doesn't matter — this only exercises admin_org_totals_v via a service-role read.
+      // Event status doesn't matter — these are service-role reads of the aggregates.
       const ev = (await s.from("events").insert({ org_id: org.id, name: "R", status: "draft" }).select().single()).data!;
       const cat = (await s.from("categories").insert({
         org_id: org.id, event_id: ev.id, code: "10k", label: "10K",
-        base_price: 200000, slots_total: 50, slots_taken: 0,
+        base_price: 200000, slots_total: 50, slots_taken: count,
       }).select().single()).data!;
-      const u = await s.auth.admin.createUser({ email: `p_${stamp}@test.dev`, password: "password123", email_confirm: true });
-      uid = u.data.user!.id;
-      const reg = (await s.from("registrations").insert({
-        org_id: org.id, event_id: ev.id, category_id: cat.id,
-        user_id: uid, total_amount: 200000, status: "paid",
-      }).select().single()).data!;
-      // A ₱2,000 GCash entry, partially refunded with the organizer retaining ₱300.
-      //
-      // The shape here is the one 20260811094000_refund_net_to_org.sql writes, and
-      // it is NOT the 2026-08-06 one: `amount` stays at what the runner actually
-      // paid and `platform_fee` at the commission Race Pace earned at capture —
-      // both immutable, because under the three-party ledger
-      // `amount - processor_fee_cents` must keep matching the provider's
-      // net_amount. Only `net_to_org` drops, to the organizer's retention.
-      // The four-way split still balances: 161000 + 30000 + 6000 + 3000 = 200000.
-      const payIns = await s.from("payments").insert({
-        org_id: org.id, registration_id: reg.id, amount: 200000, platform_fee: 6000,
-        processor_fee_cents: 3000, net_to_org: 30000, refunded_amount: 161000,
-        status: "partially_refunded", provider: "fake",
-      });
-      if (payIns.error) throw new Error(`payment insert: ${payIns.error.message}`);
+      const adminEmail = `padm_${stamp}@test.dev`;
+      const adminId = (await s.auth.admin.createUser({
+        email: adminEmail, password: "password123", email_confirm: true,
+      })).data.user!.id;
+      users.push(adminId);
+      const roleIns = await s.from("user_roles").insert({ user_id: adminId, role: "admin", org_id: org.id });
+      if (roleIns.error) throw new Error(`grant admin: ${roleIns.error.message}`);
 
-      const totals = await s.from("admin_org_totals_v")
-        .select("gross_revenue,net_to_org,paid_count,pending_count")
-        .eq("org_id", org.id).single();
+      const regIds: string[] = [];
+      for (let i = 0; i < count; i++) {
+        const u = await s.auth.admin.createUser({
+          email: `p${i}_${stamp}@test.dev`, password: "password123", email_confirm: true,
+        });
+        const uid = u.data.user!.id;
+        users.push(uid);
+        const reg = (await s.from("registrations").insert({
+          org_id: org.id, event_id: ev.id, category_id: cat.id,
+          user_id: uid, total_amount: 200000, status: "paid",
+        }).select().single()).data!;
+        regIds.push(reg.id);
+        const pay = await s.from("payments").insert({
+          org_id: org.id, registration_id: reg.id, provider: "fake", method: "gcash",
+          status: "paid", amount: 200000, platform_fee: 6000,
+          processor_fee_cents: 3000, processor_fee_source: "actual", net_to_org: 191000,
+        });
+        if (pay.error) throw new Error(`seed payment: ${pay.error.message}`);
+      }
+      return {
+        s, org, ev, regIds, adminEmail,
+        cleanup: async () => {
+          // org delete cascades event/category/registration/payment; auth users are separate.
+          await s.from("organizations").delete().eq("id", org.id);
+          for (const uid of users) await s.auth.admin.deleteUser(uid);
+        },
+      };
+    } catch (err) {
+      await s.from("organizations").delete().eq("id", org.id);
+      for (const uid of users) await s.auth.admin.deleteUser(uid);
+      throw err;
+    }
+  }
+
+  it("reports a partial refund at its retained value, not the original charge", async () => {
+    const f = await fixture("partial", 1);
+    try {
+      // ₱1,910 was the organizer's; they keep ₱300 and ₱1,610 goes back to the runner.
+      // The four-way split balances: 161000 + 30000 + 6000 + 3000 = 200000.
+      const refund = await f.s.rpc("refund_registration_tx", {
+        p_registration_id: f.regIds[0], p_refunded_by: null, p_note: null,
+        p_provider_refund: {}, p_refunded_amount: 161000, p_retained_net: 30000,
+      });
+      expect(refund.error).toBeNull();
+      expect(refund.data).toBe("partially_refunded");
+
+      const totals = await f.s.from("admin_org_totals_v")
+        .select("gross_revenue,charged_gross,net_to_org,platform_fee,paid_count,pending_count")
+        .eq("org_id", f.org.id).single();
       if (totals.error) throw new Error(`admin_org_totals_v: ${totals.error.message}`);
       const t = totals.data!;
-      // gross_revenue is what the runner paid — `amount` is no longer rewritten
-      // down to the retained figure, so a partial refund no longer shrinks it.
-      expect(Number(t.gross_revenue)).toBe(200000);
+
+      // gross_revenue is revenue we still HOLD. `amount` is no longer rewritten
+      // down to the retention (20260811094000), so summing it would report ₱2,000
+      // of retained revenue on a row where ₱1,610 went back out the door.
+      expect(Number(t.gross_revenue)).toBe(39000);   // 200000 - 161000
+      // What the runner was CHARGED is a different question, and still answerable.
+      expect(Number(t.charged_gross)).toBe(200000);
       // net_to_org IS the retention, so what the organizer is owed still tracks.
       expect(Number(t.net_to_org)).toBe(30000);
+      // Race Pace's commission was earned at capture and is not returned.
+      expect(Number(t.platform_fee)).toBe(6000);
       expect(t.paid_count).toBe(1);
       // Must NOT be counted as still awaiting payment.
       expect(t.pending_count).toBe(0);
+
+      // The event rollup must tell the same story as the org rollup.
+      const ev = await f.s.from("admin_event_totals_v")
+        .select("gross_revenue").eq("event_id", f.ev.id).single();
+      if (ev.error) throw new Error(`admin_event_totals_v: ${ev.error.message}`);
+      expect(Number(ev.data!.gross_revenue)).toBe(39000);
+
+      const admin = await signedInAs(f.adminEmail);
+      const agg = await admin.rpc("admin_payment_aggregates", {
+        p_org_id: f.org.id, p_event_id: f.ev.id,
+      });
+      if (agg.error) throw new Error(`admin_payment_aggregates: ${agg.error.message}`);
+      const a = agg.data![0];
+      expect(Number(a.gross_cents)).toBe(39000);
+      expect(Number(a.fee_cents)).toBe(6000);
+      expect(Number(a.net_cents)).toBe(30000);
+      // What actually went back to the runner. `amount` would have said 200000.
+      expect(Number(a.refunded_cents)).toBe(161000);
+      // The breakdown explains itself: what is left after the two fee-takers is
+      // exactly the organizer's retention.
+      expect(Number(a.gross_cents) - Number(a.fee_cents) - Number(a.net_cents)).toBe(3000);
     } finally {
-      // org delete cascades event/category/registration/payment; the auth user is separate.
-      await s.from("organizations").delete().eq("id", org.id);
-      if (uid) await s.auth.admin.deleteUser(uid);
+      await f.cleanup();
+    }
+  });
+
+  it("reports a FULL refund at net_to_org — what was actually returned — not the charge", async () => {
+    const f = await fixture("full", 1);
+    try {
+      // Null p_refunded_amount means "refund everything", which under the
+      // 2026-08-11 rule is the whole of net_to_org: ₱1,910, not ₱2,000.
+      const refund = await f.s.rpc("refund_registration_tx", {
+        p_registration_id: f.regIds[0], p_refunded_by: null, p_note: null,
+        p_provider_refund: {},
+      });
+      expect(refund.error).toBeNull();
+      expect(refund.data).toBe("refunded");
+
+      const admin = await signedInAs(f.adminEmail);
+      const agg = await admin.rpc("admin_payment_aggregates", {
+        p_org_id: f.org.id, p_event_id: f.ev.id,
+      });
+      if (agg.error) throw new Error(`admin_payment_aggregates: ${agg.error.message}`);
+      const a = agg.data![0];
+      // A fully refunded row keeps its original amount/platform_fee/net_to_org, so
+      // it is excluded from gross/fee/net entirely — unchanged, and still right.
+      expect(Number(a.gross_cents)).toBe(0);
+      expect(Number(a.fee_cents)).toBe(0);
+      expect(Number(a.net_cents)).toBe(0);
+      // Reading `amount` here over-stated every full refund by platform_fee +
+      // processor_fee_cents — ₱90 on this entry — because a refund now returns
+      // net_to_org, not the whole charge.
+      expect(Number(a.refunded_cents)).toBe(191000);
+
+      // Same figure, from the registrations-side aggregate the event page reads.
+      const reg = await admin.rpc("admin_registration_aggregates", { p_event_id: f.ev.id });
+      if (reg.error) throw new Error(`admin_registration_aggregates: ${reg.error.message}`);
+      expect(Number(reg.data![0].refunded_cents)).toBe(191000);
+      expect(Number(reg.data![0].refund_count)).toBe(1);
+    } finally {
+      await f.cleanup();
+    }
+  });
+
+  it("leaves a plain paid row's aggregates exactly as they were", async () => {
+    const f = await fixture("paid", 2);
+    try {
+      const totals = await f.s.from("admin_org_totals_v")
+        .select("gross_revenue,charged_gross,net_to_org,platform_fee,paid_count")
+        .eq("org_id", f.org.id).single();
+      if (totals.error) throw new Error(`admin_org_totals_v: ${totals.error.message}`);
+      const t = totals.data!;
+      // Nothing was refunded, so `amount - refunded_amount` IS `amount`.
+      expect(Number(t.gross_revenue)).toBe(400000);
+      expect(Number(t.charged_gross)).toBe(400000);
+      expect(Number(t.net_to_org)).toBe(382000);
+      expect(Number(t.platform_fee)).toBe(12000);
+      expect(t.paid_count).toBe(2);
+
+      const admin = await signedInAs(f.adminEmail);
+      const agg = await admin.rpc("admin_payment_aggregates", {
+        p_org_id: f.org.id, p_event_id: f.ev.id,
+      });
+      if (agg.error) throw new Error(`admin_payment_aggregates: ${agg.error.message}`);
+      const a = agg.data![0];
+      expect(Number(a.gross_cents)).toBe(400000);
+      expect(Number(a.fee_cents)).toBe(12000);
+      expect(Number(a.net_cents)).toBe(382000);
+      expect(Number(a.refunded_cents)).toBe(0);
+    } finally {
+      await f.cleanup();
     }
   });
 });

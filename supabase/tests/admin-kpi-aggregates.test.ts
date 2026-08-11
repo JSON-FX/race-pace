@@ -110,7 +110,17 @@ describe("admin_payment_aggregates — paid-only gross/fee/net (IMPORTANT 2)", (
         .insert({ org_id: RWP, event_id: EVT, category_id: C4, user_id: runner.id, status: "paid", total_amount: amount })
         .select().single();
       const pay = await svc.from("payments")
-        .insert({ org_id: RWP, registration_id: reg.data!.id, amount, platform_fee: fee, net_to_org: net, method: "gcash", status })
+        .insert({
+          org_id: RWP, registration_id: reg.data!.id, amount, platform_fee: fee, net_to_org: net,
+          method: "gcash", status,
+          // A refunded row's refunded_amount IS its net_to_org: under
+          // 20260811094000_refund_net_to_org.sql a refund returns what the
+          // organizer would have been paid, not the whole charge, and that is what
+          // refund_registration_tx writes here. Seeded rather than driven through
+          // the RPC only because that call also decrements the SEEDED category's
+          // slots_taken, which this suite has no business mutating.
+          ...(status === "refunded" ? { refunded_amount: net } : {}),
+        })
         .select().single();
       return { reg: reg.data!, pay: pay.data! };
     }
@@ -119,8 +129,9 @@ describe("admin_payment_aggregates — paid-only gross/fee/net (IMPORTANT 2)", (
     // Pending: an abandoned/unfinished checkout — must not count as gross revenue.
     await makeRegAndPayment("pending", "pending", 195000, 9750, 185250);
     // Refunded: refund_registration_tx flips status but leaves amount/fee/net
-    // untouched (see supabase/migrations/20260723100000_money_txn_rpcs.sql) — a
-    // naive sum-every-status would count this money as still "net to org".
+    // untouched (20260811094000_refund_net_to_org.sql keeps that guarantee, and
+    // payout_open_statement depends on it to size a clawback) — a naive
+    // sum-every-status would count this money as still "net to org".
     const refundedRow = await makeRegAndPayment("refunded", "refunded", 120000, 6000, 114000);
 
     const client = authed(admin.token);
@@ -134,8 +145,12 @@ describe("admin_payment_aggregates — paid-only gross/fee/net (IMPORTANT 2)", (
     expect(row.fee_cents).toBe(paidRow.pay.platform_fee);
     expect(row.net_cents).toBe(paidRow.pay.net_to_org);
 
-    // The refunded row's amount is excluded from gross but IS counted here —
-    // Refunded is the one card that's supposed to report it.
-    expect(row.refunded_cents).toBe(refundedRow.pay.amount);
+    // The refunded row is excluded from gross but IS counted here — Refunded is
+    // the one card that's supposed to report it. At its refunded_amount, NOT its
+    // amount: a refund returns net_to_org, so reading `amount` over-stated every
+    // full refund by platform_fee + processor_fee_cents (₱60 on this row).
+    expect(row.refunded_cents).toBe(refundedRow.pay.refunded_amount);
+    expect(row.refunded_cents).toBe(114000);
+    expect(refundedRow.pay.amount).toBe(120000); // the charge, deliberately NOT the answer
   });
 });
