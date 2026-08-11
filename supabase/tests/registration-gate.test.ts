@@ -1001,8 +1001,8 @@ describe("registrations-checkout 23505 handler (genuine concurrent race)", () =>
 
 /**
  * Fix round (review finding): this branch's load-bearing SQL —
- * admin_registrations_v.registration_status (20260809100400) and
- * admin_registration_aggregates' expired/cancelled routing (also 20260809100400) — had
+ * admin_registrations_v.registration_status (20260809150000) and
+ * admin_registration_aggregates' expired/cancelled routing (also 20260809150000) — had
  * no test against a real database. apps/web/lib/queries/registrations-status-filter.test.ts
  * only asserts which column `.eq()` is called on against a MOCK query builder; it proves
  * listEventRegistrations() routes the filter to the right column name, but nothing in the
@@ -1120,7 +1120,7 @@ describe("admin_registrations_v / admin_registration_aggregates — expired & ca
 
     // An ordinary value, unaffected by the new routing, still matches payment_status --
     // this is the "every other value keeps matching payment_status exactly as before"
-    // half of the fix (20260809100400's header), and it's what stops an unconditional
+    // half of the fix (20260809150000's header), and it's what stops an unconditional
     // OR across both columns from double-counting.
     const pendingAgg = await client.rpc("admin_registration_aggregates", { p_event_id: f.eventId, p_status: "pending" });
     expect(pendingAgg.error).toBeNull();

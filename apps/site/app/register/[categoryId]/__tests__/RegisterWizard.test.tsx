@@ -37,6 +37,7 @@ const event: EventRow = {
   gallery: [], original_date: null, status_note: null,
   city_psgc_code: null, region_name: null, province_name: null,
   city_name: null, venue: null, joined_count: 0, distances: [21],
+  registration_closes_at: null,
 };
 const addons: AddonRow[] = [];
 const formFields: FormFieldRow[] = [];

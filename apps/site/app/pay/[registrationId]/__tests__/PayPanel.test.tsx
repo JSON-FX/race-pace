@@ -26,7 +26,8 @@ function row(overrides: Partial<RegistrationRow> = {}): RegistrationRow {
     org_id: "a1", event_id: "e1", expiresAt: null,
     eventName: "Kitanglad Skyline Ultra", categoryLabel: "18K", categoryDistance: 18,
     checkoutUrl: null, eventStatus: "open", eventDate: "2099-01-01", originalDate: null,
-    statusNote: null, orgName: "Race Pace", eventHeroUrl: null, basePrice: 150000,
+    statusNote: null, eventRegistrationClosesAt: null, kitEditClosesAt: null, shirtSize: null,
+    orgName: "Race Pace", eventHeroUrl: null, basePrice: 150000,
     inclusions: [], payment: null,
     ...overrides,
   };

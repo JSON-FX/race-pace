@@ -22,7 +22,7 @@ function searchPattern(q: string): string | null {
 // move together (confirm_payment_tx/refund_registration_tx set both), EXCEPT
 // for 'expired' and 'cancelled', which only ever land on registration_status
 // — see admin_registrations_v's header comment
-// (supabase/migrations/20260809100400_admin_registrations_v_registration_status.sql)
+// (supabase/migrations/20260809150000_admin_registrations_v_registration_status.sql)
 // for why. Filter routing below reflects that split.
 export type PaymentStatus = "pending" | "paid" | "failed" | "refunded";
 
@@ -52,7 +52,7 @@ export type RegistrationRow = {
   payment_status: PaymentStatus | null;
   payment_method: string | null;
   /** registrations.status, added in
-   *  supabase/migrations/20260809100400_admin_registrations_v_registration_status.sql.
+   *  supabase/migrations/20260809150000_admin_registrations_v_registration_status.sql.
    *  Only meaningfully DIFFERENT from payment_status-derived state for
    *  'expired'/'cancelled' — see RegistrationStatus above. The Status column
    *  (registrations-table.tsx) and the detail sheet (RegistrationDetail.tsx)

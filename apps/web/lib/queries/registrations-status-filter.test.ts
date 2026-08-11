@@ -5,7 +5,7 @@ import type { TableParams } from "@/lib/table-params";
 // not payment_status — payment_status has no such enum values, so routing
 // them there throws a hard Postgres "invalid input value for enum
 // payment_status" error instead of filtering anything (see
-// supabase/migrations/20260809100400_admin_registrations_v_registration_status.sql's
+// supabase/migrations/20260809150000_admin_registrations_v_registration_status.sql's
 // header comment). This test captures every `.eq()` call listEventRegistrations
 // makes so a regression back to the old single-column routing fails loudly
 // here rather than only at query time against a real database.

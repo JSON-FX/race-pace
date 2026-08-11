@@ -90,6 +90,19 @@ create trigger events_close_expires_pending
         and new.status in ('cancelled', 'closed', 'completed'))
   execute function public.expire_pending_on_event_close();
 
+-- A `returns trigger` function can't actually be invoked directly by a client
+-- ("trigger functions can only be called as triggers" — Postgres refuses),
+-- so the residual PUBLIC/anon/authenticated grant this function gets by
+-- default is inert, not exploitable. Revoked anyway, matching this repo's
+-- established convention for the other trigger functions in this schema
+-- (fn_notify_on_checkin, fn_notify_on_event_change, fn_notify_on_registration,
+-- rls_auto_enable — see 20260808110000_lock_down_function_grants.sql's Group
+-- D): leaving one of a matched set closed and the rest open is exactly how
+-- this class of bug keeps regressing in this codebase, per that migration's
+-- own header. This migration predates 20260808110000 in commit history but
+-- not in applied order, so it never got the same treatment.
+revoke all on function public.expire_pending_on_event_close() from public, anon, authenticated;
+
 -- Belt and braces. The lazy check in registrations-checkout means correctness
 -- does not depend on this running; the sweep exists so admin rosters and the
 -- payments screen stop showing entries that are notionally dead.

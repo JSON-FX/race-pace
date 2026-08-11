@@ -29,14 +29,27 @@
 -- change name of view column ... to ...", SQLSTATE 42P16), it can only append
 -- new ones at the end.
 --
--- Merge note: 20260809140000_admin_runner_avatars.sql (main) landed on hosted
--- before this branch merged, and independently appended `pr.avatar_url` as
--- this view's then-last column. That is now the column this migration's own
--- `create or replace` must preserve in place before appending anything of its
--- own — the same 42P16 constraint above applies to avatar_url just as much as
--- to every column that predates it. registration_status is therefore the
--- LAST column here, after avatar_url, not immediately after custom_data/
--- created_at as an earlier draft of this migration had it.
+-- Merge note: originally timestamped 20260809100400, BEFORE
+-- 20260809140000_admin_runner_avatars.sql (main), which landed on hosted
+-- ahead of this branch merging and independently appended `pr.avatar_url` as
+-- this view's own new last column. Renamed to sort after 140000 rather than
+-- edited in place, for a reason specific to this being a VIEW, not the
+-- function-body merges elsewhere in this branch: a function replace can run
+-- in either order and just overwrite the prior body, but `create or replace
+-- view` physically cannot drop a column, in either direction. With this file
+-- sorted before 140000, a from-scratch `db reset` would apply this migration
+-- (13 original columns + registration_status), then 140000 — unedited,
+-- unaware registration_status now exists — would immediately 42P16 trying to
+-- redefine the view without it. Sorted after 140000, avatar_url already
+-- exists as the view's last column by the time this file runs — true both on
+-- a from-scratch reset (140000 just ran) and on the real hosted push
+-- (140000 was already applied before this branch's migrations existed) — so
+-- this file's job is simply to repeat that already-13+avatar_url column list
+-- verbatim and append registration_status after it, which is valid from
+-- either starting point. admin_registration_aggregates (below) moved here
+-- too, not just the view: as a `language sql` function it is validated
+-- against the catalog at CREATE time, and `v.registration_status` must
+-- already exist on admin_registrations_v when this function is created.
 create or replace view admin_registrations_v
 with (security_invoker = true) as
   select

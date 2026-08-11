@@ -31,7 +31,7 @@ const rows: RegistrationRow[] = [
   {
     id: "r1", user_id: "u1", category_id: "c1", category_label: "50K Ultra",
     full_name: "Maria Josefa Santos", bib_name: "D-1042", avatar_url: null, email: "maria.santos@gmail.com",
-    total_amount: 285000, payment_status: "paid", payment_method: "gcash",
+    total_amount: 285000, payment_status: "paid", payment_method: "gcash", registration_status: "paid",
     created_at: "2026-08-03T09:14:00Z", custom_data: {}, addons: [],
   },
 ];
