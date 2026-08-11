@@ -2,9 +2,10 @@ import { notFound } from "next/navigation";
 import { Landmark, Percent, ShieldCheck, TrendingUp, Wallet } from "lucide-react";
 import { getMyRoles } from "@/lib/queries/roles";
 import { hasCapability } from "@/lib/capabilities";
-import { getCommissionOverview } from "@/lib/queries/commission";
+import { describeRateDrift, getCommissionOverview, getRateDrift } from "@/lib/queries/commission";
 import { KpiCard, KpiRow } from "@/components/kpi-card";
 import { TableEmptyState } from "@/components/data-table";
+import { methodPresentation } from "@/components/MethodBadge";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { peso } from "@/lib/format";
@@ -33,7 +34,10 @@ export default async function CommissionPage() {
   // underneath — this is the UI half, not the boundary.
   if (!hasCapability(roles?.capabilities ?? [], "manage_platform")) notFound();
 
-  const { orgs, events, totals } = await getCommissionOverview();
+  const [{ orgs, events, totals }, drift] = await Promise.all([
+    getCommissionOverview(),
+    getRateDrift(),
+  ]);
 
   // charged_gross, NOT gross. A rate is struck on what the runner was charged, so
   // dividing by revenue that a refund has already been netted out of prints a rate
@@ -64,6 +68,24 @@ export default async function CommissionPage() {
         </div>
       </div>
 
+      {/* Above the KPI row on purpose: it is about whether the processing figures
+          under those cards mean what the rate card says they mean. Rendered one
+          per (method, scope) rather than summarised, because the fix is
+          per-method — a card repricing says nothing about GCash. */}
+      {drift.map((d) => {
+        const n = describeRateDrift(d, methodPresentation(d.method).label);
+        return (
+          <p
+            key={`${d.method}-${d.scope}`}
+            className="mb-3 rounded-[9px] border border-l-[3px] border-l-amber bg-card px-3.5 py-[11px] text-[13px] leading-[1.55] text-muted-foreground"
+          >
+            <b className="font-semibold text-foreground">{n.headline}</b>{" "}
+            {n.observation} {n.money}{" "}
+            <span className="text-foreground">{n.caveat}</span> {n.action}
+          </p>
+        );
+      })}
+
       <KpiRow>
         <KpiCard
           icon={Percent}
@@ -87,8 +109,18 @@ export default async function CommissionPage() {
           icon={Wallet}
           label="PLATFORM GMV"
           // Gross MERCHANDISE value: what was sold, not what survived refunds.
+          // The caption says so out loud because an organizer's own Dashboard
+          // shows a "Gross revenue" card for the same org holding a DIFFERENT
+          // figure — retained revenue, net of refunds. Two gross numbers, two
+          // meanings; this page never renders the retained one, and never uses
+          // the bare word "Gross" for a charged figure either (see the by-event
+          // table's GMV column below), so the two cannot be confused by an
+          // operator moving between screens.
           value={peso(totals.charged_gross)}
-          delta={{ tone: "neutral", text: `${totals.paid_count.toLocaleString()} paid entries` }}
+          delta={{
+            tone: "neutral",
+            text: `${totals.paid_count.toLocaleString()} paid entries · charged, before refunds`,
+          }}
         />
         <KpiCard
           icon={TrendingUp}
@@ -142,7 +174,11 @@ export default async function CommissionPage() {
                 <TableHead className={TH}>Event</TableHead>
                 <TableHead className={TH}>Organization</TableHead>
                 <TableHead className={`${TH} text-right`}>Paid</TableHead>
-                <TableHead className={`${TH} text-right`}>Gross</TableHead>
+                {/* "GMV", not "Gross" — the same word this column used to carry
+                    also heads the organizer Dashboard's card for a figure that
+                    IS net of refunds. This column is Σ amount, i.e. charged, so
+                    it belongs to the GMV vocabulary the rest of the page uses. */}
+                <TableHead className={`${TH} text-right`}>GMV</TableHead>
                 <TableHead className={TH}>Fee charged</TableHead>
                 <TableHead className={`${TH} text-right`}>Commission</TableHead>
               </TableRow>

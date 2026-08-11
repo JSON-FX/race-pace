@@ -1,5 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
-import { describeChargedFee, type CheapestCategory, type FeeTerms, type RefundTerms } from "@/lib/commission-terms";
+import {
+  describeChargedFee,
+  type CheapestCategory,
+  type FeeTerms,
+  type RateDrift,
+  type RefundTerms,
+} from "@/lib/commission-terms";
 
 /**
  * The terms logic itself lives in `@/lib/commission-terms` and is re-exported
@@ -17,6 +23,9 @@ export * from "@/lib/commission-terms";
 export type OrgCommissionRow = RefundTerms & {
   id: string;
   name: string;
+  /** Who bears the payment processor's cut. A PLATFORM term, editable only by a
+   *  super admin — see `setFeeMode` and 20260811097000_org_fee_mode_grant.sql. */
+  fee_mode: "absorb" | "pass_on";
   since: string | null;
   event_count: number;
   paid_count: number;
@@ -119,9 +128,11 @@ export async function getCommissionOverview(): Promise<CommissionOverview> {
   const [orgsRes, totalsRes, eventsRes, paymentsRes, unpaidRes] = await Promise.all([
     supabase
       .from("organizations")
-      .select(
-        "id,name,created_at,commission_type,commission_rate,commission_flat_cents,refund_policy,refund_fee_cents",
-      )
+      // ONE string literal, not a concatenation. supabase-js parses the select
+      // list at the type level, and `"a," + "b"` widens to `string`, which it
+      // resolves to GenericStringError[] — a type error at the cast below rather
+      // than anything wrong at runtime, but a confusing one to land on.
+      .select("id,name,created_at,commission_type,commission_rate,commission_flat_cents,refund_policy,refund_fee_cents,fee_mode")
       .order("name"),
     supabase.from("admin_org_totals_v").select("org_id,paid_count,gross_revenue,charged_gross,platform_fee,net_to_org"),
     supabase.from("events").select("id,name,org_id,status"),
@@ -146,7 +157,7 @@ export async function getCommissionOverview(): Promise<CommissionOverview> {
   const orgRows = (orgsRes.data ?? []) as {
     id: string; name: string; created_at: string | null;
     commission_type: string; commission_rate: number | null; commission_flat_cents: number;
-    refund_policy: string; refund_fee_cents: number;
+    refund_policy: string; refund_fee_cents: number; fee_mode: string;
   }[];
   const totals = (totalsRes.data ?? []) as {
     org_id: string; paid_count: number; gross_revenue: number; charged_gross: number;
@@ -199,6 +210,12 @@ export async function getCommissionOverview(): Promise<CommissionOverview> {
       commission_flat_cents: o.commission_flat_cents,
       refund_policy: o.refund_policy,
       refund_fee_cents: o.refund_fee_cents,
+      // Narrowed rather than cast blind. The column is `text` with a check
+      // constraint, so a value outside the pair is not reachable from the
+      // database — but a row read before a future mode is added must not put an
+      // unknown string into a <Select> that has no option for it and silently
+      // render as blank.
+      fee_mode: o.fee_mode === "pass_on" ? "pass_on" : "absorb",
       event_count: eventCountByOrg.get(o.id) ?? 0,
       paid_count,
       gross_revenue,
@@ -263,4 +280,37 @@ export async function getCommissionOverview(): Promise<CommissionOverview> {
       ),
     },
   };
+}
+
+/**
+ * Methods whose ACTUAL processing cost has diverged from the rate card.
+ *
+ * The ledger is unaffected — it records what was really charged — so this is
+ * never a "the reports are wrong" alert. It means the pass-on surcharge is
+ * under- or over-collecting, and the difference is absorbed by Race Pace rather
+ * than passed to organizers.
+ *
+ * `.eq("drifting", true)` is pushed down to the view rather than filtered here:
+ * the threshold (at least 80% of a sample of at least five, in one direction)
+ * belongs to the detector, and restating it in TypeScript would give the console
+ * a second, drifting definition of drift.
+ *
+ * The view is `security_invoker`, so a super admin's sample is platform-wide
+ * while an org admin's would be computed from their own payments only. This page
+ * is super-admin-gated, so in practice it is always the former.
+ */
+export async function getRateDrift(): Promise<RateDrift[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("processor_rate_drift_v")
+    .select("method,scope,sample_size,disagreeing,median_implied_bps,card_bps,delta_cents,drifting")
+    .eq("drifting", true);
+  if (error) throw error;
+  return ((data ?? []) as RateDrift[]).map((d) => ({
+    ...d,
+    // delta_cents is `bigint`, which PostgREST serialises as a JSON number here
+    // but which arrives as a string from some drivers. Coerced once, at the
+    // boundary, so the peso formatter downstream can never be handed "1234".
+    delta_cents: Number(d.delta_cents),
+  }));
 }

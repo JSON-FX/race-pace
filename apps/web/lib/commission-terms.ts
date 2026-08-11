@@ -250,6 +250,87 @@ export function nonRetroactiveNotice(
   );
 }
 
+/* ------------------------------------------------------------------ *
+ * Processor rate drift
+ * ------------------------------------------------------------------ */
+
+/** One row of `processor_rate_drift_v` (20260811096000). */
+export type RateDrift = {
+  method: string;
+  scope: string;
+  sample_size: number;
+  disagreeing: number;
+  median_implied_bps: number;
+  card_bps: number;
+  delta_cents: number;
+  drifting: boolean;
+};
+
+/** The banner, in parts, so the page can weight the first sentence without this
+ *  module knowing anything about JSX. */
+export type DriftNotice = {
+  headline: string;
+  observation: string;
+  money: string;
+  caveat: string;
+  action: string;
+};
+
+/** basis points -> the percentage a human reads. `350` -> `"3.50%"`. Two
+ *  decimals because 350 and 355 bps are a real difference on this page and
+ *  one decimal cannot show it. */
+const bpsLabel = (bps: number): string => `${(bps / 100).toFixed(2)}%`;
+
+/**
+ * WHAT THE DRIFT SAMPLE ACTUALLY SUPPORTS SAYING — which is less than it looks
+ * like.
+ *
+ * `processor_rate_drift_v` derives `scope` as a hardcoded `'local'` literal
+ * (see its own comment: "payments carries no scope column"), so a genuinely
+ * international card — priced at 450 bps against a 350 bps local card card — is
+ * sampled as a local one and reads as drift. A platform with steady overseas
+ * volume could sit permanently flagged with nothing having changed at all.
+ *
+ * So this deliberately does NOT assert a rate change. It reports what was
+ * observed, states who is out of pocket, names the second explanation the data
+ * cannot rule out, and asks for a check. The alternative — "the card rate has
+ * changed" — is a claim that would sometimes be false, on a banner an operator
+ * is being asked to act on, and a banner that is sometimes wrong is one that
+ * gets dismissed for the run when it is right.
+ *
+ * Nothing here is a "the reports are wrong" alert, and the copy says so: the
+ * ledger stores what the provider actually took (`processor_fee_cents`), and
+ * the prediction it is being compared against is never used in payout
+ * arithmetic. Only the pass-on surcharge under- or over-collects, and the
+ * difference is Race Pace's, not the organizer's.
+ */
+export function describeRateDrift(d: RateDrift, methodLabel = d.method): DriftNotice {
+  // delta_cents is Σ(actual − predicted), so positive means the provider took
+  // MORE than the rate card said. Direction, not just magnitude: an
+  // over-collection is a refund problem and an under-collection is a margin
+  // problem, and they read as opposite instructions.
+  const costingMore = d.delta_cents > 0;
+  const amount = peso(Math.abs(d.delta_cents));
+
+  return {
+    headline: `${methodLabel} payments are costing ${costingMore ? "more" : "less"} than the rate card predicts.`,
+    observation:
+      `The last ${d.disagreeing} of ${d.sample_size} implied ${bpsLabel(d.median_implied_bps)}, ` +
+      `against the ${d.scope} rate card's ${bpsLabel(d.card_bps)}.`,
+    money: costingMore
+      ? `Race Pace under-collected ${amount} across those payments and absorbed it. ` +
+        "Organizers were paid in full and no report is wrong — the ledger records what was actually charged."
+      : `Race Pace over-collected ${amount} across those payments. ` +
+        "Organizers were paid in full and no report is wrong — the ledger records what was actually charged.",
+    // The sentence that keeps this from being a claim.
+    caveat:
+      "This does not on its own mean the provider repriced. Payments carry no local/international marker, " +
+      `so a card issued abroad — which is priced higher — is sampled against the ${d.scope} rate card and ` +
+      "reads the same way as a rate change.",
+    action: "Check the provider's current pricing and the recent card mix before editing the rate card.",
+  };
+}
+
 /**
  * "Fee charged" for one event, read off the payments THEMSELVES rather than off
  * the org's current terms.

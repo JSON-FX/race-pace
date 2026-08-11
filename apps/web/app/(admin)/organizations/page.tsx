@@ -80,7 +80,18 @@ export default async function OrganizationsPage() {
               : `${kpis.activeCount} active`,
           }}
         />
-        <KpiCard icon={Coins} label="Platform GMV" value={peso(kpis.gmvCents)} />
+        {/* The caption is the only thing separating this figure from the one an
+            organizer's own Dashboard calls "Gross revenue". Both are gross;
+            they are not the same quantity. GMV is what runners were CHARGED,
+            before refunds (admin_org_totals_v.charged_gross); the Dashboard's
+            is what was KEPT, after them (gross_revenue). Same org, two
+            different peso amounts, and nothing on either screen said which. */}
+        <KpiCard
+          icon={Coins}
+          label="Platform GMV"
+          value={peso(kpis.gmvCents)}
+          delta={{ tone: "neutral", text: "charged to runners, before refunds" }}
+        />
         <KpiCard
           icon={Percent}
           label="Commission earned"

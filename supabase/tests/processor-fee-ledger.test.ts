@@ -61,6 +61,82 @@ describe("processor fee columns", () => {
     expect(res.error).not.toBeNull();
   });
 
+  /**
+   * fee_mode is written from the Commission console by a super admin
+   * (lib/actions/commission.ts#setFeeMode). Both halves of that write have a
+   * history of being wrong in this repo, so both are asserted here through a
+   * REAL signed-in session on the anon key — service_role would prove neither,
+   * since it bypasses RLS and holds a table-wide grant.
+   */
+  describe("fee_mode is writable by a super admin and nobody else", () => {
+    const SEED_ORG = "00000000-0000-0000-0000-00000000a001"; // Muspo
+
+    async function signedInAs(email: string) {
+      const c = createClient(url, anonKey, { auth: { persistSession: false } });
+      const { error } = await c.auth.signInWithPassword({ email, password: "password123" });
+      if (error) throw new Error(`sign-in failed for ${email}: ${error.message}`);
+      return c;
+    }
+
+    // The GRANT half. organizations' UPDATE privilege has been column-scoped
+    // since 20260724140000, and fee_mode was added by 20260811090000 without
+    // being named in it — so before 20260811097000 this update came back
+    // "permission denied for table organizations" and the console control did
+    // nothing at all. Asserting on the re-read, not just on error === null: a
+    // policy-blocked UPDATE reports success with zero rows.
+    it("lets a super admin flip an organization to pass_on", async () => {
+      const sa = await signedInAs("admin@racepace.test");
+      try {
+        const res = await sa.from("organizations")
+          .update({ fee_mode: "pass_on" }).eq("id", SEED_ORG).select("id,fee_mode");
+        expect(res.error).toBeNull();
+        expect(res.data).toHaveLength(1);
+        expect(res.data![0].fee_mode).toBe("pass_on");
+      } finally {
+        await svc().from("organizations").update({ fee_mode: "absorb" }).eq("id", SEED_ORG);
+      }
+    });
+
+    // The POLICY half, and the reason 20260811097000 carries a trigger and not
+    // just a grant. `organizations_update_branding_org_admin` is
+    // `using (auth_can_admin_org(id))` and RLS cannot be scoped to a column, so
+    // the grant alone would have handed every org admin the power to put their
+    // OWN organization on pass_on — surcharging their runners and taking the
+    // full sticker price — direct through PostgREST, no console involved.
+    it("refuses an org admin on their own organization", async () => {
+      const oa = await signedInAs("muspo@racepace.test");
+      const res = await oa.from("organizations")
+        .update({ fee_mode: "pass_on" }).eq("id", SEED_ORG).select("id,fee_mode");
+      expect(res.error).not.toBeNull();
+      expect(res.error!.code).toBe("42501");
+      // The write did not land. An error code alone would pass even if the row
+      // had moved underneath a misleading error.
+      const after = await svc().from("organizations").select("fee_mode").eq("id", SEED_ORG).single();
+      expect(after.data!.fee_mode).toBe("absorb");
+    });
+
+    // The guard must be narrow enough not to break what it sits on top of. The
+    // same org admin still owns their branding, and a save that merely mentions
+    // an unchanged fee_mode is not an error either.
+    it("still lets that org admin change branding, and tolerates an unchanged fee_mode", async () => {
+      const oa = await signedInAs("muspo@racepace.test");
+      const before = (await svc().from("organizations").select("logo_url").eq("id", SEED_ORG).single()).data!;
+      const logo = `https://example.test/logo-${Date.now()}.png`;
+      try {
+        const branding = await oa.from("organizations")
+          .update({ logo_url: logo }).eq("id", SEED_ORG).select("id,logo_url");
+        expect(branding.error).toBeNull();
+        expect(branding.data![0].logo_url).toBe(logo);
+
+        const noop = await oa.from("organizations")
+          .update({ fee_mode: "absorb" }).eq("id", SEED_ORG).select("id,fee_mode");
+        expect(noop.error).toBeNull();
+      } finally {
+        await svc().from("organizations").update({ logo_url: before.logo_url }).eq("id", SEED_ORG);
+      }
+    });
+  });
+
   it("rejects a negative processor fee", async () => {
     const s = svc();
     const stamp = `neg-${Date.now()}`;

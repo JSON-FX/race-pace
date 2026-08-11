@@ -10,6 +10,8 @@ import {
   zeroRetentionWarning,
   nonRetroactiveNotice,
   describeChargedFee,
+  describeRateDrift,
+  type RateDrift,
 } from "./commission";
 
 describe("rate conversion", () => {
@@ -220,5 +222,67 @@ describe("describeChargedFee — read off the payments, never off today's terms"
 
   it("has nothing to report on an event with no paid entries", () => {
     expect(describeChargedFee([])).toBe("—");
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * Rate drift
+ * ------------------------------------------------------------------ */
+
+/** The shape processor_rate_drift_v emits for a flagged method: 18 of the last
+ *  20 card payments implied 4.50% against a carded 3.50%, ₱1,000 under-collected
+ *  across them. */
+const CARD_DRIFT: RateDrift = {
+  method: "card", scope: "local",
+  sample_size: 20, disagreeing: 18,
+  median_implied_bps: 450, card_bps: 350,
+  delta_cents: 100000, drifting: true,
+};
+
+describe("describeRateDrift", () => {
+  it("reports what was observed without asserting that the rate changed", () => {
+    const n = describeRateDrift(CARD_DRIFT, "Card");
+
+    // The whole point of this copy. The view derives `scope` as a hardcoded
+    // 'local' literal because `payments` has no scope discriminator, so a
+    // genuinely international card (carded at 450 bps) lands in this very sample
+    // and reads as drift against the 350 bps local rate. A platform with steady
+    // overseas volume could sit flagged forever with nothing having changed.
+    // Anything that declares a repricing here is a banner that is sometimes
+    // false — and one an operator learns to dismiss on the run where it is true.
+    const all = Object.values(n).join(" ");
+    expect(all).not.toMatch(/rate has changed|has been repriced|provider (has )?raised/i);
+    expect(n.headline).toBe("Card payments are costing more than the rate card predicts.");
+    expect(n.observation).toBe("The last 18 of 20 implied 4.50%, against the local rate card's 3.50%.");
+  });
+
+  it("names the explanation the sample cannot rule out, and asks for a check", () => {
+    const n = describeRateDrift(CARD_DRIFT, "Card");
+    expect(n.caveat).toMatch(/does not on its own mean the provider repriced/i);
+    expect(n.caveat).toMatch(/no local\/international marker/i);
+    expect(n.action).toMatch(/before editing the rate card/i);
+  });
+
+  it("says who is out of pocket, and that nothing downstream is wrong", () => {
+    const n = describeRateDrift(CARD_DRIFT, "Card");
+    // Positive delta = the provider took MORE than predicted, so the pass-on
+    // surcharge under-collected and Race Pace ate the difference.
+    expect(n.money).toContain("under-collected ₱1,000");
+    expect(n.money).toMatch(/Organizers were paid in full/);
+    expect(n.money).toMatch(/no report is wrong/);
+  });
+
+  it("flips direction on an over-collection instead of printing a negative", () => {
+    const n = describeRateDrift({ ...CARD_DRIFT, delta_cents: -100000, median_implied_bps: 250 }, "Card");
+    expect(n.headline).toContain("costing less");
+    expect(n.money).toContain("over-collected ₱1,000");
+    expect(n.money).not.toContain("-₱");
+  });
+
+  it("falls back to the raw method when no label is supplied", () => {
+    // `payments.method` carries PayMongo's own vocabulary, which this repo does
+    // not control — an instrument added upstream must still produce a sentence.
+    expect(describeRateDrift({ ...CARD_DRIFT, method: "billease" }).headline)
+      .toBe("billease payments are costing more than the rate card predicts.");
   });
 });

@@ -19,6 +19,7 @@ import {
   type RefundTerms,
 } from "@/lib/commission-terms";
 import { saveFeeTermsAction, saveRefundTermsAction, type TermsState } from "@/lib/actions/commission";
+import { FeeModeSelect } from "./fee-mode-row";
 // TYPE-ONLY import: `@/lib/queries/commission` reaches `next/headers` through
 // the Supabase server client, which is a build error in a Client Component.
 // `import type` is erased before bundling, exactly as OrgSwitcher does with
@@ -208,6 +209,13 @@ function FeeRow({ org, draft, onChange }: {
           options={[{ value: "percent", label: "%" }, { value: "fixed", label: "₱" }]}
         />
       </TableCell>
+      {/* Fee mode is NOT part of the fee draft and has no Save button. It writes
+          on change, because it is a single choice with no second field to agree
+          with — unlike the type/amount pair beside it, where saving half a draft
+          would charge something nobody chose. */}
+      <TableCell className="px-[14px]">
+        <FeeModeSelect orgId={org.id} orgName={org.name} mode={org.fee_mode} />
+      </TableCell>
       <TableCell className="px-[14px]">
         <form action={formAction} id={`fee-${org.id}`}>
           <input type="hidden" name="orgId" value={org.id} />
@@ -288,6 +296,7 @@ export function FeeTermsTable({ orgs }: { orgs: OrgCommissionRow[] }) {
             <TableHead className="h-9 px-[14px] text-right text-[10.5px] font-bold uppercase tracking-[0.05em] text-muted-foreground">GMV</TableHead>
             <TableHead className="h-9 px-[14px] text-right text-[10.5px] font-bold uppercase tracking-[0.05em] text-muted-foreground">Commission earned</TableHead>
             <TableHead className="h-9 px-[14px] text-[10.5px] font-bold uppercase tracking-[0.05em] text-muted-foreground">Type</TableHead>
+            <TableHead className="h-9 px-[14px] text-[10.5px] font-bold uppercase tracking-[0.05em] text-muted-foreground">Fee mode</TableHead>
             <TableHead className="h-9 px-[14px] text-[10.5px] font-bold uppercase tracking-[0.05em] text-muted-foreground">Per registration</TableHead>
             <TableHead className="h-9 px-[14px]" />
           </TableRow>
@@ -312,6 +321,19 @@ export function FeeTermsTable({ orgs }: { orgs: OrgCommissionRow[] }) {
           {nonRetroactiveNotice(focus.name, pendingFee(draftFor(focus)), savedFee(focus), focus.paid_count)}
         </Strip>
       ) : null}
+
+      {/* Fee mode is a third commercial term, negotiated separately from the
+          rate (an org can be on a flat peso commission AND pass-on), and its
+          two column values read backwards to anyone thinking about a runner's
+          checkout total. Spelled out once here rather than per row. */}
+      <Strip tone="info">
+        <b className="font-extrabold">Fee mode decides who pays the payment processor</b>, not who pays Race
+        Pace. On <b className="font-extrabold">absorb</b> the runner is charged the sticker price and the
+        processor&apos;s cut comes out of the organizer&apos;s share. On{" "}
+        <b className="font-extrabold">pass on</b> the charge is grossed up so the runner covers it and the
+        organizer receives the full entry price. Like the rate, it applies to entries paid from now on — it is
+        frozen onto each payment at confirmation and rewrites nothing.
+      </Strip>
 
       {flatWarnings.map((w) => (
         <Strip key={w} tone="destructive">

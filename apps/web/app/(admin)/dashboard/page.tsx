@@ -100,7 +100,21 @@ export default async function DashboardPage() {
             with an arbitrary boundary, and the same judgment was already made
             for the Registrations page's omitted MoM delta. An invented trend
             is worse than no trend. */}
-        <KpiCard icon={Wallet} label="Gross revenue" value={peso(data.grossRevenue)} />
+        {/* "Gross revenue" here is RETAINED revenue (admin_org_totals_v.
+            gross_revenue — the charge less anything already refunded), while
+            the platform console's "GMV" cards on Organizations and Commission
+            are what runners were CHARGED. Both are correct for their own page's
+            arithmetic and both start with "gross", so the same organization
+            reads as two different figures depending on which screen you are on.
+            The caption is what tells an operator which one they are looking at.
+            Do NOT resolve this by re-routing the figure: which column feeds
+            which page was settled deliberately. */}
+        <KpiCard
+          icon={Wallet}
+          label="Gross revenue"
+          value={peso(data.grossRevenue)}
+          delta={{ tone: "neutral", text: "kept, after refunds returned" }}
+        />
         <KpiCard
           icon={Landmark}
           label="Net to org"
