@@ -150,9 +150,13 @@ export async function pmCreateRefund(input: { paymentId: string; amount: number;
  * pmMethodFromAttributes: payment-verify holds a parsed session, payments-webhook
  * holds only the raw event resource.
  *
- * Returns null rather than zero when the shape is absent. A zero fee is
- * indistinguishable from a genuinely free payment, and would write a net_to_org
- * that overpays the organizer by exactly the processor's cut.
+ * Returns null rather than zero when any of the three figures is absent. A zero
+ * fee is indistinguishable from a genuinely free payment, and would write a
+ * net_to_org that overpays the organizer by exactly the processor's cut. The
+ * same guard applies to `amount`: the caller's integrity check compares
+ * `amount - fee` against `net_amount`, and a fabricated amount would make that
+ * check compare an invented number. PayMongo's payment object always carries
+ * `amount`, so requiring it rejects only genuinely broken payloads.
  */
 // deno-lint-ignore no-explicit-any
 export function pmFeeFromAttributes(
@@ -163,6 +167,9 @@ export function pmFeeFromAttributes(
   const chosen = (payments as any[]).find((p) => p?.attributes?.status === "paid") ?? payments[0];
   // deno-lint-ignore no-explicit-any
   const a = (chosen as any)?.attributes;
-  if (!a || typeof a.fee !== "number" || typeof a.net_amount !== "number") return null;
-  return { fee: a.fee, netAmount: a.net_amount, amount: typeof a.amount === "number" ? a.amount : 0 };
+  if (
+    !a || typeof a.fee !== "number" || typeof a.net_amount !== "number" ||
+    typeof a.amount !== "number"
+  ) return null;
+  return { fee: a.fee, netAmount: a.net_amount, amount: a.amount };
 }

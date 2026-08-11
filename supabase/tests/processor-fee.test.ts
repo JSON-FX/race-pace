@@ -98,4 +98,19 @@ describe("pmFeeFromAttributes", () => {
       { id: "pay_x", attributes: { status: "paid", amount: 200000 } },
     ]))).toBeNull();
   });
+
+  it("returns null when any ONE of the three figures is missing or mistyped", () => {
+    // Each checked independently. `amount` matters as much as the other two:
+    // the caller's integrity check is `amount - fee === net_amount`, so a
+    // fabricated amount would make that check compare an invented number.
+    const attrs = (over: Record<string, unknown>) =>
+      session([{ id: "pay_x", attributes: { status: "paid", ...over } }]);
+
+    expect(pmFeeFromAttributes(attrs({ fee: 3000, net_amount: 197000 }))).toBeNull();   // no amount
+    expect(pmFeeFromAttributes(attrs({ amount: 200000, net_amount: 197000 }))).toBeNull(); // no fee
+    expect(pmFeeFromAttributes(attrs({ amount: 200000, fee: 3000 }))).toBeNull();       // no net_amount
+    // A numeric STRING is not a number — never coerce money.
+    expect(pmFeeFromAttributes(attrs({ amount: "200000", fee: 3000, net_amount: 197000 }))).toBeNull();
+    expect(pmFeeFromAttributes(attrs({ amount: 200000, fee: null, net_amount: 197000 }))).toBeNull();
+  });
 });
