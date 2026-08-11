@@ -452,10 +452,20 @@ as $$
   limit 1;
 $$;
 
+-- service_role ONLY. Every caller of this function is server-side: _shared/confirm.ts
+-- and payment-session/index.ts both bind `db` to serviceClient(). The client-side
+-- readers (Task 12's settlement view, Task 14's pay screen) read the TABLE directly
+-- under processor_rates_read, not through this RPC.
+--
+-- An `authenticated` grant here would therefore have no caller — and adding one
+-- forces an entry into function-grants.test.ts's closed allowlist, documenting a
+-- call site that does not exist. A security allowlist is only worth as much as its
+-- comments. If a client ever needs the RPC, grant it then, with a real justification.
 revoke all on function public.processor_rate_at(text, text, text, timestamptz) from public;
-grant execute on function public.processor_rate_at(text, text, text, timestamptz) to authenticated;
 grant execute on function public.processor_rate_at(text, text, text, timestamptz) to service_role;
 ```
+
+> **Known gap, deferred by decision:** nothing prevents two CLOSED rows for the same `(provider, method, scope)` from having overlapping `[effective_from, effective_to)` ranges — the partial unique index only guarantees one OPEN row. `processor_rate_at`'s `order by effective_from desc limit 1` would silently pick one rather than error. Unreachable through any current code path (writes are `auth_is_super_admin()`-gated and follow close-then-insert), so a `tstzrange` + `EXCLUDE USING gist` constraint is left to the final review to triage.
 
 - [ ] **Step 4: Apply and run tests**
 
@@ -468,7 +478,7 @@ Expected: PASS (4 tests)
 - [ ] **Step 5: Verify the grants canary still passes**
 
 Run: `pnpm test -- supabase/tests/function-grants.test.ts`
-Expected: PASS — `processor_rate_at` must not be executable by `anon`.
+Expected: PASS with **no edit to that file**. `processor_rate_at` is granted to `service_role` only, so it never enters the `authenticated` enumeration. If you find yourself adding an allowlist entry to make this pass, your grants are wrong — fix the migration, not the canary.
 
 - [ ] **Step 6: Commit**
 
