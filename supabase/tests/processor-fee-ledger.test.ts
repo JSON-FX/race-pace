@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { loadEnv } from "../../test/env";
 import { reportedProcessorFee } from "../functions/_shared/confirm.ts";
 
-const { url, serviceKey } = loadEnv();
+const { url, anonKey, serviceKey } = loadEnv();
 const svc = () => createClient(url, serviceKey, { auth: { persistSession: false } });
 
 describe("processor fee columns", () => {
@@ -270,6 +270,96 @@ describe("confirm_payment_tx with a processor fee", () => {
       expect(pay).toMatchObject({ processor_fee_cents: 0, processor_fee_source: "none" });
     } finally {
       await f.cleanup();
+    }
+  });
+});
+
+/**
+ * The organizer settlement page (`app/(admin)/events/[id]/settlement`) reads
+ * `payments` with NO org filter of its own, on purpose: `payments_read_org_admin`
+ * (20260808161720) already scopes SELECT to the caller's own organizations, and
+ * a second filter in the query would be a copy of an authorization rule that can
+ * drift from the original.
+ *
+ * That decision is only safe if the policy genuinely holds, so this is the test
+ * that owes it. It asserts BOTH directions — an admin of org A reads none of org
+ * B's payments, and does read their own — because a policy that denied everyone
+ * everything would pass the isolation half on its own and take the page's whole
+ * purpose down with it, silently, as an empty table.
+ */
+describe("settlement RLS isolation", () => {
+  it("an org admin reads zero payment rows belonging to another org", async () => {
+    const s = svc();
+    const stamp = `iso-${Date.now()}`;
+
+    const orgA = (await s.from("organizations").insert({ name: "Iso A", slug: `${stamp}-a` })
+      .select().single()).data!;
+    const orgB = (await s.from("organizations").insert({ name: "Iso B", slug: `${stamp}-b` })
+      .select().single()).data!;
+    const users: string[] = [];
+    try {
+      /** One org's event + category + paid registration + paid payment. */
+      const seedEvent = async (org: { id: string }, tag: string) => {
+        const ev = (await s.from("events").insert({
+          org_id: org.id, name: `Iso ${tag} Race`, status: "draft",
+        }).select().single()).data!;
+        const cat = (await s.from("categories").insert({
+          org_id: org.id, event_id: ev.id, code: "10k", label: "10K",
+          base_price: 100000, slots_total: 10, slots_taken: 1,
+        }).select().single()).data!;
+        const runner = (await s.auth.admin.createUser({
+          email: `${stamp}-run-${tag}@test.dev`, password: "password123", email_confirm: true,
+        })).data.user!;
+        users.push(runner.id);
+        const reg = (await s.from("registrations").insert({
+          org_id: org.id, event_id: ev.id, category_id: cat.id,
+          user_id: runner.id, total_amount: 100000, status: "paid",
+        }).select().single()).data!;
+        await s.from("payments").insert({
+          org_id: org.id, registration_id: reg.id, amount: 100000, status: "paid",
+          platform_fee: 3000, processor_fee_cents: 1500, processor_fee_source: "actual",
+          net_to_org: 95500,
+        });
+        return { ev, reg };
+      };
+
+      const b = await seedEvent(orgB, "b");
+      const a = await seedEvent(orgA, "a");
+
+      // An admin of org A only.
+      const adminA = (await s.auth.admin.createUser({
+        email: `${stamp}-admin@test.dev`, password: "password123", email_confirm: true,
+      })).data.user!;
+      users.push(adminA.id);
+      await s.from("user_roles").insert({ user_id: adminA.id, role: "admin", org_id: orgA.id });
+
+      const asA = createClient(url, anonKey, { auth: { persistSession: false } });
+      await asA.auth.signInWithPassword({ email: `${stamp}-admin@test.dev`, password: "password123" });
+
+      const { data, error } = await asA.from("payments")
+        .select("id,processor_fee_cents").eq("org_id", orgB.id);
+      expect(error).toBeNull();
+      expect(data ?? []).toHaveLength(0);
+
+      // The shape the settlement page actually issues: scoped by the event
+      // through the registrations join, with no org predicate at all. This is the
+      // one that would leak if the policy were wrong, and the org_id filter above
+      // would not have caught it.
+      const asPage = (eventId: string) => asA.from("payments")
+        .select("registration_id,net_to_org,registrations!inner(event_id)")
+        .eq("registrations.event_id", eventId);
+
+      expect((await asPage(b.ev.id)).data ?? []).toHaveLength(0);
+
+      // The control. Same query, own event — must return the row, or the
+      // isolation assertion above proves nothing.
+      const mine = (await asPage(a.ev.id)).data ?? [];
+      expect(mine).toHaveLength(1);
+      expect(mine[0]).toMatchObject({ registration_id: a.reg.id, net_to_org: 95500 });
+    } finally {
+      await s.from("organizations").delete().eq("id", orgA.id);
+      await s.from("organizations").delete().eq("id", orgB.id);
+      for (const id of users) await s.auth.admin.deleteUser(id);
     }
   });
 });
