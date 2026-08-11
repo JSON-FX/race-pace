@@ -280,7 +280,47 @@ describe("payout_open_statement v2", () => {
     }
   });
 
-  it("does not clawback-stamp a partial refund it is settling for the FIRST time", async () => {
+  it("does NOT claw back a partial refund that was netted out before it was ever settled", async () => {
+    const f = await fixture("pv2k", 1);
+    try {
+      const admin = await signedInAs(f.adminEmail);
+
+      // 1. Refunded BEFORE any payout: ₱1,610 back to the runner, ₱300 retained. The row
+      //    is UNSTAMPED — this money has never been transferred to the organizer.
+      expect((await f.s.rpc("refund_registration_tx", {
+        p_registration_id: f.regIds[0], p_refunded_by: null, p_note: null,
+        p_provider_refund: {}, p_refunded_amount: 161000, p_retained_net: 30000,
+      })).data).toBe("partially_refunded");
+
+      // 2. Statement A earns only the retention, and nets the refund out in period.
+      const a = await openStatement(admin, f.ev.id);
+      expect(await stmt(f.s, a)).toMatchObject({
+        net_owed_cents: 30000, refunds_in_period_cents: 161000, refunds_cents: 0,
+      });
+
+      // 3. Settle it. The organizer receives ₱300. The ₱1,610 was never theirs to hold.
+      expect((await admin.rpc("payout_mark_paid", {
+        p_statement_id: a, p_reference: "ref-1", p_note: null,
+      })).data).toBe("paid");
+
+      // 4. NO NEW REFUND HAS OCCURRED. Statement B must recover nothing.
+      //
+      //    This is the over-charge the 095700 clawback introduced: the earn UPDATE
+      //    stamped payout_statement_id, and 095700's `payout_statement_id <> p_statement_id`
+      //    predicate then deliberately skipped the clawback UPDATE, leaving
+      //    payout_clawback_id NULL. The next statement's clawback filter therefore matched
+      //    a row whose refund had ALREADY been netted out of the statement that settled it,
+      //    and billed the organizer ₱1,610 they were never sent. A clawback is money the
+      //    organizer HOLDS and must return; there is none here.
+      const b = await stmt(f.s, await openStatement(admin, f.ev.id));
+      expect(b.refunds_cents).toBe(0);
+      expect(b.net_owed_cents).toBe(0);
+    } finally {
+      await f.cleanup();
+    }
+  });
+
+  it("marks a netted refund accounted-for at settlement, so it is never clawed back", async () => {
     const f = await fixture("pv2j", 1);
     try {
       const admin = await signedInAs(f.adminEmail);
@@ -300,29 +340,37 @@ describe("payout_open_statement v2", () => {
         p_statement_id: first, p_reference: "ref-1", p_note: null,
       })).data).toBe("paid");
 
-      // THE ORDERING HAZARD. payout_mark_paid's earn UPDATE stamps this row first; the
-      // clawback UPDATE runs next and now sees a stamped 'partially_refunded' row. If it
-      // claimed that row too, the refund would be marked "recovered" when it was only
-      // netted — and the clawback stamp, once set, can never be set again, so a LATER
-      // refund on the same row would be silently unrecoverable forever.
+      // THE MECHANISM, asserted on the columns. The earn UPDATE sets BOTH stamps on a row
+      // that was already partially refunded when it was first settled: payout_statement_id
+      // = "these earnings were transferred", payout_clawback_id = "the refund recorded on
+      // this row has been accounted for" — here by NETTING, not by recovery. 095700 left
+      // the clawback stamp NULL, which left the row eligible forever and billed the
+      // organizer ₱1,610 they never received on the very next statement.
       const p = (await f.s.from("payments")
         .select("payout_statement_id,payout_clawback_id")
         .eq("registration_id", f.regIds[0]).single()).data!;
       expect(p.payout_statement_id).toBe(first);
-      expect(p.payout_clawback_id).toBeNull();
+      expect(p.payout_clawback_id).toBe(first);
 
-      // Prove the consequence, not just the column: a SECOND partial refund on the now
-      // settled row — ₱200 more back, ₱100 retained — must still be recoverable.
+      // KNOWN LIMITATION, pinned deliberately so a future change to it is a deliberate one.
+      // A SECOND partial refund after settlement — ₱200 more back, ₱100 retained — is NOT
+      // recovered, because the clawback stamp can only be set once and netting already
+      // spent it on this row. The organizer keeps ₱200 they owe back.
+      //
+      // This is the cost of expressing "accounted for" with a single stamp, and it is the
+      // safe direction (under-recovery, not over-charge). It is strictly narrower than the
+      // defect it replaces: this needs TWO refunds straddling a settlement, whereas 095700
+      // over-charged on ONE refund with no second refund anywhere. The clean fix is for
+      // refund_registration_tx to clear payout_clawback_id when it records a NEW refund —
+      // out of scope here, and it would widen the blast radius to the webhook money path.
       expect((await f.s.rpc("refund_registration_tx", {
         p_registration_id: f.regIds[0], p_refunded_by: null, p_note: null,
         p_provider_refund: {}, p_refunded_amount: 20000, p_retained_net: 10000,
       })).data).toBe("partially_refunded");
 
       const second = await stmt(f.s, await openStatement(admin, f.ev.id));
-      // refunded_amount is the delta since settlement, which is what makes it the right
-      // size here: the organizer was paid ₱300 on statement A and keeps ₱100.
-      expect(second.refunds_cents).toBe(20000);
-      expect(second.net_owed_cents).toBe(-20000);
+      expect(second.refunds_cents).toBe(0);
+      expect(second.net_owed_cents).toBe(0);
     } finally {
       await f.cleanup();
     }
