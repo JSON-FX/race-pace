@@ -64,7 +64,26 @@ export function PayPanel({ registrationId }: { registrationId: string }) {
     reg.data.feeMode === "pass_on" && rate.data
       ? passOnLines(total, feeOn(total, reg.data.feeTerms), rate.data)
       : null;
-  const due = lines?.total ?? total;
+  // A free pass-on entry grosses up to nothing, so `lines` is a truthy object of
+  // zeros. There is no fee to itemise or explain there, and a "Total to pay
+  // ₱0.00" line under an "Entry fee ₱0.00" line is the same number said twice.
+  const hasFees = !!lines && (lines.platformFee > 0 || lines.processorFee > 0);
+  // WHAT THE RUNNER WILL BE CHARGED — or null when that is not known yet.
+  //
+  // In pass-on mode the sticker price is NOT it, so falling back to `total`
+  // would print a number nobody will be billed, on the stub and on a live Pay
+  // button. That is the exact deception this screen exists to remove, and it is
+  // not an exotic edge: the rate query cannot even START until `reg` resolves
+  // (it is gated on feeMode), so EVERY pass-on page load renders once with no
+  // rate, and so does every first switch to a method whose rate is not cached.
+  //
+  // It is not necessarily transient either, and "no rate here" does not imply
+  // "no rate there": this screen filters the rate card on `offered` and
+  // `processor_rate_at` does not (see fetchProcessorRate), so a rate correction
+  // that forgets the flag leaves the client with nothing to quote while the
+  // server charges the grossed-up total quite happily. Printing the sticker
+  // price in that state would be a wrong number, persistently.
+  const due = lines ? lines.total : reg.data.feeMode === "pass_on" ? null : total;
 
   // The organizer can cancel while this page is open — the query polls, so the
   // status can flip under the runner. The server page redirects on load; this
@@ -192,7 +211,7 @@ export function PayPanel({ registrationId }: { registrationId: string }) {
             <dd className="text-[14px] font-semibold tabular-nums text-foreground">+{formatPeso(addons)}</dd>
           </div>
         ) : null}
-        {lines ? (
+        {hasFees && lines ? (
           <>
             {/* Zero lines are skipped, exactly as payment-session skips them
                 when it builds the hosted checkout's line items — a ₱0.00 row is
@@ -219,19 +238,29 @@ export function PayPanel({ registrationId }: { registrationId: string }) {
               <dd className="text-[14px] font-bold tabular-nums text-foreground">{formatPeso(lines.total)}</dd>
             </div>
           </>
-        ) : reg.data.feeMode === "absorb" ? (
-          /* Absorb mode, unchanged: the booking fee really is free to this
-             runner, because the organizer is carrying it. Gated on the MODE
-             rather than on `lines` so a pass-on org whose rate card has not
-             answered yet shows nothing here — "Free" would be a claim about
-             fees this runner is in fact about to be charged. */
+        ) : null}
+        {/* Absorb mode, unchanged: the booking fee really is free to this
+            runner, because the organizer is carrying it. Gated on the MODE
+            rather than on `lines` so a pass-on org shows nothing here — "Free"
+            would be a claim about fees this runner is about to be charged. */}
+        {reg.data.feeMode === "absorb" ? (
           <div className="flex justify-between px-5 py-3.5">
             <dt className="text-[14px] text-muted-foreground">Booking fee</dt>
             <dd className="text-[14px] font-semibold text-primary">Free</dd>
           </div>
         ) : null}
+        {/* Pass-on, but the rate card has not answered: say so, rather than
+            print a total that is either unknown or wrong. The runner still sees
+            the itemised figure before they confirm — PayMongo's hosted page
+            lists it — which is what makes this an honest thing to say. */}
+        {!lines && reg.data.feeMode === "pass_on" ? (
+          <div className="flex justify-between px-5 py-3.5">
+            <dt className="text-[14px] text-muted-foreground">Total to pay</dt>
+            <dd className="text-[14px] text-muted-foreground">Shown at checkout</dd>
+          </div>
+        ) : null}
       </dl>
-      {lines ? (
+      {hasFees ? (
         <p className="mt-2.5 text-[12.5px] leading-relaxed text-muted-foreground">
           This race passes the service and payment-processing costs on at checkout. The processing
           amount depends on how you pay, so it updates when you change method below.
@@ -289,7 +318,13 @@ export function PayPanel({ registrationId }: { registrationId: string }) {
         onClick={pay}
         className="mt-8 h-auto w-full rounded-pill py-4 text-[16px] font-semibold"
       >
-        {busy ? "Opening…" : `Pay ${formatPeso(due)}`}
+        {/* No amount on the label when there is none to stand behind. The
+            button stays ENABLED: the server may be perfectly able to price this
+            charge even when the client could not (different rate-card
+            predicates), and disabling would strand a runner who can otherwise
+            pay — with PayMongo's own page itemising the total before they
+            confirm. */}
+        {busy ? "Opening…" : due === null ? "Pay" : `Pay ${formatPeso(due)}`}
       </Button>
       <p className="mt-3 flex items-center justify-center gap-1.5 text-[13px] text-muted-foreground">
         <Lock size={13} /> Encrypted and secured by PayMongo

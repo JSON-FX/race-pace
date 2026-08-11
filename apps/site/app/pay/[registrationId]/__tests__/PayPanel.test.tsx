@@ -204,32 +204,65 @@ describe("PayPanel — the fee breakdown", () => {
     expect(screen.getAllByText("₱2,106.60")).toHaveLength(2);
   });
 
-  // While the rate card is still loading, and in the rare case it has no current
-  // offered row for the method, there is no honest breakdown to draw — so the
-  // panel draws none rather than inventing a processing line. It does NOT block
-  // the runner: payment-session refuses a pass-on charge outright when the rate
-  // is missing (503 rate_card_missing), and _shared/confirm.ts reconciles
-  // payments.amount to what the provider actually captured, so the authoritative
-  // figures are settled server-side either way.
-  it("shows no fee lines while the rate card has not answered", () => {
+  // THE DEGRADED PATH, WHICH IS NOT AN EXOTIC ONE. The rate query is gated on
+  // feeMode, so it cannot start until the registration resolves: every pass-on
+  // page load renders once with no rate, as does every first switch to a method
+  // whose rate is not cached, and a failed read stays this way. Quoting the
+  // sticker price here would put a number nobody will be charged on a live Pay
+  // button — the very deception this screen exists to remove — and it would not
+  // even be self-correcting, because this screen filters the rate card on
+  // `offered` while the server's processor_rate_at does not.
+  //
+  // So: no amount anywhere, and an explicit "Shown at checkout". The button
+  // stays enabled — payment-session may well be able to price the charge, and
+  // PayMongo's hosted page itemises the total before the runner confirms.
+  it("prints no amount at all while the rate card has not answered", () => {
     useProcessorRateMock.mockReturnValue({ data: undefined });
     renderWithRegistration(PASS_ON);
 
     expect(screen.queryByText(/Payment processing/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Race Pace service fee/i)).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /^Pay ₱/ })).toBeInTheDocument();
+    // The sticker price must NOT appear as a total: not on the button, and not
+    // on the ticket stub, which shows a dash instead.
+    expect(screen.queryByRole("button", { name: /^Pay ₱/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Pay" })).toBeInTheDocument();
+    expect(screen.getByText("—")).toBeInTheDocument();
+    expect(screen.getByText("Shown at checkout")).toBeInTheDocument();
+    // The entry fee is still known and still stated — it is the TOTAL that is
+    // not. Exactly once: the stub is showing a dash, not this figure.
+    expect(screen.getAllByText("₱2,000.00")).toHaveLength(1);
     // And no "Booking fee — Free" either: this runner IS being charged fees,
     // so the absorb-mode row would be a claim that is about to be contradicted.
     expect(screen.queryByText("Free")).not.toBeInTheDocument();
   });
 
+  it("prints no amount between methods either, when the new rate is not cached", async () => {
+    const user = userEvent.setup();
+    // GCash priced, card not yet — the state a first switch to card passes
+    // through before its query resolves.
+    useProcessorRateMock.mockImplementation((m: string) => ({ data: m === "gcash" ? RATES.gcash : undefined }));
+    renderWithRegistration(PASS_ON);
+    expect(screen.getByRole("button", { name: "Pay ₱2,091.38" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Card" }));
+
+    // NOT ₱2,000.00 flashing between ₱2,091.38 and ₱2,150.26 — a fast tapper
+    // could press that.
+    expect(screen.getByRole("button", { name: "Pay" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Pay ₱/ })).not.toBeInTheDocument();
+  });
+
   // A pass-on org whose entry is free has nothing to gross up: a ₱0 charge costs
   // the processor nothing, so every line is zero and the panel must not print a
-  // ₱15 card fixed fee against a ₱0 entry.
-  it("adds nothing to a free entry", () => {
+  // ₱15 card fixed fee against a ₱0 entry. Nor a "Total to pay ₱0.00" under an
+  // "Entry fee ₱0.00" — the same number twice — nor the paragraph explaining
+  // fees that this runner is not being charged.
+  it("adds nothing to a free entry, and explains nothing either", () => {
     renderWithRegistration({ total_amount: 0, basePrice: 0, feeMode: "pass_on" });
 
     expect(screen.getByRole("button", { name: "Pay ₱0.00" })).toBeInTheDocument();
     expect(screen.queryByText(/Payment processing/i)).not.toBeInTheDocument();
+    expect(screen.queryByText("Total to pay")).not.toBeInTheDocument();
+    expect(screen.queryByText(/passes the service and payment-processing costs/i)).not.toBeInTheDocument();
   });
 });

@@ -75,9 +75,14 @@ export function feeOn(total: number, terms: FeeTerms): number {
  * DELIBERATE DUPLICATE of `passOnBreakdown` in
  * supabase/functions/_shared/processorFee.ts. apps/site cannot import from
  * supabase/functions — different runtime, different tsconfig, no path alias — so
- * the formula is written twice on purpose. lib/__tests__/payment.test.ts and
- * supabase/tests/processor-fee.test.ts assert the same worked examples, in both
- * places, for that reason. If you change one, change the other and both tests.
+ * the formula is written twice on purpose, structured the same way (a private
+ * `grossUp` standing in for `grossUpCharge`) so the two diff cleanly.
+ *
+ * THE DUPLICATION IS PINNED, not merely documented: supabase/tests/processor-fee.test.ts
+ * imports THIS module — the root vitest config runs `supabase/**` under node and
+ * this file has no imports of its own — and fuzzes the two implementations
+ * against each other over the whole rate/base/commission grid. Divergence is a
+ * red test, not a comment asking the next person to be careful.
  *
  * THE GROSS-UP IS NOT ADDITION. The processor charges its percentage on the
  * FINAL amount, so adding a fee to the base under-collects on every payment:
@@ -101,7 +106,18 @@ export function passOnLines(
   platformFee: number,
   rate: ProcessorRate,
 ): { base: number; platformFee: number; processorFee: number; total: number } {
-  if (baseTotal <= 0) return { base: 0, platformFee: 0, processorFee: 0, total: 0 };
+  const total = grossUp(baseTotal + platformFee, rate);
+  return { base: baseTotal, platformFee, processorFee: total - baseTotal - platformFee, total };
+}
+
+/** The amount to charge so that exactly `target` survives the processor's cut —
+ *  `grossUpCharge` in supabase/functions/_shared/processorFee.ts, line for line.
+ *
+ *  The guard is on the TARGET, not on the base: a free entry carrying a flat
+ *  commission still has something to gross up, and guarding on `baseTotal <= 0`
+ *  instead would silently return zeros where the server charges ₱77.73. */
+function grossUp(target: number, rate: ProcessorRate): number {
+  if (target <= 0) return 0;
   if (rate.percent_bps >= 10000) {
     // At exactly 100% this divides by zero; above it the total comes out
     // negative. Refusing leaves the screen with no breakdown to show, which is
@@ -109,6 +125,5 @@ export function passOnLines(
     // negative or infinite total is not.
     throw new Error(`processor rate of ${rate.percent_bps}bps is not chargeable`);
   }
-  const total = Math.ceil(((baseTotal + platformFee + rate.fixed_cents) * 10000) / (10000 - rate.percent_bps));
-  return { base: baseTotal, platformFee, processorFee: total - baseTotal - platformFee, total };
+  return Math.ceil(((target + rate.fixed_cents) * 10000) / (10000 - rate.percent_bps));
 }

@@ -232,6 +232,22 @@ export function useRegistration(rid: string, opts?: { poll?: boolean; enabled?: 
  *  - `effective_to is null` is the current row. `processor_rates_one_current`
  *    makes at most one such row exist per (provider, method, scope), which is
  *    what lets this be a maybeSingle rather than an ordered pick.
+ *
+ * THIS PREDICATE IS NOT THE SERVER'S, AND CANNOT BE ASSUMED TO AGREE WITH IT.
+ * `processor_rate_at` (which payment-session charges from) takes a point in time
+ * and does NOT filter on `offered`. So the two disagree in both directions:
+ *
+ *  - a rate correction that forgets `offered` (it defaults to FALSE — see
+ *    20260811096500's own comment) drops the method here while the server still
+ *    prices it;
+ *  - a rate change scheduled with an `effective_from` in the future, or a row
+ *    given an `effective_to`, moves the server's answer at a moment this
+ *    `effective_to is null` read does not model.
+ *
+ * That is survivable only because the caller never falls back to the sticker
+ * price: PayPanel prints NO total when this returns null, rather than a number
+ * the server would not charge. If that ever changes, this has to become a
+ * point-in-time read.
  */
 export async function fetchProcessorRate(method: string): Promise<ProcessorRate | null> {
   const rateMethod = RATE_METHOD[method];

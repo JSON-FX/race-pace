@@ -173,6 +173,16 @@ describe("passOnLines", () => {
     });
   });
 
+  // The guard is on base + commission, not on the base alone — matching
+  // grossUpCharge, which guards its target. A free entry carrying a flat
+  // commission still has something to gross up, and a base-only guard would
+  // show ₱0.00 here while the server charged ₱77.73.
+  it("still grosses up a zero-price entry that carries a flat commission", () => {
+    expect(passOnLines(0, 6000, CARD)).toEqual({
+      base: 0, platformFee: 6000, processorFee: 1773, total: 7773,
+    });
+  });
+
   // A rate at or above 100% inverts the gross-up: at exactly 100% it divides by
   // zero, above it the "total" comes out negative. Neither is a number to put
   // in front of a runner, so this refuses instead — the screen then shows no
