@@ -913,3 +913,109 @@ describe("pass-on surcharge (e2e)", () => {
     }
   });
 });
+
+/**
+ * The reconciliation branch (fix round 1). A pass-on runner CAN still reach the
+ * original, base-priced checkout session: the pay screen falls back to it when a
+ * second payment-session call fails (`const payUrl = scoped ?? url`), by which
+ * point payments.amount already holds the grossed-up figure from the first call.
+ *
+ * The capture is then smaller than the row claims. Striking net against the
+ * stale figure would pay the organizer ₱91.38 that never arrived — more than
+ * Race Pace's whole ₱60 commission on the entry — and it would look well-formed,
+ * because `amount - processor - platform = net_to_org` holds against a stale
+ * `amount` just as happily as against the right one.
+ *
+ * So confirm reconciles the row to what the provider says it actually processed,
+ * and pays out of that. This lives in backend.test.ts rather than a unit test
+ * because the stale `amount` has to be written by the REAL payment-session for
+ * the scenario to be the one that actually happens.
+ */
+describe("charge reconciliation (e2e)", () => {
+  const BASE = 200000;
+  const TERMS: FeeTerms = { commission_type: "percent", commission_rate: 0.03, commission_flat_cents: 0 };
+
+  it("a capture on the stale base-priced session is reconciled, and pays out only what arrived", async () => {
+    const svc = service();
+    const stamp = `recon-${Date.now()}`;
+    const org = (await svc.from("organizations").insert({
+      name: `Recon ${stamp}`, slug: stamp, fee_mode: "pass_on",
+      commission_type: TERMS.commission_type, commission_rate: TERMS.commission_rate,
+      commission_flat_cents: TERMS.commission_flat_cents,
+    }).select().single()).data!;
+    const user = await makeUser(`${stamp}@test.dev`);
+    try {
+      const ev = (await svc.from("events").insert({
+        org_id: org.id, name: `Recon Race ${stamp}`, status: "open",
+      }).select().single()).data!;
+      const cat = (await svc.from("categories").insert({
+        org_id: org.id, event_id: ev.id, code: "40k", label: "40K",
+        base_price: BASE, slots_total: 100, slots_taken: 0,
+      }).select().single()).data!;
+      const reg = (await svc.from("registrations").insert({
+        org_id: org.id, event_id: ev.id, category_id: cat.id, user_id: user.id,
+        total_amount: BASE, status: "pending",
+      }).select().single()).data!;
+      await svc.from("payments").insert({
+        org_id: org.id, registration_id: reg.id, amount: BASE, status: "pending",
+      });
+
+      const rate = (await svc.from("processor_rates").select("percent_bps,fixed_cents")
+        .eq("provider", "paymongo").eq("method", "gcash").eq("scope", "local")
+        .is("effective_to", null).single()).data! as ProcessorRate;
+      const platformFee = computeFee(BASE, TERMS);
+      const grossedUp = passOnBreakdown(BASE, platformFee, rate).total;
+
+      // 1. The runner taps Pay: payment-session mints a grossed-up session and
+      //    writes it to the row.
+      const res = await fetch(`${FN}/payment-session`, {
+        method: "POST",
+        headers: { "content-type": "application/json", Authorization: `Bearer ${user.token}` },
+        body: JSON.stringify({ registration_id: reg.id, method: "gcash" }),
+      });
+      expect(res.status, await res.text()).toBe(200);
+      expect((await svc.from("payments").select("amount").eq("registration_id", reg.id).single()).data!.amount)
+        .toBe(grossedUp);
+
+      // 2. ...but they pay the OLD, base-priced session. PayMongo reports a
+      //    capture of BASE, with fee/net_amount consistent with it, so the
+      //    payload still passes confirm's integrity check — it is a perfectly
+      //    valid capture, just of a smaller amount than the row expected.
+      const arrivedFee = predictProcessorFee(BASE, rate);
+      const hook = await postWebhook(paidEventWithFee(reg.id, "gcash", BASE, arrivedFee, BASE - arrivedFee));
+      expect(hook.status).toBe(200);
+
+      const pay = (await svc.from("payments")
+        .select("amount,platform_fee,processor_fee_cents,processor_fee_predicted_cents,processor_fee_source,net_to_org")
+        .eq("registration_id", reg.id).single()).data!;
+
+      // The row is reconciled to the money that actually arrived.
+      expect(pay.amount).toBe(BASE);
+      expect(pay.amount).not.toBe(grossedUp);
+      expect(pay.processor_fee_source).toBe("actual");
+      expect(pay.processor_fee_cents).toBe(arrivedFee);
+      // The drift baseline moves with it — otherwise this row would report the
+      // reconciliation as rate drift.
+      expect(pay.processor_fee_predicted_cents).toBe(predictProcessorFee(BASE, rate));
+
+      // Race Pace keeps its full commission, struck on the base as always...
+      expect(pay.platform_fee).toBe(platformFee);
+      // ...and the organizer is paid out of what arrived: 200000 - 6000 - 3000.
+      expect(pay.net_to_org).toBe(BASE - platformFee - arrivedFee);
+      // NOT out of the grossed-up figure. This is the assertion the fix exists for.
+      expect(pay.net_to_org).not.toBe(grossedUp - platformFee - arrivedFee);
+      // No surcharge was collected, so none is passed on: the organizer bears the
+      // processing cost on this entry, exactly as in absorb mode.
+      expect(pay.net_to_org).toBeLessThan(BASE);
+
+      // The ledger invariant, on the stored row — which is what reconciling the
+      // column (rather than only the local variable) preserves.
+      expect(pay.amount - pay.processor_fee_cents - pay.platform_fee).toBe(pay.net_to_org);
+
+      expect((await svc.from("registrations").select("status").eq("id", reg.id).single()).data!.status).toBe("paid");
+    } finally {
+      await svc.from("organizations").delete().eq("id", org.id);
+      await svc.auth.admin.deleteUser(user.id);
+    }
+  });
+});

@@ -122,8 +122,12 @@ export async function confirmPayment(
   // The array branch is belt-and-braces for the day that stops being true —
   // reading `.amount` off an array yields undefined, which would silently fall
   // back to the base, i.e. precisely the bug this line exists to prevent.
+  //
+  // `let`, not `const`: when the provider reports having captured a different
+  // amount than this row was set up to charge, the reported figure wins and this
+  // is reconciled to it below. Money that arrived beats money we intended.
   const payment = Array.isArray(reg.payments) ? reg.payments[0] : reg.payments;
-  const charged = (payment as { amount?: number } | null | undefined)?.amount ?? reg.total_amount;
+  let charged = (payment as { amount?: number } | null | undefined)?.amount ?? reg.total_amount;
 
   // What the processor actually took. PayMongo settles NET, and reports both
   // halves on the payment object we already store in payments.raw.
@@ -170,21 +174,53 @@ export async function confirmPayment(
     } else {
       processorFee = reported.fee;
       processorFeeSource = "actual";
+
       // The provider says it processed a different amount than the one this row
-      // was set up to charge. Since Task 6 the two can genuinely disagree — a
-      // runner who abandons a grossed-up session and then pays an older,
-      // base-priced one for the same registration captures less than
-      // payments.amount now claims, and net_to_org below would overpay the
-      // organizer out of money that never arrived. The arithmetic is left alone
-      // (net stays consistent with the stored `amount`, so the ledger invariant
-      // holds) and the anomaly is made findable instead — same posture as the
-      // integrity failure above and the capture conflict below.
+      // was set up to charge. The two can genuinely disagree now that a pass-on
+      // session is grossed up: a runner who abandons a grossed-up session, comes
+      // back, and whose second payment-session call fails is handed the ORIGINAL
+      // base-priced session (apps/mobile pay screen: `const payUrl = scoped ?? url`)
+      // and captures ₱2,000 against a payments.amount of ₱2,091.38.
+      //
+      // RECONCILE TO WHAT ARRIVED, do not merely log it. Paying net out of the
+      // stale figure hands the organizer ₱91.38 nobody ever collected — more
+      // than Race Pace's entire ₱60 commission on that entry — and it would look
+      // perfectly well-formed, because the ledger invariant holds against the
+      // stale number just as happily as against the right one.
+      //
+      // Writing payments.amount as well as recomputing `charged` is what keeps
+      // `amount - processor_fee_cents - platform_fee = net_to_org` true on the
+      // STORED row; computing net from reported.amount while leaving the column
+      // stale would break the one invariant every reader of this table trusts.
+      //
+      // The outcome is the honest one: the organizer receives
+      // 200000 - 6000 - 3000 = 191000 and bears the processing cost on that
+      // entry. No surcharge was collected, so there is none to pass on.
+      //
+      // Guarded, so this is one extra write on a rare branch and nothing at all
+      // on the happy path. It sits in the integrity-VERIFIED branch by design: an
+      // amount from a payload whose own arithmetic does not add up is not one to
+      // write into a money column, for exactly the reason the check above exists.
       if (reported.amount !== charged) {
         console.error(
           `[confirm] CHARGE MISMATCH registration=${reg.id} — provider processed ${reported.amount} ` +
-            `but payments.amount is ${charged}. net_to_org is computed from ${charged}; ` +
-            `verify the settlement before paying this one out.`,
+            `but payments.amount was ${charged}. Reconciling the row to ${reported.amount} and ` +
+            `paying net out of that; check why the runner reached a stale checkout session.`,
         );
+        const { error: reconcileErr } = await db.from("payments")
+          .update({ amount: reported.amount }).eq("registration_id", reg.id);
+        if (reconcileErr) {
+          // Failing to reconcile means net would be struck against a figure the
+          // stored row contradicts. Refuse rather than write a ledger row that
+          // is internally inconsistent — the webhook/verify caller retries.
+          console.error("[confirm] charge reconciliation failed", { registrationId: reg.id, error: reconcileErr });
+          return { ok: false, error: "confirm_write_failed", status: 500 };
+        }
+        charged = reported.amount;
+        // The prediction is the drift baseline, so it has to be struck on the
+        // same amount as the actual — otherwise this row would report ₱1.37 of
+        // phantom rate drift that is really just the reconciliation.
+        if (rate) processorFeePredicted = predictProcessorFee(charged, rate);
       }
     }
   } else if (processorFeePredicted !== null) {
