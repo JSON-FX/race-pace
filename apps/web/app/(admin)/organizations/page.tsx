@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { Building2, Coins, Landmark, Percent, Shield } from "lucide-react";
 import { getMyRoles } from "@/lib/queries/roles";
+import { hasCapability } from "@/lib/capabilities";
 import { getPlatformOrganizations, describeCommission } from "@/lib/queries/organizations";
 import { KpiCard, KpiRow } from "@/components/kpi-card";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -43,7 +44,7 @@ export default async function OrganizationsPage() {
   // (lib/nav-items.ts#visibleSuperItems), but a typed URL must not reach this
   // page. notFound() rather than a "forbidden" notice: whether the platform
   // console exists is not something an org admin needs told.
-  if (!roles?.isSuperAdmin) notFound();
+  if (!hasCapability(roles?.capabilities ?? [], "manage_platform")) notFound();
 
   const { rows, kpis } = await getPlatformOrganizations();
 

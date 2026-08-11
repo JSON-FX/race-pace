@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { X } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { PhotoAvatar } from "@/components/PhotoAvatar";
 import { Button } from "@/components/ui/button";
-import { createClient } from "@/lib/supabase/client";
 import { peso, fmtDateTime, initials } from "@/lib/format";
 import { fieldLabel, fieldValue } from "@/lib/field-labels";
 import { cn } from "@/lib/utils";
@@ -15,8 +14,7 @@ import { MethodBadge } from "./MethodBadge";
 import { RefundModal } from "./RefundModal";
 import { CopyButton } from "./CopyButton";
 import { avatarTint } from "./RunnerAvatar";
-
-type Addon = { name: string | null; price: number };
+import { RegistrationHistory } from "./RegistrationHistory";
 
 /**
  * What the money band says, per payment status.
@@ -73,33 +71,10 @@ export function RegistrationDetail({ row, onClose, onRefunded }: {
   row: RegistrationRow; onClose: () => void; onRefunded: () => void;
 }) {
   const [refunding, setRefunding] = useState(false);
-  const [addons, setAddons] = useState<Addon[] | null>(null);
   const canRefund = row.payment_status === "paid";
   const customEntries = Object.entries(row.custom_data ?? {});
   const money = MONEY[row.payment_status ?? ""] ?? MONEY_FALLBACK;
   const tint = avatarTint(row.id);
-
-  useEffect(() => {
-    let cancelled = false;
-    const supabase = createClient();
-    supabase
-      .from("registration_addons")
-      .select("price,addons(name)")
-      .eq("registration_id", row.id)
-      .then(({ data, error }) => {
-        if (cancelled) return;
-        // An empty array and a failed read are different facts: [] means "no
-        // add-ons", null means "we don't know yet / couldn't tell". Only the
-        // first one is safe to subtract from the total below.
-        if (error) { setAddons(null); return; }
-        const mapped = ((data ?? []) as Record<string, unknown>[]).map((a) => {
-          const addon = Array.isArray(a.addons) ? a.addons[0] : a.addons;
-          return { name: ((addon as { name?: string })?.name) ?? null, price: a.price as number };
-        });
-        setAddons(mapped);
-      });
-    return () => { cancelled = true; };
-  }, [row.id]);
 
   /**
    * The entry fee, derived rather than read.
@@ -112,12 +87,12 @@ export function RegistrationDetail({ row, onClose, onRefunded }: {
    * itemises the hosted checkout from the same identity.
    *
    * `admin_registrations_v` does not expose `base_price`, and this avoids a
-   * migration to add it. Null while the add-ons are still loading, so the
-   * breakdown appears complete or not at all rather than briefly claiming the
-   * whole total was the entry fee.
+   * migration to add it. `row.addons` arrives with the row itself now (see
+   * getRegistrationAddons in @/lib/queries/registrations) — there is no
+   * loading state to account for here any more.
    */
-  const addonTotal = addons?.reduce((sum, a) => sum + a.price, 0) ?? null;
-  const entryFee = addonTotal === null ? null : row.total_amount - addonTotal;
+  const addonTotal = row.addons.reduce((sum, a) => sum + a.price, 0);
+  const entryFee = row.total_amount - addonTotal;
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
@@ -138,11 +113,12 @@ export function RegistrationDetail({ row, onClose, onRefunded }: {
       >
         {/* ── Who ───────────────────────────────────────────────────────── */}
         <div className="flex shrink-0 items-start gap-3 px-[18px] pb-3.5 pt-4">
-          <Avatar className="size-[38px]">
-            <AvatarFallback className={cn("text-[13px] font-bold", tint.bg, tint.fg)}>
-              {initials(row.full_name)}
-            </AvatarFallback>
-          </Avatar>
+          <PhotoAvatar
+            url={row.avatar_url}
+            className="size-[38px]"
+            fallbackClassName={cn("text-[13px] font-bold", tint.bg, tint.fg)}
+            fallback={initials(row.full_name)}
+          />
 
           <div className="min-w-0 flex-1">
             <DialogTitle className="text-[15px] font-semibold leading-tight">
@@ -203,12 +179,12 @@ export function RegistrationDetail({ row, onClose, onRefunded }: {
               {peso(row.total_amount)}
             </div>
 
-            {entryFee !== null && addons && addons.length > 0 ? (
+            {row.addons.length > 0 ? (
               <>
                 <div className={cn("my-2.5 h-px bg-current opacity-20", money.ink)} />
                 <dl>
                   <Row label={row.category_label ? `${row.category_label} entry` : "Entry"} value={peso(entryFee)} mono />
-                  {(addons ?? []).map((a, i) => (
+                  {row.addons.map((a, i) => (
                     <Row key={i} label={a.name ?? "Add-on"} value={peso(a.price)} mono />
                   ))}
                 </dl>
@@ -247,6 +223,11 @@ export function RegistrationDetail({ row, onClose, onRefunded }: {
               ))}
             </Section>
           ) : null}
+
+          {/* ── Change history ─────────────────────────────────────────── */}
+          <Section title="History">
+            <RegistrationHistory registrationId={row.id} />
+          </Section>
         </div>
 
         {/* ── Refund ─────────────────────────────────────────────────────── */}

@@ -1,6 +1,7 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 import { createClient } from "@supabase/supabase-js";
 import { loadEnv } from "../../test/env";
+import { seededIds } from "../../test/seeded";
 
 const { url, anonKey, serviceKey } = loadEnv();
 const anon = () => createClient(url, anonKey, { auth: { persistSession: false } });
@@ -14,8 +15,12 @@ async function makeUser(email: string) {
   const signedIn = await anon().auth.signInWithPassword({ email, password: "password123" });
   return { id: created.data.user!.id, token: signedIn.data.session!.access_token };
 }
-const RWP = "00000000-0000-0000-0000-0000000000a1";
-const APO = "00000000-0000-0000-0000-0000000000a2"; // Apo Skyrunners — second seeded org, for negative cases
+// Resolved from the seed rather than restated — see test/seeded.ts.
+// APO is the second seeded org, used for the negative cases.
+let RWP: string, APO: string;
+beforeAll(async () => {
+  ({ ORG_A: RWP, ORG_B: APO } = await seededIds());
+});
 
 describe("user_roles RLS", () => {
   it("a user reads only their own role rows", async () => {
@@ -118,13 +123,20 @@ describe("admin draft-event read", () => {
 });
 
 describe("seeded admin", () => {
-  it("admin@racepace.test signs in and holds admin on Race Pace", async () => {
+  // The seeded account is the PLATFORM super admin, not an org admin: it holds
+  // one super_admin row with org_id null, and the per-org admins are separate
+  // accounts (muspo@ / runwithpoint@). This test previously asserted
+  // `{ role: "admin", org_id: RWP }` — true of an earlier seed, stale since the
+  // seed was reworked. What still matters, and is what it now checks, is that
+  // own-row RLS on user_roles returns exactly the caller's own row and nothing
+  // else: a leak here would expose the whole platform's role table.
+  it("admin@racepace.test signs in and sees only its own super_admin row", async () => {
     const signedIn = await anon().auth.signInWithPassword({
       email: "admin@racepace.test", password: "password123",
     });
     expect(signedIn.error).toBeNull();
     const token = signedIn.data.session!.access_token;
     const { data } = await authed(token).from("user_roles").select("role, org_id");
-    expect(data).toEqual([{ role: "admin", org_id: RWP }]);
+    expect(data).toEqual([{ role: "super_admin", org_id: null }]);
   });
 });

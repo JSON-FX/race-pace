@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { MyRoles } from "@/lib/queries/roles";
+import type { Capability } from "@/lib/capabilities";
 import { CommandPalette } from "./CommandPalette";
 
 const push = vi.fn();
@@ -15,8 +16,23 @@ vi.mock("@/lib/actions/search", () => ({
   searchEvents: (term: string) => searchEvents(term),
 }));
 
+// The palette gates on roles.capabilities (lib/nav-items.ts), not on
+// isOrgAdmin/isSuperAdmin directly — these mirror what getMyRoles() would
+// have derived for an admin vs. an editor vs. a super_admin.
+const ADMIN_CAPS: Capability[] = ["manage_team", "manage_org", "check_in"];
+const EDITOR_CAPS: Capability[] = ["manage_org", "check_in"];
+const SUPER_CAPS: Capability[] = ["manage_platform", "manage_team", "manage_org", "check_in"];
+
 function roles(overrides: Partial<MyRoles> = {}): MyRoles {
-  return { role: "admin", isSuperAdmin: false, isAdmin: true, isOrgAdmin: true, orgId: "a1", ...overrides };
+  return {
+    role: "admin",
+    isSuperAdmin: false,
+    isAdmin: true,
+    isOrgAdmin: true,
+    orgId: "a1",
+    capabilities: ADMIN_CAPS,
+    ...overrides,
+  };
 }
 
 beforeEach(() => {
@@ -66,7 +82,7 @@ describe("CommandPalette", () => {
   // org admin must never be offered the super-admin-only PLATFORM group.
   it("hides Team from a non-org-admin", async () => {
     const user = userEvent.setup();
-    render(<CommandPalette roles={roles({ isOrgAdmin: false })} />);
+    render(<CommandPalette roles={roles({ isOrgAdmin: false, capabilities: EDITOR_CAPS })} />);
 
     await user.click(screen.getByRole("button", { name: "Open search (command palette)" }));
     await screen.findByPlaceholderText(/Jump to a page or an event/);
@@ -90,7 +106,7 @@ describe("CommandPalette", () => {
 
   it("offers PLATFORM destinations to a super_admin", async () => {
     const user = userEvent.setup();
-    render(<CommandPalette roles={roles({ isSuperAdmin: true })} />);
+    render(<CommandPalette roles={roles({ isSuperAdmin: true, capabilities: SUPER_CAPS })} />);
 
     await user.click(screen.getByRole("button", { name: "Open search (command palette)" }));
     await screen.findByPlaceholderText(/Jump to a page or an event/);

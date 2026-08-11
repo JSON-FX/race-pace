@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { PhotoAvatar } from "@/components/PhotoAvatar";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
@@ -72,9 +72,18 @@ function RoleCell({ member, orgId }: { member: TeamMember; orgId: string }) {
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        {ASSIGNABLE_ROLES.map((r) => (
-          <SelectItem key={r} value={r}>{ROLE_LABELS[r]}</SelectItem>
-        ))}
+        {(() => {
+          const roles = [...ASSIGNABLE_ROLES];
+          // Include the member's current role even if it's no longer assignable (e.g.,
+          // old roles being phased out like "claiming"). This keeps the picker from
+          // rendering blank for members already holding that role.
+          if (!roles.includes(member.role as any)) {
+            roles.push(member.role as any);
+          }
+          return roles.map((r) => (
+            <SelectItem key={r} value={r}>{ROLE_LABELS[r]}</SelectItem>
+          ));
+        })()}
       </SelectContent>
     </Select>
   );
@@ -155,7 +164,7 @@ export function TeamTable({ rows, total, page, per, sort, activeFilters, q, orgI
       header: "Member",
       cell: ({ row }) => (
         <div className="flex items-center gap-2.5">
-          <Avatar className="size-8"><AvatarFallback className="text-[11px]">{initials(row.original)}</AvatarFallback></Avatar>
+          <PhotoAvatar url={row.original.avatar_url} className="size-8" fallbackClassName="text-[11px]" fallback={initials(row.original)} />
           <div>
             <div className="font-semibold">{row.original.full_name ?? "—"}</div>
             <div className="text-xs text-muted-foreground">{row.original.email ?? "—"}</div>

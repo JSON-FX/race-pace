@@ -70,8 +70,8 @@ Deno.serve(async (req) => {
         if (seen.has(r.user_id)) continue;
         seen.add(r.user_id);
         const { data: u } = await db.auth.admin.getUserById(r.user_id);
-        const { data: p } = await db.from("profiles").select("full_name").eq("id", r.user_id).maybeSingle();
-        members.push({ user_id: r.user_id, email: u?.user?.email ?? null, full_name: p?.full_name ?? null, role: r.role, created_at: r.created_at });
+        const { data: p } = await db.from("profiles").select("full_name,avatar_url").eq("id", r.user_id).maybeSingle();
+        members.push({ user_id: r.user_id, email: u?.user?.email ?? null, full_name: p?.full_name ?? null, avatar_url: p?.avatar_url ?? null, role: r.role, created_at: r.created_at });
       }
       return json({ ok: true, members });
     }

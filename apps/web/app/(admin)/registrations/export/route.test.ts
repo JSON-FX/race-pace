@@ -28,7 +28,15 @@ vi.mock("@/lib/queries/registrations", () => ({
 import { GET } from "./route";
 
 function roles(overrides: Partial<MyRoles> = {}): MyRoles {
-  return { role: "admin", orgId: "org-1", isSuperAdmin: false, isAdmin: true, isOrgAdmin: false, ...overrides };
+  return {
+    role: "admin",
+    orgId: "org-1",
+    isSuperAdmin: false,
+    isAdmin: true,
+    isOrgAdmin: false,
+    capabilities: [],
+    ...overrides,
+  };
 }
 
 // email is never read off the row by the route anymore (it's looked up from
@@ -44,6 +52,7 @@ function row(overrides: Partial<RegistrationRow> = {}): RegistrationRow {
     category_label: "21K",
     full_name: "Ana Cruz",
     bib_name: "A1",
+    avatar_url: null,
     email: "WRONG-should-not-be-read-from-the-row",
     total_amount: 150000,
     payment_status: "paid",
@@ -51,6 +60,7 @@ function row(overrides: Partial<RegistrationRow> = {}): RegistrationRow {
     registration_status: "paid",
     created_at: "2026-08-04T11:35:15.624Z",
     custom_data: {},
+    addons: [],
     ...overrides,
   };
 }
@@ -123,8 +133,11 @@ describe("GET /registrations/export", () => {
     // per-batch email lookup.
     expect(listEventRegistrationsMock).toHaveBeenCalledTimes(2);
     for (const call of listEventRegistrationsMock.mock.calls) {
-      const [, , opts] = call as [string, TableParams, { includeEmails?: boolean } | undefined];
+      const [, , opts] = call as [string, TableParams, { includeEmails?: boolean; includeAddons?: boolean } | undefined];
       expect(opts?.includeEmails).toBe(false);
+      // The export never renders add-ons — same O(n²)-avoidance reasoning as
+      // includeEmails, just for a read this route has no use for at all.
+      expect(opts?.includeAddons).toBe(false);
     }
   });
 

@@ -28,8 +28,8 @@ beforeEach(() => {
 });
 
 const rows: TeamMember[] = [
-  { user_id: "u1", email: "admin@racepace.test", full_name: "Ada Admin", role: "admin", created_at: "2026-07-01T00:00:00Z" },
-  { user_id: "u2", email: "marshal@racepace.test", full_name: null, role: "marshal", created_at: "2026-07-20T00:00:00Z" },
+  { user_id: "u1", email: "admin@racepace.test", full_name: "Ada Admin", avatar_url: null, role: "admin", created_at: "2026-07-01T00:00:00Z" },
+  { user_id: "u2", email: "marshal@racepace.test", full_name: null, avatar_url: null, role: "marshal", created_at: "2026-07-20T00:00:00Z" },
 ];
 
 const props = { rows, total: 2, page: 1, per: 25, sort: [], activeFilters: {}, q: "", orgId: "a1" };
@@ -60,9 +60,9 @@ describe("TeamTable", () => {
 
   // Regression guard for the assignable-role list: if ASSIGNABLE_ROLES in
   // lib/queries/team.ts ever drifts from what the org-members edge function
-  // accepts (supabase/functions/_shared/team.ts), this fails because the
-  // "Race Kit" (claiming) option would disappear from the picker.
-  it("offers every assignable role in the role picker, including claiming", async () => {
+  // accepts (supabase/functions/_shared/team.ts), this fails because an
+  // assignable role option would disappear from the picker.
+  it("offers every assignable role in the role picker", async () => {
     const user = userEvent.setup();
     render(<TeamTable {...props} />);
     const rowsEls = screen.getAllByRole("row");
@@ -71,6 +71,27 @@ describe("TeamTable", () => {
     expect(screen.getByRole("option", { name: "Admin" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "Editor" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "Marshal" })).toBeInTheDocument();
+  });
+
+  // Regression guard: when a role is removed from ASSIGNABLE_ROLES but a
+  // member still holds it (e.g., "claiming" during race-kit development),
+  // the picker must show the current role so the admin can see what they
+  // hold and change it to something that grants access. If the fallback
+  // logic is missing, the trigger renders blank.
+  it("shows the label for a role no longer assignable (e.g., phased-out roles)", async () => {
+    const user = userEvent.setup();
+    const claimingMember: TeamMember = {
+      user_id: "u3", email: "kit@racepace.test", full_name: "Kit Claimer",
+      avatar_url: null, role: "claiming", created_at: "2026-08-01T00:00:00Z",
+    };
+    render(<TeamTable {...props} rows={[...props.rows, claimingMember]} total={3} />);
+    const rowsEls = screen.getAllByRole("row");
+    const claimingRow = rowsEls[3]; // Third data row
+    const trigger = within(claimingRow).getByRole("combobox");
+    // The trigger should show "Race Kit" even though "claiming" is not assignable.
+    expect(trigger).toHaveTextContent("Race Kit");
+    await user.click(trigger);
+    // Opening the picker should still show the current role.
     expect(screen.getByRole("option", { name: "Race Kit" })).toBeInTheDocument();
   });
 

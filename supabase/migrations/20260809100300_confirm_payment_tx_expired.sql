@@ -36,6 +36,19 @@
 -- Everything else is unchanged from 20260723100000_money_txn_rpcs.sql:
 -- 'paid' is still 'already' (replay-safe), refunded/cancelled still
 -- 'not_pending' (never re-confirm).
+--
+-- Merge note: 20260808140000_money_txn_audit.sql (main) landed on hosted
+-- before this branch merged, and independently redefined this same function
+-- to insert a `registration_audit` row on the success path (org_id/event_id/
+-- total_amount added to the initial select for exactly that insert). Function
+-- bodies have no equivalent of a view's "cannot drop columns" guard — a bare
+-- `create or replace function` here would have silently discarded that audit
+-- insert the moment this migration finally applies. This version carries
+-- BOTH: the audit insert happens once, on the one success path shared by an
+-- ordinary pending confirm and an expired-resurrect confirm, in the same
+-- place main put it (after slots_taken, before `return 'paid'`) — so a
+-- resurrect is audited exactly like any other payment, which is the correct
+-- behaviour for an audit trail, not a gap being merged over.
 create or replace function public.confirm_payment_tx(
   p_registration_id uuid, p_method text, p_fee int, p_net int, p_token text, p_raw jsonb
 ) returns text
@@ -46,13 +59,15 @@ as $$
 declare
   v_status public.registration_status;
   v_category uuid;
+  v_org uuid;
   v_event uuid;
   v_user uuid;
+  v_amount int;
   v_live integer;
   v_constraint text;
 begin
-  select status, category_id, event_id, user_id
-    into v_status, v_category, v_event, v_user
+  select status, category_id, org_id, event_id, user_id, total_amount
+    into v_status, v_category, v_org, v_event, v_user, v_amount
     from public.registrations where id = p_registration_id for update;
   if not found then return 'not_found'; end if;
   if v_status = 'paid' then return 'already'; end if;
@@ -90,9 +105,23 @@ begin
 
   update public.categories set slots_taken = slots_taken + 1 where id = v_category;
 
+  insert into public.registration_audit
+    (registration_id, org_id, event_id, action, detail, actor_role)
+  values (p_registration_id, v_org, v_event, 'paid',
+          jsonb_build_object('method', p_method, 'amount', v_amount), 'system');
+
   return 'paid';
 end;
 $$;
 
 revoke all on function public.confirm_payment_tx(uuid, text, int, int, text, jsonb) from public;
 grant execute on function public.confirm_payment_tx(uuid, text, int, int, text, jsonb) to service_role;
+
+-- Belt-and-braces re-assertion, matching 20260808140000_money_txn_audit.sql's
+-- own posture on this exact function: `create or replace` preserves existing
+-- privileges (this function was hardened service_role-only by
+-- 20260808110000_lock_down_function_grants.sql, already live on hosted), so
+-- this should be a no-op — asserted explicitly anyway, on the function this
+-- repo's one proven exploit (20260808110000's header) targeted directly.
+revoke execute on function public.confirm_payment_tx(uuid, text, int, int, text, jsonb)
+  from anon, authenticated;

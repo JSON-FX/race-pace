@@ -1,7 +1,8 @@
 // Pure, runtime-agnostic guards for the org-members edge function. No Deno or
 // Supabase imports, so these run under the root vitest suite.
 
-export const ASSIGNABLE_ROLES = ["admin", "editor", "marshal", "claiming"] as const;
+// `claiming` returns here once the race-kit spec gives it a capability to check.
+export const ASSIGNABLE_ROLES = ["admin", "editor", "marshal"] as const;
 export type AssignableRole = (typeof ASSIGNABLE_ROLES)[number];
 
 /** Roles an org admin may assign. Excludes 'user' (runner self-signup) and

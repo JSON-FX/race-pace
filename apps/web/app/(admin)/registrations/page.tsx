@@ -1,24 +1,24 @@
 import Link from "next/link";
-import { ClipboardList, CheckCircle2, Wallet, Undo2, Download, Plus } from "lucide-react";
-import { parseTableParams, serializeTableParams } from "@/lib/table-params";
+import { Suspense } from "react";
+import { redirect } from "next/navigation";
+import { Download, Plus } from "lucide-react";
+import { parseTableParams, serializeTableParams, serializeSectionKey } from "@/lib/table-params";
 import { getMyRoles, requireOrgId } from "@/lib/queries/roles";
+import { hasCapability } from "@/lib/capabilities";
 import {
-  listEventRegistrations,
   listOrgEventOptions,
-  listEventCategories,
-  getRegistrationAggregates,
   getOrgRegistrationCount,
   getOrgPendingRegistrationCount,
 } from "@/lib/queries/registrations";
-import { TableEmptyState } from "@/components/data-table";
+import { DataTableSkeleton, TableEmptyState } from "@/components/data-table";
 import { NoOrgScope } from "@/components/no-org-scope";
-import { KpiCard, KpiRow } from "@/components/kpi-card";
+import { KpiRowSkeleton } from "@/components/kpi-card";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { peso } from "@/lib/format";
 import { EventPicker } from "./event-picker";
-import { RegistrationsTable } from "./registrations-table";
+import { RegistrationsKpiSection } from "./kpi-section";
+import { RegistrationsTableSection } from "./table-section";
 
 const DEFAULTS = { sort: [{ id: "created_at", desc: true }], filters: { status: "all", category: "all" } };
 
@@ -28,6 +28,11 @@ export default async function RegistrationsPage({
   // searchParams is a Promise in Next 15 and must be awaited.
   const params = parseTableParams(await searchParams, DEFAULTS);
   const roles = await getMyRoles();
+  // See app/(admin)/dashboard/page.tsx's identical guard: the (admin)
+  // layout only asserts SOME capability (check_in included), so a marshal
+  // clears it — this page must assert manage_org itself, and redirect()
+  // rather than notFound().
+  if (!hasCapability(roles?.capabilities ?? [], "manage_org")) redirect("/no-access");
   // See requireOrgId's doc comment: a super_admin with no org-scoped
   // admin/editor row clears the (admin) layout's `isAdmin` guard with
   // `orgId: null`. Branch before calling any org-scoped query, don't assert
@@ -45,7 +50,17 @@ export default async function RegistrationsPage({
     );
   }
 
-  const events = await listOrgEventOptions(orgId);
+  // One burst, not a chain: the event list is needed to resolve `eventId`
+  // below, and the two org-wide counts feed the subtitle. Nothing here depends
+  // on anything else here. The row and aggregate reads have moved into the
+  // suspended sections so they no longer hold up the shell.
+  const [events, orgTotal, orgPending] = await Promise.all([
+    listOrgEventOptions(orgId),
+    // Subtitle figures are deliberately ORG-wide, not scoped to the selected
+    // event/filters — see each function's doc comment.
+    getOrgRegistrationCount(orgId),
+    getOrgPendingRegistrationCount(orgId),
+  ]);
   // `event` is a filter key, so parseTableParams already surfaced it. Default
   // to the most recent event so the page is never empty on first visit.
   const eventId = params.filters.event && params.filters.event !== "all"
@@ -74,20 +89,18 @@ export default async function RegistrationsPage({
     DEFAULTS,
   )}`;
 
-  const [{ rows, total }, categories, aggregates, orgTotal, orgPending] = await Promise.all([
-    listEventRegistrations(eventId, params),
-    listEventCategories(eventId),
-    // Same event + same filters as the table above — see getRegistrationAggregates'
-    // doc comment for why this is an RPC over the shared view rather than a sum
-    // over `rows` (which would describe one page, not the filtered set).
-    getRegistrationAggregates(eventId, params),
-    // Subtitle figures ("N total across M events · K pending payment") are
-    // deliberately ORG-wide, not scoped to the selected event/filters the
-    // way `aggregates` above is — see getOrgRegistrationCount and
-    // getOrgPendingRegistrationCount's doc comments.
-    getOrgRegistrationCount(orgId),
-    getOrgPendingRegistrationCount(orgId),
-  ]);
+  // Keyed so a searchParams-only navigation re-shows the skeleton — loading.tsx
+  // fires only on a route SEGMENT change, so paging, sorting or filtering would
+  // otherwise leave the old table on screen with no sign anything is happening.
+  //
+  // serializeSectionKey, NOT serializeTableParams: `reg` (the open modal) is a
+  // filter as far as the URL is concerned but changes nothing about what these
+  // sections fetch. While it fed this key, opening a registration remounted both
+  // boundaries and re-fetched identical data behind a skeleton.
+  const sectionKey = serializeSectionKey(
+    { ...params, filters: { ...params.filters, event: eventId } },
+    DEFAULTS,
+  );
 
   return (
     <div className="px-4 pb-10 pt-6 md:px-[30px]">
@@ -135,59 +148,17 @@ export default async function RegistrationsPage({
         </div>
       </div>
 
-      <KpiRow>
-        <KpiCard
-          icon={ClipboardList}
-          label="Total"
-          value={aggregates.total.toLocaleString()}
-          delta={{
-            text: `+${aggregates.newThisWeek.toLocaleString()} this week`,
-            tone: aggregates.newThisWeek > 0 ? "positive" : "neutral",
-          }}
-        />
-        <KpiCard
-          icon={CheckCircle2}
-          label="Paid"
-          value={aggregates.paid.toLocaleString()}
-          delta={{
-            text: `${aggregates.total > 0 ? ((aggregates.paid / aggregates.total) * 100).toFixed(1) : "0.0"}% conversion`,
-            tone: "neutral",
-          }}
-        />
-        {/* MoM delta omitted — see task-v2-report.md ("Deltas shipped vs
-            omitted"): a month-over-month comparison needs a second
-            time-windowed query with an ambiguous boundary (calendar month vs.
-            rolling 30d) and reads as noise against this org's sparse,
-            single-month seed data. Rather than fabricate a plausible-looking
-            percentage, the card renders the value alone. */}
-        <KpiCard icon={Wallet} label="Gross revenue" value={peso(aggregates.grossCents)} />
-        <KpiCard
-          icon={Undo2}
-          label="Refunds"
-          value={peso(aggregates.refundedCents)}
-          delta={{
-            // Deliberately NOT "· K pending": there is no refund-approval
-            // queue in this schema yet (refunds run through
-            // refund_registration_tx, supabase/migrations/20260723100000_
-            // money_txn_rpcs.sql, one atomic transition straight to
-            // 'refunded' — the queue is Payments A2, not yet built). "0
-            // pending" would assert the system tracks pending refunds and
-            // found none; it doesn't track them at all, so the question is
-            // unanswerable, not answered-zero. Same judgment already applied
-            // to the omitted MoM delta above — don't invent a number a
-            // reader can't tell "we checked" from "we have no idea" on.
-            text: `${aggregates.refundCount.toLocaleString()} request${aggregates.refundCount === 1 ? "" : "s"}`,
-            tone: "neutral",
-          }}
-        />
-      </KpiRow>
+      <Suspense key={`kpi-${sectionKey}`} fallback={<KpiRowSkeleton />}>
+        <RegistrationsKpiSection eventId={eventId} params={params} />
+      </Suspense>
 
       <div className="mb-3">
         <EventPicker events={events} value={eventId} />
       </div>
 
-      <RegistrationsTable rows={rows} total={total} page={params.page} per={params.per}
-        sort={params.sort} activeFilters={params.filters} q={params.q} categories={categories} />
+      <Suspense key={`table-${sectionKey}`} fallback={<DataTableSkeleton rows={8} columns={6} />}>
+        <RegistrationsTableSection eventId={eventId} params={params} />
+      </Suspense>
     </div>
   );
 }

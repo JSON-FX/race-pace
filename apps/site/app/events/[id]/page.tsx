@@ -54,13 +54,20 @@ export default async function EventPage({ params }: Params) {
   ]);
   // almost_full is still registerable — see lib/eventStatus.ts, mirrors
   // apps/mobile/app/event/[id].tsx's `registerable` rule.
-  const closed = isRegistrationClosed(event.status);
+  const closed = isRegistrationClosed(event.status, event.registration_closes_at);
 
   return (
     <>
       <SiteHeader />
       <main>
-        <EventPageBody event={event} categories={categories} addons={addons} closed={closed} myEntry={myEntry} />
+        <EventPageBody
+          event={event}
+          categories={categories}
+          addons={addons}
+          closed={closed}
+          myEntry={myEntry}
+          registrationClosesAt={event.registration_closes_at}
+        />
       </main>
     </>
   );

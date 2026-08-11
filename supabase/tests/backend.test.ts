@@ -1,6 +1,16 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 import { createClient } from "@supabase/supabase-js";
 import { loadEnv } from "../../test/env";
+import { seededIds } from "../../test/seeded";
+
+// Resolved from the seed rather than restated — see test/seeded.ts. Declared
+// once here for the whole file: the checkout suite above and the refund suite
+// below both work against the same two seeded orgs and the same event/category,
+// and previously each restated them as literals.
+let RWP_RF: string, APO_RF: string, E1_RF: string, C4_RF: string;
+beforeAll(async () => {
+  ({ ORG_A: RWP_RF, ORG_B: APO_RF, EVENT_A: E1_RF, CATEGORY_A: C4_RF } = await seededIds());
+});
 import { createHmac } from "node:crypto";
 
 const { url, anonKey, serviceKey } = loadEnv();
@@ -23,33 +33,46 @@ const refundEvent = (refundId: string, status: string) => ({ data: { attributes:
 describe("organizations RLS", () => {
   it("anon can read an active org but not an inactive one", async () => {
     const svc = service();
-    const active = await svc.from("organizations").insert({ name: "Active Org", slug: "active-org" }).select().single();
-    const inactive = await svc.from("organizations").insert({ name: "Hidden Org", slug: "hidden-org", is_active: false }).select().single();
-    expect(active.error).toBeNull();
+    // Cleanup thunks are pushed the instant each row exists, so a throw anywhere below —
+    // including inside the second insert — still tears down whatever was already created.
+    const cleanups: Array<() => Promise<unknown>> = [];
+    try {
+      const active = await svc.from("organizations").insert({ name: "Active Org", slug: "active-org" }).select().single();
+      expect(active.error).toBeNull();
+      cleanups.push(() => svc.from("organizations").delete().eq("id", active.data!.id));
 
-    const { data } = await anon().from("organizations").select("slug");
-    const slugs = (data ?? []).map((o) => o.slug);
-    expect(slugs).toContain("active-org");
-    expect(slugs).not.toContain("hidden-org");
+      const inactive = await svc.from("organizations").insert({ name: "Hidden Org", slug: "hidden-org", is_active: false }).select().single();
+      cleanups.push(() => svc.from("organizations").delete().eq("id", inactive.data!.id));
 
-    await svc.from("organizations").delete().in("id", [active.data!.id, inactive.data!.id]);
+      const { data } = await anon().from("organizations").select("slug");
+      const slugs = (data ?? []).map((o) => o.slug);
+      expect(slugs).toContain("active-org");
+      expect(slugs).not.toContain("hidden-org");
+    } finally {
+      for (const fn of cleanups.reverse()) await fn();
+    }
   });
 });
 
 describe("events catalog RLS", () => {
   it("hides draft events from anon, shows open ones", async () => {
     const svc = service();
-    const org = await svc.from("organizations").insert({ name: "Cat Org", slug: "cat-org" }).select().single();
-    const draft = await svc.from("events").insert({ org_id: org.data!.id, name: "Draft Race", status: "draft" }).select().single();
-    const open = await svc.from("events").insert({ org_id: org.data!.id, name: "Open Race", status: "open" }).select().single();
+    const cleanups: Array<() => Promise<unknown>> = [];
+    try {
+      const org = await svc.from("organizations").insert({ name: "Cat Org", slug: "cat-org" }).select().single();
+      // org delete cascades its events, so one thunk covers the whole tree below it.
+      cleanups.push(() => svc.from("organizations").delete().eq("id", org.data!.id));
 
-    const { data } = await anon().from("events").select("name");
-    const names = (data ?? []).map((e) => e.name);
-    expect(names).toContain("Open Race");
-    expect(names).not.toContain("Draft Race");
+      await svc.from("events").insert({ org_id: org.data!.id, name: "Draft Race", status: "draft" });
+      await svc.from("events").insert({ org_id: org.data!.id, name: "Open Race", status: "open" });
 
-    await svc.from("events").delete().in("id", [draft.data!.id, open.data!.id]);
-    await svc.from("organizations").delete().eq("id", org.data!.id);
+      const { data } = await anon().from("events").select("name");
+      const names = (data ?? []).map((e) => e.name);
+      expect(names).toContain("Open Race");
+      expect(names).not.toContain("Draft Race");
+    } finally {
+      for (const fn of cleanups.reverse()) await fn();
+    }
   });
 });
 
@@ -63,26 +86,31 @@ async function makeUser(email: string) {
 describe("registrations RLS", () => {
   it("a user reads only their own registration", async () => {
     const svc = service();
-    const org = await svc.from("organizations").insert({ name: "Reg Org", slug: "reg-org" }).select().single();
-    const ev = await svc.from("events").insert({ org_id: org.data!.id, name: "Reg Race", status: "open" }).select().single();
-    const cat = await svc.from("categories").insert({ org_id: org.data!.id, event_id: ev.data!.id, code: "10k", label: "10K", base_price: 100000, slots_total: 10 }).select().single();
+    const cleanups: Array<() => Promise<unknown>> = [];
+    try {
+      // status doesn't matter — Alice/Bob read via the authenticated role and the
+      // registrations table's own RLS, not the events-catalog anon policy.
+      const org = await svc.from("organizations").insert({ name: "Reg Org", slug: "reg-org" }).select().single();
+      cleanups.push(() => svc.from("organizations").delete().eq("id", org.data!.id));
+      const ev = await svc.from("events").insert({ org_id: org.data!.id, name: "Reg Race", status: "draft" }).select().single();
+      const cat = await svc.from("categories").insert({ org_id: org.data!.id, event_id: ev.data!.id, code: "10k", label: "10K", base_price: 100000, slots_total: 10 }).select().single();
 
-    const alice = await makeUser(`alice_${Date.now()}@test.dev`);
-    const bob = await makeUser(`bob_${Date.now()}@test.dev`);
-    const reg = await svc.from("registrations").insert({ org_id: org.data!.id, event_id: ev.data!.id, category_id: cat.data!.id, user_id: alice.id, total_amount: 100000 }).select().single();
+      const alice = await makeUser(`alice_${Date.now()}@test.dev`);
+      cleanups.push(() => svc.auth.admin.deleteUser(alice.id));
+      const bob = await makeUser(`bob_${Date.now()}@test.dev`);
+      cleanups.push(() => svc.auth.admin.deleteUser(bob.id));
+      const reg = await svc.from("registrations").insert({ org_id: org.data!.id, event_id: ev.data!.id, category_id: cat.data!.id, user_id: alice.id, total_amount: 100000 }).select().single();
 
-    const asAlice = createClient(url, anonKey, { global: { headers: { Authorization: `Bearer ${alice.token}` } }, auth: { persistSession: false } });
-    const asBob = createClient(url, anonKey, { global: { headers: { Authorization: `Bearer ${bob.token}` } }, auth: { persistSession: false } });
+      const asAlice = createClient(url, anonKey, { global: { headers: { Authorization: `Bearer ${alice.token}` } }, auth: { persistSession: false } });
+      const asBob = createClient(url, anonKey, { global: { headers: { Authorization: `Bearer ${bob.token}` } }, auth: { persistSession: false } });
 
-    const aliceView = await asAlice.from("registrations").select("id").eq("id", reg.data!.id);
-    const bobView = await asBob.from("registrations").select("id").eq("id", reg.data!.id);
-    expect(aliceView.data).toHaveLength(1);
-    expect(bobView.data).toHaveLength(0); // RLS hides Alice's row from Bob
-
-    await svc.from("registrations").delete().eq("id", reg.data!.id);
-    await svc.auth.admin.deleteUser(alice.id);
-    await svc.auth.admin.deleteUser(bob.id);
-    await svc.from("organizations").delete().eq("id", org.data!.id);
+      const aliceView = await asAlice.from("registrations").select("id").eq("id", reg.data!.id);
+      const bobView = await asBob.from("registrations").select("id").eq("id", reg.data!.id);
+      expect(aliceView.data).toHaveLength(1);
+      expect(bobView.data).toHaveLength(0); // RLS hides Alice's row from Bob
+    } finally {
+      for (const fn of cleanups.reverse()) await fn();
+    }
   });
 });
 
@@ -91,7 +119,7 @@ describe("seed", () => {
     const a = anon();
     const org = await a.from("organizations").select("slug").eq("slug", "race-pace").single();
     expect(org.data?.slug).toBe("race-pace");
-    const cats = await a.from("categories").select("code").eq("event_id", "00000000-0000-0000-0000-0000000000e1");
+    const cats = await a.from("categories").select("code").eq("event_id", E1_RF);
     expect((cats.data ?? []).map((c) => c.code).sort()).toEqual(["100k", "10k", "21k", "50k"]);
   });
 });
@@ -105,7 +133,7 @@ describe("registrations-checkout", () => {
       method: "POST",
       headers: { "content-type": "application/json", Authorization: `Bearer ${user.token}` },
       body: JSON.stringify({
-        event_id: "00000000-0000-0000-0000-0000000000e1",
+        event_id: E1_RF,
         category_id: "00000000-0000-0000-0000-0000000000c3",
         addon_ids: ["00000000-0000-0000-0000-0000000000d1"],
         custom_data: { blood_type: "O", shirt_size: "M" },
@@ -133,7 +161,7 @@ describe("registrations-checkout", () => {
       method: "POST",
       headers: { "content-type": "application/json", Authorization: `Bearer ${user.token}` },
       body: JSON.stringify({
-        event_id: "00000000-0000-0000-0000-0000000000e1",
+        event_id: E1_RF,
         category_id: "00000000-0000-0000-0000-0000000000c3",
         custom_data: { running_club: 12345 }, // event field `running_club` (f2) is a text field — number fails z.string()
         waiver_accepted: true,
@@ -155,7 +183,7 @@ describe("registrations-checkout", () => {
       method: "POST",
       headers: { "content-type": "application/json", Authorization: `Bearer ${user.token}` },
       body: JSON.stringify({
-        event_id: "00000000-0000-0000-0000-0000000000e1",
+        event_id: E1_RF,
         category_id: "00000000-0000-0000-0000-0000000000c3",
         custom_data: { blood_type: "O+", shirt_size: "XS", running_club: "Trailblazers" },
         waiver_accepted: true,
@@ -184,7 +212,7 @@ describe("registrations-checkout", () => {
       method: "POST",
       headers: { "content-type": "application/json", Authorization: `Bearer ${user.token}` },
       body: JSON.stringify({
-        event_id: "00000000-0000-0000-0000-0000000000e1",
+        event_id: E1_RF,
         category_id: "00000000-0000-0000-0000-0000000000c3",
         custom_data: { shirt_size: "M" }, // omits required blood_type (f1)
         waiver_accepted: true,
@@ -201,14 +229,14 @@ describe("payment confirmation (fake) e2e", () => {
     const svc = service();
     const user = await makeUser(`e2e_${Date.now()}@test.dev`);
 
-    const before = await svc.from("categories").select("slots_taken").eq("id", "00000000-0000-0000-0000-0000000000c4").single();
+    const before = await svc.from("categories").select("slots_taken").eq("id", C4_RF).single();
 
     const checkout = await fetch(`${FN}/registrations-checkout`, {
       method: "POST",
       headers: { "content-type": "application/json", Authorization: `Bearer ${user.token}` },
       body: JSON.stringify({
-        event_id: "00000000-0000-0000-0000-0000000000e1",
-        category_id: "00000000-0000-0000-0000-0000000000c4",
+        event_id: E1_RF,
+        category_id: C4_RF,
         custom_data: { blood_type: "A", shirt_size: "L" },
         waiver_accepted: true,
         idempotency_key: `idem-e2e-${Date.now()}`,
@@ -227,12 +255,12 @@ describe("payment confirmation (fake) e2e", () => {
     expect(pay.data?.platform_fee).toBe(Math.round(100000 * 0.10)); // 10K base, 10% commission
     expect(pay.data?.net_to_org).toBe(100000 - Math.round(100000 * 0.10));
 
-    const after = await svc.from("categories").select("slots_taken").eq("id", "00000000-0000-0000-0000-0000000000c4").single();
+    const after = await svc.from("categories").select("slots_taken").eq("id", C4_RF).single();
     expect(after.data!.slots_taken).toBe(before.data!.slots_taken + 1); // relative — robust to prior runs
 
     // A duplicate confirmation is a no-op — slot stays at +1 (idempotent through confirm_payment_tx).
     await postWebhook(paidEvent(checkout.registration_id));
-    const afterDup = await svc.from("categories").select("slots_taken").eq("id", "00000000-0000-0000-0000-0000000000c4").single();
+    const afterDup = await svc.from("categories").select("slots_taken").eq("id", C4_RF).single();
     expect(afterDup.data!.slots_taken).toBe(before.data!.slots_taken + 1);
 
     await svc.from("registrations").delete().eq("id", checkout.registration_id);
@@ -269,8 +297,8 @@ describe("fake-checkout sandbox page", () => {
       method: "POST",
       headers: { "content-type": "application/json", Authorization: `Bearer ${user.token}` },
       body: JSON.stringify({
-        event_id: "00000000-0000-0000-0000-0000000000e1",
-        category_id: "00000000-0000-0000-0000-0000000000c4",
+        event_id: E1_RF,
+        category_id: C4_RF,
         custom_data: { blood_type: "A", shirt_size: "L" },
         waiver_accepted: true,
         idempotency_key: `idem-fc-${Date.now()}`,
@@ -306,10 +334,6 @@ describe("psgc reference data", () => {
   });
 });
 
-const RWP_RF = "00000000-0000-0000-0000-0000000000a1";
-const APO_RF = "00000000-0000-0000-0000-0000000000a2";
-const E1_RF = "00000000-0000-0000-0000-0000000000e1";
-const C4_RF = "00000000-0000-0000-0000-0000000000c4";
 
 async function paidRegistration(runnerToken: string) {
   const checkout = await fetch(`${FN}/registrations-checkout`, {

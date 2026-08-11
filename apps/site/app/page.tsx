@@ -56,9 +56,11 @@ export default async function Home() {
   // accident.
   const ongoing = events.filter((e) => eventState(e, today) === "ongoing");
   const ongoingIds = new Set(ongoing.map((e) => e.id));
-  const open = events.filter((e) => !isRegistrationClosed(e.status) && !ongoingIds.has(e.id));
+  const open = events.filter(
+    (e) => !isRegistrationClosed(e.status, e.registration_closes_at) && !ongoingIds.has(e.id),
+  );
   const past = events.filter(
-    (e) => isRegistrationClosed(e.status) && !ongoingIds.has(e.id),
+    (e) => isRegistrationClosed(e.status, e.registration_closes_at) && !ongoingIds.has(e.id),
   );
   const hero = open.find((e) => (e.event_date ?? "") >= today) ?? open[0];
   const rest = open.filter((e) => e.id !== hero?.id);

@@ -16,7 +16,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   if (!user) redirect("/login");
 
   const roles = await getMyRoles();
-  if (!roles?.isAdmin) redirect("/no-access");
+  // "Can this person use the console at all", not "are they an admin". A
+  // marshal holds only check_in and must get past here to reach the station
+  // that was built for them; each route below still asserts its own capability.
+  if (!roles || roles.capabilities.length === 0) redirect("/no-access");
 
   // requireOrgId returns null for a bare super_admin with no org-scoped
   // row — that's not an error, it just means there's no org name to show
@@ -28,7 +31,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const orgContext = await getOrgContext();
 
   const orgId = requireOrgId(roles);
-  const orgName = orgId ? (await getOrg(orgId)).name : null;
+  // One getOrg call for both the name badge and the sidebar footer's logo;
+  // it is cache()d, so this stays a single round trip.
+  const org = orgId ? await getOrg(orgId) : null;
+  const orgName = org?.name ?? null;
   // Sidebar nav-count pills (Events, Registrations) are real data, not
   // props threaded from a page. A bare super_admin with orgId: null has no
   // org to count against — counts stays null and Sidebar renders the nav
@@ -44,6 +50,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       roles={roles}
       email={user.email ?? ""}
       orgName={orgName}
+      orgLogoUrl={org?.logo_url ?? null}
       counts={counts}
       orgContext={orgContext}
     >

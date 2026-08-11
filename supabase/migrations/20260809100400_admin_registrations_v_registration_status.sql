@@ -28,6 +28,15 @@
 -- view` refuses to reorder or insert among existing output columns ("cannot
 -- change name of view column ... to ...", SQLSTATE 42P16), it can only append
 -- new ones at the end.
+--
+-- Merge note: 20260809140000_admin_runner_avatars.sql (main) landed on hosted
+-- before this branch merged, and independently appended `pr.avatar_url` as
+-- this view's then-last column. That is now the column this migration's own
+-- `create or replace` must preserve in place before appending anything of its
+-- own — the same 42P16 constraint above applies to avatar_url just as much as
+-- to every column that predates it. registration_status is therefore the
+-- LAST column here, after avatar_url, not immediately after custom_data/
+-- created_at as an earlier draft of this migration had it.
 create or replace view admin_registrations_v
 with (security_invoker = true) as
   select
@@ -44,6 +53,7 @@ with (security_invoker = true) as
     p.method            as payment_method,
     r.custom_data,
     r.created_at,
+    pr.avatar_url,
     r.status            as registration_status
   from registrations r
   left join profiles pr on pr.id = r.user_id

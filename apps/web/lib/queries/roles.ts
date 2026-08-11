@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { getOrgContext } from "@/lib/org-context";
+import { capabilitiesFor, hasCapability, type Capability } from "@/lib/capabilities";
 
 export type MyRoles = {
   role: string | null;
@@ -8,6 +9,10 @@ export type MyRoles = {
   isSuperAdmin: boolean;
   isAdmin: boolean;
   isOrgAdmin: boolean;
+  /** What this caller may do IN THE RESOLVED ORG. An array, not a Set: MyRoles
+   *  is passed as a prop into AppShell and must cross the server→client
+   *  boundary, which a Set does not survive. */
+  capabilities: Capability[];
 };
 
 /** Resolve the caller's roles server-side. Returns null when unauthenticated.
@@ -65,7 +70,13 @@ export const getMyRoles = cache(async (): Promise<MyRoles | null> => {
   // (both orgs are legitimately theirs) so it's out of scope here — an org
   // switcher is a product decision beyond this PR — but a future reader
   // should not mistake the `.order()` above for having solved it.
-  const resolvedRow = rows.find((r) => r.role === "admin") ?? rows.find((r) => r.role === "editor");
+  // Marshal last, after admin and editor, so a user holding both keeps the
+  // stronger row. Without this a marshal-only account resolves to no row at
+  // all, orgId stays null, and every org-scoped page renders <NoOrgScope />.
+  const resolvedRow =
+    rows.find((r) => r.role === "admin")
+    ?? rows.find((r) => r.role === "editor")
+    ?? rows.find((r) => r.role === "marshal");
 
   // A super admin legitimately has no org-scoped admin/editor row. Rather than
   // leaving orgId null — which sends every org-scoped page to <NoOrgScope /> —
@@ -78,18 +89,36 @@ export const getMyRoles = cache(async (): Promise<MyRoles | null> => {
   // calls getOrgContext (the TopBar switcher does) shares this one call.
   const orgCtx = isSuperAdmin ? await getOrgContext() : null;
 
+  // Computed once so `isAdmin` and `capabilities` below can't drift apart —
+  // isAdmin IS "holds manage_org", not a second, independently-maintained
+  // definition of the same set.
+  const capabilities = capabilitiesFor(resolvedRow?.role ?? null, isSuperAdmin);
+
   return {
     role: isSuperAdmin ? "super_admin" : resolvedRow?.role ?? rows[0]?.role ?? null,
     // resolvedRow first: a super admin who ALSO holds a real org-scoped admin
     // row keeps that org, so the fallback only fires when there is nothing else.
     orgId: resolvedRow?.org_id ?? orgCtx?.activeOrgId ?? null,
     isSuperAdmin,
-    isAdmin: isSuperAdmin || !!resolvedRow,
+    // "Admin, editor or super_admin" — NOT "cleared the (admin) layout
+    // gate": the layout only requires SOME capability (marshal included, so
+    // /check-in stays reachable), and resolvedRow now matches a marshal row
+    // too (see the "Marshal last" comment above). `!!resolvedRow` used to be
+    // the right test for this set; once marshal joined the fallthrough it
+    // silently started admitting marshals as well. Defining isAdmin via
+    // `manage_org` — which marshal never holds — is what keeps this the same
+    // set marshal joined resolvedRow WITHOUT touching: consumers (event
+    // writes, the events-table write controls, login routing) that still
+    // mean "admin, editor or super_admin" when they read isAdmin.
+    isAdmin: isSuperAdmin || hasCapability(capabilities, "manage_org"),
     // "admin of the resolved org" — NOT "admin of any org the caller
     // belongs to". See the resolvedRow comment above: this must be computed
     // from the same row `orgId` came from, or the two fields can describe
     // different organizations.
     isOrgAdmin: isSuperAdmin || resolvedRow?.role === "admin",
+    // From resolvedRow's role, NOT from a scan across rows — same reason
+    // isOrgAdmin is computed this way. See the resolvedRow comment above.
+    capabilities,
   };
 });
 

@@ -37,6 +37,9 @@ export type RegistrationRow = {
   category_label: string | null;
   full_name: string | null;
   bib_name: string | null;
+  /** The runner's own profile photo, set on the runner site. Carries its framing
+   *  as a URL fragment; render it through PhotoAvatar rather than as a bare src. */
+  avatar_url: string | null;
   /** From `admin_registration_emails` (see
    *  supabase/migrations/20260806200000_admin_registration_emails_rpc.sql),
    *  NOT `admin_registrations_v` — `auth.users.email` has no RLS policy
@@ -57,10 +60,11 @@ export type RegistrationRow = {
   registration_status: RegistrationStatus | null;
   created_at: string;
   custom_data: Record<string, unknown>;
+  addons: Addon[];
 };
 
 const SELECT =
-  "id,user_id,category_id,category_label,full_name,bib_name,total_amount,payment_status,payment_method,registration_status,custom_data,created_at";
+  "id,user_id,category_id,category_label,full_name,bib_name,avatar_url,total_amount,payment_status,payment_method,registration_status,custom_data,created_at";
 
 /** The email side-lookup from `listEventRegistrations`, split out so a
  *  caller paging through MANY batches (the CSV export route) can fetch it
@@ -86,6 +90,40 @@ export async function getEventRegistrationEmails(eventId: string): Promise<Map<s
   );
 }
 
+export type Addon = { name: string | null; price: number };
+
+/** Add-ons for a page of registrations, in ONE query keyed by row id.
+ *
+ *  Previously RegistrationDetail fetched these from the BROWSER on every modal
+ *  open — ~350ms from the Philippines to the Tokyo project, for data the server
+ *  could have carried down with the row it already sent. Fetching here costs a
+ *  round trip from a function co-located with the database (~2ms) and removes a
+ *  network request from the interaction entirely.
+ *
+ *  Bounded by the page size, so this is never the O(n) read an event-wide
+ *  version would be. Degrades to an empty map rather than throwing — a missing
+ *  breakdown must not take down the table's real content. */
+export async function getRegistrationAddons(ids: string[]): Promise<Map<string, Addon[]>> {
+  if (ids.length === 0) return new Map();
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("registration_addons")
+    .select("registration_id,price,addons(name)")
+    .in("registration_id", ids);
+  if (error) {
+    console.error("getRegistrationAddons failed", error);
+    return new Map();
+  }
+  const byId = new Map<string, Addon[]>();
+  for (const raw of (data ?? []) as Record<string, unknown>[]) {
+    const addon = Array.isArray(raw.addons) ? raw.addons[0] : raw.addons;
+    const list = byId.get(raw.registration_id as string) ?? [];
+    list.push({ name: ((addon as { name?: string })?.name) ?? null, price: raw.price as number });
+    byId.set(raw.registration_id as string, list);
+  }
+  return byId;
+}
+
 export async function listEventRegistrations(
   eventId: string,
   params: TableParams,
@@ -102,9 +140,13 @@ export async function listEventRegistrations(
      *  every batch of a paged export that already knows the total from its
      *  first call. */
     includeCount?: boolean;
+    /** Default true (the page's behaviour). The export route passes false —
+     *  it does not render add-ons, so fetching them would be pure waste over
+     *  a filtered set that can run into the thousands. */
+    includeAddons?: boolean;
   } = {},
 ): Promise<{ rows: RegistrationRow[]; total: number }> {
-  const { includeEmails = true, includeCount = true } = opts;
+  const { includeEmails = true, includeCount = true, includeAddons = true } = opts;
   const supabase = await createClient();
   const from = (params.page - 1) * params.per;
 
@@ -148,15 +190,24 @@ export async function listEventRegistrations(
 
   const { data, error, count } = await req;
   if (error) throw error;
-  const rows = (data ?? []) as Omit<RegistrationRow, "email">[];
+  const rows = (data ?? []) as Omit<RegistrationRow, "email" | "addons">[];
 
+  // Emails and add-ons are two independent side-lookups keyed off the same
+  // page of rows — fetching them in the SAME Promise.all, not one after the
+  // other, is what makes this page-scoped add-on read cost nothing extra:
+  // sequentially it would add a second full round trip behind the emails
+  // RPC, exactly the latency Defect B exists to remove.
   let emailById = new Map<string, string | null>();
-  if (includeEmails && rows.length > 0) {
-    emailById = await getEventRegistrationEmails(eventId);
+  let addonsById = new Map<string, Addon[]>();
+  if (rows.length > 0) {
+    [emailById, addonsById] = await Promise.all([
+      includeEmails ? getEventRegistrationEmails(eventId) : Promise.resolve(emailById),
+      includeAddons ? getRegistrationAddons(rows.map((r) => r.id)) : Promise.resolve(addonsById),
+    ]);
   }
 
   return {
-    rows: rows.map((r) => ({ ...r, email: emailById.get(r.id) ?? null })),
+    rows: rows.map((r) => ({ ...r, email: emailById.get(r.id) ?? null, addons: addonsById.get(r.id) ?? [] })),
     total: count ?? 0,
   };
 }

@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { Landmark, Percent, ShieldCheck, TrendingUp, Wallet } from "lucide-react";
 import { getMyRoles } from "@/lib/queries/roles";
+import { hasCapability } from "@/lib/capabilities";
 import { getCommissionOverview } from "@/lib/queries/commission";
 import { KpiCard, KpiRow } from "@/components/kpi-card";
 import { TableEmptyState } from "@/components/data-table";
@@ -30,7 +31,7 @@ export default async function CommissionPage() {
   // page. notFound() rather than a redirect: to anyone who is not a super admin,
   // this page does not exist. RLS enforces the same rule on every read and write
   // underneath — this is the UI half, not the boundary.
-  if (!roles?.isSuperAdmin) notFound();
+  if (!hasCapability(roles?.capabilities ?? [], "manage_platform")) notFound();
 
   const { orgs, events, totals } = await getCommissionOverview();
 

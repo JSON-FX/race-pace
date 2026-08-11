@@ -160,4 +160,27 @@ export const DISCIPLINE_LAYOUT: Record<EventDiscipline, "profile" | "route"> = {
 export function disciplineLayout(discipline: string | null | undefined): "profile" | "route" {
   return DISCIPLINE_LAYOUT[discipline as EventDiscipline] ?? "profile";
 }
+
+/** Which registration fields a runner may change AFTER checkout, and when they freeze.
+ *
+ *  Kit fields freeze at the event's `kit_edit_closes_at` so shirts can be printed and
+ *  packed against a stable roster. Safety fields NEVER freeze — stale emergency-contact
+ *  data is worse than none, and there is no operational benefit to locking it. Everything
+ *  else is immutable through the edit path, including category_id, total_amount, status,
+ *  and organizer-defined questions like running_club.
+ *
+ *  KEEP IN SYNC with supabase/functions/_shared/validation.ts and the CASE expression in
+ *  update_registration_fields_tx. Only the SQL copy is load-bearing: this one decides what
+ *  renders as editable, so drift shows up as the RPC refusing an edit the UI offered, never
+ *  as an unauthorized write. */
+export const KIT_KEYS = ["shirt_size"] as const;
+export const SAFETY_KEYS = ["blood_type", "emergency_contact"] as const;
+export type FieldEditPolicy = "kit" | "safety" | "immutable";
+
+export function fieldEditPolicy(key: string): FieldEditPolicy {
+  if ((KIT_KEYS as readonly string[]).includes(key)) return "kit";
+  if ((SAFETY_KEYS as readonly string[]).includes(key)) return "safety";
+  return "immutable";
+}
 export * from "./route";
+export * from "./photo";

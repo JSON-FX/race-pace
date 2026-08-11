@@ -36,10 +36,14 @@ export type EventComboboxProps<T extends SearchableEvent> = {
   label: string;
   className?: string;
   disabled?: boolean;
+  /** Renders the trigger as busy during a pending navigation. Distinct from
+   *  `disabled`: the control stays operable, it just reports that the last
+   *  selection is still in flight. */
+  busy?: boolean;
 };
 
 export function EventCombobox<T extends SearchableEvent>({
-  events, value, onSelect, placeholder = "Choose an event…", label, className, disabled,
+  events, value, onSelect, placeholder = "Choose an event…", label, className, disabled, busy,
 }: EventComboboxProps<T>) {
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
@@ -96,8 +100,13 @@ export function EventCombobox<T extends SearchableEvent>({
           role="combobox"
           aria-expanded={open}
           aria-label={label}
+          aria-busy={!!busy}
           disabled={disabled}
-          className={cn("h-9 justify-between gap-2 rounded-lg font-semibold", className)}
+          className={cn(
+            "h-9 justify-between gap-2 rounded-lg font-semibold",
+            busy && "opacity-70",
+            className,
+          )}
         >
           <span className={cn("truncate", !selected && "font-normal text-muted-foreground")}>
             {selected ? selected.name : placeholder}

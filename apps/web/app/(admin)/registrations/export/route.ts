@@ -147,6 +147,7 @@ export async function GET(request: Request) {
         const { rows, total: batchTotal } = await listEventRegistrations(eventId!, batchParams, {
           includeEmails: false,
           includeCount: page === 1,
+          includeAddons: false,
         });
         if (page === 1) total = batchTotal;
 

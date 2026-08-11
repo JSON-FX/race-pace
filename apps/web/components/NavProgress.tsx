@@ -35,6 +35,31 @@ export function NavProgressProvider({ children }: { children: React.ReactNode })
 }
 
 /**
+ * Reports an arbitrary pending state to the nav bar.
+ *
+ * Extracted from <LinkPending> so navigations that are NOT <Link> clicks can
+ * drive the same bar: the event pickers and every `useTableParams` write
+ * (pagination, sort, filters, search) go through `router.push`, which
+ * `useLinkStatus` cannot see. Without this they were completely silent —
+ * the operator clicked and the page sat there.
+ *
+ * Safe with no provider mounted: it simply does nothing, so a hook as widely
+ * used as `useTableParams` can call it unconditionally.
+ */
+export function useReportPending(pending: boolean) {
+  const ctx = React.useContext(NavProgressCtx);
+
+  React.useEffect(() => {
+    if (!ctx || !pending) return;
+    ctx.begin();
+    // Cleanup runs when `pending` flips false OR the caller unmounts
+    // mid-navigation — the common case, since the new page replaces the old
+    // tree. Without balancing on unmount the counter leaks and the bar sticks.
+    return () => ctx.end();
+  }, [pending, ctx]);
+}
+
+/**
  * Renders INSIDE a <Link>. Shows a spinner on the link itself and reports the
  * pending state to the bar.
  *
@@ -43,17 +68,7 @@ export function NavProgressProvider({ children }: { children: React.ReactNode })
  */
 export function LinkPending({ className }: { className?: string }) {
   const { pending } = useLinkStatus();
-  const ctx = React.useContext(NavProgressCtx);
-
-  React.useEffect(() => {
-    if (!ctx || !pending) return;
-    ctx.begin();
-    // The cleanup runs when `pending` flips false OR the link unmounts
-    // mid-navigation — which is the common case, since the new page replaces the
-    // sidebar's rendered tree. Without balancing on unmount the counter would
-    // leak and the bar would never clear.
-    return () => ctx.end();
-  }, [pending, ctx]);
+  useReportPending(pending);
 
   if (!pending) return null;
 

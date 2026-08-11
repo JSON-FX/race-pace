@@ -97,6 +97,29 @@ export function serializeTableParams(p: Partial<TableParams>, defaults: TableDef
   return out;
 }
 
+/** Params that address UI state rather than scoping the query.
+ *
+ *  `parseTableParams` files every non-reserved param under `filters`, which is
+ *  right for the URL but wrong for anything that asks "does this change what we
+ *  fetch?". `reg` names which registration's modal is open; no reader consults
+ *  it. Anything listed here must never participate in a Suspense key, a cache
+ *  key, or a revalidation tag — it changes nothing about the data, so treating
+ *  it as data churn costs a full re-render for no new information. */
+export const UI_ONLY_PARAMS: ReadonlySet<string> = new Set(["reg"]);
+
+/** The identity of a page's data, for keying a Suspense boundary.
+ *
+ *  Deliberately NOT `serializeTableParams` directly: that is the URL's
+ *  serialization and includes UI-only params, which is correct for a URL and
+ *  wrong for a key. Built on it rather than hand-rolled so the two cannot drift
+ *  on the params they DO share. */
+export function serializeSectionKey(p: TableParams, defaults: TableDefaults = {}): string {
+  const filters = Object.fromEntries(
+    Object.entries(p.filters).filter(([key]) => !UI_ONLY_PARAMS.has(key)),
+  );
+  return serializeTableParams({ ...p, filters }, defaults).toString();
+}
+
 /** "51–75 of 791". En dash, not a hyphen — it is a numeric range. */
 export function rangeLabel(page: number, per: number, total: number): string {
   if (total === 0) return "0 of 0";

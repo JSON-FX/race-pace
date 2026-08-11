@@ -71,7 +71,14 @@ Deno.serve(async (req) => {
     // The page-level guard is a UX nicety; this is the boundary.
     const { data: event } = await db.from("events").select("status").eq("id", reg.event_id).single();
     if (!event) return json({ error: "registration_not_found" }, 404);
-    if (isRegistrationClosed(event.status)) return json({ error: "registration_closed" }, 409);
+    // Pass null for registrationClosesAt: this registration already exists in `pending`
+    // state, created before the deadline. The deadline check exists to stop NEW
+    // registrations from being created after the cutoff; it deliberately does not block
+    // completing payment on a slot the runner already holds. Whether a grace period should
+    // instead cut off payment for stale pending registrations is an open product question,
+    // not one this fix decides — passing null here just preserves the pre-existing
+    // behaviour (only cancelled/closed/completed events block payment).
+    if (isRegistrationClosed(event.status, null)) return json({ error: "registration_closed" }, 409);
 
     const { data: payment } = await db.from("payments").select("provider").eq("registration_id", reg.id).single();
     const { data: category } = await db.from("categories").select("label,base_price").eq("id", reg.category_id).single();

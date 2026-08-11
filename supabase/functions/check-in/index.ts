@@ -30,8 +30,8 @@ Deno.serve(async (req) => {
     if (!reg) return json({ error: "not_found" }, 404);
     if (reg.status !== "paid") return json({ error: "not_paid" }, 409);
 
-    const { data: roles } = await db.from("user_roles").select("role,org_id").eq("user_id", userRes.user.id);
-    if (!canCheckIn((roles ?? []) as RoleRow[], reg.org_id)) return json({ error: "forbidden" }, 403);
+    const { data: roles } = await db.from("user_roles").select("role,org_id,event_scope").eq("user_id", userRes.user.id);
+    if (!canCheckIn((roles ?? []) as RoleRow[], reg.org_id, reg.event_id)) return json({ error: "forbidden" }, 403);
 
     const { data: inserted, error: insErr } = await db.from("checkins")
       .insert({ org_id: reg.org_id, registration_id: reg.id, event_id: reg.event_id, checked_in_by: userRes.user.id })

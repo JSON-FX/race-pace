@@ -20,7 +20,15 @@ vi.mock("@/lib/queries/payments", () => ({
 import { GET } from "./route";
 
 function roles(overrides: Partial<MyRoles> = {}): MyRoles {
-  return { role: "admin", orgId: "org-1", isSuperAdmin: false, isAdmin: true, isOrgAdmin: false, ...overrides };
+  return {
+    role: "admin",
+    orgId: "org-1",
+    isSuperAdmin: false,
+    isAdmin: true,
+    isOrgAdmin: false,
+    capabilities: [],
+    ...overrides,
+  };
 }
 
 function row(overrides: Partial<PaymentRow> = {}): PaymentRow {
@@ -30,6 +38,7 @@ function row(overrides: Partial<PaymentRow> = {}): PaymentRow {
     event_name: "Dahilayan Sky Ultra",
     user_id: "u-1",
     full_name: "Ana Cruz",
+    avatar_url: null,
     amount: 150000,
     platform_fee: 4500,
     net_to_org: 145500,

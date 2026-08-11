@@ -1,7 +1,7 @@
 import { EVENT_DISCIPLINES } from "@race-pace/shared";
-import { eventInputSchema, categoryInputSchema, addonInputSchema, scheduleItemSchema, inclusionItemSchema, sanitizeListFields, INCLUSION_MAX_LEN } from "./validation";
+import { eventInputSchema, categoryInputSchema, addonInputSchema, scheduleItemSchema, inclusionItemSchema, sanitizeListFields, kitCutoffError, INCLUSION_MAX_LEN } from "./validation";
 
-const validEvent = { name: "Race", city_psgc_code: null, region_name: null, province_name: null, city_name: null, venue: null, event_date: "2026-10-18", end_date: null, flag_off: "04:00", status: "open", discipline: "trail", elevation_gain_m: 4300, cutoff_hours: 18, description: null, hero_image_url: null };
+const validEvent = { name: "Race", city_psgc_code: null, region_name: null, province_name: null, city_name: null, venue: null, event_date: "2026-10-18", end_date: null, flag_off: "04:00", status: "open", discipline: "trail", registration_closes_at: null, kit_edit_closes_at: null, elevation_gain_m: 4300, cutoff_hours: 18, description: null, hero_image_url: null };
 
 it("accepts a valid event and rejects an empty name / bad date", () => {
   expect(eventInputSchema.safeParse(validEvent).success).toBe(true);
@@ -82,6 +82,34 @@ it("sanitizeListFields applied before save means removing every row persists [] 
   const sanitized = sanitizeListFields({ schedule: [], inclusions: ["  ", ""] });
   expect(sanitized.inclusions).toEqual([]);
   expect(Array.isArray(sanitized.inclusions)).toBe(true);
+});
+it("accepts ISO deadline strings and rejects a non-ISO value", () => {
+  expect(eventInputSchema.safeParse({ ...validEvent, registration_closes_at: "2026-09-01T23:59:00.000Z", kit_edit_closes_at: "2026-09-06T23:59:00.000Z" }).success).toBe(true);
+  expect(eventInputSchema.safeParse({ ...validEvent, registration_closes_at: "2026-09-01" }).success).toBe(false);
+});
+// Regression: PostgREST serialises `timestamptz` with an explicit offset (`+00:00`), not a
+// trailing `Z`, and with microsecond precision. A round trip through getEventForEditor reads
+// that shape back — not the `Z`-suffixed, millisecond string fromLocalInput() writes — so a
+// fixture built only from fromLocalInput() output can never catch a schema that only accepts
+// `Z`. These use literal strings in the exact shape PostgREST actually returns.
+it("accepts a PostgREST-shaped offset timestamp with microsecond precision (read-back, not the write shape)", () => {
+  expect(eventInputSchema.safeParse({ ...validEvent, registration_closes_at: "2026-08-06T01:07:51.985367+00:00" }).success).toBe(true);
+});
+it("still accepts the Z-suffixed millisecond form fromLocalInput() writes", () => {
+  expect(eventInputSchema.safeParse({ ...validEvent, registration_closes_at: "2026-09-01T15:59:00.000Z" }).success).toBe(true);
+});
+it("still rejects a bare date with no time component", () => {
+  expect(eventInputSchema.safeParse({ ...validEvent, registration_closes_at: "2026-09-01" }).success).toBe(false);
+});
+it("kitCutoffError mirrors events_kit_edit_after_reg_close: kit cutoff must not be earlier than registration close when both are set", () => {
+  expect(kitCutoffError({ registration_closes_at: null, kit_edit_closes_at: null })).toBeNull();
+  expect(kitCutoffError({ registration_closes_at: "2026-09-01T00:00:00.000Z", kit_edit_closes_at: null })).toBeNull();
+  // The DB CHECK constraint (events_kit_edit_after_reg_close) only fires
+  // when BOTH columns are set — a kit-edit cutoff with no registration
+  // cutoff at all must be allowed, not flagged.
+  expect(kitCutoffError({ registration_closes_at: null, kit_edit_closes_at: "2026-09-06T00:00:00.000Z" })).toBeNull();
+  expect(kitCutoffError({ registration_closes_at: "2026-09-06T00:00:00.000Z", kit_edit_closes_at: "2026-09-01T00:00:00.000Z" })).toMatch(/kit edits cannot close before registration/i);
+  expect(kitCutoffError({ registration_closes_at: "2026-09-01T00:00:00.000Z", kit_edit_closes_at: "2026-09-06T00:00:00.000Z" })).toBeNull();
 });
 it("category gain/cutoff are optional and bounded; out-of-range values are rejected", () => {
   expect(categoryInputSchema.safeParse(validCategory).success).toBe(true); // both null is valid

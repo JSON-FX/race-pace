@@ -1,0 +1,53 @@
+-- Follow-up to 20260808110000_lock_down_function_grants.sql's recurrence-prevention statement,
+-- which review caught and confirmed empirically was broken. 20260808110000 was already applied
+-- to this hosted project by the time this was found, so its file isn't rewritten in place —
+-- Supabase tracks applied migrations by version, and `db push` skips a version it already has
+-- recorded regardless of content changes, so editing that file's text would silently diverge
+-- from what's actually live rather than reapplying anything. This migration carries the real
+-- fix to the already-migrated project instead. (20260808110000's file WAS still corrected for
+-- its unrelated rls_auto_enable issue — see that file's own comment — because that fix has to
+-- run *before* this one in a fresh replay or the sequence never reaches this migration at all;
+-- it doesn't touch what's described below, which only matters for an already-migrated project.)
+--
+-- Two problems with the original line
+-- (`alter default privileges in schema public revoke execute on functions from anon,
+-- authenticated;`), both found in review, both reproduced empirically against this project:
+--
+-- 1. It never named `PUBLIC`. The obvious fix is adding it to the `FROM` list — but that fix
+--    was tried here first and DISPROVEN empirically, not assumed: `ALTER DEFAULT PRIVILEGES
+--    ... REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC` does not suppress Postgres's built-in
+--    "EXECUTE granted to PUBLIC" default for new functions on this project (Postgres 17.6). It
+--    is a commonly cited hardening line and it looks like it should work, but reproduced three
+--    times against disposable scratch schemas on the linked project: run
+--    `alter default privileges ... revoke execute on functions from public` (alone, or combined
+--    with an explicit `grant ... to some_role`, with or without `for role`), then create a new
+--    function, and `has_function_privilege('anon', ..., 'EXECUTE')` still returns `true`. The
+--    `pg_default_acl` row can look correct — no bare `=` (PUBLIC) entry stored — while the
+--    actual object created afterward still carries one anyway. `pg_default_acl` inspection
+--    alone is not sufficient evidence that a default-privileges change worked; only checking
+--    `has_function_privilege` (or `proacl`) on an object created *after* the change proves it.
+--    The REAL fix for the PUBLIC half of this is 20260808120200_close_new_function_public_
+--    execute_gap.sql, an event trigger — see that file for why an event trigger is what
+--    actually closes this, and for the proof that it does.
+--
+--    This statement is still worth keeping, though, for what it verifiably DOES do: Supabase's
+--    own project provisioning separately maintains a *named-role* `pg_default_acl` entry
+--    (granting `anon`/`authenticated`/`service_role` EXECUTE by name, not via PUBLIC) for
+--    functions owned by `postgres` — this is the mechanism 20260808110000's header describes,
+--    and the one the original version of this line (`... from anon, authenticated`, no
+--    `public`) already correctly stripped down to `{postgres, service_role}` (confirmed via
+--    `pg_default_acl` after 20260808110000 ran — anon/authenticated genuinely gone from that
+--    row, unlike the PUBLIC case above). Re-stated here for role `postgres` explicitly per
+--    finding 2 below; functionally a no-op on top of what 20260808110000 already did, kept for
+--    the explicitness.
+--
+-- 2. It had no `FOR ROLE`, so it targeted `current_role` at execution time rather than a named
+--    role. Confirmed via `pg_default_acl` (the catalog this statement actually writes —
+--    `pg_proc.proacl` only shows already-created objects and cannot reveal this) that
+--    `supabase db push` executes migrations as, and every function in this schema is owned by,
+--    `postgres` — so `current_role` already resolved to `postgres` and the original statement's
+--    effect landed on the right `pg_default_acl` row, but by coincidence rather than guarantee.
+--    Named explicitly here so it no longer depends on that coincidence holding for whatever
+--    runs migrations next.
+alter default privileges for role postgres in schema public
+  revoke execute on functions from public, anon, authenticated;

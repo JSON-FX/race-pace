@@ -45,4 +45,12 @@ describe("EventPicker", () => {
     expect(url).not.toContain("page");
     expect(url).not.toContain("q=");
   });
+
+  it("marks the trigger idle before a switch", async () => {
+    render(<EventPicker events={events} value="e1" />);
+    // aria-busy must be present and false at rest: asserting only the pending
+    // state would pass against a component that never sets the attribute at
+    // all, since getByRole would simply not find a busy element either way.
+    expect(screen.getByRole("combobox", { name: "Event" })).toHaveAttribute("aria-busy", "false");
+  });
 });

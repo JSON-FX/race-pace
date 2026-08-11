@@ -1,6 +1,15 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 import { createClient } from "@supabase/supabase-js";
 import { loadEnv } from "../../test/env";
+import { seededIds } from "../../test/seeded";
+
+// Resolved from the seed rather than restated — see test/seeded.ts. This file
+// used the ids as inline literals rather than named constants, which is why the
+// drift was even harder to spot here.
+let ORG: string, EVENT: string, CATEGORY: string;
+beforeAll(async () => {
+  ({ ORG_A: ORG, EVENT_A: EVENT, CATEGORY_A: CATEGORY } = await seededIds());
+});
 
 const { url, anonKey, serviceKey } = loadEnv();
 const anon = () => createClient(url, anonKey, { auth: { persistSession: false } });
@@ -17,7 +26,7 @@ async function latestNote(svc: ReturnType<typeof service>, userId: string) {
   return data?.[0];
 }
 async function cloneEvent(svc: ReturnType<typeof service>, over: Record<string, unknown>) {
-  const base = (await svc.from("events").select("*").eq("id", "00000000-0000-0000-0000-0000000000e1").single()).data!;
+  const base = (await svc.from("events").select("*").eq("id", EVENT).single()).data!;
   const { id: _i, created_at: _c, ...rest } = base;
   return (await svc.from("events").insert({ ...rest, ...over }).select().single()).data!;
 }
@@ -71,8 +80,8 @@ describe("checkins table", () => {
     const svc = service();
     const runner = await makeUser(`ci_run_${Date.now()}@test.dev`);
     const reg = await svc.from("registrations").insert({
-      org_id: "00000000-0000-0000-0000-0000000000a1", event_id: "00000000-0000-0000-0000-0000000000e1",
-      category_id: "00000000-0000-0000-0000-0000000000c4", user_id: runner.id, status: "paid", total_amount: 100000,
+      org_id: ORG, event_id: EVENT,
+      category_id: CATEGORY, user_id: runner.id, status: "paid", total_amount: 100000,
     }).select().single();
 
     const ins = await svc.from("checkins").insert({
@@ -101,8 +110,8 @@ describe("registration trigger", () => {
     const svc = service();
     const runner = await makeUser(`rt_run_${Date.now()}@test.dev`);
     const reg = await svc.from("registrations").insert({
-      org_id: "00000000-0000-0000-0000-0000000000a1", event_id: "00000000-0000-0000-0000-0000000000e1",
-      category_id: "00000000-0000-0000-0000-0000000000c4", user_id: runner.id, status: "pending", total_amount: 100000,
+      org_id: ORG, event_id: EVENT,
+      category_id: CATEGORY, user_id: runner.id, status: "pending", total_amount: 100000,
     }).select().single();
 
     const n1 = await latestNote(svc, runner.id);
@@ -124,7 +133,7 @@ describe("event-change trigger", () => {
     const runner = await makeUser(`et_run_${Date.now()}@test.dev`);
     const ev = await cloneEvent(svc, { name: `ET ${Date.now()}`, status: "open" });
     await svc.from("registrations").insert({
-      org_id: ev.org_id, event_id: ev.id, category_id: "00000000-0000-0000-0000-0000000000c4",
+      org_id: ev.org_id, event_id: ev.id, category_id: CATEGORY,
       user_id: runner.id, status: "paid", total_amount: 100000,
     });
 
@@ -158,8 +167,8 @@ describe("check-in trigger", () => {
     const svc = service();
     const runner = await makeUser(`ck_run_${Date.now()}@test.dev`);
     const reg = await svc.from("registrations").insert({
-      org_id: "00000000-0000-0000-0000-0000000000a1", event_id: "00000000-0000-0000-0000-0000000000e1",
-      category_id: "00000000-0000-0000-0000-0000000000c4", user_id: runner.id, status: "paid", total_amount: 100000,
+      org_id: ORG, event_id: EVENT,
+      category_id: CATEGORY, user_id: runner.id, status: "paid", total_amount: 100000,
     }).select().single();
     await svc.from("checkins").insert({
       org_id: reg.data!.org_id, registration_id: reg.data!.id, event_id: reg.data!.event_id, checked_in_by: runner.id,
@@ -181,7 +190,7 @@ describe("event reminders", () => {
     const inDays = (n: number) => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
     const ev = await cloneEvent(svc, { name: `RM ${Date.now()}`, status: "open", event_date: inDays(7) });
     await svc.from("registrations").insert({
-      org_id: ev.org_id, event_id: ev.id, category_id: "00000000-0000-0000-0000-0000000000c4",
+      org_id: ev.org_id, event_id: ev.id, category_id: CATEGORY,
       user_id: runner.id, status: "paid", total_amount: 100000,
     });
 

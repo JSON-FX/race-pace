@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/server";
 import { getMyRoles } from "@/lib/queries/roles";
+import { homePathFor } from "@/lib/routes";
 import { LoginForm } from "./login-form";
 
 /**
@@ -34,14 +35,21 @@ export default async function LoginPage() {
   // authenticated, and returned to the same screen. The account was never the
   // problem; the missing feedback was.
   //
-  // Authenticated callers are now routed by AUTHORIZATION: into the console if
-  // they have a role, to /no-access — which names the rejected address — if they
-  // do not.
+  // Authenticated callers are now routed by AUTHORIZATION: into the part of
+  // the console their capabilities actually reach, to /no-access — which
+  // names the rejected address — if they hold none at all.
+  //
+  // homePathFor (lib/routes.ts) is the single source for this decision — it
+  // also drives the no-explicit-destination case in auth/callback/route.ts.
+  // NOT an inline `roles?.isAdmin ? "/events" : "/no-access"`: that was a
+  // binary check from before the capability model, and it sends a marshal
+  // (isAdmin is false for marshal — see roles.ts) to /no-access even though
+  // the console built /check-in for exactly this account.
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (user) {
     const roles = await getMyRoles();
-    redirect(roles?.isAdmin ? "/events" : "/no-access");
+    redirect(homePathFor(roles?.capabilities ?? []));
   }
 
   return (

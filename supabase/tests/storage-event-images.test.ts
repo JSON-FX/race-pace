@@ -1,6 +1,7 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 import { createClient } from "@supabase/supabase-js";
 import { loadEnv } from "../../test/env";
+import { seededIds } from "../../test/seeded";
 
 const { url, anonKey, serviceKey } = loadEnv();
 const anon = () => createClient(url, anonKey, { auth: { persistSession: false } });
@@ -14,8 +15,11 @@ async function makeUser(email: string) {
   const s = await anon().auth.signInWithPassword({ email, password: "password123" });
   return { id: c.data.user!.id, token: s.data.session!.access_token };
 }
-const RWP = "00000000-0000-0000-0000-0000000000a1";
-const APO = "00000000-0000-0000-0000-0000000000a2";
+// Resolved from the seed rather than restated — see test/seeded.ts.
+let RWP: string, APO: string;
+beforeAll(async () => {
+  ({ ORG_A: RWP, ORG_B: APO } = await seededIds());
+});
 
 describe("event-images storage bucket", () => {
   it("exists and is public", async () => {

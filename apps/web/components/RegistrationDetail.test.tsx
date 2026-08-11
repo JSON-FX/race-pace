@@ -4,17 +4,23 @@ import userEvent from "@testing-library/user-event";
 import type { RegistrationRow } from "@/lib/queries/registrations";
 import { RegistrationDetail } from "./RegistrationDetail";
 
-// RegistrationDetail fetches add-ons via the browser Supabase client on
-// mount, and refunds through RefundModal -> refundRegistrationAction (a
-// server action). Stub both so the modal renders without a real network
-// call or NEXT_PUBLIC_SUPABASE_* env vars.
-const addonResult: { data: unknown; error: unknown } = {
-  data: [{ price: 60000, addons: { name: "Singlet" } }],
-  error: null,
-};
-const selectMock = vi.fn(() => ({ eq: () => Promise.resolve(addonResult) }));
+// RegistrationDetail refunds through RefundModal -> refundRegistrationAction
+// (a server action). Stub it so the modal renders without a real network
+// call or NEXT_PUBLIC_SUPABASE_* env vars. Add-ons no longer need a mock —
+// they arrive on `row.addons` (see getRegistrationAddons in
+// @/lib/queries/registrations), so tests set them directly on the fixture.
+//
+// The browser client mock survives that change for ONE remaining reader:
+// RegistrationHistory (added on main) still queries `registration_audit` from
+// the browser, with an `.order()` step the old add-ons query never had. The
+// add-ons branch this mock used to carry is gone with the fetch it served —
+// keeping it would stub a call nothing makes any more.
 vi.mock("@/lib/supabase/client", () => ({
-  createClient: () => ({ from: () => ({ select: selectMock }) }),
+  createClient: () => ({
+    from: () => ({
+      select: () => ({ eq: () => ({ order: () => Promise.resolve({ data: [], error: null }) }) }),
+    }),
+  }),
 }));
 
 const refundRegistrationAction = vi.fn((..._args: unknown[]) => Promise.resolve({ ok: true }));
@@ -24,9 +30,10 @@ vi.mock("@/lib/actions/registrations", () => ({
 
 const paidRow: RegistrationRow = {
   id: "r1", user_id: "u1", category_id: "c4", category_label: "10K",
-  full_name: "Ana Cruz", bib_name: "ANA", email: "ana@example.com",
+  full_name: "Ana Cruz", bib_name: "ANA", avatar_url: null, email: "ana@example.com",
   total_amount: 100000, payment_status: "paid", payment_method: "gcash", registration_status: "paid",
   created_at: "2026-07-01T00:00:00Z", custom_data: { blood_type: "O", first_ultra: true },
+  addons: [{ name: "Singlet", price: 60000 }],
 };
 const pendingRow: RegistrationRow = { ...paidRow, payment_status: "pending", payment_method: null, registration_status: "pending" };
 
@@ -37,9 +44,6 @@ const refundButton = () => screen.getByRole("button", { name: /^Refund ₱/ });
 
 beforeEach(() => {
   refundRegistrationAction.mockClear();
-  selectMock.mockClear();
-  addonResult.data = [{ price: 60000, addons: { name: "Singlet" } }];
-  addonResult.error = null;
 });
 
 describe("RegistrationDetail", () => {
@@ -100,14 +104,17 @@ describe("RegistrationDetail", () => {
     expect(screen.getAllByText("₱1,000").length).toBeGreaterThan(0);
   });
 
-  it("omits the breakdown entirely when the add-on read fails", async () => {
-    addonResult.data = null;
-    addonResult.error = { message: "nope" };
-    render(<RegistrationDetail row={paidRow} onClose={vi.fn()} onRefunded={vi.fn()} />);
+  // Was "omits the breakdown entirely when the add-on read fails" — that
+  // failure mode moved server-side: getRegistrationAddons degrades a failed
+  // query to an empty Map rather than throwing (see its own coverage in
+  // registrations-addons.test.ts), so by the time a row reaches this
+  // component, "read failed" and "genuinely no add-ons" are the same shape,
+  // `addons: []`. This test now covers that shape at the render layer.
+  it("omits the breakdown entirely when the row carries no add-ons", () => {
+    render(<RegistrationDetail row={{ ...paidRow, addons: [] }} onClose={vi.fn()} onRefunded={vi.fn()} />);
 
-    // Never guess: without the add-ons, the entry fee is unknowable, so no
-    // line may claim to be it.
-    await waitFor(() => expect(selectMock).toHaveBeenCalled());
+    // Never guess: without add-ons, the entry fee is unknowable, so no line
+    // may claim to be it.
     expect(screen.queryByText("10K entry")).not.toBeInTheDocument();
     expect(screen.getAllByText("₱1,000").length).toBeGreaterThan(0);
   });

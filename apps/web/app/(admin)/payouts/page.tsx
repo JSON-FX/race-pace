@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { ShieldCheck, Banknote, Landmark, PauseCircle, CheckCircle2 } from "lucide-react";
 import { getMyRoles } from "@/lib/queries/roles";
+import { hasCapability } from "@/lib/capabilities";
 import {
   listPayoutStatements, listOpenableEvents, payoutRowState, payoutKpis,
   type PayoutStatementRow, type PayoutState,
@@ -57,7 +58,7 @@ export default async function PayoutsPage() {
   // does. RLS on `payout_statements` is the real lock (it returns zero rows to
   // anyone else) and both RPCs re-check `auth_is_super_admin()` themselves;
   // this guard is what stops the URL from being a directory of what exists.
-  if (!roles?.isSuperAdmin) notFound();
+  if (!hasCapability(roles?.capabilities ?? [], "manage_platform")) notFound();
 
   const [rows, openable] = await Promise.all([listPayoutStatements(), listOpenableEvents()]);
   const kpis = payoutKpis(rows);

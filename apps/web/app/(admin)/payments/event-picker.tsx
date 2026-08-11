@@ -1,7 +1,9 @@
 "use client";
 
+import { useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { EventCombobox } from "@/components/EventCombobox";
+import { useReportPending } from "@/components/NavProgress";
 import { ALL_EVENTS } from "./constants";
 
 /**
@@ -23,6 +25,13 @@ export function PaymentsEventPicker({ events, value }: {
   const pathname = usePathname();
   const search = useSearchParams();
 
+  // Same silence as the Registrations picker — see its comment. Combobox
+  // selection stays ENABLED while pending rather than disabled: disabling
+  // would yank focus out of a control the operator may be about to re-use,
+  // and a mis-scoped event is cheap to correct only if the picker is reachable.
+  const [isPending, startTransition] = useTransition();
+  useReportPending(isPending);
+
   const options = [
     { id: ALL_EVENTS, name: "All events", subtitle: `${events.length} events` },
     ...events.map((e) => ({
@@ -39,6 +48,7 @@ export function PaymentsEventPicker({ events, value }: {
       label="Filter payments by event"
       className="w-[240px]"
       placeholder="All events"
+      busy={isPending}
       onSelect={(id) => {
         // Preserve status/method/search, drop pagination: page 4 of the whole
         // org is rarely page 4 of one event, and landing on an empty page reads
@@ -48,7 +58,9 @@ export function PaymentsEventPicker({ events, value }: {
         else next.set("event", id);
         next.delete("page");
         const qs = next.toString();
-        router.push(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+        startTransition(() => {
+          router.push(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+        });
       }}
     />
   );
