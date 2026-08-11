@@ -9,6 +9,28 @@
 -- within hours from real transactions, instead of depending on somebody reading
 -- the provider's pricing page.
 
+-- ###########################################################################
+-- ##  THE `with (security_invoker = true)` CLAUSE BELOW MUST BE REPEATED    ##
+-- ##  ON EVERY `create or replace view` THAT TOUCHES THIS VIEW. EVER.       ##
+-- ###########################################################################
+--
+-- Postgres does NOT carry reloptions forward across a replace. A second
+-- `create or replace view processor_rate_drift_v as ...` that omits the clause
+-- resets them to empty SILENTLY — no error, no warning, no notice. Nothing in a
+-- migration log would show it.
+--
+-- What that costs here is not a subtle behaviour change. The view is granted to
+-- `authenticated` (bottom of this file) and owned by `postgres`, which bypasses
+-- RLS. Drop the clause and the view stops filtering by the caller's policies on
+-- `payments` and starts returning EVERY organization's drift sample to ANY
+-- signed-in user. An edit as innocuous as appending a column would do it.
+--
+-- Guarded by supabase/tests/processor-rates.test.ts:
+--   "computes an org admin's sample from that org's payments alone (security_invoker)"
+-- which signs in on the anon key precisely because service_role carries
+-- rolbypassrls and therefore proves nothing about this property. That test goes
+-- red the moment the clause goes missing. Do not delete it, and do not "fix" it
+-- by reading through the service key.
 create or replace view processor_rate_drift_v
 with (security_invoker = true)
 as
