@@ -81,15 +81,25 @@ alter table payments
     check (processor_fee_cents >= 0),
   add column if not exists processor_fee_predicted_cents integer,
   add column if not exists processor_fee_source text not null default 'none'
-    check (processor_fee_source in ('actual', 'predicted', 'none'));
+    check (processor_fee_source in ('actual', 'predicted', 'historical', 'none'));
 ```
 
 - `processor_fee_cents` — what PayMongo actually took. The only figure the ledger trusts.
 - `processor_fee_predicted_cents` — what the rate card said. Kept solely to detect drift.
-- `processor_fee_source` — `actual` once read from PayMongo, `predicted` while awaiting
-  reconciliation, `none` for rows that predate this work.
+- `processor_fee_source` — how `processor_fee_cents` was arrived at:
+  - `actual` — read from PayMongo's payload. The normal case.
+  - `predicted` — rate-card estimate, awaiting reconciliation (§7).
+  - `historical` — PayMongo's real fee, recovered by the §10 backfill, but **absorbed by
+    Race Pace** under the pre-2026-08-11 terms.
+  - `none` — pre-2026-08-11 and no fee recoverable from the stored payload.
 
 Frozen at confirmation alongside `platform_fee`, so a rate change is never retroactive.
+
+**The ledger invariant** `net_to_org = amount − processor_fee_cents − platform_fee` holds
+for `actual` and `predicted` rows only. `historical` rows deliberately violate it — that
+violation *is* the record that Race Pace, not the organizer, paid for processing on those
+entries. Any query that sums money must branch on `processor_fee_source`, never assume the
+invariant.
 
 ### 3.2 `organizations`
 
@@ -413,16 +423,27 @@ range is stated up front rather than discovered at settlement:
 > Net ₱927,500–₱955,000 depending on payment mix. Card payments cost ₱85 to process;
 > GCash costs ₱30.
 
-**RLS.** Org staff need read access to their own org's `payments`; today
-`payments_read_own` is runner-scoped only. The new policy scopes once, not per row:
+**RLS needs no new policy.** `payments_read_org_admin`, rewritten in
+`20260808161720_rls_scope_once_not_per_row.sql`, already lets an org's `editor`/`admin`
+read that org's payments and already scopes once rather than per row:
 
 ```sql
-using (org_id in (select org_id from org_staff where user_id = (select auth.uid())))
+using (
+  (select public.auth_is_super_admin())
+  or org_id in (
+    select ur.org_id from public.user_roles ur
+    where ur.user_id = (select auth.uid())
+      and ur.org_id is not null
+      and ur.role in ('editor', 'admin')
+  )
+)
 ```
 
-Written this way deliberately. An unwrapped `auth.uid()` or a per-row helper call evaluates
-once per row and has already taken this schema from 4.9ms to 1220ms and into statement
-timeouts.
+The new columns are on `payments`, so they inherit this automatically. What this work owes
+is a *test* proving org A still reads zero rows of org B's payments once the settlement view
+starts querying these columns — not a new policy. Any future policy touching this table must
+keep `auth.uid()` wrapped in `(select …)`; unwrapped it evaluates per row and has already
+taken this schema from 4.9ms to 1220ms and into statement timeouts.
 
 ### Super admin
 
@@ -451,15 +472,18 @@ spreadsheet.
 ## 10. Backfill
 
 Existing payments have no processor fee. A migration extracts it from `payments.raw` where
-PayMongo's stored payload already contains it, and marks the remainder `none`.
+PayMongo's stored payload already contains it and marks those rows `historical`; rows with
+no recoverable fee stay `none`.
 
 **Historical `net_to_org` is not touched.** Those entries were settled under terms where
 Race Pace absorbed processing. Recomputing them would invent debts against organizers for
 money they were correctly paid, and some of it has already been transferred. The backfill
-makes old rows *explainable*, never *repriced*.
+makes old rows *explainable*, never *repriced*. This is why `historical` is a distinct
+source rather than `actual`: the fee is real, but it was not deducted from the organizer,
+and a row that claims otherwise would be a lie the payout arithmetic would act on.
 
-Reports spanning the cutover label pre-migration rows as "processing absorbed by platform"
-rather than showing ₱0 processing, which would read as free rather than as absorbed.
+Reports spanning the cutover label these rows "processing absorbed by platform" rather than
+showing ₱0 processing, which would read as free rather than as absorbed.
 
 ---
 
