@@ -58,3 +58,35 @@ describe("PayPanel — a lapsed pending hold", () => {
     expect(screen.getByRole("button", { name: /^Pay ₱/ })).toBeInTheDocument();
   });
 });
+
+// Fix round: a registration also reaches status 'expired' when the organizer
+// closes/cancels/completes the event early (events_close_expires_pending),
+// which can fire well within 24h while the stored checkout_url is still
+// genuinely chargeable — unlike the lapsed-hold case, where the PayMongo
+// session itself has gone stale by the time 24h has passed. `eventClosed`
+// (above) catches the common case since the event flips status in the same
+// transaction, but not an organizer reopening the event afterward: eventStatus
+// goes back to something registerable while this specific registration stays
+// 'expired' forever. So `status` must gate the Pay button directly, with copy
+// distinct from "Payment window closed" (that's for a runner-abandoned hold,
+// not an organizer-closed one) — conflating the two would mislead the runner.
+describe("PayPanel — a registration expired by the organizer", () => {
+  it("refuses to render a Pay button even with a still-valid-looking checkout url, distinct from the lapsed-hold message", () => {
+    useRegistrationMock.mockReturnValue({
+      isLoading: false,
+      data: row({
+        status: "expired",
+        expiresAt: null,
+        eventStatus: "open", // organizer reopened the event; this entry never got resurrected
+        checkoutUrl: "https://checkout.paymongo.com/still/looks/valid",
+      }),
+    });
+
+    render(<PayPanel registrationId="r1" />);
+
+    expect(screen.getByText("This entry was closed")).toBeInTheDocument();
+    expect(screen.queryByText("Payment window closed")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Pay ₱/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Enter again" })).toHaveAttribute("href", "/events/e1");
+  });
+});

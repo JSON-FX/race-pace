@@ -3,7 +3,7 @@ import { View, ScrollView, Pressable, ActivityIndicator } from "react-native";
 import Svg, { Line } from "react-native-svg";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Check, Lock } from "lucide-react-native";
+import { Check, Lock, Ban } from "lucide-react-native";
 import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
 import { formatPeso } from "@race-pace/shared";
@@ -54,6 +54,25 @@ export default function Pay() {
   // mid-poll must not yank the runner off a payment that could still resolve
   // via the late-capture/resurrect path (confirm_payment_tx).
   const lapsed = !!reg.data && holdExpired(reg.data.status, reg.data.expiresAt);
+  // Mirrors apps/site's PayPanel.tsx `eventClosed` guard (that file's
+  // eventStatus.ts isRegistrationClosed, inlined here per this app's existing
+  // pattern — see apps/mobile/app/event/[id].tsx's `registerable`). The
+  // organizer can close/cancel/complete the event while this exact screen is
+  // open — the query polls, so the status can flip under the runner. Critical
+  // because `url` above can hold a PayMongo session created while the event
+  // was still open and chargeable.
+  const eventClosed = ["cancelled", "closed", "completed"].includes(reg.data?.eventStatus ?? "");
+  // A registration also reaches `status === 'expired'` when the organizer
+  // closes the event early (the `events_close_expires_pending` trigger,
+  // 20260809100200), not just when the 24h hold lapses (`lapsed`, below).
+  // `eventClosed` above catches the common case, since the event flips status
+  // in the same transaction, but NOT the organizer reopening the event
+  // afterward: eventStatus goes back to something registerable while this
+  // specific registration stays 'expired' forever (nothing resurrects it),
+  // and its stored session can still be young enough to charge. So `status`
+  // must be checked directly — this is a different fact from a
+  // runner-abandoned hold and needs its own, distinct copy from `lapsed`.
+  const expiredByOrganizer = reg.data?.status === "expired";
   const eventId = reg.data?.event_id;
 
   useEffect(() => {
@@ -127,6 +146,55 @@ export default function Pay() {
           </Button>
           <Pressable onPress={pay} accessibilityRole="button">
             <Text className={cn(LINK_BASE, "text-primary")}>Retry payment</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
+
+  if (eventClosed) {
+    return (
+      <View className="flex-1 bg-background" style={{ paddingTop: insets.top, paddingHorizontal: 22 }}>
+        <View className="flex-1 items-center justify-center">
+          <View className="h-[92px] w-[92px] items-center justify-center rounded-[46px] bg-amber-tint">
+            <Icon as={Ban} size={30} className="text-amber" />
+          </View>
+          <Text className="mt-6 text-[24px] font-bold tracking-[-0.4px] text-foreground">This race is no longer accepting entries</Text>
+          <Text className="mt-[10px] max-w-[280px] text-center text-[15px] leading-[21px] text-muted-foreground">
+            {reg.data?.statusNote ?? "The organizer closed registration for this event. You have not been charged."}
+          </Text>
+        </View>
+        <View style={{ paddingBottom: insets.bottom + 20 }}>
+          <Button className={PILL_BTN} onPress={() => router.replace("/(tabs)/races")} accessibilityRole="button">
+            <Text className={PILL_TXT}>Back to My Races</Text>
+          </Button>
+        </View>
+      </View>
+    );
+  }
+
+  if (expiredByOrganizer) {
+    return (
+      <View className="flex-1 bg-background" style={{ paddingTop: insets.top, paddingHorizontal: 22 }}>
+        <View className="flex-1 items-center justify-center">
+          <View className="h-[92px] w-[92px] items-center justify-center rounded-[46px] bg-amber-tint">
+            <Icon as={Ban} size={30} className="text-amber" />
+          </View>
+          <Text className="mt-6 text-[24px] font-bold tracking-[-0.4px] text-foreground">This entry was closed</Text>
+          <Text className="mt-[10px] max-w-[280px] text-center text-[15px] leading-[21px] text-muted-foreground">
+            The organizer closed this registration before you paid. You have not been charged.
+          </Text>
+        </View>
+        <View style={{ paddingBottom: insets.bottom + 20 }}>
+          <Button
+            className={PILL_BTN}
+            onPress={() => (eventId ? router.replace(`/event/${eventId}`) : router.replace("/(tabs)/races"))}
+            accessibilityRole="button"
+          >
+            <Text className={PILL_TXT}>Enter again</Text>
+          </Button>
+          <Pressable onPress={() => router.replace("/(tabs)/races")} accessibilityRole="button">
+            <Text className={cn(LINK_BASE, "text-muted-foreground")}>Back to My Races</Text>
           </Pressable>
         </View>
       </View>
