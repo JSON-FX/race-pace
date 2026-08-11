@@ -27,6 +27,11 @@ vi.mock("@/lib/events", () => ({
   fetchFormFields: (...a: unknown[]) => fetchFormFields(...a),
 }));
 
+const fetchMyEntry = vi.fn();
+vi.mock("@/lib/entry", () => ({
+  fetchMyEntry: (...a: unknown[]) => fetchMyEntry(...a),
+}));
+
 vi.mock("@/components/SiteHeader", () => ({ SiteHeader: () => null }));
 vi.mock("../[categoryId]/RegisterWizard", () => ({ RegisterWizard: () => null }));
 
@@ -49,6 +54,7 @@ beforeEach(() => {
   fetchAddons.mockReset().mockResolvedValue([]);
   fetchFormFields.mockReset().mockResolvedValue([]);
   fetchEvent.mockReset();
+  fetchMyEntry.mockReset().mockResolvedValue(null);
 });
 
 describe("RegisterPage", () => {
@@ -76,6 +82,29 @@ describe("RegisterPage", () => {
 
     // slots_taken (10) < slots_total (100), so neither redirect fires and the
     // page proceeds to render the wizard.
+    const result = await RegisterPage({ params: Promise.resolve({ categoryId: "c1" }) });
+    expect(redirect).not.toHaveBeenCalled();
+    expect(result).toBeTruthy();
+  });
+
+  it("redirects to the event page when the runner already holds a live entry — even on a different distance", async () => {
+    // Authoritative check is registrations-checkout's 409; this is the same
+    // don't-walk-them-into-a-wall reasoning as the closed/sold-out redirects
+    // above, just for the one-entry-per-event rule instead.
+    fetchEvent.mockResolvedValue({ id: "e1", status: "open" } as EventRow);
+    fetchMyEntry.mockResolvedValue({ id: "r9", status: "paid", categoryId: "some-other-category", expiresAt: null });
+    const RegisterPage = await loadPage();
+
+    await expect(RegisterPage({ params: Promise.resolve({ categoryId: "c1" }) })).rejects.toThrow(
+      "REDIRECT:/events/e1?registered=r9",
+    );
+  });
+
+  it("does not redirect when the runner holds no live entry", async () => {
+    fetchEvent.mockResolvedValue({ id: "e1", status: "open" } as EventRow);
+    fetchMyEntry.mockResolvedValue(null);
+    const RegisterPage = await loadPage();
+
     const result = await RegisterPage({ params: Promise.resolve({ categoryId: "c1" }) });
     expect(redirect).not.toHaveBeenCalled();
     expect(result).toBeTruthy();

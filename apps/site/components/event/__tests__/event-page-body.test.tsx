@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import type { EventRow, CategoryRow, AddonRow } from "@/lib/events";
+import type { MyEntry } from "@/lib/entry";
 import { EventPageBody } from "../EventPageBody";
 
 // The course map pulls in maplibre (WebGL, workers) — neither exists in jsdom,
@@ -35,7 +36,7 @@ function renderBody(
   categories = [cat()],
   addons: AddonRow[] = [],
   closed = false,
-  registrationClosesAt: string | null = null,
+  opts: { myEntry?: MyEntry | null; registrationClosesAt?: string | null } = {},
 ) {
   return render(
     <EventPageBody
@@ -43,7 +44,8 @@ function renderBody(
       categories={categories}
       addons={addons}
       closed={closed}
-      registrationClosesAt={registrationClosesAt}
+      myEntry={opts.myEntry ?? null}
+      registrationClosesAt={opts.registrationClosesAt ?? null}
     />,
   );
 }
@@ -91,6 +93,127 @@ describe("EventPageBody — distances", () => {
     renderBody({}, [cat({ elevation_gain_m: null, cutoff_hours: null, blurb: null })]);
     expect(screen.queryByText(/0 m gain/)).not.toBeInTheDocument();
     expect(screen.queryByText(/0 h cut-off/)).not.toBeInTheDocument();
+  });
+});
+
+describe("EventPageBody — existing entry", () => {
+  const categories = [cat({ id: "c1", label: "60K Ultra" }), cat({ id: "c2", label: "30K" })];
+
+  it("offers a view-entry link, not Join, on the distance the runner is paid into", () => {
+    const myEntry: MyEntry = { id: "r1", status: "paid", categoryId: "c1", expiresAt: null };
+    renderBody({}, categories, [], false, { myEntry });
+    expect(screen.getByText("Your entry")).toBeInTheDocument();
+    // Name includes the distance — see the a11y test below for why.
+    expect(screen.getByRole("link", { name: "You're in — view entry — 60K Ultra" })).toHaveAttribute(
+      "href",
+      "/races",
+    );
+  });
+
+  it("offers finish-payment, not Join, on the distance the runner has a pending hold on", () => {
+    const myEntry: MyEntry = { id: "r1", status: "pending", categoryId: "c1", expiresAt: "2099-01-01T00:00:00Z" };
+    renderBody({}, categories, [], false, { myEntry });
+    expect(screen.getByText("Payment pending")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Finish payment — 60K Ultra" })).toHaveAttribute(
+      "href",
+      "/pay/r1",
+    );
+  });
+
+  it("re-labels a distance the runner did NOT enter too, instead of leaving Join live", () => {
+    // One registration is per EVENT, not per distance — every row has to say
+    // so, or the other distance walks the runner into a 409.
+    const myEntry: MyEntry = { id: "r1", status: "paid", categoryId: "c1", expiresAt: null };
+    renderBody({}, categories, [], false, { myEntry });
+    expect(screen.getByText("Registered — other distance")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /^Join/ })).not.toBeInTheDocument();
+  });
+
+  it("gives every re-labeled row an accessible name that names ITS OWN distance", () => {
+    // With two distances re-labeled identically ("Registered — other
+    // distance"), a screen reader's link list is otherwise two indistinguishable
+    // entries. The visible text can stay generic; the accessible name may not.
+    const threeCats = [
+      cat({ id: "c1", label: "60K Ultra" }),
+      cat({ id: "c2", label: "30K" }),
+      cat({ id: "c3", label: "10K" }),
+    ];
+    const myEntry: MyEntry = { id: "r1", status: "paid", categoryId: "c1", expiresAt: null };
+    renderBody({}, threeCats, [], false, { myEntry });
+
+    expect(screen.getByRole("link", { name: "30K — you're registered on another distance" })).toHaveAttribute(
+      "href",
+      "/races",
+    );
+    expect(screen.getByRole("link", { name: "10K — you're registered on another distance" })).toHaveAttribute(
+      "href",
+      "/races",
+    );
+  });
+
+  it("shows Join everywhere when there is no entry — the shape fetchMyEntry returns for an expired hold", () => {
+    // The expiry rule itself lives in fetchMyEntry (lib/entry.ts), which
+    // returns null for a pending row past its expires_at — this pins what
+    // the component does with that null, which is the half of the contract
+    // that actually reaches the page.
+    renderBody({}, categories, [], false, { myEntry: null });
+    expect(screen.getAllByRole("link", { name: /^Join/ })).toHaveLength(2);
+    expect(screen.queryByText("Payment pending")).not.toBeInTheDocument();
+  });
+});
+
+describe("EventPageBody — page-level CTAs (hero + closing band)", () => {
+  // Both bands share one `topHref`/`topLabel` computation, so they always
+  // agree with each other and with the rows: a runner holding a live entry
+  // must never see the page invite them to "Choose your distance" again,
+  // in the hero OR in the closing band lower down.
+  const categories = [cat({ id: "c1", label: "60K Ultra" }), cat({ id: "c2", label: "30K" })];
+
+  it("points both top-level CTAs at the runner's paid entry instead of #distances", () => {
+    const myEntry: MyEntry = { id: "r1", status: "paid", categoryId: "c1", expiresAt: null };
+    renderBody({}, categories, [], false, { myEntry });
+
+    const links = screen.getAllByRole("link", { name: "View your entry" });
+    expect(links).toHaveLength(2); // hero + closing band
+    for (const link of links) expect(link).toHaveAttribute("href", "/races");
+    expect(screen.queryByRole("link", { name: "Choose your distance" })).not.toBeInTheDocument();
+  });
+
+  it("points both top-level CTAs at finishing payment for a pending entry", () => {
+    const myEntry: MyEntry = { id: "r1", status: "pending", categoryId: "c1", expiresAt: "2099-01-01T00:00:00Z" };
+    renderBody({}, categories, [], false, { myEntry });
+
+    const links = screen.getAllByRole("link", { name: "Finish payment" });
+    expect(links).toHaveLength(2);
+    for (const link of links) expect(link).toHaveAttribute("href", "/pay/r1");
+  });
+
+  it("still offers #distances at the top level when there is no entry", () => {
+    renderBody({}, categories, [], false, { myEntry: null });
+    const links = screen.getAllByRole("link", { name: "Choose your distance" });
+    expect(links).toHaveLength(2);
+    for (const link of links) expect(link).toHaveAttribute("href", "#distances");
+  });
+
+  it("prioritizes the runner's entry over `closed` at the top level, same as the rows do", () => {
+    // A completed/cancelled event can still owe a runner a look at the entry
+    // they already hold; DistanceRow already puts myEntry ahead of `closed`,
+    // and the closing band's own visibility guard (myEntry || !closed) is
+    // what lets its CTA survive being closed at all.
+    const myEntry: MyEntry = { id: "r1", status: "paid", categoryId: "c1", expiresAt: null };
+    renderBody({}, categories, [], true, { myEntry });
+
+    const links = screen.getAllByRole("link", { name: "View your entry" });
+    expect(links).toHaveLength(2);
+    expect(screen.queryByText("See race details")).not.toBeInTheDocument();
+    expect(screen.queryByText("Registration is closed")).not.toBeInTheDocument();
+  });
+
+  it("still hides the closing band's CTA (but not the hero's) when closed with no entry", () => {
+    renderBody({}, categories, [], true, { myEntry: null });
+    expect(screen.getByText("See race details")).toBeInTheDocument();
+    expect(screen.getByText("Registration is closed")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Choose your distance" })).not.toBeInTheDocument();
   });
 });
 
@@ -171,7 +294,7 @@ describe("EventPageBody — sections appear only when they have data", () => {
 describe("EventPageBody — deadline notice", () => {
   it("shows the deadline near the register CTA while registration is open", () => {
     const soon = new Date(Date.now() + 3 * 86_400_000).toISOString();
-    renderBody({}, [cat()], [], false, soon);
+    renderBody({}, [cat()], [], false, { registrationClosesAt: soon });
     expect(screen.getByText("Closes in 3 days")).toBeInTheDocument();
   });
 
@@ -182,12 +305,12 @@ describe("EventPageBody — deadline notice", () => {
   // a countdown appearing on a closed race.
   it("does not show a countdown once registration is closed, even with a future deadline", () => {
     const soon = new Date(Date.now() + 3 * 86_400_000).toISOString();
-    renderBody({ status: "closed" }, [cat()], [], true, soon);
+    renderBody({ status: "closed" }, [cat()], [], true, { registrationClosesAt: soon });
     expect(screen.queryByText(/closes in/i)).not.toBeInTheDocument();
   });
 
   it("shows nothing when the event has no registration deadline", () => {
-    renderBody({}, [cat()], [], false, null);
+    renderBody({}, [cat()], [], false, { registrationClosesAt: null });
     expect(screen.queryByText(/closes/i)).not.toBeInTheDocument();
   });
 });

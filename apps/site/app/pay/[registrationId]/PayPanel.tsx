@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Check, Lock } from "lucide-react";
 import { formatPeso } from "@race-pace/shared";
 import { isRegistrationClosed } from "@/lib/eventStatus";
+import { holdExpired } from "@/lib/holdExpiry";
 import { useRegistration, createMethodCheckout } from "@/lib/registration";
 import { PAY_METHODS, breakdown } from "@/lib/payment";
 import { MethodLogo } from "@/components/PaymentLogos";
@@ -55,6 +56,55 @@ export function PayPanel({ registrationId }: { registrationId: string }) {
         </p>
         <Button asChild className="mt-8 h-auto rounded-pill px-8 py-4 text-[16px] font-semibold">
           <Link href="/races">Back to My Races</Link>
+        </Button>
+      </div>
+    );
+  }
+
+  // A registration also reaches `status === 'expired'` when the organizer
+  // closes/cancels/completes the event early, via the
+  // `events_close_expires_pending` trigger (20260809100200) — not just when
+  // the 24h hold lapses (that path is `lapsed`, below). `eventClosed` above
+  // catches the common case, since the event flips status in the same
+  // transaction. But it does NOT cover the organizer reopening the event
+  // afterward: eventStatus goes back to something registerable while this
+  // specific registration stays 'expired' forever (nothing resurrects it),
+  // and its stored PayMongo session can still be young enough to charge. So
+  // `status` must be checked directly here — this is a different fact from a
+  // runner-abandoned hold (`lapsed`) and needs its own, distinct copy.
+  const expiredByOrganizer = reg.data.status === "expired";
+  if (expiredByOrganizer) {
+    return (
+      <div className="mx-auto w-full max-w-2xl px-6 py-20 text-center">
+        <h1 className="text-[26px] font-semibold tracking-[-0.5px] text-foreground">This entry was closed</h1>
+        <p className="mt-3 text-[15px] leading-relaxed text-muted-foreground">
+          The organizer closed this registration before you paid. You have not been charged.
+        </p>
+        <Button asChild className="mt-8 h-auto rounded-pill px-8 py-4 text-[16px] font-semibold">
+          <Link href={`/events/${reg.data.event_id}`}>Enter again</Link>
+        </Button>
+      </div>
+    );
+  }
+
+  // Same live-case reasoning as eventClosed above: the server page's redirect
+  // only catches a hold that had ALREADY lapsed on load. This query polls, so
+  // a hold that runs out while the runner is sitting on this exact page (or
+  // opened it from a stale bookmark right as the sweep would have caught it)
+  // has to be caught here too — derived from expires_at via holdExpired, not
+  // `status`, which stays 'pending' until the 15-minute sweep runs.
+  const lapsed = holdExpired(reg.data.status, reg.data.expiresAt);
+  if (lapsed) {
+    return (
+      <div className="mx-auto w-full max-w-2xl px-6 py-20 text-center">
+        <h1 className="text-[26px] font-semibold tracking-[-0.5px] text-foreground">
+          Payment window closed
+        </h1>
+        <p className="mt-3 text-[15px] leading-relaxed text-muted-foreground">
+          This hold ran out and the slot is back in the pool. You&apos;ll need to enter again.
+        </p>
+        <Button asChild className="mt-8 h-auto rounded-pill px-8 py-4 text-[16px] font-semibold">
+          <Link href={`/events/${reg.data.event_id}`}>Enter again</Link>
         </Button>
       </div>
     );

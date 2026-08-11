@@ -28,7 +28,14 @@ export async function confirmPayment(
     .single();
   if (!reg) return { ok: false, error: "not_found", status: 404 };
   if (reg.status === "paid") return { ok: true, registration_id: reg.id, already: true };
-  if (reg.status !== "pending") return { ok: true, registration_id: reg.id, already: true }; // refunded/cancelled: no-op (replay-safe)
+  // refunded/cancelled: no-op (replay-safe), never re-confirm. 'expired' is
+  // deliberately NOT short-circuited here — it must reach confirm_payment_tx
+  // so the resurrect/conflict logic below actually runs. Returning early for
+  // 'expired' (as this used to) would silently swallow a late capture instead
+  // of resurrecting the registration or flagging a conflict.
+  if (reg.status === "refunded" || reg.status === "cancelled") {
+    return { ok: true, registration_id: reg.id, already: true };
+  }
 
   // The org's terms are read ONCE here and frozen onto the payment row below, so
   // a later rate change is never retroactive.
@@ -55,6 +62,19 @@ export async function confirmPayment(
   if (error) {
     console.error("[confirm] confirm_payment_tx failed", { registrationId: reg.id, error });
     return { ok: false, error: "confirm_write_failed", status: 500 };
+  }
+  if (result === "conflict") {
+    // Money captured against a registration that expired, and the runner has
+    // since taken a live entry for the same event. Confirming would hand them
+    // two slots; doing nothing silently keeps their money. Neither is
+    // acceptable, so make it findable and refund by hand.
+    console.error(
+      `[webhook] CAPTURE CONFLICT registration=${reg.id} — payment captured on an expired registration ` +
+        `while a live entry exists for the same runner+event. MANUAL REFUND REQUIRED.`,
+    );
+    // No registration/payment/ticket state changed, so this is not a genuine
+    // confirmation and must not fall through to the ticket-email step below.
+    return { ok: true, registration_id: reg.id, already: true };
   }
   const already = result === "already" || result === "not_pending";
 

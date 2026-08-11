@@ -47,13 +47,13 @@ const rows: RegistrationRow[] = [
   {
     id: "r1", user_id: "u1", category_id: "c1", category_label: "50K Ultra",
     full_name: "Maria Josefa Santos", bib_name: "D-1042", avatar_url: null, email: "maria.santos@gmail.com",
-    total_amount: 285000, payment_status: "paid", payment_method: "gcash",
+    total_amount: 285000, payment_status: "paid", payment_method: "gcash", registration_status: "paid",
     created_at: "2026-08-03T09:14:00Z", custom_data: {}, addons: [],
   },
   {
     id: "r2", user_id: "u2", category_id: "c1", category_label: "25K",
     full_name: "Angelo Lim", bib_name: null, avatar_url: null, email: "angelo.lim@yahoo.com",
-    total_amount: 195000, payment_status: "pending", payment_method: null,
+    total_amount: 195000, payment_status: "pending", payment_method: null, registration_status: "pending",
     created_at: "2026-08-03T08:31:00Z", custom_data: {}, addons: [],
   },
 ];
@@ -152,6 +152,38 @@ describe("RegistrationsTable", () => {
     render(<RegistrationsTable {...props} />);
     expect(screen.getByText("D-1042")).toBeInTheDocument();
     expect(screen.getByText("—")).toBeInTheDocument();
+  });
+
+  // Task 9: the Status column must be able to show a registration's own
+  // lifecycle state, not just its payment_status — see registration_status's
+  // doc comment in lib/queries/registrations.ts for why payment_status alone
+  // can never distinguish "hold expired" / "declined" / "cancelled".
+  it("prefers registration_status over payment_status for an expired registration", () => {
+    const expiredRows = [{ ...rows[1], payment_status: null, registration_status: "expired" as const }];
+    render(<RegistrationsTable {...props} rows={expiredRows} total={1} />);
+    expect(screen.getByText("Expired")).toBeInTheDocument();
+    expect(screen.queryByText("Pending")).not.toBeInTheDocument();
+  });
+
+  it("prefers registration_status over payment_status for a cancelled registration", () => {
+    const cancelledRows = [{ ...rows[1], payment_status: "failed" as const, registration_status: "cancelled" as const }];
+    render(<RegistrationsTable {...props} rows={cancelledRows} total={1} />);
+    expect(screen.getByText("Cancelled")).toBeInTheDocument();
+    expect(screen.queryByText("Failed")).not.toBeInTheDocument();
+  });
+
+  it("still shows the payment_status badge for paid/pending rows, unaffected by the swap", () => {
+    render(<RegistrationsTable {...props} />);
+    expect(screen.getByText("Paid")).toBeInTheDocument();
+    expect(screen.getByText("Pending")).toBeInTheDocument();
+  });
+
+  it("offers Expired and Cancelled as Status filter options", async () => {
+    const user = userEvent.setup();
+    render(<RegistrationsTable {...props} />);
+    await user.click(screen.getByLabelText("Status"));
+    expect(screen.getByRole("option", { name: "Expired" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Cancelled" })).toBeInTheDocument();
   });
 
   // "Send email"/"Assign bibs"/"Mark checked-in" have no real backend yet

@@ -10,6 +10,10 @@ export type CachedTicket = {
   orgId: string;
   orgName?: string | null;
   eventHeroUrl?: string | null;
+  /** Optional (not required) so a cache written by an older build of the app,
+   *  before My Races needed these to gate a lapsed hold, still parses. */
+  eventId?: string;
+  expiresAt?: string | null;
 };
 
 const tKey = (rid: string) => `ticket:${rid}`;

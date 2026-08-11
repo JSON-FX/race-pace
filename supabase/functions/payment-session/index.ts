@@ -36,9 +36,34 @@ Deno.serve(async (req) => {
     const userId = userRes.user.id;
 
     // Own the registration + it must still be payable. Service role bypasses RLS, so check ownership.
-    const { data: reg } = await db.from("registrations").select("id,user_id,status,total_amount,category_id,event_id").eq("id", registrationId).single();
+    const { data: reg } = await db.from("registrations").select("id,user_id,status,total_amount,category_id,event_id,expires_at").eq("id", registrationId).single();
     if (!reg || reg.user_id !== userId) return json({ error: "registration_not_found" }, 404);
     if (reg.status !== "pending") return json({ error: "not_pending" }, 409);
+
+    // Same lazy-expiry predicate as registrations-checkout's isLapsedPending: a
+    // PayMongo hosted checkout session itself expires at 24 hours (see this
+    // migration set's header,  20260809100200_expire_stale_registrations.sql),
+    // so minting a BRAND-NEW session for a hold whose window has already lapsed
+    // would hand the runner a working checkout page for an entry that is dead
+    // in every other sense -- exactly the gap that let a stale session capture
+    // money after the runner re-entered from the event page, landing on
+    // confirm_payment_tx's 'conflict' path and a manual refund. Correctness
+    // must not depend on the 15-minute sweep having already run.
+    //
+    // Also WRITE the expiry here (status='expired', expires_at=null), not just
+    // refuse -- the same reasoning registrations-checkout's isLapsedPending
+    // comment gives: leaving the row 'pending' after telling the runner their
+    // hold lapsed means every other reader (admin roster, My Races, a second
+    // tab) still sees a live 'pending' entry until the sweep or another lazy
+    // check happens to touch it. There is no insert here for a lingering row
+    // to collide with, so writing isn't required for correctness the way it is
+    // in checkout -- it's done anyway so state doesn't visibly disagree with
+    // what this response just told the caller.
+    const isLapsedPending = reg.status === "pending" && !!reg.expires_at && Date.parse(reg.expires_at) <= Date.now();
+    if (isLapsedPending) {
+      await db.from("registrations").update({ status: "expired", expires_at: null }).eq("id", reg.id);
+      return json({ error: "hold_expired" }, 409);
+    }
 
     // The event can be cancelled AFTER a runner registered, while their pending
     // registration and its PayMongo session are still live. Without this, a

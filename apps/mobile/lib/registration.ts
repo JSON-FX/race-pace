@@ -9,21 +9,36 @@ export type CheckoutResult = { registration_id: string; checkout_url: string };
 // The deep link PayMongo's hosted checkout redirects back to after pay/cancel.
 export const PAY_RETURN_PATH = "pay-callback";
 
+/** Thrown by startCheckout. `registrationId` is only set for the
+ *  already_registered 409 (registrations-checkout's contract:
+ *  { error: "already_registered", registration_id, status, checkout_url }) —
+ *  it's what lets the register screen redirect straight to the runner's
+ *  existing entry instead of just showing an error string. */
+export class CheckoutError extends Error {
+  registrationId?: string;
+  constructor(message: string, registrationId?: string) {
+    super(message);
+    this.registrationId = registrationId;
+  }
+}
+
 export async function startCheckout(input: RegistrationInput): Promise<CheckoutResult> {
   // Pass the app's return deep link so the server can set PayMongo's success/cancel URLs.
   const body = { ...input, return_url: Linking.createURL(PAY_RETURN_PATH) };
   const { data, error } = await supabase.functions.invoke("registrations-checkout", { body });
   if (error) {
     let message = error.message || "Checkout failed";
+    let registrationId: string | undefined;
     if (error instanceof FunctionsHttpError) {
       try {
         const body = await error.context.json();
         if (body?.error) message = String(body.error);
+        if (typeof body?.registration_id === "string") registrationId = body.registration_id;
       } catch {
         // keep default message
       }
     }
-    throw new Error(message);
+    throw new CheckoutError(message, registrationId);
   }
   return data as CheckoutResult;
 }
@@ -64,6 +79,15 @@ export type RegistrationPayment = {
 
 export type RegistrationRow = {
   id: string; status: string; total_amount: number; ticket_token: string | null; org_id: string;
+  /** The race this entry is for — needed to route a lapsed hold back to
+   *  re-entry instead of a dead Pay button. Mirrors apps/site's field of the
+   *  same name (apps/site/lib/registration.ts's RegistrationRow). */
+  event_id: string;
+  /** When an unpaid entry stops holding this runner's one-per-event slot.
+   *  Null once paid — a paid entry has no hold to run out. Callers must derive
+   *  "is this hold actually still live" from this via holdExpired
+   *  (lib/holdExpiry.ts), not from `status` alone — see that file's header. */
+  expiresAt: string | null;
   eventName: string; categoryLabel: string; categoryDistance: number | null; checkoutUrl: string | null;
   eventStatus: string | null; eventDate: string | null; originalDate: string | null; statusNote: string | null;
   orgName: string | null; eventHeroUrl: string | null; basePrice?: number | null; inclusions?: string[] | null;
@@ -71,12 +95,13 @@ export type RegistrationRow = {
 };
 
 const REG_SELECT =
-  "id,status,total_amount,ticket_token,org_id,organizations(name),events(name,status,event_date,original_date,status_note,hero_image_url,inclusions),categories(label,distance_km,base_price),payments(checkout_url,created_at,method,amount,platform_fee,net_to_org,provider,provider_ref,status)";
+  "id,status,total_amount,ticket_token,org_id,event_id,expires_at,organizations(name),events(name,status,event_date,original_date,status_note,hero_image_url,inclusions),categories(label,distance_km,base_price),payments(checkout_url,created_at,method,amount,platform_fee,net_to_org,provider,provider_ref,status)";
 
 function mapReg(r: any): RegistrationRow {
   const payment = Array.isArray(r.payments) ? r.payments[0] : r.payments;
   return {
     id: r.id, status: r.status, total_amount: r.total_amount, ticket_token: r.ticket_token ?? null, org_id: r.org_id,
+    event_id: r.event_id, expiresAt: r.expires_at ?? null,
     eventName: r.events?.name ?? "Event", categoryLabel: r.categories?.label ?? "", categoryDistance: r.categories?.distance_km ?? null,
     orgName: r.organizations?.name ?? null,
     eventHeroUrl: r.events?.hero_image_url ?? null,

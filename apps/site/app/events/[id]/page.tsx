@@ -7,6 +7,7 @@ import { SiteHeader } from "@/components/SiteHeader";
 import { EventPageBody } from "@/components/event/EventPageBody";
 import { longDate } from "@/lib/format";
 import { isRegistrationClosed } from "@/lib/eventStatus";
+import { fetchMyEntry } from "@/lib/entry";
 
 export const dynamic = "force-dynamic";
 
@@ -42,9 +43,15 @@ export default async function EventPage({ params }: Params) {
   const event = await fetchEvent(db, id);
   if (!event) notFound();
 
+  const { data: { user } } = await db.auth.getUser();
+
   // Independent reads — sequential awaits would stack round trips before the
   // first byte.
-  const [categories, addons] = await Promise.all([fetchCategories(db, id), fetchAddons(db, id)]);
+  const [categories, addons, myEntry] = await Promise.all([
+    fetchCategories(db, id),
+    fetchAddons(db, id),
+    fetchMyEntry(db, id, user?.id ?? null),
+  ]);
   // almost_full is still registerable — see lib/eventStatus.ts, mirrors
   // apps/mobile/app/event/[id].tsx's `registerable` rule.
   const closed = isRegistrationClosed(event.status, event.registration_closes_at);
@@ -58,6 +65,7 @@ export default async function EventPage({ params }: Params) {
           categories={categories}
           addons={addons}
           closed={closed}
+          myEntry={myEntry}
           registrationClosesAt={event.registration_closes_at}
         />
       </main>

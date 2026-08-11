@@ -15,7 +15,7 @@ describe("checkoutErrorMessage", () => {
       "sold_out", "not_pending", "waiver_required", "invalid_custom_data",
       "invalid_input", "unauthorized", "category_not_found",
       "registration_not_found", "registration_failed", "server_error",
-      "registration_closed",
+      "registration_closed", "already_registered",
     ]) {
       expect(checkoutErrorMessage(code)).not.toBe("");
       expect(checkoutErrorMessage(code)).not.toContain("_");
@@ -24,6 +24,12 @@ describe("checkoutErrorMessage", () => {
 
   it("explains a cancelled/closed event can't be registered for", () => {
     expect(checkoutErrorMessage("registration_closed")).toBe("Registration for this race is no longer open.");
+  });
+
+  it("points a duplicate registration at My Races as the fallback (RegisterWizard prefers routing to /pay/<id> when it has one)", () => {
+    expect(checkoutErrorMessage("already_registered")).toBe(
+      "You're already entered in this race. Check My Races for your entry.",
+    );
   });
 
   it("falls back to readable copy for an unknown code", () => {

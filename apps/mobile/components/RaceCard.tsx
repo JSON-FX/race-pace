@@ -8,13 +8,18 @@ import { Icon } from "@/components/ui/icon";
 import { Text } from "@/components/ui/text";
 import { ElevationHero } from "./ElevationHero";
 
-export type RaceCardVariant = "registered" | "completed" | "refunded" | "unpaid";
+export type RaceCardVariant = "registered" | "completed" | "refunded" | "unpaid" | "expired";
 
 const BADGE: Record<RaceCardVariant, { variant: "paid" | "completed" | "refunded" | "unpaid"; label: string }> = {
   registered: { variant: "paid", label: "Registered" },
   completed: { variant: "completed", label: "Completed" },
   refunded: { variant: "refunded", label: "Refunded" },
   unpaid: { variant: "unpaid", label: "Unpaid" },
+  // Reuses the "completed" badge treatment (muted, not the amber "unpaid"
+  // tint) — an expired hold isn't awaiting anything anymore, it's over, same
+  // as a completed or refunded entry. See myRacesGroups.ts for why this lands
+  // in the same segment as those two.
+  expired: { variant: "completed", label: "Expired" },
 };
 
 export function RaceCard({
@@ -31,7 +36,7 @@ export function RaceCard({
 }) {
   const badge = BADGE[variant];
   const isUnpaid = variant === "unpaid";
-  const showChevron = variant === "completed" || variant === "refunded";
+  const showChevron = variant === "completed" || variant === "refunded" || variant === "expired";
   const [imgFailed, setImgFailed] = useState(false);
 
   return (

@@ -2,8 +2,10 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { Check, Clock, ArrowUpRight } from "lucide-react";
 import { disciplineLayout, formatPeso, formatDateRange } from "@race-pace/shared";
 import type { EventRow, CategoryRow, AddonRow } from "@/lib/events";
+import type { MyEntry } from "@/lib/entry";
 import { longDate } from "@/lib/format";
 import { deadlineNotice } from "@/lib/kit";
 import { RainbowButton } from "@/components/ui/rainbow-button";
@@ -38,6 +40,7 @@ export function EventPageBody({
   categories,
   addons = [],
   closed,
+  myEntry = null,
   registrationClosesAt,
 }: {
   event: EventRow;
@@ -46,6 +49,9 @@ export function EventPageBody({
   /** Registration is cancelled/closed/completed. Derived by the caller from
    *  isRegistrationClosed() so the page and the server agree on one rule. */
   closed: boolean;
+  /** The runner's existing entry for this event, on any distance. Null for a
+   *  signed-out visitor or one who hasn't entered yet. */
+  myEntry?: MyEntry | null;
   /** Presentational only — deadlineNotice() returns null once this has passed,
    *  because the `closed` state above already says so more clearly. */
   registrationClosesAt: string | null;
@@ -59,6 +65,20 @@ export function EventPageBody({
   );
   const slotsLeft = categories.reduce((n, c) => n + Math.max(0, c.slots_total - c.slots_taken), 0);
   const tone = { dark: trail };
+
+  // The page-level CTAs (hero + closing band) have to agree with the row-level
+  // ones: a runner with a live entry gets pointed straight at it, same as
+  // DistanceRow does — and, same as DistanceRow, that takes priority over
+  // `closed`. A completed/cancelled event can still owe a runner a look at
+  // the entry they already hold; "See race details" would bury it.
+  const topHref = myEntry ? (myEntry.status === "paid" ? "/races" : `/pay/${myEntry.id}`) : "#distances";
+  const topLabel = myEntry
+    ? myEntry.status === "paid"
+      ? "View your entry"
+      : "Finish payment"
+    : closed
+      ? "See race details"
+      : "Choose your distance";
 
   return (
     <div className={trail ? "bg-[#06120C] text-white" : "bg-white text-[#0B1220]"}>
@@ -156,7 +176,11 @@ export function EventPageBody({
           <Reveal delay={0.24}>
             <div className="mt-10">
               <RainbowButton asChild className="h-auto w-full rounded-pill px-8 py-4 text-[16px] font-semibold sm:w-auto">
-                <a href="#distances">{closed ? "See race details" : "Choose your distance"}</a>
+                {myEntry ? (
+                  <Link href={topHref}>{topLabel}</Link>
+                ) : (
+                  <a href={topHref}>{topLabel}</a>
+                )}
               </RainbowButton>
             </div>
           </Reveal>
@@ -168,7 +192,7 @@ export function EventPageBody({
         <section className={trail ? "border-t border-white/10" : "border-t border-black/10"}>
           <div className="mx-auto w-full max-w-6xl px-5 pt-14 sm:px-8">
             <Reveal>
-              <p className="rounded-xl border border-amber bg-amber-tint px-5 py-4 text-[15.5px] leading-relaxed text-[#7A4A00]">
+              <p className="rounded-xl border border-amber bg-amber-tint px-5 py-4 text-[15.5px] leading-relaxed text-amber">
                 {event.status_note}
               </p>
             </Reveal>
@@ -208,7 +232,7 @@ export function EventPageBody({
 
           <ul className="mt-10">
             {categories.map((c, i) => (
-              <DistanceRow key={c.id} category={c} index={i} trail={trail} closed={closed} />
+              <DistanceRow key={c.id} category={c} index={i} trail={trail} closed={closed} myEntry={myEntry} />
             ))}
           </ul>
         </div>
@@ -225,19 +249,34 @@ export function EventPageBody({
       <GalleryCarousel event={event} tone={tone} />
 
       {/* Closing CTA: by here the runner has read everything, and sending them
-          back up to the hero to act would be the page's own fault. */}
+          back up to the hero to act would be the page's own fault. Same
+          myEntry-first precedence as the hero: a runner who already owes a
+          payment or wants their ticket should never be told to go pick a
+          distance again, on the way out any more than on the way in. */}
       <section className={trail ? "border-t border-white/10" : "border-t border-black/10"}>
         <div className="mx-auto w-full max-w-6xl px-5 py-20 text-center sm:px-8 sm:py-28">
           <Reveal>
             <h2 className="font-display text-[clamp(1.9rem,5.5vw,3.6rem)] font-black uppercase leading-[0.95] tracking-[-1px]">
-              {closed ? "Registration is closed" : trail ? "Still reading? Enter." : "See you at the start."}
+              {myEntry
+                ? myEntry.status === "paid"
+                  ? "You're in."
+                  : "Almost there."
+                : closed
+                  ? "Registration is closed"
+                  : trail
+                    ? "Still reading? Enter."
+                    : "See you at the start."}
             </h2>
           </Reveal>
-          {closed ? null : (
+          {myEntry || !closed ? (
             <Reveal delay={0.08}>
               <div className="mt-8 flex justify-center">
                 <RainbowButton asChild className="h-auto rounded-pill px-9 py-4 text-[16.5px] font-semibold">
-                  <a href="#distances">Choose your distance</a>
+                  {myEntry ? (
+                    <Link href={topHref}>{topLabel}</Link>
+                  ) : (
+                    <a href={topHref}>{topLabel}</a>
+                  )}
                 </RainbowButton>
               </div>
               {deadlineNotice(registrationClosesAt) ? (
@@ -246,7 +285,7 @@ export function EventPageBody({
                 </p>
               ) : null}
             </Reveal>
-          )}
+          ) : null}
         </div>
       </section>
     </div>
@@ -273,19 +312,30 @@ function DistanceRow({
   index,
   trail,
   closed,
+  myEntry,
 }: {
   category: CategoryRow;
   index: number;
   trail: boolean;
   closed: boolean;
+  /** The runner's existing entry for THIS event, on any distance. */
+  myEntry: MyEntry | null;
 }) {
   const remaining = Math.max(0, category.slots_total - category.slots_taken);
   const soldOut = remaining === 0;
   // Closed beats sold-out in the message: "Sold out" on a cancelled race tells
   // a runner to look for next year's edition of something that isn't running.
-  const enterable = !soldOut && !closed;
+  // An entry is one PER EVENT, so `myEntry` re-labels every distance, not just
+  // the one the runner picked — leaving "Join" live on the other distances
+  // would walk them into a 409 they could have been told about here.
+  const enterable = !soldOut && !closed && !myEntry;
   const scarce = !soldOut && remaining <= 15;
   const pct = Math.min(100, Math.round((category.slots_taken / Math.max(1, category.slots_total)) * 100));
+  // The distance the runner actually holds reads as "here is your entry"; any
+  // other distance of the same event reads as "you already have an entry,
+  // elsewhere" — two different states, so they get two different treatments
+  // below, not just swapped copy.
+  const mine = myEntry?.categoryId === category.id;
 
   const facts: string[] = [];
   if (category.distance_km != null) facts.push(`${category.distance_km} km`);
@@ -296,15 +346,41 @@ function DistanceRow({
   const dim = trail ? "text-white/60" : "text-[#0B1220]/55";
 
   return (
-    <Reveal as="li" delay={index * 0.06} className={`border-t ${rule} last:border-b`}>
+    <Reveal
+      as="li"
+      delay={index * 0.06}
+      className={`border-t ${rule} last:border-b ${mine ? (trail ? "bg-white/[0.03]" : "bg-black/[0.02]") : ""}`}
+    >
       <div className="grid grid-cols-[1fr_auto] items-center gap-x-5 gap-y-4 py-6 sm:grid-cols-[minmax(0,1fr)_auto_180px] sm:gap-x-8 sm:py-8">
         <div className="min-w-0">
           <div className="flex flex-wrap items-baseline gap-x-3">
             <h3 className="font-display text-[clamp(1.5rem,4vw,2.6rem)] font-black uppercase leading-none tracking-[-0.5px]">
               {category.label}
             </h3>
-            {scarce ? (
-              <span className="font-eyebrow rounded-full bg-amber-tint px-2.5 py-1 text-[10px] font-bold uppercase tracking-[1.5px] text-[#7A4A00]">
+            {/* "Your entry" beats the scarcity chip in this slot — once a runner
+                has (or is finishing) an entry here, how many slots remain is no
+                longer the fact that matters most about this row. */}
+            {mine && myEntry ? (
+              <span
+                className={`font-eyebrow inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[1.5px] ${
+                  myEntry.status === "paid"
+                    ? "border-transparent bg-paid-tint text-paid"
+                    : // Bordered, not just tinted: paid is a flat confirmation, pending
+                      // carries a deadline and money, so it keeps a visible outline on
+                      // top of the same tint/text pairing to read as the more urgent
+                      // of the two — same border width on both to avoid a size jump.
+                      "border-amber bg-amber-tint text-amber"
+                }`}
+              >
+                {myEntry.status === "paid" ? (
+                  <Check size={11} aria-hidden="true" />
+                ) : (
+                  <Clock size={11} aria-hidden="true" />
+                )}
+                {myEntry.status === "paid" ? "Your entry" : "Payment pending"}
+              </span>
+            ) : scarce ? (
+              <span className="font-eyebrow rounded-full bg-amber-tint px-2.5 py-1 text-[10px] font-bold uppercase tracking-[1.5px] text-amber">
                 {remaining} left
               </span>
             ) : null}
@@ -338,7 +414,59 @@ function DistanceRow({
         </div>
 
         <div className="col-span-2 sm:col-span-1">
-          {!enterable ? (
+          {myEntry ? (
+            mine ? (
+              // The runner's own distance: a confirmation, not a call to
+              // action to reconsider. Paid reads calm (tint, checkmark, no
+              // border); pending reads urgent (same tint pairing but with a
+              // visible amber border) because it is the one state here with
+              // a deadline attached — see the badge above for why this is a
+              // border and not a solid fill (WCAG contrast in a future dark
+              // mode; StatusBadge.tsx's bg-*-tint/text-* is the established
+              // pairing).
+              <Link
+                href={myEntry.status === "paid" ? "/races" : `/pay/${myEntry.id}`}
+                aria-label={
+                  myEntry.status === "paid"
+                    ? `You're in — view entry — ${category.label}`
+                    : `Finish payment — ${category.label}`
+                }
+                className={`inline-flex w-full items-center justify-center gap-1.5 rounded-pill border px-6 py-3 text-[14.5px] font-semibold ${
+                  myEntry.status === "paid"
+                    ? "border-transparent bg-paid-tint text-paid"
+                    : "border-amber bg-amber-tint text-amber"
+                }`}
+              >
+                {myEntry.status === "paid" ? (
+                  <Check size={16} aria-hidden="true" />
+                ) : (
+                  <Clock size={16} aria-hidden="true" />
+                )}
+                {myEntry.status === "paid" ? "You're in — view entry" : "Finish payment"}
+              </Link>
+            ) : (
+              // A different distance of the same event: informative, not a
+              // primary action — outlined rather than filled so it never
+              // competes with the runner's actual entry above or a live
+              // "Join" pill on another card.
+              <Link
+                href={myEntry.status === "paid" ? "/races" : `/pay/${myEntry.id}`}
+                aria-label={
+                  myEntry.status === "paid"
+                    ? `${category.label} — you're registered on another distance`
+                    : `${category.label} — payment pending on another distance`
+                }
+                className={`inline-flex w-full items-center justify-center gap-1.5 rounded-pill border px-6 py-3 text-[13.5px] font-semibold transition-colors ${
+                  trail
+                    ? "border-white/20 text-white/70 hover:bg-white/5"
+                    : "border-black/15 text-black/60 hover:bg-black/5"
+                }`}
+              >
+                <ArrowUpRight size={15} aria-hidden="true" />
+                {myEntry.status === "paid" ? "Registered — other distance" : "Pending — other distance"}
+              </Link>
+            )
+          ) : !enterable ? (
             <span
               className={`inline-flex w-full items-center justify-center rounded-pill px-6 py-3 text-[14.5px] font-semibold ${
                 trail ? "bg-white/10 text-white/55" : "bg-black/5 text-black/45"

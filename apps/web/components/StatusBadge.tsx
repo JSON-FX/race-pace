@@ -44,6 +44,31 @@ export function PaymentStatusBadge({ status }: { status: string | null }) {
   return <StatusBadge tone={s.tone}>{s.label}</StatusBadge>;
 }
 
+// registrations.status, distinct from payment_status above (see
+// RegistrationStatus's doc comment in lib/queries/registrations.ts). Only
+// rendered in place of PaymentStatusBadge for 'expired'/'cancelled' — the two
+// values that can't be told apart on the payment_status enum at all.
+//
+// Tones deliberately differ, mirroring EVENT's cancelled/closed split below:
+//   - expired: neutral — a passive, common, non-alarming fact (a 24h hold ran
+//     out, or the event closed on a runner who hadn't paid yet). A roster
+//     where every abandoned checkout lights up red would bury the rows that
+//     actually need attention.
+//   - cancelled: danger — a deliberate action, a runner withdrew or an admin
+//     intervened, same treatment EVENT already gives 'cancelled' below.
+const REGISTRATION: Record<string, { label: string; tone: BadgeTone }> = {
+  expired: { label: "Expired", tone: "neutral" },
+  cancelled: { label: "Cancelled", tone: "danger" },
+  pending: { label: "Pending", tone: "pending" },
+  paid: { label: "Paid", tone: "paid" },
+  refunded: { label: "Refunded", tone: "info" },
+};
+
+export function RegistrationStatusBadge({ status }: { status: string | null }) {
+  const s = REGISTRATION[status ?? ""] ?? { label: status ?? "—", tone: "neutral" as const };
+  return <StatusBadge tone={s.tone}>{s.label}</StatusBadge>;
+}
+
 const EVENT: Record<string, { label: string; tone: BadgeTone }> = {
   open: { label: "Open", tone: "highlight" },
   almost_full: { label: "Almost full", tone: "pending" },

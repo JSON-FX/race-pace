@@ -3,9 +3,12 @@ import { View, ScrollView, Pressable, ActivityIndicator } from "react-native";
 import Svg, { Defs, LinearGradient, Stop, Rect } from "react-native-svg";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { ChevronLeft, ChevronRight, Calendar, MapPin, Flag, Mountain, Clock, Route, type LucideIcon } from "lucide-react-native";
+import { useQuery } from "@tanstack/react-query";
+import { ChevronLeft, ChevronRight, Calendar, MapPin, Flag, Mountain, Clock, Check, Route, type LucideIcon } from "lucide-react-native";
 import { formatPeso, formatDateRange } from "@race-pace/shared";
 import { useEvent, useCategories } from "../../lib/events";
+import { supabase } from "../../lib/supabase";
+import { holdExpired } from "../../lib/holdExpiry";
 import { EventGallery } from "../../components/EventGallery";
 import { OrgAvatar } from "../../components/OrgAvatar";
 import { StatusBanner } from "../../components/StatusBadge";
@@ -15,6 +18,12 @@ import { Icon } from "@/components/ui/icon";
 import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/utils";
 
+/** The one live entry a runner may hold for this event, if they hold one.
+ *  `expires_at` is only meaningful while `status` is "pending". Mirrors
+ *  apps/site/lib/entry.ts's `MyEntry` (kept snake_case here to match the raw
+ *  row shape, since this file has no server/client boundary to cross). */
+type MyEntry = { id: string; status: "pending" | "paid"; category_id: string; expires_at: string | null };
+
 export default function EventDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -23,14 +32,44 @@ export default function EventDetail() {
   const cats = useCategories(id);
   const [selected, setSelected] = useState<string | null>(null);
 
-  if (ev.isLoading || cats.isLoading) return <View className="flex-1 items-center justify-center bg-background"><ActivityIndicator className="text-primary" /></View>;
+  // One entry per event, so this gates EVERY distance below, not just the one
+  // the runner picked. Mirrors apps/site/lib/entry.ts's fetchMyEntry, and the
+  // expiry check uses this app's own holdExpired copy (lib/holdExpiry.ts,
+  // itself a deliberate copy of apps/site/lib/holdExpiry.ts): a pending row
+  // past its expires_at is already gone to the server (registrations-
+  // checkout), whether or not the 15-minute sweep has flipped its status yet.
+  const { data: myEntry, isLoading: myEntryLoading } = useQuery({
+    queryKey: ["my-entry", id],
+    queryFn: async (): Promise<MyEntry | null> => {
+      const { data: auth } = await supabase.auth.getUser();
+      if (!auth.user) return null;
+      const { data } = await supabase
+        .from("registrations")
+        .select("id,status,category_id,expires_at")
+        .eq("event_id", id)
+        .eq("user_id", auth.user.id)
+        .in("status", ["pending", "paid"])
+        .maybeSingle();
+      if (!data) return null;
+      if (holdExpired(data.status, data.expires_at ?? null)) return null;
+      return data as MyEntry;
+    },
+  });
+
+  // myEntry has to gate the initial paint too, not just ev/cats — it resolves later than
+  // both (an extra auth.getUser() round-trip ahead of its own DB query), so without this the
+  // ungated Register CTA and stale "N slots left" rows render for a beat, then snap to the
+  // gated view once it lands. A signed-out runner still sees Register normally: myEntry
+  // resolves to null quickly for them (no session to look up an entry for), it just has to
+  // actually resolve first rather than defaulting registerable to false in the meantime.
+  if (ev.isLoading || cats.isLoading || myEntryLoading) return <View className="flex-1 items-center justify-center bg-background"><ActivityIndicator className="text-primary" /></View>;
   const event = ev.data;
   if (!event) return <View className="flex-1 items-center justify-center bg-background"><Text className="text-muted-foreground text-[13px]">Event not found.</Text></View>;
 
   const categories = cats.data ?? [];
   const selectedId = selected ?? categories[0]?.id ?? null;
   const selectedCat = categories.find((c) => c.id === selectedId);
-  const registerable = !["cancelled", "closed", "completed"].includes(event.status);
+  const registerable = !["cancelled", "closed", "completed"].includes(event.status) && !myEntry;
 
   const fullAddress = [event.city_name, event.province_name, event.region_name].filter(Boolean).join(" · ");
   const dateLabel = event.event_date ? formatDateRange(event.event_date, event.end_date, longDate) : null;
@@ -136,6 +175,16 @@ export default function EventDetail() {
               const on = c.id === selectedId;
               const left = c.slots_total - c.slots_taken;
               const disabled = !registerable || left <= 0;
+              // An entry is one PER EVENT, so every row has to reflect it, not
+              // just the one the runner actually picked — otherwise the other
+              // rows would keep inviting a tap into a 409 the checkout has
+              // already ruled out. "Mine" and "entered elsewhere" read as two
+              // different states, same distinction the web DistanceRow makes:
+              // paid is a settled confirmation, pending carries a deadline
+              // and money so it stays the more urgent-looking of the two.
+              const mine = myEntry?.category_id === c.id;
+              const paidMine = mine && myEntry?.status === "paid";
+              const pendingMine = mine && !paidMine;
               return (
                 <Pressable
                   key={c.id}
@@ -143,17 +192,55 @@ export default function EventDetail() {
                   onPress={() => setSelected(c.id)}
                   className={cn(
                     "flex-row items-center gap-[13px] p-[14px] rounded-[14px] border-[1.5px] border-border bg-background",
-                    on && "border-primary bg-secondary",
-                    disabled && "opacity-50"
+                    on && !myEntry && "border-primary bg-secondary",
+                    paidMine && "border-paid bg-paid-tint",
+                    pendingMine && "border-amber bg-amber-tint",
+                    disabled && !mine && "opacity-50"
                   )}
                   accessibilityRole="button"
                 >
-                  <View className={cn("w-[22px] h-[22px] rounded-[11px] border-2 items-center justify-center", on ? "bg-primary border-primary" : "bg-transparent border-border")}>
-                    {on ? <Text className="text-primary-foreground text-[12px] font-bold">✓</Text> : null}
+                  <View
+                    className={cn(
+                      "w-[22px] h-[22px] rounded-[11px] border-2 items-center justify-center",
+                      // Colored ring + colored icon on the theme's own base surface
+                      // (bg-background), not a solid paid/amber fill — a solid fill sitting
+                      // on top of the row's own bg-paid-tint/bg-amber-tint would need a
+                      // foreground color that flips with the fill in dark mode, and neither
+                      // token has one (unlike primary/destructive, which define -foreground
+                      // pairs). text-paid/text-amber on bg-background is the same base
+                      // foreground/background pairing every other icon in this file already
+                      // relies on for contrast, just recolored — both sides move together
+                      // under .dark, so there's nothing here for dark mode to break.
+                      paidMine
+                        ? "bg-background border-paid"
+                        : pendingMine
+                          ? "bg-background border-amber"
+                          : on
+                            ? "bg-primary border-primary"
+                            : "bg-transparent border-border"
+                    )}
+                  >
+                    {paidMine ? (
+                      <Icon as={Check} size={12} className="text-paid" />
+                    ) : pendingMine ? (
+                      <Icon as={Clock} size={12} className="text-amber" />
+                    ) : on ? (
+                      <Text className="text-primary-foreground text-[12px] font-bold">✓</Text>
+                    ) : null}
                   </View>
                   <View className="flex-1">
                     <Text className="text-[15px] font-semibold text-foreground">{c.label}</Text>
-                    <Text className="text-[12px] text-muted-foreground mt-[2px]">{left <= 0 ? "Sold out" : `${left} slots left`}</Text>
+                    <Text className={cn("text-[12px] mt-[2px]", paidMine ? "text-paid" : pendingMine ? "text-amber" : "text-muted-foreground")}>
+                      {mine
+                        ? paidMine
+                          ? "Your entry — confirmed"
+                          : "Your entry — payment pending"
+                        : myEntry
+                          ? "You're entered on another distance"
+                          : left <= 0
+                            ? "Sold out"
+                            : `${left} slots left`}
+                    </Text>
                   </View>
                   <Text className="text-[15px] font-semibold text-primary">{formatPeso(c.base_price)}</Text>
                 </Pressable>
@@ -164,7 +251,27 @@ export default function EventDetail() {
       </ScrollView>
 
       <View className="absolute left-0 right-0 bottom-0 px-[22px] pt-[14px] bg-background border-t border-divider" style={{ paddingBottom: insets.bottom + 16 }}>
-        {registerable ? (
+        {myEntry ? (
+          // Same amber-vs-settled pairing as the distance rows above: paid is
+          // a flat tint with no border (confirmation, nothing left to do);
+          // pending keeps a visible amber border on top of the same tint —
+          // same border width on both so switching states never resizes the
+          // bar — because it's the one with a deadline and money attached.
+          <Pressable
+            className={cn(
+              "rounded-full px-5 py-[15px] flex-row items-center justify-center gap-[8px] border-[1.5px]",
+              myEntry.status === "paid" ? "border-transparent bg-paid-tint" : "border-amber bg-amber-tint"
+            )}
+            onPress={() => router.push(myEntry.status === "paid" ? `/registration/${myEntry.id}` : `/pay/${myEntry.id}`)}
+            accessibilityRole="button"
+            accessibilityLabel={myEntry.status === "paid" ? "You're in — view entry" : "Finish payment"}
+          >
+            <Icon as={myEntry.status === "paid" ? Check : Clock} size={17} className={myEntry.status === "paid" ? "text-paid" : "text-amber"} />
+            <Text className={cn("text-[16px] font-semibold", myEntry.status === "paid" ? "text-paid" : "text-amber")}>
+              {myEntry.status === "paid" ? "You're in — view entry" : "Finish payment"}
+            </Text>
+          </Pressable>
+        ) : registerable ? (
           <Button className="h-auto py-[15px] sm:h-auto" onPress={() => selectedId && router.push(`/register/${selectedId}`)} accessibilityRole="button">
             <Text className="text-[16px] font-semibold">Register{selectedCat ? ` · ${selectedCat.label}` : ""}</Text>
           </Button>

@@ -40,6 +40,22 @@ export default async function PayPage({ params }: { params: Promise<{ registrati
     redirect(`/events/${reg!.event_id}?closed=1`);
   }
 
+  // Deliberately NOT redirecting here on a lapsed hold (expires_at in the
+  // past — a bookmarked /pay/<rid> or a direct push landing long after the
+  // 24-hour window ran out). `?closed=1`/`?expired=1`-style query params are
+  // never actually read by /events/[id] (confirmed: that page doesn't even
+  // accept searchParams), so a redirect here would silently bounce the
+  // runner to the event page with NO explanation — exactly the "clear
+  // message" the final whole-branch review called for was missing. PayPanel
+  // (a client component) already derives the same lapsed check from
+  // `expires_at` via `holdExpired` and renders an explicit "Payment window
+  // closed" screen with an "Enter again" link — on EVERY load, not just the
+  // live-polling case — so leaving this to PayPanel covers the bookmark
+  // scenario too, uniformly, the same way apps/mobile/app/pay/[registrationId].tsx
+  // renders its lapsed state in place rather than bouncing away. The
+  // authoritative boundary is still `payment-session` refusing server-side
+  // (Finding 2) — this is purely about the runner seeing why, not security.
+
   return (
     <>
       <SiteHeader />
