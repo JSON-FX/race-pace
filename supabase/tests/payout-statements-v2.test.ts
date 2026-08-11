@@ -19,6 +19,20 @@ async function signedInAs(email: string, password = "password123"): Promise<Supa
   return c;
 }
 
+/** A fresh signed-in user carrying `role` on `orgId` — or no role at all when both are
+ *  null, i.e. a plain runner. Returns the uid so the caller can delete it. */
+async function staff(s: SupabaseClient, tag: string, role: string | null, orgId: string | null) {
+  const email = `pv2_${tag}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}@test.dev`;
+  const uid = (await s.auth.admin.createUser({
+    email, password: "password123", email_confirm: true,
+  })).data.user!.id;
+  if (role) {
+    const r = await s.from("user_roles").insert({ user_id: uid, role, org_id: orgId });
+    if (r.error) throw new Error(`grant ${role}: ${r.error.message}`);
+  }
+  return { uid, client: await signedInAs(email) };
+}
+
 /** The canonical ₱2,000 GCash entry under 2026-08-11 terms: the runner pays ₱2,000,
  *  Race Pace earns 3% = ₱60, PayMongo takes ₱30, the organizer is owed ₱1,910. */
 const ENTRY = {
@@ -265,23 +279,61 @@ describe("payout_unreconciled_count", () => {
     }
   });
 
-  it("refuses a caller who is not a super admin", async () => {
-    const f = await fixture("pv2g", 1);
-    let orgAdminUid: string | undefined;
+  it("lets an editor or admin of the event's OWN org read the count", async () => {
+    const f = await fixture("pv2h", 1);
+    const extra: string[] = [];
     try {
-      // An ORG admin of this very org — legitimate staff, but settlement is a platform
-      // capability, and this count is a settlement figure. Mirrors the same assertion
-      // payout-statements.test.ts makes about payout_open_statement.
-      const email = `pv2_orgadmin_${Date.now()}@test.dev`;
-      const u = await f.s.auth.admin.createUser({ email, password: "password123", email_confirm: true });
-      orgAdminUid = u.data.user!.id;
-      await f.s.from("user_roles").insert({ user_id: orgAdminUid, role: "admin", org_id: f.org.id });
+      await f.s.from("payments").update({ processor_fee_source: "predicted" })
+        .eq("registration_id", f.regIds[0]);
 
-      const r = await (await signedInAs(email)).rpc("payout_unreconciled_count", { p_event_id: f.ev.id });
-      expect(r.error).toBeTruthy();
-      expect(r.error!.code).toBe("42501");
+      // Both halves of manage_org. This RPC is deliberately WIDER than its two payout
+      // siblings: the organizer-facing per-event settlement page reads this count and is
+      // gated on manage_org, not on super admin. Super-admin-only would leave that banner
+      // silently unrendered for everyone it is for — its caller destructures `{ data }`
+      // and coerces with `?? 0`, so a 42501 never surfaces.
+      for (const role of ["admin", "editor"]) {
+        const u = await staff(f.s, `own_${role}`, role, f.org.id);
+        extra.push(u.uid);
+        const r = await u.client.rpc("payout_unreconciled_count", { p_event_id: f.ev.id });
+        expect(r.error, `${role} of the event's own org was refused`).toBeNull();
+        expect(r.data).toBe(1);
+      }
     } finally {
-      if (orgAdminUid) await f.s.auth.admin.deleteUser(orgAdminUid);
+      for (const uid of extra) await f.s.auth.admin.deleteUser(uid);
+      await f.cleanup();
+    }
+  });
+
+  it("refuses an admin of an UNRELATED org, and a signed-in runner with no role", async () => {
+    const f = await fixture("pv2g", 1);
+    const extra: string[] = [];
+    let otherOrg: string | undefined;
+    try {
+      // Same capability, wrong org — the case that separates "manage_org" from
+      // "manage_org ON THIS EVENT'S ORG". The function is security definer, so nothing
+      // scopes it but the gate: an invoker version would have leaked a truncated count
+      // here instead of refusing, which reads identically to "nothing to warn about".
+      const org = (await f.s.from("organizations").insert({
+        name: "PayoutV2 Unrelated Org", slug: `pv2-other-${Date.now()}`,
+      }).select().single()).data!;
+      otherOrg = org.id;
+      const outsider = await staff(f.s, "otherorg", "admin", org.id);
+      extra.push(outsider.uid);
+      const r1 = await outsider.client.rpc("payout_unreconciled_count", { p_event_id: f.ev.id });
+      expect(r1.error).toBeTruthy();
+      expect(r1.error!.code).toBe("42501");
+
+      // Signed in, no role anywhere — the same set payments_read_org_admin refuses SELECT
+      // to on the rows this counts. The two rules agree by construction: the gate calls
+      // auth_can_admin_org rather than restating it.
+      const runner = await staff(f.s, "runner", null, null);
+      extra.push(runner.uid);
+      const r2 = await runner.client.rpc("payout_unreconciled_count", { p_event_id: f.ev.id });
+      expect(r2.error).toBeTruthy();
+      expect(r2.error!.code).toBe("42501");
+    } finally {
+      for (const uid of extra) await f.s.auth.admin.deleteUser(uid);
+      if (otherOrg) await f.s.from("organizations").delete().eq("id", otherOrg);
       await f.cleanup();
     }
   });

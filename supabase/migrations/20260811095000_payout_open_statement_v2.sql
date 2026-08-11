@@ -102,15 +102,40 @@ $$;
 -- be stuck. Settled rows are out of scope on purpose — once the money is out the
 -- door the estimate is history, and looking back at it is the drift view's job.
 --
--- Gated on auth_is_super_admin() like the other two payout functions, and NOT
--- because the count is secret in itself: it is a settlement figure for an
--- arbitrary event id, and this is the contract that
+-- It gates internally, which is the contract
 -- supabase/tests/function-grants.test.ts's AUTHENTICATED_ALLOWLIST states for
 -- every entry on it — "client-called, each refuses unauthorized callers
 -- internally". A security-definer function added to that list without an
--- internal refusal would make the list's own comment false. plpgsql rather than
--- sql for that reason alone: a guard that returns null instead of raising is a
--- guard the console cannot tell apart from "nothing to warn about".
+-- internal refusal would make the list's own comment false.
+--
+-- WHO MAY CALL IT: a super admin, OR an editor/admin of the event's OWN org.
+-- Nobody else. Deliberately WIDER than its two payout siblings, which are
+-- super-admin-only because settlement is a platform action. This is not a
+-- settlement action, it is a read: an organizer-facing per-event settlement page
+-- shows the same warning so an organizer can see their own event still has
+-- estimated processing fees pending, and that page is gated on manage_org
+-- (editor/admin). Super-admin-only here would have left that banner silently
+-- unrendered for its entire intended audience — and unnoticed, because such a
+-- caller reads `{ data }` and coerces with `?? 0`, which swallows a 42501
+-- instead of surfacing it. No test would have failed.
+--
+-- The rule is spelled `auth_can_admin_org` rather than restated inline so it
+-- CANNOT drift from payments_read_org_admin (20260808161720), the SELECT policy
+-- on the very rows counted here: both resolve to super admin, or an
+-- 'editor'/'admin' user_roles row on that org. An entitled caller therefore
+-- learns nothing here they could not already read row by row. That helper's
+-- internal auth.uid() is unwrapped, which is fine at ONE call per RPC — the
+-- (select …) wrapper matters in row-evaluated contexts, where an unwrapped
+-- auth.uid() has already taken this schema from 4.9ms to 1220ms and into 57014
+-- statement timeouts.
+--
+-- IT MUST STAY security definer. Invoker would drop it out of
+-- _function_grant_audit's `prosecdef` filter, silently removing it from the very
+-- canary this gate exists to honour, and would hand an unauthorized caller a
+-- count truncated to their own visible rows instead of a refusal — which is
+-- indistinguishable from "nothing to warn about". plpgsql for the same reason: a
+-- guard that returns null rather than raising is a guard the caller cannot tell
+-- apart from a clean event.
 create or replace function public.payout_unreconciled_count(p_event_id uuid)
 returns integer
 language plpgsql
@@ -119,9 +144,26 @@ security definer
 set search_path = ''
 as $$
 declare
+  v_org   uuid;
   v_count integer;
 begin
-  if not public.auth_is_super_admin() then
+  -- Resolved BEFORE the gate: the function is definer, so it has to scope itself
+  -- rather than inherit the caller's row visibility.
+  select e.org_id into v_org from public.events e where e.id = p_event_id;
+
+  -- An unknown event is folded into this same refusal rather than answered
+  -- separately. Raising 'event_not_found' ahead of the scope check would tell any
+  -- authenticated caller whether a given event exists, and drafts are not
+  -- anon-readable. The explicit super-admin arm — redundant with the helper in
+  -- every other case, since auth_can_admin_org already covers super admins — is
+  -- what stops `v_org is null` reading as 'forbidden' to a platform admin, who
+  -- simply counts zero rows. `v_org is not null and …` also keeps the whole
+  -- expression FALSE rather than NULL on a missing event, so the refusal actually
+  -- fires instead of falling through.
+  if not (
+    (select public.auth_is_super_admin())
+    or (v_org is not null and public.auth_can_admin_org(v_org))
+  ) then
     raise exception 'forbidden' using errcode = '42501';
   end if;
 
