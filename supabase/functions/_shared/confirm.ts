@@ -73,10 +73,16 @@ export async function confirmPayment(
     // commission_rate would make a 'fixed' org fall through to the percent
     // branch's `?? 0.10` default and be charged 10% instead of its flat fee —
     // silently, and only visible as wrong money weeks later.
-    .select(
-      "id,event_id,total_amount,status," +
-      "organizations(commission_type,commission_rate,commission_flat_cents)",
-    )
+    //
+    // payments(amount) rides along on THIS read rather than in a lookup of its
+    // own: it is one embedded join on a unique FK, not a second round trip on
+    // the hot confirmation path.
+    //
+    // One string literal, not a concatenation: supabase-js parses the select at
+    // the type level, and `a + b` is `string` to TypeScript — which erases every
+    // column type on `reg` (this file used to do exactly that, and typed `reg`
+    // as an error object for its whole length).
+    .select("id,event_id,total_amount,status,organizations(commission_type,commission_rate,commission_flat_cents),payments(amount)")
     .eq("id", registrationId)
     .single();
   if (!reg) return { ok: false, error: "not_found", status: 404 };
@@ -92,10 +98,32 @@ export async function confirmPayment(
 
   // The org's terms are read ONCE here and frozen onto the payment row below, so
   // a later rate change is never retroactive.
-  const terms = (reg.organizations as FeeTerms | null) ?? {
+  // `as unknown as` because supabase-js, with no generated Database types to read
+  // FK cardinality from, types EVERY embed as an array. PostgREST returns an
+  // object here — registrations.org_id is a to-one FK — which is what this code
+  // has always relied on.
+  const terms = (reg.organizations as unknown as FeeTerms | null) ?? {
     commission_type: "percent", commission_rate: 0.10, commission_flat_cents: 0,
   };
+  // Race Pace's commission is struck on the BASE the organizer priced — the same
+  // figure in both fee modes, so a pass-on org's ₱2,000 event still yields ₱60.
   const fee = computeFee(reg.total_amount, terms);
+
+  // ...but everything downstream of the commission comes out of what the runner
+  // was ACTUALLY charged, which is no longer always the base. In absorb mode
+  // payments.amount IS reg.total_amount and nothing below changes; in pass-on
+  // mode payment-session grossed it up, and using the base here would pay the
+  // organizer LESS than the amount the surcharge was collected to protect
+  // (₱1,908.63 instead of ₱2,000 on a ₱2,000 card entry) — while the ledger
+  // invariant still "held" against the wrong number, so nothing flagged it.
+  //
+  // Verified against local PostgREST: this embed comes back as an OBJECT, because
+  // payments has `unique (registration_id)` and the relationship resolves to-one.
+  // The array branch is belt-and-braces for the day that stops being true —
+  // reading `.amount` off an array yields undefined, which would silently fall
+  // back to the base, i.e. precisely the bug this line exists to prevent.
+  const payment = Array.isArray(reg.payments) ? reg.payments[0] : reg.payments;
+  const charged = (payment as { amount?: number } | null | undefined)?.amount ?? reg.total_amount;
 
   // What the processor actually took. PayMongo settles NET, and reports both
   // halves on the payment object we already store in payments.raw.
@@ -115,7 +143,13 @@ export async function confirmPayment(
     p_at: new Date().toISOString(),
   });
   const rate = (rateRows as ProcessorRate[] | null)?.[0] ?? null;
-  if (rate) processorFeePredicted = predictProcessorFee(reg.total_amount, rate);
+  // Predicted on the CHARGED amount, not the base: the processor takes its
+  // percentage off what it actually processed. On a pass-on GCash entry that is
+  // ₱31.37 of ₱2,091.38, not ₱30.00 of ₱2,000 — and the ₱1.37 difference is not
+  // just a wrong estimate. It is what net_to_org is computed from whenever the
+  // provider has not reported a figure yet, and it is the baseline every drift
+  // comparison against the actual fee is measured from.
+  if (rate) processorFeePredicted = predictProcessorFee(charged, rate);
 
   if (reported) {
     // PayMongo's own arithmetic must hold. A figure that fails it is not one we
@@ -136,6 +170,22 @@ export async function confirmPayment(
     } else {
       processorFee = reported.fee;
       processorFeeSource = "actual";
+      // The provider says it processed a different amount than the one this row
+      // was set up to charge. Since Task 6 the two can genuinely disagree — a
+      // runner who abandons a grossed-up session and then pays an older,
+      // base-priced one for the same registration captures less than
+      // payments.amount now claims, and net_to_org below would overpay the
+      // organizer out of money that never arrived. The arithmetic is left alone
+      // (net stays consistent with the stored `amount`, so the ledger invariant
+      // holds) and the anomaly is made findable instead — same posture as the
+      // integrity failure above and the capture conflict below.
+      if (reported.amount !== charged) {
+        console.error(
+          `[confirm] CHARGE MISMATCH registration=${reg.id} — provider processed ${reported.amount} ` +
+            `but payments.amount is ${charged}. net_to_org is computed from ${charged}; ` +
+            `verify the settlement before paying this one out.`,
+        );
+      }
     }
   } else if (processorFeePredicted !== null) {
     // No reported fee yet. Use the estimate so net_to_org is computable and the
@@ -146,7 +196,7 @@ export async function confirmPayment(
     processorFeeSource = "predicted";
   }
 
-  const net = reg.total_amount - fee - processorFee;
+  const net = charged - fee - processorFee;
 
   const secret = Deno.env.get("TICKET_SIGNING_SECRET") ?? "dev-secret";
   const token = await mintTicketToken(

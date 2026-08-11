@@ -47,3 +47,24 @@ export function grossUpCharge(target: number, rate: ProcessorRate): number {
   }
   return Math.ceil(((target + rate.fixed_cents) * 10000) / (10000 - rate.percent_bps));
 }
+
+/** The itemised lines a pass-on runner sees, and the total they are charged.
+ *
+ *  The processor line is derived as `total - base - platformFee` rather than
+ *  predicted independently, so the three lines ALWAYS sum to the total. Showing
+ *  a breakdown whose parts do not add up is worse than showing no breakdown —
+ *  and here it is not even cosmetic: PayMongo computes the amount it charges
+ *  FROM the line items, so lines that sum to something other than `total` are a
+ *  different charge, not a different display.
+ *
+ *  The derived line is therefore up to ₱0.01 above what the processor actually
+ *  takes (₱31.38 vs ₱31.37 on a ₱2,000 GCash entry) — that is grossUpCharge's
+ *  ceil, and the centavo survives the cut and lands in the organizer's net. */
+export function passOnBreakdown(
+  baseTotal: number,
+  platformFee: number,
+  rate: ProcessorRate,
+): { base: number; platformFee: number; processorFee: number; total: number } {
+  const total = grossUpCharge(baseTotal + platformFee, rate);
+  return { base: baseTotal, platformFee, processorFee: total - baseTotal - platformFee, total };
+}

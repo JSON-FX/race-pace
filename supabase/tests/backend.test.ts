@@ -4,7 +4,11 @@ import { createHmac } from "node:crypto";
 import { loadEnv } from "../../test/env";
 import { seededIds } from "../../test/seeded";
 import { computeFee, type FeeTerms } from "../functions/_shared/fee.ts";
-import { predictProcessorFee, type ProcessorRate } from "../functions/_shared/processorFee.ts";
+import {
+  predictProcessorFee,
+  passOnBreakdown,
+  type ProcessorRate,
+} from "../functions/_shared/processorFee.ts";
 
 const { url, anonKey, serviceKey } = loadEnv();
 const anon = () => createClient(url, anonKey, { auth: { persistSession: false } });
@@ -697,5 +701,215 @@ describe("payments-webhook signed", () => {
 
     await svc.from("registrations").delete().eq("id", rid);
     await svc.auth.admin.deleteUser(runner.id);
+  });
+});
+
+/**
+ * Task 6: the pass-on surcharge, end to end through the REAL edge functions.
+ *
+ * Two halves have to agree, and neither is provable without the other:
+ *
+ * 1. `payment-session` must charge the GROSSED-UP total and write it to
+ *    payments.amount. The gross-up is not addition — PayMongo takes its
+ *    percentage off the FINAL amount, so base + fee under-collects on every
+ *    transaction, forever, silently.
+ * 2. `confirm.ts` must pay the organizer out of what the runner ACTUALLY paid.
+ *    Striking net against the base instead would hand a pass-on organizer
+ *    ₱1,908.63 on a ₱2,000 entry — while `amount - processor - platform =
+ *    net_to_org` still "held" against the wrong figure, so nothing flagged it.
+ *
+ * Each test drives the real /payment-session and /payments-webhook endpoints
+ * rather than calling the shared modules, because the wiring — which amount
+ * reaches createCheckout, which column it lands in, which figure confirm reads
+ * back — is exactly what is being asserted.
+ *
+ * Expected figures for the ₱2,000 / 3% fixture below, at the seeded rate card:
+ *   absorb  GCash  charged 200000  PayMongo 3000  RP 6000  organizer 191000
+ *   absorb  card   charged 200000  PayMongo 8500  RP 6000  organizer 185500
+ *   pass-on GCash  charged 209138  PayMongo 3137  RP 6000  organizer 200001
+ *   pass-on card   charged 215026  PayMongo 9026  RP 6000  organizer 200000
+ * They are computed here from the org's REAL stored terms and the rate card's
+ * REAL current row rather than restated as literals — the same drift that broke
+ * this file once already (see the beforeAll above). The literals themselves are
+ * pinned in supabase/tests/processor-fee.test.ts, against the arithmetic.
+ */
+describe("pass-on surcharge (e2e)", () => {
+  const BASE = 200000; // ₱2,000 sticker price
+  const TERMS: FeeTerms = { commission_type: "percent", commission_rate: 0.03, commission_flat_cents: 0 };
+
+  /** The rate card row processor_rate_at() would resolve right now. */
+  async function currentRate(method: string): Promise<ProcessorRate> {
+    const r = await service().from("processor_rates")
+      .select("percent_bps,fixed_cents")
+      .eq("provider", "paymongo").eq("method", method).eq("scope", "local")
+      .is("effective_to", null).single();
+    if (r.error || !r.data) throw r.error ?? new Error(`no current local ${method} processor_rates row`);
+    return r.data;
+  }
+
+  /** A fresh org on the given fee mode, with a pending ₱2,000 entry and its
+   *  payment row — created directly rather than through registrations-checkout,
+   *  which cannot pick the org (it works off the seed). */
+  async function fixture(tag: string, feeMode: "absorb" | "pass_on") {
+    const svc = service();
+    const stamp = `${tag}-${Date.now()}`;
+    const org = (await svc.from("organizations").insert({
+      name: `Pass-on ${stamp}`, slug: stamp, fee_mode: feeMode,
+      commission_type: TERMS.commission_type, commission_rate: TERMS.commission_rate,
+      commission_flat_cents: TERMS.commission_flat_cents,
+    }).select().single()).data!;
+    const ev = (await svc.from("events").insert({
+      org_id: org.id, name: `Pass-on Race ${stamp}`, status: "open",
+    }).select().single()).data!;
+    const cat = (await svc.from("categories").insert({
+      org_id: org.id, event_id: ev.id, code: "40k", label: "40K",
+      base_price: BASE, slots_total: 100, slots_taken: 0,
+    }).select().single()).data!;
+    const user = await makeUser(`${stamp}@test.dev`);
+    const reg = (await svc.from("registrations").insert({
+      org_id: org.id, event_id: ev.id, category_id: cat.id, user_id: user.id,
+      total_amount: BASE, status: "pending",
+    }).select().single()).data!;
+    // provider is left to default ('fake'), so payment-session recreates the
+    // session through FakePaymentProvider and never calls PayMongo.
+    await svc.from("payments").insert({
+      org_id: org.id, registration_id: reg.id, amount: BASE, status: "pending",
+    });
+    return {
+      svc, rid: reg.id as string, token: user.token,
+      cleanup: async () => {
+        await svc.from("organizations").delete().eq("id", org.id);
+        await svc.auth.admin.deleteUser(user.id);
+      },
+    };
+  }
+
+  const paySession = (rid: string, token: string, method: string) =>
+    fetch(`${FN}/payment-session`, {
+      method: "POST",
+      headers: { "content-type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ registration_id: rid, method }),
+    });
+
+  const amountOf = async (svc: ReturnType<typeof service>, rid: string) =>
+    (await svc.from("payments").select("amount").eq("registration_id", rid).single()).data!.amount as number;
+
+  const ledgerRow = async (svc: ReturnType<typeof service>, rid: string) =>
+    (await svc.from("payments")
+      .select("amount,platform_fee,processor_fee_cents,processor_fee_predicted_cents,processor_fee_source,net_to_org")
+      .eq("registration_id", rid).single()).data!;
+
+  for (const method of ["gcash", "card"] as const) {
+    it(`pass-on ${method}: charges the grossed-up total and pays the organizer the full sticker price`, async () => {
+      const f = await fixture(`po${method}`, "pass_on");
+      try {
+        const rate = await currentRate(method);
+        const platformFee = computeFee(BASE, TERMS); // ₱60 — struck on the BASE, in both modes
+        const expectedCharge = passOnBreakdown(BASE, platformFee, rate).total;
+
+        const res = await paySession(f.rid, f.token, method);
+        expect(res.status, await res.text()).toBe(200);
+
+        // The whole point: the runner is charged MORE than the sticker price,
+        // and payments.amount says so. A stale base here would record a ₱2,000
+        // sale against a ₱2,091.38 charge with nothing to flag it.
+        expect(await amountOf(f.svc, f.rid)).toBe(expectedCharge);
+        expect(expectedCharge).toBeGreaterThan(BASE);
+
+        // PayMongo's cut comes off the grossed-up charge, not off the base.
+        const actualFee = predictProcessorFee(expectedCharge, rate);
+        const hook = await postWebhook(
+          paidEventWithFee(f.rid, method, expectedCharge, actualFee, expectedCharge - actualFee),
+        );
+        expect(hook.status).toBe(200);
+
+        const pay = await ledgerRow(f.svc, f.rid);
+        expect(pay.amount).toBe(expectedCharge);
+        expect(pay.platform_fee).toBe(platformFee);
+        expect(pay.processor_fee_source).toBe("actual");
+        expect(pay.processor_fee_cents).toBe(actualFee);
+        expect(pay.net_to_org).toBe(expectedCharge - platformFee - actualFee);
+        // THE POINT OF THE MODE: the organizer receives the full sticker price —
+        // never a centavo less, and at most the ₱0.01 grossUpCharge's ceil rounds
+        // their way.
+        expect(pay.net_to_org).toBeGreaterThanOrEqual(BASE);
+        expect(pay.net_to_org).toBeLessThanOrEqual(BASE + 1);
+        // The three-party ledger invariant, on the stored row.
+        expect(pay.amount - pay.processor_fee_cents - pay.platform_fee).toBe(pay.net_to_org);
+      } finally {
+        await f.cleanup();
+      }
+    });
+  }
+
+  /**
+   * The fallback path, and the reason the rate-card prediction is struck on the
+   * CHARGED amount rather than the base. When the provider has not reported a
+   * fee, this prediction IS net_to_org's processor term — predicting ₱30.00 of
+   * ₱2,000 for a payment that actually cost ₱31.37 of ₱2,091.38 would pay the
+   * organizer ₱1.37 that never existed, and would make every drift comparison
+   * against the eventual actual fee measure the fee mode instead of the drift.
+   */
+  it("pass-on: an unreported fee is predicted on the charged amount, not the base", async () => {
+    const f = await fixture("poprd", "pass_on");
+    try {
+      const rate = await currentRate("gcash");
+      const platformFee = computeFee(BASE, TERMS);
+      const expectedCharge = passOnBreakdown(BASE, platformFee, rate).total;
+
+      const res = await paySession(f.rid, f.token, "gcash");
+      expect(res.status, await res.text()).toBe(200);
+
+      // paidEvent() carries no status/amount/fee/net_amount, so confirm.ts finds
+      // nothing it may call 'actual' and falls back to the rate card.
+      const hook = await postWebhook(paidEvent(f.rid));
+      expect(hook.status).toBe(200);
+
+      const pay = await ledgerRow(f.svc, f.rid);
+      expect(pay.processor_fee_source).toBe("predicted");
+      expect(pay.processor_fee_cents).toBe(predictProcessorFee(expectedCharge, rate));
+      expect(pay.processor_fee_cents).not.toBe(predictProcessorFee(BASE, rate));
+      expect(pay.processor_fee_predicted_cents).toBe(predictProcessorFee(expectedCharge, rate));
+      expect(pay.net_to_org).toBe(expectedCharge - platformFee - pay.processor_fee_cents);
+      expect(pay.net_to_org).toBeGreaterThanOrEqual(BASE);
+      expect(pay.net_to_org).toBeLessThanOrEqual(BASE + 1);
+      expect(pay.amount - pay.processor_fee_cents - pay.platform_fee).toBe(pay.net_to_org);
+    } finally {
+      await f.cleanup();
+    }
+  });
+
+  /**
+   * The control. fee_mode defaults to 'absorb' and every existing org is on it,
+   * so the surcharge must be invisible there: the runner pays the sticker price
+   * and the organizer bears the processing cost, exactly as before Task 6.
+   */
+  it("absorb card: the runner pays the sticker price and the organizer bears the cut", async () => {
+    const f = await fixture("abcard", "absorb");
+    try {
+      const rate = await currentRate("card");
+      const platformFee = computeFee(BASE, TERMS);
+
+      const res = await paySession(f.rid, f.token, "card");
+      expect(res.status, await res.text()).toBe(200);
+      // Not grossed up — and rewritten with the same figure it already held.
+      expect(await amountOf(f.svc, f.rid)).toBe(BASE);
+
+      const actualFee = predictProcessorFee(BASE, rate); // ₱85 on a ₱2,000 card
+      const hook = await postWebhook(paidEventWithFee(f.rid, "card", BASE, actualFee, BASE - actualFee));
+      expect(hook.status).toBe(200);
+
+      const pay = await ledgerRow(f.svc, f.rid);
+      expect(pay.amount).toBe(BASE);
+      expect(pay.platform_fee).toBe(platformFee);
+      expect(pay.processor_fee_cents).toBe(actualFee);
+      expect(pay.net_to_org).toBe(BASE - platformFee - actualFee);
+      // The organizer is SHORT the processing cost here — that is what absorb
+      // mode means, and what pass-on exists to change.
+      expect(pay.net_to_org).toBeLessThan(BASE);
+      expect(pay.amount - pay.processor_fee_cents - pay.platform_fee).toBe(pay.net_to_org);
+    } finally {
+      await f.cleanup();
+    }
   });
 });

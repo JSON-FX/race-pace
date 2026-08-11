@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { predictProcessorFee, grossUpCharge, type ProcessorRate } from "../functions/_shared/processorFee.ts";
+import {
+  predictProcessorFee,
+  grossUpCharge,
+  passOnBreakdown,
+  type ProcessorRate,
+} from "../functions/_shared/processorFee.ts";
 import { pmFeeFromAttributes } from "../functions/_shared/paymongo.ts";
 
 const CARD: ProcessorRate = { percent_bps: 350, fixed_cents: 1500 };
@@ -61,6 +66,61 @@ describe("grossUpCharge", () => {
     // A silently negative charge is money moving the wrong way.
     expect(() => grossUpCharge(200000, { percent_bps: 10000, fixed_cents: 0 })).toThrow();
     expect(() => grossUpCharge(200000, { percent_bps: 12000, fixed_cents: 0 })).toThrow();
+  });
+});
+
+describe("passOnBreakdown", () => {
+  it("grosses up so the organizer receives the full base", () => {
+    // ₱2,000 base, RP 3% = ₱60, GCash 1.5%.
+    const b = passOnBreakdown(200000, 6000, GCASH);
+    // The processor line is ₱31.38, not the ₱31.37 GCash will actually take.
+    // It is DERIVED (total - base - platformFee) so the three lines always sum
+    // to the charge — PayMongo computes the amount FROM the line items, so a
+    // line that summed to ₱2,091.37 against a ₱2,091.38 charge is not a display
+    // nit, it is a different charge. The ₱0.01 gap is grossUpCharge's ceil, and
+    // it is not lost: it survives the processor's cut and lands in the
+    // organizer's net (₱2,000.01), which is the side the ceil deliberately
+    // favours — never a shortfall.
+    expect(b).toEqual({ base: 200000, platformFee: 6000, processorFee: 3138, total: 209138 });
+    expect(predictProcessorFee(b.total, GCASH)).toBe(3137);
+    // What survives covers base + commission.
+    expect(b.total - b.processorFee).toBeGreaterThanOrEqual(206000);
+  });
+
+  it("covers the fixed component on a card", () => {
+    const b = passOnBreakdown(200000, 6000, CARD);
+    expect(b).toEqual({ base: 200000, platformFee: 6000, processorFee: 9026, total: 215026 });
+    expect(b.total - b.processorFee).toBe(206000);
+  });
+
+  it("keeps the lines summing to the total for every rate", () => {
+    for (const rate of [CARD, GCASH, INTL]) {
+      const b = passOnBreakdown(200000, 6000, rate);
+      expect(b.base + b.platformFee + b.processorFee).toBe(b.total);
+    }
+  });
+
+  /** The money-critical property, stated over the ACTUAL cut rather than the
+   *  derived line: whatever the processor really takes, base + commission must
+   *  still survive it. A pass-on mode that under-collects is worse than no
+   *  pass-on mode at all — the organizer is short and nothing flags it. */
+  it("never under-collects, for any rate or any base", () => {
+    for (const rate of [CARD, GCASH, INTL, { percent_bps: 80, fixed_cents: 0 }]) {
+      for (const base of [1000, 33333, 99999, 200000, 1000000]) {
+        for (const platformFee of [0, 3000, Math.round(base * 0.03)]) {
+          const b = passOnBreakdown(base, platformFee, rate);
+          const survives = b.total - predictProcessorFee(b.total, rate);
+          expect(survives).toBeGreaterThanOrEqual(base + platformFee);
+          expect(survives).toBeLessThanOrEqual(base + platformFee + 1);
+        }
+      }
+    }
+  });
+
+  it("charges nothing for a free entry", () => {
+    expect(passOnBreakdown(0, 0, CARD)).toEqual({
+      base: 0, platformFee: 0, processorFee: 0, total: 0,
+    });
   });
 });
 
