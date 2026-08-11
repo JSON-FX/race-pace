@@ -6,8 +6,8 @@ import { Check, Lock } from "lucide-react";
 import { formatPeso } from "@race-pace/shared";
 import { isRegistrationClosed } from "@/lib/eventStatus";
 import { holdExpired } from "@/lib/holdExpiry";
-import { useRegistration, createMethodCheckout } from "@/lib/registration";
-import { PAY_METHODS, breakdown } from "@/lib/payment";
+import { useRegistration, useProcessorRate, createMethodCheckout } from "@/lib/registration";
+import { PAY_METHODS, breakdown, feeOn, passOnLines } from "@/lib/payment";
 import { MethodLogo } from "@/components/PaymentLogos";
 import { TicketStub } from "@/components/TicketStub";
 import { StepRail } from "@/components/StepRail";
@@ -19,6 +19,15 @@ export function PayPanel({ registrationId }: { registrationId: string }) {
   const [method, setMethod] = useState("gcash");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Keyed on the method in state, so the processing line re-prices the instant
+  // the runner picks a different one — which is the entire reason this lives in
+  // the client rather than arriving as a prop from the server page, where it
+  // would be frozen at whatever method was current at render.
+  //
+  // Absorb-mode orgs never read the rate card at all: the processing cost comes
+  // out of the organizer's share there, so it is not merely unused on this
+  // screen, it is somebody else's number.
+  const rate = useProcessorRate(method, { enabled: reg.data?.feeMode === "pass_on" });
 
   if (reg.isLoading) {
     return (
@@ -38,6 +47,24 @@ export function PayPanel({ registrationId }: { registrationId: string }) {
   const total = reg.data.total_amount;
   const { entry, addons } = breakdown(total, reg.data.basePrice);
   const inclusions = reg.data.inclusions ?? [];
+
+  // In pass-on mode the runner covers the platform's commission and the
+  // processor's cut, so the amount they are charged is NOT the sticker price —
+  // it is the grossed-up total, and every line of it belongs on screen.
+  //
+  // The commission is struck on `total`, the base the organizer priced, exactly
+  // as payment-session strikes it. Striking it on the grossed-up figure would
+  // compound the two fees against each other and quietly change the org's terms.
+  //
+  // DISPLAY ONLY: payment-session recomputes all of this server-side when the
+  // runner actually pays. `lines` stays null while the rate card has not
+  // answered (and if it has no current offered row for this method), because a
+  // breakdown drawn without a rate would be an invented one.
+  const lines =
+    reg.data.feeMode === "pass_on" && rate.data
+      ? passOnLines(total, feeOn(total, reg.data.feeTerms), rate.data)
+      : null;
+  const due = lines?.total ?? total;
 
   // The organizer can cancel while this page is open — the query polls, so the
   // status can flip under the runner. The server page redirects on load; this
@@ -150,7 +177,7 @@ export function PayPanel({ registrationId }: { registrationId: string }) {
           eventName={reg.data.eventName}
           categoryLabel={reg.data.categoryLabel}
           amountLabel="Total due"
-          amount={total}
+          amount={due}
         />
       </div>
 
@@ -165,11 +192,51 @@ export function PayPanel({ registrationId }: { registrationId: string }) {
             <dd className="text-[14px] font-semibold tabular-nums text-foreground">+{formatPeso(addons)}</dd>
           </div>
         ) : null}
-        <div className="flex justify-between px-5 py-3.5">
-          <dt className="text-[14px] text-muted-foreground">Booking fee</dt>
-          <dd className="text-[14px] font-semibold text-primary">Free</dd>
-        </div>
+        {lines ? (
+          <>
+            {/* Zero lines are skipped, exactly as payment-session skips them
+                when it builds the hosted checkout's line items — a ₱0.00 row is
+                noise, and skipping only zeros keeps what is shown summing to
+                what is charged. */}
+            {lines.platformFee > 0 ? (
+              <div className="flex justify-between px-5 py-3.5">
+                <dt className="text-[14px] text-muted-foreground">Race Pace service fee</dt>
+                <dd className="text-[14px] font-semibold tabular-nums text-foreground">
+                  +{formatPeso(lines.platformFee)}
+                </dd>
+              </div>
+            ) : null}
+            {lines.processorFee > 0 ? (
+              <div className="flex justify-between px-5 py-3.5">
+                <dt className="text-[14px] text-muted-foreground">Payment processing</dt>
+                <dd className="text-[14px] font-semibold tabular-nums text-foreground">
+                  +{formatPeso(lines.processorFee)}
+                </dd>
+              </div>
+            ) : null}
+            <div className="flex justify-between bg-secondary px-5 py-3.5">
+              <dt className="text-[14px] font-semibold text-foreground">Total to pay</dt>
+              <dd className="text-[14px] font-bold tabular-nums text-foreground">{formatPeso(lines.total)}</dd>
+            </div>
+          </>
+        ) : reg.data.feeMode === "absorb" ? (
+          /* Absorb mode, unchanged: the booking fee really is free to this
+             runner, because the organizer is carrying it. Gated on the MODE
+             rather than on `lines` so a pass-on org whose rate card has not
+             answered yet shows nothing here — "Free" would be a claim about
+             fees this runner is in fact about to be charged. */
+          <div className="flex justify-between px-5 py-3.5">
+            <dt className="text-[14px] text-muted-foreground">Booking fee</dt>
+            <dd className="text-[14px] font-semibold text-primary">Free</dd>
+          </div>
+        ) : null}
       </dl>
+      {lines ? (
+        <p className="mt-2.5 text-[12.5px] leading-relaxed text-muted-foreground">
+          This race passes the service and payment-processing costs on at checkout. The processing
+          amount depends on how you pay, so it updates when you change method below.
+        </p>
+      ) : null}
 
       {inclusions.length > 0 ? (
         <section className="mt-8">
@@ -222,7 +289,7 @@ export function PayPanel({ registrationId }: { registrationId: string }) {
         onClick={pay}
         className="mt-8 h-auto w-full rounded-pill py-4 text-[16px] font-semibold"
       >
-        {busy ? "Opening…" : `Pay ${formatPeso(total)}`}
+        {busy ? "Opening…" : `Pay ${formatPeso(due)}`}
       </Button>
       <p className="mt-3 flex items-center justify-center gap-1.5 text-[13px] text-muted-foreground">
         <Lock size={13} /> Encrypted and secured by PayMongo

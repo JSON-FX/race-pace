@@ -5,6 +5,7 @@ import { FunctionsHttpError } from "@supabase/supabase-js";
 import type { RegistrationInput } from "@race-pace/shared";
 import { createClient } from "@/lib/supabase/client";
 import { checkoutErrorMessage } from "@/lib/errors";
+import { RATE_METHOD, type FeeTerms, type ProcessorRate } from "@/lib/payment";
 
 export type CheckoutResult = { registration_id: string; checkout_url: string };
 
@@ -113,14 +114,38 @@ export type RegistrationRow = {
   kitEditClosesAt: string | null;
   shirtSize: string | null;
   orgName: string | null; eventHeroUrl: string | null; basePrice: number | null; inclusions: string[] | null;
+  /** Which side of the fees this org's runners are on. `absorb`: the runner pays
+   *  the sticker price and the processing cost comes out of the organizer's
+   *  share, so it is none of the runner's business. `pass_on`: the runner is
+   *  charged a grossed-up total and must therefore see every line of it. */
+  feeMode: "absorb" | "pass_on";
+  /** The org's commission terms, needed to strike the platform's fee on the base
+   *  the organizer priced. Only read in pass_on mode — but read in FULL: the
+   *  shape of the commission decides which branch of `feeOn` runs, so carrying
+   *  the mode without the terms would quote a percentage to a flat-fee org. */
+  feeTerms: FeeTerms;
   payment: RegistrationPayment | null;
 };
 
+// The organizations embed carries fee_mode AND all three commission columns,
+// not just the mode — see RegistrationRow.feeTerms, and the identical select in
+// supabase/functions/payment-session/index.ts, which is where the same terms
+// decide what is actually charged.
+//
+// One string literal, not a concatenation: supabase-js parses the select at the
+// type level, and `a + b` is `string` to TypeScript, which erases every column
+// type on the result.
 const REG_SELECT =
-  "id,status,total_amount,ticket_token,org_id,event_id,expires_at,custom_data,organizations(name),events(name,status,event_date,original_date,status_note,hero_image_url,inclusions,registration_closes_at,kit_edit_closes_at),categories(label,distance_km,base_price),payments(checkout_url,created_at,method,amount,platform_fee,net_to_org,provider,provider_ref,status)";
+  "id,status,total_amount,ticket_token,org_id,event_id,expires_at,custom_data,organizations(name,fee_mode,commission_type,commission_rate,commission_flat_cents),events(name,status,event_date,original_date,status_note,hero_image_url,inclusions,registration_closes_at,kit_edit_closes_at),categories(label,distance_km,base_price),payments(checkout_url,created_at,method,amount,platform_fee,net_to_org,provider,provider_ref,status)";
 
 export function mapReg(r: any): RegistrationRow {
   const payment = Array.isArray(r.payments) ? r.payments[0] : r.payments;
+  // Normalised the same way `payments` is: PostgREST returns a to-one embed as
+  // an object, but the shape it infers is not something this mapper should
+  // depend on. It matters more here than for `orgName` — an org read as an array
+  // would fall to the `absorb` default below, and absorb renders the sticker
+  // price for a runner who is about to be charged more than that.
+  const org = Array.isArray(r.organizations) ? r.organizations[0] : r.organizations;
   return {
     id: r.id, status: r.status, total_amount: r.total_amount,
     ticket_token: r.ticket_token ?? null, org_id: r.org_id, event_id: r.event_id,
@@ -128,10 +153,22 @@ export function mapReg(r: any): RegistrationRow {
     eventName: r.events?.name ?? "Event",
     categoryLabel: r.categories?.label ?? "",
     categoryDistance: r.categories?.distance_km ?? null,
-    orgName: r.organizations?.name ?? null,
+    orgName: org?.name ?? null,
     eventHeroUrl: r.events?.hero_image_url ?? null,
     basePrice: r.categories?.base_price ?? null,
     inclusions: r.events?.inclusions ?? null,
+    // Defaulting to `absorb` rather than throwing: a missing embed must render
+    // the sticker price, never an unpriced screen. It is also the column's own
+    // default, so the only rows that reach `pass_on` are ones a super admin
+    // deliberately moved there.
+    feeMode: (org?.fee_mode ?? "absorb") as "absorb" | "pass_on",
+    // Mirrors computeFee's own defaults (percent, and a null rate it reads as
+    // 10%) so the line this screen shows is the fee the server will strike.
+    feeTerms: {
+      commission_type: org?.commission_type ?? "percent",
+      commission_rate: org?.commission_rate ?? null,
+      commission_flat_cents: org?.commission_flat_cents ?? 0,
+    },
     checkoutUrl: payment?.checkout_url ?? null,
     eventStatus: r.events?.status ?? null,
     eventRegistrationClosesAt: r.events?.registration_closes_at ?? null,
@@ -169,6 +206,72 @@ export function useRegistration(rid: string, opts?: { poll?: boolean; enabled?: 
     refetchInterval: opts?.poll
       ? (query) => (query.state.data?.status === "paid" ? false : 3000)
       : false,
+  });
+}
+
+/**
+ * The current published price of ONE payment method, or null when the rate card
+ * has none — in which case the pay screen shows no pass-on breakdown at all
+ * rather than an invented one.
+ *
+ * Reads the TABLE, not `processor_rate_at`: that RPC is granted to service_role
+ * only (20260811091000), deliberately, because every caller of it is
+ * server-side. The table itself is readable by any signed-in user under
+ * `processor_rates_read` — it is a published price list, not a secret.
+ *
+ * THREE FILTERS, EACH LOAD-BEARING:
+ *  - `offered` is the rate card's own record of what a runner can actually pick
+ *    (20260811096500). Rows are seeded ahead of being enabled — `dob` at 80bps
+ *    is seeded and its own note says UNCONFIRMED — and pricing a runner's screen
+ *    off a method they cannot choose is exactly what the column exists to stop.
+ *  - `scope = 'local'` matches what payment-session grosses up with. The card's
+ *    issuing country is not known until PayMongo has the card, so an
+ *    international rate cannot honestly be quoted here; quoting a DIFFERENT
+ *    scope from the one that will be charged is worse than quoting the local
+ *    one.
+ *  - `effective_to is null` is the current row. `processor_rates_one_current`
+ *    makes at most one such row exist per (provider, method, scope), which is
+ *    what lets this be a maybeSingle rather than an ordered pick.
+ */
+export async function fetchProcessorRate(method: string): Promise<ProcessorRate | null> {
+  const rateMethod = RATE_METHOD[method];
+  if (!rateMethod) return null;
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("processor_rates")
+    .select("percent_bps,fixed_cents")
+    .eq("provider", "paymongo")
+    .eq("method", rateMethod)
+    .eq("scope", "local")
+    .eq("offered", true)
+    .is("effective_to", null)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  // A rate at or above 100% is not a price: the gross-up divides by zero at
+  // exactly 100% and inverts above it. `passOnLines` refuses such a rate
+  // outright — correctly, there is no honest total to show — but an exception
+  // thrown during render would blank the pay screen, so a row that cannot be
+  // charged is treated here as the absence of one. The screen then shows no
+  // breakdown, and payment-session refuses the charge server-side.
+  if (data.percent_bps >= 10000) {
+    console.error(`[pay] processor rate ${data.percent_bps}bps for ${rateMethod} is not chargeable`);
+    return null;
+  }
+  return { percent_bps: data.percent_bps, fixed_cents: data.fixed_cents };
+}
+
+/** Keyed on the method the runner has selected, so switching payment method
+ *  re-prices the screen. `enabled` is how an absorb-mode org avoids the read
+ *  entirely: it has no fee lines to show, so the rate is not merely unused there
+ *  but irrelevant. `staleTime` because a rate card changes on the order of
+ *  months, and flipping between two methods must not refetch a price list. */
+export function useProcessorRate(method: string, opts?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: ["processor-rate", method],
+    queryFn: () => fetchProcessorRate(method),
+    enabled: opts?.enabled ?? true,
+    staleTime: 5 * 60_000,
   });
 }
 

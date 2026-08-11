@@ -69,6 +69,15 @@ describe("grossUpCharge", () => {
   });
 });
 
+// CROSS-ASSERTION with apps/site/lib/__tests__/payment.test.ts ("passOnLines").
+// `passOnLines` there is a deliberate duplicate of `passOnBreakdown` — apps/site
+// is Node and cannot import this Deno module — and it decides the lines the
+// RUNNER is shown before payment-session decides the ones they are charged. The
+// two suites therefore assert the same worked examples on purpose: ₱2,000 base +
+// ₱60 commission is ₱2,091.38 on GCash and ₱2,150.26 on a card, in both places.
+// IF ANY NUMBER BELOW MOVES, move the site copy and its test with it — a
+// breakdown that disagrees with the charge is a runner being quoted one total
+// and billed another.
 describe("passOnBreakdown", () => {
   it("grosses up so the organizer receives the full base", () => {
     // ₱2,000 base, RP 3% = ₱60, GCash 1.5%.

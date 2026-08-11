@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { RegistrationRow } from "@/lib/registration";
 import { PayPanel } from "../PayPanel";
 
@@ -14,11 +15,22 @@ import { PayPanel } from "../PayPanel";
 // does not redirect on a lapsed hold; see its comment for why a redirect
 // there would have bounced the runner to /events/<id> with no explanation.
 const useRegistrationMock = vi.fn();
+const useProcessorRateMock = vi.fn();
 
 vi.mock("@/lib/registration", () => ({
   useRegistration: (...args: unknown[]) => useRegistrationMock(...args),
+  useProcessorRate: (...args: unknown[]) => useProcessorRateMock(...args),
   createMethodCheckout: vi.fn(),
 }));
+
+/** The seeded rate card, VAT-inclusive, keyed by the SITE's method key — the
+ *  translation to PayMongo's own names lives in RATE_METHOD and is tested there.
+ *  Same figures as supabase/migrations/20260811091000_processor_rates.sql. */
+const RATES: Record<string, { percent_bps: number; fixed_cents: number }> = {
+  card: { percent_bps: 350, fixed_cents: 1500 },
+  gcash: { percent_bps: 150, fixed_cents: 0 },
+  maya: { percent_bps: 150, fixed_cents: 0 },
+};
 
 function row(overrides: Partial<RegistrationRow> = {}): RegistrationRow {
   return {
@@ -28,13 +40,25 @@ function row(overrides: Partial<RegistrationRow> = {}): RegistrationRow {
     checkoutUrl: null, eventStatus: "open", eventDate: "2099-01-01", originalDate: null,
     statusNote: null, eventRegistrationClosesAt: null, kitEditClosesAt: null, shirtSize: null,
     orgName: "Race Pace", eventHeroUrl: null, basePrice: 150000,
-    inclusions: [], payment: null,
+    inclusions: [], feeMode: "absorb",
+    feeTerms: { commission_type: "percent", commission_rate: 0.03, commission_flat_cents: 0 },
+    payment: null,
     ...overrides,
   };
 }
 
+/** Renders the panel with `useRegistration` returning `row(overrides)` and the
+ *  rate card answering from RATES for whichever method is selected — i.e. the
+ *  rate MOVES with the method, which is the whole point of the breakdown. */
+function renderWithRegistration(overrides: Partial<RegistrationRow> = {}) {
+  useRegistrationMock.mockReturnValue({ isLoading: false, data: row(overrides) });
+  return render(<PayPanel registrationId="r1" />);
+}
+
 beforeEach(() => {
   useRegistrationMock.mockReset();
+  useProcessorRateMock.mockReset();
+  useProcessorRateMock.mockImplementation((method: string) => ({ data: RATES[method] ?? null }));
 });
 
 describe("PayPanel — a lapsed pending hold", () => {
@@ -89,5 +113,123 @@ describe("PayPanel — a registration expired by the organizer", () => {
     expect(screen.queryByText("Payment window closed")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^Pay ₱/ })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Enter again" })).toHaveAttribute("href", "/events/e1");
+  });
+});
+
+// An org is on `absorb` or `pass_on`. In absorb the runner pays the sticker
+// price and the processing cost comes out of the organizer's share — showing
+// them a fee they are not paying would be noise about somebody else's money. In
+// pass_on the runner is charged a grossed-up total, so every line has to be
+// visible, because every line changes what they pay.
+//
+// The lines are computed HERE, in the client, off the method already in state.
+// Passing them down from the server page would freeze the processing line at
+// whatever method was current when the page rendered, and the one thing this
+// breakdown must do is move when the runner switches method.
+//
+// DISPLAY ONLY. payment-session recomputes the authoritative charge server-side.
+describe("PayPanel — the fee breakdown", () => {
+  const PASS_ON = { total_amount: 200000, basePrice: 200000, feeMode: "pass_on" } as const;
+
+  it("shows only the total in absorb mode — the runner pays no fees", () => {
+    renderWithRegistration({ total_amount: 200000, basePrice: 200000, feeMode: "absorb" });
+
+    expect(screen.getByRole("button", { name: "Pay ₱2,000.00" })).toBeInTheDocument();
+    expect(screen.queryByText(/service fee/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/payment processing/i)).not.toBeInTheDocument();
+    expect(screen.queryByText("Total to pay")).not.toBeInTheDocument();
+    // The panel absorb mode already had, unchanged: entry fee, and a booking
+    // fee that really is free to this runner.
+    expect(screen.getByText("Free")).toBeInTheDocument();
+  });
+
+  it("does not even ask the rate card in absorb mode", () => {
+    renderWithRegistration({ total_amount: 200000, basePrice: 200000, feeMode: "absorb" });
+    expect(useProcessorRateMock).toHaveBeenCalledWith("gcash", { enabled: false });
+  });
+
+  it("itemises every line in pass-on mode, because each one changes the total", () => {
+    renderWithRegistration(PASS_ON);
+
+    // ₱2,000 base, RP 3% = ₱60, GCash 1.5% grossed up = ₱31.38. Each fee line
+    // is rendered with a leading "+", like the add-ons line it sits under:
+    // these are amounts ADDED to the entry fee, not a restatement of it.
+    expect(screen.getByText(/Race Pace service fee/i)).toBeInTheDocument();
+    expect(screen.getByText("+₱60.00")).toBeInTheDocument();
+    expect(screen.getByText(/Payment processing/i)).toBeInTheDocument();
+    expect(screen.getByText("+₱31.38")).toBeInTheDocument();
+    expect(screen.getByText("Total to pay")).toBeInTheDocument();
+    // The entry fee the organizer priced is still stated, unsurcharged.
+    expect(screen.getByText("₱2,000.00")).toBeInTheDocument();
+    // Twice: the ticket stub's "Total due" and the breakdown's own total. Both
+    // must be the grossed-up figure — a stub still reading ₱2,000.00 over an
+    // itemised ₱2,091.38 is the exact confusion this screen exists to remove.
+    expect(screen.getAllByText("₱2,091.38")).toHaveLength(2);
+    // And the number on the button is the number that will be charged. GCash is
+    // the default method.
+    expect(screen.getByRole("button", { name: "Pay ₱2,091.38" })).toBeInTheDocument();
+  });
+
+  it("updates the processing line when the runner switches to card", async () => {
+    const user = userEvent.setup();
+    renderWithRegistration(PASS_ON);
+
+    await user.click(screen.getByRole("button", { name: "Card" }));
+
+    // Card is 3.5% + ₱15, so the processing line and the total both move.
+    expect(screen.getByText("+₱90.26")).toBeInTheDocument();
+    expect(screen.getAllByText("₱2,150.26")).toHaveLength(2);
+    expect(screen.getByRole("button", { name: "Pay ₱2,150.26" })).toBeInTheDocument();
+    // The commission is struck on the BASE the organizer priced, not on the
+    // grossed-up total, so it does NOT move with the method. Striking it on the
+    // total would compound the two fees against each other.
+    expect(screen.getByText("+₱60.00")).toBeInTheDocument();
+    expect(screen.getByText("₱2,000.00")).toBeInTheDocument();
+    expect(screen.queryByText("+₱31.38")).not.toBeInTheDocument();
+  });
+
+  // THE REASON THE PANEL CARRIES ALL THREE COMMISSION COLUMNS. With only
+  // fee_mode, a fixed-terms org would fall down feeOn's percent branch and its
+  // 10% default: ₱200.00 of "service fee" on a ₱2,000 entry whose real terms are
+  // ₱75 flat — a surcharge the runner would actually be shown and asked to pay.
+  it("quotes a fixed-commission org its flat fee, not the percent default", () => {
+    renderWithRegistration({
+      ...PASS_ON,
+      feeTerms: { commission_type: "fixed", commission_rate: null, commission_flat_cents: 7500 },
+    });
+
+    expect(screen.getByText("+₱75.00")).toBeInTheDocument();
+    // What the percent branch's 10% default would have quoted on a ₱2,000 entry.
+    expect(screen.queryByText("+₱200.00")).not.toBeInTheDocument();
+    expect(screen.getAllByText("₱2,106.60")).toHaveLength(2);
+  });
+
+  // While the rate card is still loading, and in the rare case it has no current
+  // offered row for the method, there is no honest breakdown to draw — so the
+  // panel draws none rather than inventing a processing line. It does NOT block
+  // the runner: payment-session refuses a pass-on charge outright when the rate
+  // is missing (503 rate_card_missing), and _shared/confirm.ts reconciles
+  // payments.amount to what the provider actually captured, so the authoritative
+  // figures are settled server-side either way.
+  it("shows no fee lines while the rate card has not answered", () => {
+    useProcessorRateMock.mockReturnValue({ data: undefined });
+    renderWithRegistration(PASS_ON);
+
+    expect(screen.queryByText(/Payment processing/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Race Pace service fee/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Pay ₱/ })).toBeInTheDocument();
+    // And no "Booking fee — Free" either: this runner IS being charged fees,
+    // so the absorb-mode row would be a claim that is about to be contradicted.
+    expect(screen.queryByText("Free")).not.toBeInTheDocument();
+  });
+
+  // A pass-on org whose entry is free has nothing to gross up: a ₱0 charge costs
+  // the processor nothing, so every line is zero and the panel must not print a
+  // ₱15 card fixed fee against a ₱0 entry.
+  it("adds nothing to a free entry", () => {
+    renderWithRegistration({ total_amount: 0, basePrice: 0, feeMode: "pass_on" });
+
+    expect(screen.getByRole("button", { name: "Pay ₱0.00" })).toBeInTheDocument();
+    expect(screen.queryByText(/Payment processing/i)).not.toBeInTheDocument();
   });
 });
