@@ -776,7 +776,7 @@ describe("pass-on surcharge (e2e)", () => {
       org_id: org.id, registration_id: reg.id, amount: BASE, status: "pending",
     });
     return {
-      svc, rid: reg.id as string, token: user.token,
+      svc, org, rid: reg.id as string, token: user.token,
       cleanup: async () => {
         await svc.from("organizations").delete().eq("id", org.id);
         await svc.auth.admin.deleteUser(user.id);
@@ -909,6 +909,76 @@ describe("pass-on surcharge (e2e)", () => {
       expect(pay.net_to_org).toBeLessThan(BASE);
       expect(pay.amount - pay.processor_fee_cents - pay.platform_fee).toBe(pay.net_to_org);
     } finally {
+      await f.cleanup();
+    }
+  });
+
+  /**
+   * Task 7 against Task 6. The refund rule reads `net_to_org`, and pass-on mode
+   * is the case that proves why it cannot read `amount`: here `amount` is the
+   * GROSSED-UP total the runner paid, so refunding it would hand back Race
+   * Pace's earned ₱60 commission AND the ₱31.37 PayMongo keeps and never
+   * returns — ₱91.38 per refund of money the organizer was never given, on
+   * every pass-on entry.
+   *
+   * Driven through the real /admin-refund so the assertion covers the wiring in
+   * _shared/refund.ts, which is where that bug lived.
+   */
+  it("pass-on refund: the runner gets the BASE entry fee back, not the grossed-up total", async () => {
+    const f = await fixture("porefund", "pass_on");
+    let admin: Awaited<ReturnType<typeof makeUser>> | undefined;
+    try {
+      const rate = await currentRate("gcash");
+      const platformFee = computeFee(BASE, TERMS);
+      const grossedUp = passOnBreakdown(BASE, platformFee, rate).total;
+
+      // A policy that returns everything the organizer received, and an admin
+      // entitled to ask for it.
+      admin = await makeUser(`porefund_adm_${Date.now()}@test.dev`);
+      await f.svc.from("organizations").update({ refund_policy: "full" }).eq("id", f.org.id);
+      await f.svc.from("user_roles").insert({ user_id: admin.id, role: "admin", org_id: f.org.id });
+
+      const res = await paySession(f.rid, f.token, "gcash");
+      expect(res.status, await res.text()).toBe(200);
+      const actualFee = predictProcessorFee(grossedUp, rate);
+      const hook = await postWebhook(
+        paidEventWithFee(f.rid, "gcash", grossedUp, actualFee, grossedUp - actualFee),
+      );
+      expect(hook.status).toBe(200);
+
+      const before = await ledgerRow(f.svc, f.rid);
+      expect(before.amount).toBe(grossedUp);
+      expect(grossedUp).toBeGreaterThan(BASE); // the runner really did pay more
+      expect(before.net_to_org).toBe(grossedUp - platformFee - actualFee);
+
+      const refund = await refundCall(admin.token, f.rid);
+      expect(refund.status, await refund.text()).toBe(200);
+
+      const after = (await f.svc.from("payments")
+        .select("amount,platform_fee,processor_fee_cents,net_to_org,refunded_amount,status")
+        .eq("registration_id", f.rid).single()).data!;
+
+      // The runner is refunded exactly what the organizer would have been paid.
+      expect(after.refunded_amount).toBe(before.net_to_org);
+      expect(after.refunded_amount).not.toBe(grossedUp);
+      // Which IS the base entry fee: the gross-up exists precisely so net_to_org
+      // lands on the sticker price, at most ₱0.01 of ceil the organizer's way.
+      expect(after.refunded_amount).toBeGreaterThanOrEqual(BASE);
+      expect(after.refunded_amount).toBeLessThanOrEqual(BASE + 1);
+      // The ledger survives the refund untouched — payout_open_statement sizes a
+      // clawback off net_to_org on this very row.
+      expect(after).toMatchObject({
+        amount: grossedUp,
+        platform_fee: platformFee,
+        processor_fee_cents: actualFee,
+        net_to_org: before.net_to_org,
+        status: "refunded",
+      });
+    } finally {
+      if (admin) {
+        await f.svc.from("user_roles").delete().eq("user_id", admin.id);
+        await f.svc.auth.admin.deleteUser(admin.id);
+      }
       await f.cleanup();
     }
   });

@@ -122,7 +122,7 @@ describe("function grants — service-role-only RPCs reject anon", () => {
     try {
       const r = await anon().rpc("refund_registration_tx", {
         p_registration_id: reg.id, p_refunded_by: uid, p_note: "exploit attempt",
-        p_provider_refund: {}, p_refunded_amount: 100000, p_retained_fee: 0, p_retained_net: 0,
+        p_provider_refund: {}, p_refunded_amount: 100000, p_retained_net: 0,
       });
       expect(r.error).not.toBeNull();
       expect(r.error!.code).toBe("42501");

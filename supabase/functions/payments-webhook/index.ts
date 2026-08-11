@@ -56,7 +56,6 @@ Deno.serve(async (req) => {
           p_note: parked.note ?? null,
           p_provider_refund: resource,
           p_refunded_amount: parked.refunded_amount ?? null,
-          p_retained_fee: parked.retained_fee ?? 0,
           p_retained_net: parked.retained_net ?? 0,
         });
         if (rpcErr) {

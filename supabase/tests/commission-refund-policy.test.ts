@@ -92,11 +92,19 @@ describe("commission + refund policy columns", () => {
         org_id: org.id, event_id: ev.id, category_id: cat.id,
         user_id: uid, total_amount: 200000, status: "paid",
       }).select().single()).data!;
-      // Retained ₱300 of a ₱2,000 entry: amount/fee/net describe the RETAINED sale,
-      // refunded_amount records the ₱1,700 that went back.
+      // A ₱2,000 GCash entry, partially refunded with the organizer retaining ₱300.
+      //
+      // The shape here is the one 20260811094000_refund_net_to_org.sql writes, and
+      // it is NOT the 2026-08-06 one: `amount` stays at what the runner actually
+      // paid and `platform_fee` at the commission Race Pace earned at capture —
+      // both immutable, because under the three-party ledger
+      // `amount - processor_fee_cents` must keep matching the provider's
+      // net_amount. Only `net_to_org` drops, to the organizer's retention.
+      // The four-way split still balances: 161000 + 30000 + 6000 + 3000 = 200000.
       const payIns = await s.from("payments").insert({
-        org_id: org.id, registration_id: reg.id, amount: 30000, platform_fee: 3000,
-        net_to_org: 27000, refunded_amount: 170000, status: "partially_refunded", provider: "fake",
+        org_id: org.id, registration_id: reg.id, amount: 200000, platform_fee: 6000,
+        processor_fee_cents: 3000, net_to_org: 30000, refunded_amount: 161000,
+        status: "partially_refunded", provider: "fake",
       });
       if (payIns.error) throw new Error(`payment insert: ${payIns.error.message}`);
 
@@ -105,8 +113,11 @@ describe("commission + refund policy columns", () => {
         .eq("org_id", org.id).single();
       if (totals.error) throw new Error(`admin_org_totals_v: ${totals.error.message}`);
       const t = totals.data!;
-      expect(Number(t.gross_revenue)).toBe(30000);
-      expect(Number(t.net_to_org)).toBe(27000);
+      // gross_revenue is what the runner paid — `amount` is no longer rewritten
+      // down to the retained figure, so a partial refund no longer shrinks it.
+      expect(Number(t.gross_revenue)).toBe(200000);
+      // net_to_org IS the retention, so what the organizer is owed still tracks.
+      expect(Number(t.net_to_org)).toBe(30000);
       expect(t.paid_count).toBe(1);
       // Must NOT be counted as still awaiting payment.
       expect(t.pending_count).toBe(0);
