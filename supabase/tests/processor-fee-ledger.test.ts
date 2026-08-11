@@ -286,9 +286,14 @@ describe("confirm_payment_tx with a processor fee", () => {
  * B's payments, and does read their own — because a policy that denied everyone
  * everything would pass the isolation half on its own and take the page's whole
  * purpose down with it, silently, as an empty table.
+ *
+ * It carries the page's STATUS FILTER for the same reason. `COUNTED_STATUSES`
+ * sits in `lib/queries/settlement.ts`, which no unit test can import, so without
+ * an assertion here the rule that keeps abandoned checkouts out of an
+ * organizer's revenue would have no permanent proof anywhere.
  */
 describe("settlement RLS isolation", () => {
-  it("an org admin reads zero payment rows belonging to another org", async () => {
+  it("an org admin reads their own event's real money and nothing else", async () => {
     const s = svc();
     const stamp = `iso-${Date.now()}`;
 
@@ -298,7 +303,22 @@ describe("settlement RLS isolation", () => {
       .select().single()).data!;
     const users: string[] = [];
     try {
-      /** One org's event + category + paid registration + paid payment. */
+      /**
+       * One org's event + category + a paid registration and payment, PLUS the
+       * two rows a settlement must never count as revenue.
+       *
+       * `registrations-checkout` upserts a payments row at full sticker price
+       * with status 'pending' the moment a runner opens checkout, and
+       * `expire_stale_registrations` flips abandoned ones to 'failed' with
+       * `amount` left intact. Both are seeded here at the SAME ₱1,000 as the
+       * real sale, so a page that forgot to filter would report triple the
+       * gross.
+       *
+       * Their registrations are 'cancelled' rather than 'pending' only to stay
+       * clear of `registrations_one_live_per_event`, which is unique on
+       * (event_id, user_id) for live statuses — the payment status is what this
+       * test is about.
+       */
       const seedEvent = async (org: { id: string }, tag: string) => {
         const ev = (await s.from("events").insert({
           org_id: org.id, name: `Iso ${tag} Race`, status: "draft",
@@ -311,15 +331,24 @@ describe("settlement RLS isolation", () => {
           email: `${stamp}-run-${tag}@test.dev`, password: "password123", email_confirm: true,
         })).data.user!;
         users.push(runner.id);
-        const reg = (await s.from("registrations").insert({
+        const mkReg = async (status: "paid" | "cancelled") => (await s.from("registrations").insert({
           org_id: org.id, event_id: ev.id, category_id: cat.id,
-          user_id: runner.id, total_amount: 100000, status: "paid",
+          user_id: runner.id, total_amount: 100000, status,
         }).select().single()).data!;
+
+        const reg = await mkReg("paid");
         await s.from("payments").insert({
           org_id: org.id, registration_id: reg.id, amount: 100000, status: "paid",
           platform_fee: 3000, processor_fee_cents: 1500, processor_fee_source: "actual",
           net_to_org: 95500,
         });
+        for (const status of ["pending", "failed"] as const) {
+          const abandoned = await mkReg("cancelled");
+          await s.from("payments").insert({
+            org_id: org.id, registration_id: abandoned.id, amount: 100000, status,
+            platform_fee: 0, processor_fee_cents: 0, processor_fee_source: "none", net_to_org: 0,
+          });
+        }
         return { ev, reg };
       };
 
@@ -345,9 +374,15 @@ describe("settlement RLS isolation", () => {
       // through the registrations join, with no org predicate at all. This is the
       // one that would leak if the policy were wrong, and the org_id filter above
       // would not have caught it.
-      const asPage = (eventId: string) => asA.from("payments")
-        .select("registration_id,net_to_org,registrations!inner(event_id)")
+      const byEvent = (eventId: string) => asA.from("payments")
+        .select("registration_id,amount,net_to_org,status,registrations!inner(event_id)")
         .eq("registrations.event_id", eventId);
+      // COUNTED_STATUSES in apps/web/lib/queries/settlement.ts. Kept in step with
+      // it deliberately: that constant lives in a module no test can import (it
+      // reaches next/headers through the Supabase server client), so this is the
+      // only place the filter is exercised against a real database.
+      const asPage = (eventId: string) => byEvent(eventId)
+        .in("status", ["paid", "partially_refunded", "refunded"]);
 
       // `toHaveLength(0)` on its own passes VACUOUSLY if the query errors — a
       // renamed column or a malformed embed would return no rows and read as
@@ -362,6 +397,18 @@ describe("settlement RLS isolation", () => {
       const mine = (await asPage(a.ev.id)).data ?? [];
       expect(mine).toHaveLength(1);
       expect(mine[0]).toMatchObject({ registration_id: a.reg.id, net_to_org: 95500 });
+
+      // …and the abandoned checkouts really are there, visible to this same
+      // admin, and excluded only by the status filter. Without this control the
+      // assertion above would pass just as well if the seed had never written
+      // them: three rows unfiltered, ₱3,000 of "gross" on offer, one of which is
+      // money.
+      const unfiltered = await byEvent(a.ev.id);
+      expect(unfiltered.error).toBeNull();
+      expect(unfiltered.data ?? []).toHaveLength(3);
+      expect((unfiltered.data ?? []).map((r) => r.status).sort())
+        .toEqual(["failed", "paid", "pending"]);
+      expect((unfiltered.data ?? []).reduce((sum, r) => sum + r.amount, 0)).toBe(300000);
     } finally {
       await s.from("organizations").delete().eq("id", orgA.id);
       await s.from("organizations").delete().eq("id", orgB.id);

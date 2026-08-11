@@ -45,6 +45,61 @@ describe("settlementTotals", () => {
   });
 
   /**
+   * A refund written at GROSS scale, which is what the organizer is actually
+   * looking at on the hosted database.
+   *
+   * `refunded_amount` on a full refund has had three writers and they disagree:
+   * the current refund_registration_tx stores net_to_org (20260811094000), the
+   * pre-2026-08-11 body stored the gross `v_amount` (20260808140000), and the
+   * demo seeder — the hosted dataset — stores `r.total_amount`. Summing the
+   * stored column would put ₱2,000 in the Refunds line against a ₱1,910 refund,
+   * and the waterfall would fail to close by exactly the commission plus the
+   * processing fee.
+   */
+  it("sizes a refund from net_to_org, so a legacy gross-scale row still closes", () => {
+    const legacy = row({
+      status: "refunded", net_to_org: 191000, refunded_amount: 200000, // gross, not net
+    });
+    const t = settlementTotals([legacy]);
+    expect(t.refunds).toBe(191000);
+    expect(t.net).toBe(0);
+    expect(t.gross - t.commission - t.processing - t.refunds).toBe(t.net);
+  });
+
+  it("reads a partial refund from refunded_amount, where net_to_org is the retention", () => {
+    // The RPC guarantees the split: refunded_amount + net_to_org = the original
+    // net (91000 + 100000 = 191000), enforced as `refund_split_mismatch`. Both
+    // figures on this row are true and they mean different things.
+    const t = settlementTotals([row({
+      status: "partially_refunded", refunded_amount: 91000, net_to_org: 100000,
+    })]);
+    expect(t.refunds).toBe(91000);
+    expect(t.net).toBe(100000);
+    expect(t.gross - t.commission - t.processing - t.refunds).toBe(t.net);
+  });
+
+  /**
+   * The identity the page's headline promises, across every status and fee
+   * source at once — the only assertion that would catch a future column being
+   * summed from the wrong place.
+   */
+  it("closes gross − commission − processing − refunds = net on a mixed event", () => {
+    const t = settlementTotals([
+      row(),                                                                    // paid, actual
+      row({ status: "partially_refunded", refunded_amount: 91000, net_to_org: 100000 }),
+      row({ status: "refunded", net_to_org: 191000, refunded_amount: 191000 }), // current writer
+      row({ status: "refunded", net_to_org: 191000, refunded_amount: 200000 }), // legacy writer
+      // 'historical': the platform absorbed the fee, so this row reports zero
+      // processing AND its net_to_org deliberately does not deduct one.
+      row({ processing_fee: 0, net_to_org: 194000 }),
+    ]);
+    expect(t).toEqual({
+      gross: 1000000, commission: 30000, processing: 12000, refunds: 473000, net: 485000,
+    });
+    expect(t.gross - t.commission - t.processing - t.refunds).toBe(t.net);
+  });
+
+  /**
    * The worked example from the design: one ₱2,000 GCash entry at 3%.
    * RP keeps ₱60, PayMongo keeps ₱30, the organizer keeps ₱1,910 — and the
    * summary has to say exactly that, because it is the row an organizer will

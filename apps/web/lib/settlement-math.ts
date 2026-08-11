@@ -28,6 +28,28 @@ export type SettlementTotals = {
  * refunded row KEEPS its net_to_org — that is what lets the payout clawback
  * size itself — so summing the column blindly would report money owed for an
  * entry the organizer has already given back.
+ *
+ * THE WATERFALL MUST CLOSE: gross − commission − processing − refunds = net,
+ * for every row, which is the one promise the page's headline makes. That is
+ * why the two refund statuses source their refund figure from DIFFERENT
+ * columns, and this is not an oversight to tidy up:
+ *
+ * - `refunded` takes it from **net_to_org**. Three writers have set
+ *   `refunded_amount` on a full refund and they do not agree: the current
+ *   `refund_registration_tx` writes `v_net` (20260811094000), but the
+ *   pre-2026-08-11 body wrote the GROSS `v_amount` (20260808140000), and the
+ *   demo seeder — which IS the hosted dataset — writes `r.total_amount`
+ *   (scripts/seed-demo/03-registrations.sql). On a gross-scale row the identity
+ *   collapses to −(commission + processing) and the summary visibly fails to
+ *   add up. `net_to_org` is the figure `payout_open_statement` sizes the
+ *   clawback from, unconditionally, so reading it here makes the page agree
+ *   with the statement for every writer — and costs nothing under the current
+ *   one, which sets the two equal.
+ * - `partially_refunded` takes it from **refunded_amount**, because there
+ *   `net_to_org` holds the RETENTION, not the refund. The split is guaranteed
+ *   by the RPC itself (`p_refunded_amount + p_retained_net = v_net`, raised as
+ *   `refund_split_mismatch`), so both figures on that row are trustworthy and
+ *   each means a different thing.
  */
 export function settlementTotals(rows: SettlementRow[]): SettlementTotals {
   const t: SettlementTotals = { gross: 0, commission: 0, processing: 0, refunds: 0, net: 0 };
@@ -35,8 +57,12 @@ export function settlementTotals(rows: SettlementRow[]): SettlementTotals {
     t.gross += r.gross_paid;
     t.commission += r.rp_commission;
     t.processing += r.processing_fee;
-    t.refunds += r.refunded_amount;
-    if (r.status !== "refunded") t.net += r.net_to_org;
+    if (r.status === "refunded") {
+      t.refunds += r.net_to_org;
+    } else {
+      t.refunds += r.refunded_amount;
+      t.net += r.net_to_org;
+    }
   }
   return t;
 }

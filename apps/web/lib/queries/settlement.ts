@@ -76,7 +76,16 @@ const BATCH = 1000;
 // A settlement that needed more than this many round trips is not a settlement,
 // it is a bug. THROWING is the point: every alternative — stopping early,
 // capping — is the truncation this batching exists to prevent, dressed up.
-const MAX_BATCHES = 100;
+//
+// 20, not a rounder 100. The guard should trip at the point the PAGE fails, not
+// far past it: this route renders every row it fetches, and a browser gives out
+// somewhere around 10,000 of them. A limit of 100,000 would leave the real
+// failure — a hung tab with no explanation — happening first, and the guard
+// would never speak. At 20,000 the error arrives first and names the event and
+// the count, which is precisely the signal that this page now needs the
+// paginated table it does not have yet. Every event this platform has hosted is
+// an order of magnitude inside it.
+const MAX_BATCHES = 20;
 
 // `.in()` becomes a query string, and a long one meets Kong's header buffer
 // before it meets PostgREST. 100 uuids is ~4KB of URL, comfortably inside it;
