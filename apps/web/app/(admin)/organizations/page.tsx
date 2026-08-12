@@ -80,7 +80,18 @@ export default async function OrganizationsPage() {
               : `${kpis.activeCount} active`,
           }}
         />
-        <KpiCard icon={Coins} label="Platform GMV" value={peso(kpis.gmvCents)} />
+        {/* The caption is the only thing separating this figure from the one an
+            organizer's own Dashboard calls "Gross revenue". Both are gross;
+            they are not the same quantity. GMV is what runners were CHARGED,
+            before refunds (admin_org_totals_v.charged_gross); the Dashboard's
+            is what was KEPT, after them (gross_revenue). Same org, two
+            different peso amounts, and nothing on either screen said which. */}
+        <KpiCard
+          icon={Coins}
+          label="Platform GMV"
+          value={peso(kpis.gmvCents)}
+          delta={{ tone: "neutral", text: "charged to runners, before refunds" }}
+        />
         <KpiCard
           icon={Percent}
           label="Commission earned"
@@ -152,7 +163,9 @@ export default async function OrganizationsPage() {
                     {/* Integer centavos through peso() — never a bare division
                         at the call site, and never JetBrains Mono, which has no
                         U+20B1 (₱). */}
-                    <TableCell className="text-right tabular-nums">{peso(org.grossRevenue)}</TableCell>
+                    {/* GMV = what was charged. `grossRevenue` is the retained
+                        figure and belongs under a different heading. */}
+                    <TableCell className="text-right tabular-nums">{peso(org.chargedGross)}</TableCell>
                     <TableCell
                       className={`text-right tabular-nums${rate.zero ? " font-semibold text-destructive" : ""}`}
                       // A ₱0 fee is not a formatting curiosity: it is an

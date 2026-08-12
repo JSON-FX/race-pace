@@ -1,6 +1,5 @@
 import { serviceClient } from "./supabase.ts";
 import { getPaymentProviderByName } from "./payments.ts";
-import { computeFee, type FeeTerms } from "./fee.ts";
 
 export type RefundResult =
   | { ok: true; registration_id: string; already?: boolean; pending?: boolean }
@@ -27,15 +26,14 @@ export async function refundRegistration(
   const { data: pay } = await db
     .from("payments")
     .select(
-      "provider,provider_ref,amount,raw," +
-      "organizations!inner(refund_policy,refund_fee_cents," +
-      "commission_type,commission_rate,commission_flat_cents)",
+      "provider,provider_ref,amount,net_to_org,raw," +
+      "organizations!inner(refund_policy,refund_fee_cents)",
     )
     .eq("registration_id", reg.id).single();
   if (!pay) return { ok: false, error: "payment_not_found", status: 404 };
 
   const org = pay.organizations as unknown as
-    FeeTerms & { refund_policy: string; refund_fee_cents: number };
+    { refund_policy: string; refund_fee_cents: number };
 
   // Refused server-side, not only in the console. The admin UI disables the
   // button for a 'none' org, but a Server Action is a public endpoint and the
@@ -44,18 +42,22 @@ export async function refundRegistration(
     return { ok: false, error: "policy_forbids", status: 409 };
   }
 
-  // The retention is treated as a smaller sale: the org's normal commission rule
-  // runs against it via the same computeFee the original charge used, so a
-  // partial refund cannot quietly change an org's commercial terms.
+  // The runner is refunded exactly what the organizer would have been paid.
+  // Race Pace's commission is an earned service fee and is retained; PayMongo
+  // does not return its fee under any circumstances. Both are already excluded
+  // from net_to_org, so this one line IS the policy.
   //
-  // Clamped at the entry total, so a retention larger than a cheap entry refunds
-  // ₱0 rather than inverting into a charge.
+  // Clamped to net_to_org rather than to amount: an organizer cannot retain
+  // money they were never going to receive. It is also what keeps a pass-on org
+  // honest — there `pay.amount` is the GROSSED-UP total the runner paid, and
+  // refunding from it would hand back the commission and the processor fee too.
   const retained = org.refund_policy === "flat_fee"
-    ? Math.min(org.refund_fee_cents, pay.amount)
+    ? Math.min(org.refund_fee_cents, pay.net_to_org)
     : 0;
-  const refundAmount = pay.amount - retained;
-  const retainedFee = computeFee(retained, org);
-  const retainedNet = retained - retainedFee;
+  const refundAmount = pay.net_to_org - retained;
+  // No computeFee here. Race Pace already kept its full commission at capture,
+  // so re-striking it on the organizer's retention would charge twice.
+  const retainedNet = retained;
 
   // A refund already in flight (parked pending by a prior call) — do not issue a second
   // provider refund; the refund.updated webhook will finalize it.
@@ -66,8 +68,9 @@ export async function refundRegistration(
   const provider = getPaymentProviderByName(pay.provider);
   let refund;
   try {
-    // refundAmount, not pay.amount — under a flat-fee policy the runner gets
-    // back less than they paid, and the provider is what actually moves it.
+    // refundAmount, not pay.amount — the runner always gets back less than they
+    // paid (commission and the processor fee are never returned), and under a
+    // flat-fee policy less again. The provider is what actually moves it.
     refund = await provider.refund({ providerRef: pay.provider_ref ?? "", amount: refundAmount, reason: REFUND_REASON });
   } catch (e) {
     console.error("[refund] provider threw", { registrationId, error: String(e) });
@@ -89,7 +92,7 @@ export async function refundRegistration(
       refund: {
         status: "pending", id: refund.providerRefundId,
         requested_at: new Date().toISOString(), refunded_by: refundedBy, note,
-        refunded_amount: refundAmount, retained_fee: retainedFee, retained_net: retainedNet,
+        refunded_amount: refundAmount, retained_net: retainedNet,
       },
     };
     const { error: upErr } = await db.from("payments").update({ raw }).eq("registration_id", reg.id);
@@ -101,7 +104,7 @@ export async function refundRegistration(
   const { data: result, error: rpcErr } = await db.rpc("refund_registration_tx", {
     p_registration_id: reg.id, p_refunded_by: refundedBy, p_note: note,
     p_provider_refund: refund.raw as Record<string, unknown>,
-    p_refunded_amount: refundAmount, p_retained_fee: retainedFee, p_retained_net: retainedNet,
+    p_refunded_amount: refundAmount, p_retained_net: retainedNet,
   });
   if (rpcErr) return { ok: false, error: "refund_write_failed", status: 500 };
   if (result === "already") return { ok: true, registration_id: reg.id, already: true };

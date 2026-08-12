@@ -72,7 +72,9 @@ function reg(overrides: Partial<RegistrationRow> = {}): RegistrationRow {
     checkoutUrl: null, eventStatus: "open", eventDate: "2099-01-01", originalDate: null,
     statusNote: null, eventRegistrationClosesAt: null, kitEditClosesAt: null, shirtSize: null,
     orgName: "Race Pace", eventHeroUrl: null, basePrice: 150000,
-    inclusions: [], payment: null,
+    inclusions: [], feeMode: "absorb",
+    feeTerms: { commission_type: "percent", commission_rate: 0.03, commission_flat_cents: 0 },
+    payment: null,
     ...overrides,
   };
 }

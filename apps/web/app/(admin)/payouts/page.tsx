@@ -3,7 +3,7 @@ import { ShieldCheck, Banknote, Landmark, PauseCircle, CheckCircle2 } from "luci
 import { getMyRoles } from "@/lib/queries/roles";
 import { hasCapability } from "@/lib/capabilities";
 import {
-  listPayoutStatements, listOpenableEvents, payoutRowState, payoutKpis,
+  listPayoutStatements, listOpenableEvents, payoutRowState, payoutKpis, statementResidual,
   type PayoutStatementRow, type PayoutState,
 } from "@/lib/queries/payouts";
 import { KpiCard, KpiRow } from "@/components/kpi-card";
@@ -24,10 +24,10 @@ import { OpenStatementControl, SettleStatementButton } from "./statement-actions
  *  and the eye stops trusting the column. */
 const MINUS = "−";
 
-/** Commission and refunds are STORED positive but are both subtractions from
- *  gross, so they render with an explicit minus — matching the mockup and
- *  making the gross → commission → refunds → net arithmetic legible across the
- *  row. Zero renders as plain ₱0, never as −₱0. */
+/** Commission, processing and both refund columns are STORED positive but are
+ *  all subtractions from gross, so they render with an explicit minus — making
+ *  the gross → commission → processing → refunds → clawback → net arithmetic
+ *  legible across the row. Zero renders as plain ₱0, never as −₱0. */
 function deduction(cents: number): string {
   return cents === 0 ? peso(0) : `${MINUS}${peso(Math.abs(cents))}`;
 }
@@ -62,6 +62,11 @@ export default async function PayoutsPage() {
 
   const [rows, openable] = await Promise.all([listPayoutStatements(), listOpenableEvents()]);
   const kpis = payoutKpis(rows);
+  // Statements whose own printed terms do not explain their net owed. Expected
+  // to be empty — `statementResidual` documents why the five columns below are
+  // exhaustive — and surfaced rather than trusted, because this table is the
+  // source document somebody keys a bank transfer from.
+  const unreconciled = rows.filter((r) => statementResidual(r) !== 0);
 
   return (
     <div className="px-4 pb-10 pt-6 md:px-[30px]">
@@ -81,8 +86,11 @@ export default async function PayoutsPage() {
       <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-[21px] font-bold tracking-[-0.02em]">Payouts</h1>
+          {/* The chain has to name every column the table prints, or the
+              subtitle is a shorter identity than the row and the operator is
+              told to expect arithmetic that does not close. */}
           <p className="mt-0.5 text-[13px] text-muted-foreground">
-            One statement per event · gross → commission → refunds → net owed
+            One statement per event · gross → commission → processing → refunds → clawback → net owed
           </p>
         </div>
         <OpenStatementControl events={openable} />
@@ -99,7 +107,15 @@ export default async function PayoutsPage() {
           icon={Landmark}
           label="TOTAL OWED"
           value={peso(kpis.totalOwedCents)}
-          delta={{ text: "net of commission", tone: "neutral" }}
+          // "net of commission" alone was true when the ledger had two parties.
+          // Processing is a second deduction sitting inside this figure, and a
+          // caption that names one of two subtractions reads as naming both.
+          delta={{
+            text: kpis.processingCents > 0
+              ? `net of commission and ${peso(kpis.processingCents)} processing`
+              : "net of commission and processing",
+            tone: "neutral",
+          }}
         />
         <KpiCard
           icon={PauseCircle}
@@ -132,7 +148,17 @@ export default async function PayoutsPage() {
                 <TableHead>Organization</TableHead>
                 <TableHead className="text-right">Gross</TableHead>
                 <TableHead className="text-right">Commission</TableHead>
+                <TableHead className="text-right">Processing</TableHead>
+                {/* TWO refund columns, not one, and they are not interchangeable.
+                    "Refunds" is money returned out of THIS statement's own
+                    earnings; "Clawback" is money an earlier statement already
+                    transferred and is being recovered here. Both are subtracted,
+                    only one of them can ever apply to a given payment, and
+                    collapsing them makes a clawback statement fail to add up by
+                    exactly the amount being recovered. The legend under the
+                    table says this in words. */}
                 <TableHead className="text-right">Refunds</TableHead>
+                <TableHead className="text-right">Clawback</TableHead>
                 <TableHead className="text-right">Net owed</TableHead>
                 <TableHead>Status</TableHead>
                 {/* The label belongs to screen readers only, but `sr-only` must
@@ -171,6 +197,8 @@ export default async function PayoutsPage() {
 
                     <TableCell className="py-2.5 text-right tabular-nums">{peso(row.gross_cents)}</TableCell>
                     <TableCell className="py-2.5 text-right tabular-nums">{deduction(row.commission_cents)}</TableCell>
+                    <TableCell className="py-2.5 text-right tabular-nums">{deduction(row.processing_cents)}</TableCell>
+                    <TableCell className="py-2.5 text-right tabular-nums">{deduction(row.refunds_in_period_cents)}</TableCell>
                     <TableCell className="py-2.5 text-right tabular-nums">{deduction(row.refunds_cents)}</TableCell>
 
                     {/* The one cell that can carry money in the WRONG
@@ -224,13 +252,41 @@ export default async function PayoutsPage() {
         )}
       </Card>
 
+      {rows.length > 0 ? (
+        <p className="mt-3 rounded-[9px] border bg-card px-3.5 py-[11px] text-[13px] text-muted-foreground">
+          <b className="font-semibold text-foreground">Every row adds up left to right:</b>{" "}
+          gross {MINUS} commission {MINUS} processing {MINUS} refunds {MINUS} clawback = net owed.{" "}
+          <b className="font-semibold text-foreground">Gross</b> is what runners were charged on this
+          statement&apos;s entries, before any deduction — not the &quot;Gross revenue&quot; on an
+          organizer&apos;s dashboard, which is already net of refunds.{" "}
+          <b className="font-semibold text-foreground">Processing</b> is what the payment provider took.{" "}
+          <b className="font-semibold text-foreground">Refunds</b> went back to runners out of money this
+          statement has not paid out yet. <b className="font-semibold text-foreground">Clawback</b> is money an
+          earlier statement already transferred to the organizer and that has since been refunded, so it is
+          recovered here — which is why a statement can end up negative.
+        </p>
+      ) : null}
+
+      {unreconciled.length > 0 ? (
+        <p className="mt-3 rounded-[9px] border border-l-[3px] border-l-destructive bg-card px-3.5 py-[11px] text-[13px] text-muted-foreground">
+          <b className="font-semibold text-foreground">
+            {unreconciled.length} statement{unreconciled.length === 1 ? "" : "s"} do
+            {unreconciled.length === 1 ? "es" : ""} not add up.
+          </b>{" "}
+          {unreconciled.map((r) => `${r.event_name} (${peso(Math.abs(statementResidual(r)))} unexplained)`).join(", ")}.
+          The net owed is still what the statement froze at the moment it was opened, and paying it transfers the
+          right amount — but the breakdown beside it does not reach that figure, so do not use these lines to
+          explain the transfer to an organizer until it is investigated.
+        </p>
+      ) : null}
+
       {kpis.owedBackCount > 0 ? (
         <p className="mt-3 rounded-[9px] border border-l-[3px] border-l-destructive bg-card px-3.5 py-[11px] text-[13px] text-muted-foreground">
           <b className="font-semibold text-foreground">
             {kpis.owedBackCount} statement{kpis.owedBackCount === 1 ? "" : "s"} with a negative balance
             ({peso(kpis.owedBackCents)} total).
           </b>{" "}
-          Refunds landed on money already transferred and no new sales followed, so the organization owes
+          Refunds landed on money already transferred — the Clawback column — and no new sales followed, so the organization owes
           Race Pace rather than the other way round. Use <b className="font-semibold text-foreground">Record
           recovery</b> once the money is back — it closes the statement and marks those refunds recovered so
           they are never deducted twice.

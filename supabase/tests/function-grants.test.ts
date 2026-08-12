@@ -26,6 +26,16 @@ const AUTHENTICATED_ALLOWLIST = new Set([
   "checkin_undo",
   "payout_mark_paid",
   "payout_open_statement",
+  // 20260811095000_payout_open_statement_v2.sql. Deliberate addition, and it honours the
+  // contract above rather than bending it: the function raises 42501 for any caller who is
+  // neither a super admin NOR an editor/admin of the event's own org. That is deliberately
+  // wider than its two payout siblings, which are super-admin-only — the organizer-facing
+  // settlement page reads this count and is gated on manage_org — and it is exactly the set
+  // payments_read_org_admin grants SELECT to on the rows being counted, because the gate
+  // calls auth_can_admin_org rather than restating the rule. Both refusals (unrelated-org
+  // admin, roleless runner) and the org-staff pass are asserted in
+  // payout-statements-v2.test.ts, so this entry is not taken on trust.
+  "payout_unreconciled_count",
   "update_registration_fields_tx",
   ...AUTH_PREDICATES,
 ]);
@@ -122,7 +132,7 @@ describe("function grants — service-role-only RPCs reject anon", () => {
     try {
       const r = await anon().rpc("refund_registration_tx", {
         p_registration_id: reg.id, p_refunded_by: uid, p_note: "exploit attempt",
-        p_provider_refund: {}, p_refunded_amount: 100000, p_retained_fee: 0, p_retained_net: 0,
+        p_provider_refund: {}, p_refunded_amount: 100000, p_retained_net: 0,
       });
       expect(r.error).not.toBeNull();
       expect(r.error!.code).toBe("42501");

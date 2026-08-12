@@ -7,7 +7,10 @@ export function TicketStub({ eventName, categoryLabel, meta, amountLabel, amount
   categoryLabel: string;
   meta?: string;
   amountLabel: string;
-  amount: number;
+  /** Null when the amount is not known YET and the sticker price would be the
+   *  wrong number to show — a pass-on registration whose processing fee has not
+   *  been priced. A dash is the honest placeholder; the caller explains it. */
+  amount: number | null;
 }) {
   return (
     <div className="overflow-hidden rounded-xl bg-forest">
@@ -23,7 +26,9 @@ export function TicketStub({ eventName, categoryLabel, meta, amountLabel, amount
       </div>
       <div className="flex items-center justify-between px-5 pb-4">
         <span className="text-[10px] font-semibold uppercase tracking-[1px] text-white/60">{amountLabel}</span>
-        <span className="text-[18px] font-bold tabular-nums text-white">{formatPeso(amount)}</span>
+        <span className="text-[18px] font-bold tabular-nums text-white">
+          {amount === null ? "—" : formatPeso(amount)}
+        </span>
       </div>
     </div>
   );

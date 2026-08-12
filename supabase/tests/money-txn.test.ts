@@ -161,13 +161,17 @@ describe("money RPCs write to registration_audit", () => {
       expect(afterPaid[0].org_id).toBe(org.id);
       expect(afterPaid[0].event_id).toBe(reg.event_id);
 
-      // Seven arguments — the four-arg form in older migrations was superseded by
-      // 20260807090400_refund_policy_tx.sql. Confirm the live parameter names and order with
+      // Six arguments — the four-arg form was superseded by
+      // 20260807090400_refund_policy_tx.sql and p_retained_fee was dropped by
+      // 20260811094000_refund_net_to_org.sql. Confirm the live parameter names and order with
       // pg_get_function_identity_arguments before writing this call; a wrong arg list fails
       // as "function does not exist", which reads like a missing migration.
+      //
+      // 90000, not 100000: the refund is net_to_org (what confirm_payment_tx just
+      // wrote), never `amount`. 100000 would now trip refund_exceeds_net_to_org.
       await s.rpc("refund_registration_tx", {
         p_registration_id: reg.id, p_refunded_by: uid, p_note: "duplicate entry",
-        p_provider_refund: {}, p_refunded_amount: 100000, p_retained_fee: 0, p_retained_net: 0,
+        p_provider_refund: {}, p_refunded_amount: 90000, p_retained_net: 0,
       });
 
       const afterRefund = (await s.from("registration_audit").select("*").eq("registration_id", reg.id).order("created_at", { ascending: true })).data!;
@@ -204,12 +208,13 @@ describe("money RPCs write to registration_audit", () => {
         p_net: 90000, p_token: "tok.sig", p_raw: {},
       });
 
-      // Partial: p_refunded_amount (40000) < the payment's amount (100000), so
+      // Partial: p_refunded_amount (40000) < the payment's net_to_org (90000), so
       // refund_registration_tx takes the partially_refunded branch, not the full-refund one.
+      // The organizer keeps the remaining 50000; the ₱100 commission is untouched.
       const r = await s.rpc("refund_registration_tx", {
         p_registration_id: reg.id, p_refunded_by: uid, p_note: "goodwill partial",
         p_provider_refund: { id: "ref_partial", status: "succeeded" },
-        p_refunded_amount: 40000, p_retained_fee: 5000, p_retained_net: 55000,
+        p_refunded_amount: 40000, p_retained_net: 50000,
       });
       expect(r.data).toBe("partially_refunded");
 

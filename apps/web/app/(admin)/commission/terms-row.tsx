@@ -19,6 +19,7 @@ import {
   type RefundTerms,
 } from "@/lib/commission-terms";
 import { saveFeeTermsAction, saveRefundTermsAction, type TermsState } from "@/lib/actions/commission";
+import { FeeModeSelect } from "./fee-mode-row";
 // TYPE-ONLY import: `@/lib/queries/commission` reaches `next/headers` through
 // the Supabase server client, which is a build error in a Client Component.
 // `import type` is erased before bundling, exactly as OrgSwitcher does with
@@ -197,7 +198,8 @@ function FeeRow({ org, draft, onChange }: {
         />
       </TableCell>
       <TableCell className="px-[14px] text-right tabular-nums">{org.paid_count.toLocaleString()}</TableCell>
-      <TableCell className="px-[14px] text-right tabular-nums">{peso(org.gross_revenue)}</TableCell>
+      {/* The GMV column: charged_gross, not gross_revenue. See the header. */}
+      <TableCell className="px-[14px] text-right tabular-nums">{peso(org.charged_gross)}</TableCell>
       <TableCell className="px-[14px] text-right font-semibold tabular-nums">{peso(org.platform_fee)}</TableCell>
       <TableCell className="px-[14px]">
         <Segmented
@@ -206,6 +208,13 @@ function FeeRow({ org, draft, onChange }: {
           onChange={(type) => onChange({ ...draft, type })}
           options={[{ value: "percent", label: "%" }, { value: "fixed", label: "₱" }]}
         />
+      </TableCell>
+      {/* Fee mode is NOT part of the fee draft and has no Save button. It writes
+          on change, because it is a single choice with no second field to agree
+          with — unlike the type/amount pair beside it, where saving half a draft
+          would charge something nobody chose. */}
+      <TableCell className="px-[14px]">
+        <FeeModeSelect orgId={org.id} orgName={org.name} mode={org.fee_mode} />
       </TableCell>
       <TableCell className="px-[14px]">
         <form action={formAction} id={`fee-${org.id}`}>
@@ -287,6 +296,7 @@ export function FeeTermsTable({ orgs }: { orgs: OrgCommissionRow[] }) {
             <TableHead className="h-9 px-[14px] text-right text-[10.5px] font-bold uppercase tracking-[0.05em] text-muted-foreground">GMV</TableHead>
             <TableHead className="h-9 px-[14px] text-right text-[10.5px] font-bold uppercase tracking-[0.05em] text-muted-foreground">Commission earned</TableHead>
             <TableHead className="h-9 px-[14px] text-[10.5px] font-bold uppercase tracking-[0.05em] text-muted-foreground">Type</TableHead>
+            <TableHead className="h-9 px-[14px] text-[10.5px] font-bold uppercase tracking-[0.05em] text-muted-foreground">Fee mode</TableHead>
             <TableHead className="h-9 px-[14px] text-[10.5px] font-bold uppercase tracking-[0.05em] text-muted-foreground">Per registration</TableHead>
             <TableHead className="h-9 px-[14px]" />
           </TableRow>
@@ -311,6 +321,19 @@ export function FeeTermsTable({ orgs }: { orgs: OrgCommissionRow[] }) {
           {nonRetroactiveNotice(focus.name, pendingFee(draftFor(focus)), savedFee(focus), focus.paid_count)}
         </Strip>
       ) : null}
+
+      {/* Fee mode is a third commercial term, negotiated separately from the
+          rate (an org can be on a flat peso commission AND pass-on), and its
+          two column values read backwards to anyone thinking about a runner's
+          checkout total. Spelled out once here rather than per row. */}
+      <Strip tone="info">
+        <b className="font-extrabold">Fee mode decides who pays the payment processor</b>, not who pays Race
+        Pace. On <b className="font-extrabold">absorb</b> the runner is charged the sticker price and the
+        processor&apos;s cut comes out of the organizer&apos;s share. On{" "}
+        <b className="font-extrabold">pass on</b> the charge is grossed up so the runner covers it and the
+        organizer receives the full entry price. Like the rate, it applies to entries paid from now on — it is
+        frozen onto each payment at confirmation and rewrites nothing.
+      </Strip>
 
       {flatWarnings.map((w) => (
         <Strip key={w} tone="destructive">
@@ -341,9 +364,11 @@ const refundDraftOf = (o: OrgCommissionRow): RefundDraft => ({
 const pendingRefund = (o: OrgCommissionRow, d: RefundDraft): RefundTerms => ({
   refund_policy: d.policy,
   refund_fee_cents: centsOf(d.retention),
-  // The SAVED fee terms, not the fee table's draft: the commission struck on a
-  // retained amount is the org's real, committed rule. Reading an unsaved fee
-  // edit from the other table would show a split that no refund would produce.
+  // The SAVED fee terms, not the fee table's draft. The commission in this
+  // example is the one struck on the ENTRY at capture and frozen onto the payment
+  // row — it is what a refund declines to give back, not something the refund
+  // re-strikes — so it must be the org's real, committed rule. Reading an unsaved
+  // fee edit from the other table would quote a net_to_org no payment carries.
   commission_type: o.commission_type,
   commission_rate: o.commission_rate,
   commission_flat_cents: o.commission_flat_cents,
@@ -400,7 +425,9 @@ function RefundRow({ org, draft, onChange }: {
         {org.example_entry_cents > 0 ? (
           <>
             <div>A runner cancelling a {peso(org.example_entry_cents)} entry:</div>
-            <div className="text-foreground">{describeRefund(terms, org.example_entry_cents)}</div>
+            <div className="text-foreground">
+              {describeRefund(terms, org.example_entry_cents, org.avg_processor_fee_cents)}
+            </div>
           </>
         ) : (
           "No paid entries or open categories yet to work an example from."
@@ -465,11 +492,19 @@ export function RefundTermsTable({ orgs }: { orgs: OrgCommissionRow[] }) {
         </Strip>
       ))}
 
+      {/* The rule this table is read against, stated once. It is NOT the rule
+          this strip used to state ("a retained fee is just a smaller sale", with
+          the commission re-struck against the retention): that was superseded by
+          20260811094000_refund_net_to_org.sql, which dropped the RPC parameter
+          that made it possible. */}
       <Strip tone="info">
-        <b className="font-extrabold">A retained fee is just a smaller sale.</b> The org&apos;s normal commission
-        rule runs against the retained amount, so nothing new has to be decided per refund — and the payout
-        statement picks it up with no special case. <b className="font-extrabold">None</b> refuses the refund
-        outright, and the org admin&apos;s refund button is disabled with the reason rather than failing on submit.
+        <b className="font-extrabold">A refund returns what the organizer would have been paid</b>, never the
+        whole entry. Race Pace&apos;s commission is an earned service fee and is kept, and the payment processor
+        does not return its cut — so a cancelling runner always gets back less than they paid. Under{" "}
+        <b className="font-extrabold">Flat fee</b> the organizer keeps the retained amount on top of that, and
+        keeps all of it: no commission is struck on a retention, because Race Pace already took its full
+        commission when the entry was paid. <b className="font-extrabold">None</b> refuses the refund outright,
+        and the org admin&apos;s refund button is disabled with the reason rather than failing on submit.
       </Strip>
     </>
   );

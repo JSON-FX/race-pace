@@ -35,6 +35,15 @@ export type PayoutStatementRow = {
   event_status: string | null;
   gross_cents: number;
   commission_cents: number;
+  /** What the payment processor took on this statement's own earnings. Excludes
+   *  `historical`/`none` rows, on which no processor fee was deducted from
+   *  net_to_org — see the filter in `payout_open_statement`. */
+  processing_cents: number;
+  /** Refunds netted out of THIS statement's own unsettled earnings. */
+  refunds_in_period_cents: number;
+  /** CLAWBACK: money already transferred on an earlier statement and since
+   *  refunded. A payment lands in this or in `refunds_in_period_cents`, never
+   *  both — see `statementResidual` for why the difference is load-bearing. */
   refunds_cents: number;
   net_owed_cents: number;
   status: PayoutStatementStatus;
@@ -45,6 +54,53 @@ export type PayoutStatementRow = {
   /** Derived, not stored — see `isEventFinished`. */
   event_finished: boolean;
 };
+
+/**
+ * THE STATEMENT'S BREAKDOWN, AS FIVE TERMS. Returns what the printed lines fail
+ * to explain — zero when the document adds up.
+ *
+ *   gross − commission − processing − refunds_in_period − refunds = net_owed
+ *
+ * FIVE, not four. `20260811095500_money_aggregates_three_party.sql` documents
+ * the identity as `gross - commission - processing - refunds_in_period =
+ * net_owed`, and that is true only while the CLAWBACK term is zero. The two
+ * refund columns are different quantities:
+ *
+ *   refunds_in_period_cents — refunded out of money this statement is about to
+ *                             pay, so it is already netted out of net_owed via
+ *                             Σ net_to_org;
+ *   refunds_cents           — refunded out of money an EARLIER statement already
+ *                             transferred, subtracted again here to recover it.
+ *
+ * `payout_open_statement` computes `net_owed = Σ net_to_org − clawback`, and
+ * Σ net_to_org is itself `gross − commission − processing − refunds_in_period`.
+ * So the four-term form describes a statement with no clawback, and a clawback
+ * statement rendered with four terms visibly fails to add up by exactly the
+ * amount being recovered — on the one document a manual bank transfer is keyed
+ * from.
+ *
+ * Exported and rendered rather than assumed: an `historical`-sourced payment
+ * that is later partially refunded is not covered by the RPC's exclusion
+ * reasoning, and a breakdown that silently does not reconcile is worse than one
+ * that says so.
+ */
+export function statementResidual(row: {
+  gross_cents: number;
+  commission_cents: number;
+  processing_cents: number;
+  refunds_in_period_cents: number;
+  refunds_cents: number;
+  net_owed_cents: number;
+}): number {
+  return (
+    row.net_owed_cents -
+    (row.gross_cents -
+      row.commission_cents -
+      row.processing_cents -
+      row.refunds_in_period_cents -
+      row.refunds_cents)
+  );
+}
 
 /**
  * An event is finished when its last day has passed, or when someone marked it
@@ -107,8 +163,15 @@ export function payoutRowState(row: {
   return "ready";
 }
 
+// processing_cents and refunds_in_period_cents were BOTH missing from this list
+// until Task 13, while the table already rendered a gross/commission/refunds
+// breakdown beside a net owed — so the console was printing a document that did
+// not add up, by the processing cost plus any in-period refund. Every term of
+// `statementResidual` has to be selected or the residual is computed from
+// undefined and reads as a defect that isn't there.
 const STATEMENT_SELECT =
-  "id,event_id,org_id,gross_cents,commission_cents,refunds_cents,net_owed_cents," +
+  "id,event_id,org_id,gross_cents,commission_cents,processing_cents," +
+  "refunds_in_period_cents,refunds_cents,net_owed_cents," +
   "status,reference,note,opened_at,paid_at," +
   "events(name,event_date,end_date,status),organizations(name)";
 
@@ -118,6 +181,8 @@ type StatementJoinRow = {
   org_id: string;
   gross_cents: number;
   commission_cents: number;
+  processing_cents: number;
+  refunds_in_period_cents: number;
   refunds_cents: number;
   net_owed_cents: number;
   status: PayoutStatementStatus;
@@ -159,6 +224,8 @@ export async function listPayoutStatements(): Promise<PayoutStatementRow[]> {
     event_status: r.events?.status ?? null,
     gross_cents: r.gross_cents,
     commission_cents: r.commission_cents,
+    processing_cents: r.processing_cents,
+    refunds_in_period_cents: r.refunds_in_period_cents,
     refunds_cents: r.refunds_cents,
     net_owed_cents: r.net_owed_cents,
     status: r.status,
@@ -240,6 +307,11 @@ export type PayoutKpis = {
   readyCount: number;
   /** Net owed across READY rows only — what could be transferred right now. */
   totalOwedCents: number;
+  /** Processing cost already deducted from `totalOwedCents`, across the same
+   *  READY rows. Not a fifth tile: it is the second half of the "TOTAL OWED"
+   *  caption, which said "net of commission" while a second deduction was
+   *  quietly in the number too. */
+  processingCents: number;
   heldCount: number;
   heldCents: number;
   paidThisMonthCount: number;
@@ -262,7 +334,7 @@ export type PayoutKpis = {
 export function payoutKpis(rows: PayoutStatementRow[], now: Date = new Date()): PayoutKpis {
   const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   const k: PayoutKpis = {
-    readyCount: 0, totalOwedCents: 0,
+    readyCount: 0, totalOwedCents: 0, processingCents: 0,
     heldCount: 0, heldCents: 0,
     paidThisMonthCount: 0, paidThisMonthCents: 0,
     owedBackCount: 0, owedBackCents: 0,
@@ -272,6 +344,9 @@ export function payoutKpis(rows: PayoutStatementRow[], now: Date = new Date()): 
       case "ready":
         k.readyCount += 1;
         k.totalOwedCents += r.net_owed_cents;
+        // READY only, matching totalOwedCents exactly. Summing processing across
+        // every row would caption a figure with a cost that is not inside it.
+        k.processingCents += r.processing_cents;
         break;
       case "held":
         k.heldCount += 1;

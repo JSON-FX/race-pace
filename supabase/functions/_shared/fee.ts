@@ -18,11 +18,17 @@ export interface FeeTerms {
  * or a fully-discounted comp) with no special case, and guards the percent
  * branch against a mis-entered rate above 100%.
  *
- * Callers pass the RETAINED amount rather than the original when a flat-fee
- * refund has shrunk the sale — see `_shared/refund.ts`. That is the whole reason
- * this is a standalone function: the retained fee must be struck by exactly the
- * same rule as the original, or a partial refund would quietly change an org's
- * commercial terms.
+ * STRUCK ONCE PER ENTRY, AT CAPTURE, AND NEVER AGAIN. This used to say that a
+ * flat-fee refund calls it a second time with the RETAINED amount, "so the
+ * retained fee is struck by exactly the same rule as the original" — true of
+ * `_shared/refund.ts` until 2026-08-11 and of nothing since. The commission is
+ * now an earned service fee: it is kept in full on a refund, so re-striking it
+ * on the organizer's retention would charge twice for one sale.
+ * `20260811094000_refund_net_to_org.sql` deleted the RPC parameter that carried
+ * the second fee, and `_shared/refund.ts` says "No computeFee here" where the
+ * second call used to be. Both remaining callers are pre-capture:
+ * `_shared/confirm.ts`, which freezes the fee onto the payment row, and
+ * `payment-session`, which needs the same figure to size a pass-on gross-up.
  */
 export function computeFee(total: number, org: FeeTerms): number {
   if (total <= 0) return 0;

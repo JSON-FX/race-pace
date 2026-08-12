@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getMyRoles } from "@/lib/queries/roles";
+import { hasCapability } from "@/lib/capabilities";
 import { percentToRate } from "@/lib/commission-terms";
 
 export type TermsState = { error?: string; success?: string };
@@ -112,6 +113,43 @@ export async function saveRefundTermsAction(_prev: TermsState, formData: FormDat
   if ("error" in parsed) return { error: parsed.error };
 
   return write(orgId, { refund_policy: policy, refund_fee_cents: parsed.cents }, "Refund policy saved.");
+}
+
+/**
+ * Move one organization between absorbing the processor's cut and passing it on
+ * to the runner.
+ *
+ * A Server Action is a PUBLIC ENDPOINT. The Commission page is super-admin-only
+ * and the control is not rendered anywhere else, but neither fact reaches this
+ * function — anyone with a session can POST to it. So the capability is
+ * re-checked here, and again by the database underneath: 20260811097000 grants
+ * the column to `authenticated` and then guards it with a BEFORE UPDATE trigger
+ * that raises 42501 for a non-super-admin, because `organizations`' other UPDATE
+ * policy (`organizations_update_branding_org_admin`, `using
+ * auth_can_admin_org(id)`) is column-agnostic and would otherwise have let an
+ * org admin put their OWN organization on pass_on.
+ *
+ * `manage_platform` rather than `roles?.isSuperAdmin`, unlike this file's two
+ * older actions: it is the same set (capabilitiesFor grants all four to a super
+ * admin and manage_platform to nobody else) said in the vocabulary the pages
+ * gate on, so the action and the page it is reached from cannot drift.
+ */
+export async function setFeeMode(orgId: string, mode: "absorb" | "pass_on"): Promise<TermsState> {
+  if (!orgId) return { error: "Missing organization." };
+  if (mode !== "absorb" && mode !== "pass_on") return { error: "Unknown fee mode." };
+
+  const roles = await getMyRoles();
+  if (!hasCapability(roles?.capabilities ?? [], "manage_platform")) {
+    return { error: "Only a super admin can change who pays processing fees." };
+  }
+
+  return write(
+    orgId,
+    { fee_mode: mode },
+    mode === "pass_on"
+      ? "Runners now cover processing. This organizer receives the full entry price."
+      : "This organizer now absorbs processing. Runners pay the sticker price.",
+  );
 }
 
 async function write(orgId: string, patch: Record<string, unknown>, success: string): Promise<TermsState> {

@@ -2,6 +2,8 @@ import { serviceClient } from "../_shared/supabase.ts";
 import { getPaymentProviderByName } from "../_shared/payments.ts";
 import { preflight, corsHeaders } from "../_shared/cors.ts";
 import { isRegistrationClosed } from "../_shared/eventStatus.ts";
+import { computeFee, type FeeTerms } from "../_shared/fee.ts";
+import { passOnBreakdown, type ProcessorRate } from "../_shared/processorFee.ts";
 
 // The register flow creates an all-methods checkout at registration time (before the runner picks
 // how to pay). When they choose a method on the pay screen and tap Pay, this recreates the PayMongo
@@ -36,7 +38,17 @@ Deno.serve(async (req) => {
     const userId = userRes.user.id;
 
     // Own the registration + it must still be payable. Service role bypasses RLS, so check ownership.
-    const { data: reg } = await db.from("registrations").select("id,user_id,status,total_amount,category_id,event_id,expires_at").eq("id", registrationId).single();
+    // The org's terms come along on this SAME read — mode AND all three commission
+    // columns, not just fee_mode. Fetching only the mode would send a 'fixed' org
+    // down computeFee's percent branch and its `?? 0.10` default, surcharging the
+    // runner 10% instead of the org's flat fee, silently. Same reasoning as
+    // _shared/confirm.ts's select.
+    const { data: reg } = await db.from("registrations")
+      // One string literal, not a concatenation: supabase-js parses the select
+      // at the type level, and `a + b` is `string` to TypeScript — which erases
+      // every column type on `reg`.
+      .select("id,user_id,status,total_amount,category_id,event_id,expires_at,organizations(fee_mode,commission_type,commission_rate,commission_flat_cents)")
+      .eq("id", registrationId).single();
     if (!reg || reg.user_id !== userId) return json({ error: "registration_not_found" }, 404);
     if (reg.status !== "pending") return json({ error: "not_pending" }, 409);
 
@@ -89,6 +101,41 @@ Deno.serve(async (req) => {
     const lineItems = [{ name: category?.label ?? "Race registration", amount: entry }];
     if (addonTotal > 0) lineItems.push({ name: "Add-ons", amount: addonTotal });
 
+    // Pass-on mode: the runner covers Race Pace's commission and the processing
+    // cost, so the organizer receives the full sticker price.
+    //
+    // The surcharge is computed HERE — at the moment the method is known and the
+    // scoped session is recreated — because PayMongo's cut depends on the method.
+    // A ₱2,000 entry costs ₱30 on GCash and ₱85 on a card; one blended number
+    // would over-collect on one and lose money on the other.
+    const org = (reg.organizations as unknown as
+      (FeeTerms & { fee_mode: string }) | null) ?? null;
+    let chargeAmount = reg.total_amount;
+
+    if (org?.fee_mode === "pass_on") {
+      const { data: rateRows } = await db.rpc("processor_rate_at", {
+        p_provider: "paymongo", p_method: pmMethod, p_scope: "local",
+        p_at: new Date().toISOString(),
+      });
+      const rate = (rateRows as ProcessorRate[] | null)?.[0] ?? null;
+      if (!rate) {
+        // Pass-on mode CANNOT proceed without a rate: there is no honest amount
+        // to charge. Absorb mode would be unaffected, which is why this refuses
+        // here rather than globally.
+        console.error(`[payment-session] no processor rate for method=${pmMethod} — pass-on org ${reg.event_id}`);
+        return json({ error: "rate_card_missing" }, 503);
+      }
+      const platformFee = computeFee(reg.total_amount, org);
+      const b = passOnBreakdown(reg.total_amount, platformFee, rate);
+      chargeAmount = b.total;
+      // Zero lines are skipped, same as the add-ons line above: a ₱0.00 item on
+      // the hosted page is noise at best, and PayMongo has no reason to accept
+      // one. Skipping only zeros keeps the lines summing to chargeAmount, which
+      // is what PayMongo actually charges.
+      if (b.platformFee > 0) lineItems.push({ name: "Race Pace service fee", amount: b.platformFee });
+      if (b.processorFee > 0) lineItems.push({ name: "Payment processing", amount: b.processorFee });
+    }
+
     // Prefill PayMongo's customer info with the runner's name + email (phone left to PayMongo).
     const { data: profile } = await db.from("profiles").select("full_name,bib_name").eq("id", userId).maybeSingle();
     const billing = { name: ((profile?.full_name ?? profile?.bib_name ?? "") as string).trim() || undefined, email: userRes.user.email || undefined };
@@ -96,12 +143,21 @@ Deno.serve(async (req) => {
     // Refund uses the same rails that took the payment; recreate on the payment's own provider.
     const provider = getPaymentProviderByName(payment?.provider ?? "paymongo");
     const checkout = await provider.createCheckout({
-      registrationId: reg.id, amount: reg.total_amount, description: category?.label ?? "Race registration",
+      registrationId: reg.id, amount: chargeAmount, description: category?.label ?? "Race registration",
       returnUrl, methods: [pmMethod], lineItems, billing,
     });
     // Point provider_ref/checkout_url at the new session — payment-verify + refunds resolve from here.
+    //
+    // `amount` moves with them. It was set to the BASE total when the row was
+    // created (registrations-checkout), and in pass-on mode that is no longer
+    // what the runner is charged. Leaving it stale would record a ₱2,000 sale
+    // against a ₱2,091.38 charge, and confirm.ts pays the organizer out of this
+    // column — so a stale value here is not bookkeeping, it is the organizer
+    // being paid the wrong amount with nothing to flag it. In absorb mode this
+    // rewrites the same number it already held.
     await db.from("payments").update({
       provider_ref: checkout.providerRef, checkout_url: checkout.checkoutUrl,
+      amount: chargeAmount,
     }).eq("registration_id", reg.id);
 
     return json({ checkout_url: checkout.checkoutUrl });

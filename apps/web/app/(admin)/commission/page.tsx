@@ -2,9 +2,10 @@ import { notFound } from "next/navigation";
 import { Landmark, Percent, ShieldCheck, TrendingUp, Wallet } from "lucide-react";
 import { getMyRoles } from "@/lib/queries/roles";
 import { hasCapability } from "@/lib/capabilities";
-import { getCommissionOverview } from "@/lib/queries/commission";
+import { describeRateDrift, getCommissionOverview, getRateDrift } from "@/lib/queries/commission";
 import { KpiCard, KpiRow } from "@/components/kpi-card";
 import { TableEmptyState } from "@/components/data-table";
+import { methodPresentation } from "@/components/MethodBadge";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { peso } from "@/lib/format";
@@ -33,9 +34,16 @@ export default async function CommissionPage() {
   // underneath — this is the UI half, not the boundary.
   if (!hasCapability(roles?.capabilities ?? [], "manage_platform")) notFound();
 
-  const { orgs, events, totals } = await getCommissionOverview();
+  const [{ orgs, events, totals }, drift] = await Promise.all([
+    getCommissionOverview(),
+    getRateDrift(),
+  ]);
 
-  const effectiveRate = totals.gross > 0 ? (totals.commission / totals.gross) * 100 : 0;
+  // charged_gross, NOT gross. A rate is struck on what the runner was charged, so
+  // dividing by revenue that a refund has already been netted out of prints a rate
+  // nobody is on: one partially refunded ₱2,000 entry retained at ₱300 turns a 3%
+  // org into "15.4%" on the page an operator negotiates rates from.
+  const effectiveRate = totals.charged_gross > 0 ? (totals.commission / totals.charged_gross) * 100 : 0;
 
   return (
     <div className="px-4 pb-10 pt-6 md:px-[30px]">
@@ -60,6 +68,24 @@ export default async function CommissionPage() {
         </div>
       </div>
 
+      {/* Above the KPI row on purpose: it is about whether the processing figures
+          under those cards mean what the rate card says they mean. Rendered one
+          per (method, scope) rather than summarised, because the fix is
+          per-method — a card repricing says nothing about GCash. */}
+      {drift.map((d) => {
+        const n = describeRateDrift(d, methodPresentation(d.method).label);
+        return (
+          <p
+            key={`${d.method}-${d.scope}`}
+            className="mb-3 rounded-[9px] border border-l-[3px] border-l-amber bg-card px-3.5 py-[11px] text-[13px] leading-[1.55] text-muted-foreground"
+          >
+            <b className="font-semibold text-foreground">{n.headline}</b>{" "}
+            {n.observation} {n.money}{" "}
+            <span className="text-foreground">{n.caveat}</span> {n.action}
+          </p>
+        );
+      })}
+
       <KpiRow>
         <KpiCard
           icon={Percent}
@@ -67,9 +93,12 @@ export default async function CommissionPage() {
           value={peso(totals.commission)}
           delta={{
             tone: "neutral",
-            // Refunds return the platform's fee too, so refunded entries have
-            // already dropped out of this figure. Stating what went back stops
-            // it reading as smaller than an operator's own tally of gross sales.
+            // A refund does NOT return the platform's fee — since
+            // 20260811094000 the commission is an earned service fee and is
+            // retained, and the runner gets net_to_org back. So this figure is
+            // NOT reduced by refunds; what went back is stated beside it, from
+            // payments.refunded_amount, so the card is not read as already
+            // netting something it does not.
             text:
               totals.refund_count > 0
                 ? `${peso(totals.refunded_cents)} returned on ${totals.refund_count} refund${totals.refund_count === 1 ? "" : "s"}`
@@ -79,8 +108,19 @@ export default async function CommissionPage() {
         <KpiCard
           icon={Wallet}
           label="PLATFORM GMV"
-          value={peso(totals.gross)}
-          delta={{ tone: "neutral", text: `${totals.paid_count.toLocaleString()} paid entries` }}
+          // Gross MERCHANDISE value: what was sold, not what survived refunds.
+          // The caption says so out loud because an organizer's own Dashboard
+          // shows a "Gross revenue" card for the same org holding a DIFFERENT
+          // figure — retained revenue, net of refunds. Two gross numbers, two
+          // meanings; this page never renders the retained one, and never uses
+          // the bare word "Gross" for a charged figure either (see the by-event
+          // table's GMV column below), so the two cannot be confused by an
+          // operator moving between screens.
+          value={peso(totals.charged_gross)}
+          delta={{
+            tone: "neutral",
+            text: `${totals.paid_count.toLocaleString()} paid entries · charged, before refunds`,
+          }}
         />
         <KpiCard
           icon={TrendingUp}
@@ -134,7 +174,11 @@ export default async function CommissionPage() {
                 <TableHead className={TH}>Event</TableHead>
                 <TableHead className={TH}>Organization</TableHead>
                 <TableHead className={`${TH} text-right`}>Paid</TableHead>
-                <TableHead className={`${TH} text-right`}>Gross</TableHead>
+                {/* "GMV", not "Gross" — the same word this column used to carry
+                    also heads the organizer Dashboard's card for a figure that
+                    IS net of refunds. This column is Σ amount, i.e. charged, so
+                    it belongs to the GMV vocabulary the rest of the page uses. */}
+                <TableHead className={`${TH} text-right`}>GMV</TableHead>
                 <TableHead className={TH}>Fee charged</TableHead>
                 <TableHead className={`${TH} text-right`}>Commission</TableHead>
               </TableRow>
