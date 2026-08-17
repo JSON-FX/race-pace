@@ -3,6 +3,11 @@ node_modules/
 .pnp.*
 .yarn/*
 .pnpm-store/
+# pnpm is the package manager (see packageManager in package.json). An npm
+# lockfile here resolves different versions than pnpm-lock.yaml and has no
+# business being committed.
+package-lock.json
+yarn.lock
 
 # Env & secrets
 .env
