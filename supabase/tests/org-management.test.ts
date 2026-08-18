@@ -94,6 +94,12 @@ describe("delete_organization_tx", () => {
       const { error } = await svc().rpc("delete_organization_tx", { p_org_id: orgId });
 
       expect(error?.message).toMatch(/org_has_payments/);
+      // The SQLSTATE, not only the message. `mapDeleteRpcError`
+      // (_shared/orgAdmin.ts) discriminates on `error.code` FIRST and treats
+      // the message text as a fallback, so a migration that dropped `using
+      // errcode = 'P0001'` would silently turn every blocked delete into a
+      // 500 while this test stayed green on the message alone.
+      expect(error?.code).toBe("P0001");
       const still = await svc().from("organizations").select("id").eq("id", orgId);
       expect(still.data).toHaveLength(1);
     });
@@ -106,6 +112,11 @@ describe("delete_organization_tx", () => {
 
     const { error } = await svc().rpc("delete_organization_tx", { p_org_id: orgId });
     expect(error).toBeNull();
+    // `error === null` alone would also pass against a function that returned
+    // cleanly and deleted nothing — which is exactly the failure mode a broken
+    // guard would produce here. Assert the row is actually gone.
+    const after = await svc().from("organizations").select("id").eq("id", orgId);
+    expect(after.data, `an org with only a ${status} payment must actually be deleted`).toHaveLength(0);
   });
 
   it("raises org_not_found for an id that matches nothing", async () => {
@@ -113,6 +124,10 @@ describe("delete_organization_tx", () => {
       p_org_id: "00000000-0000-0000-0000-0000000000ff",
     });
     expect(error?.message).toMatch(/org_not_found/);
+    // Same reason as the P0001 assertion above: `mapDeleteRpcError` reads the
+    // SQLSTATE first, and spec §9 wants this to be a routine 404 (two
+    // operators deleting the same org), not a 500.
+    expect(error?.code).toBe("P0002");
   });
 });
 
