@@ -105,15 +105,34 @@ follow-up rather than an edit to anything already applied.
 -- was: for select using (is_active = true)
 drop policy if exists orgs_read_active on organizations;
 create policy orgs_read_active on organizations
-  for select using (is_active or auth_can_admin_org(id));
+  for select using (
+    is_active
+    or (select public.auth_is_super_admin())
+    or id in (
+      select ur.org_id
+      from public.user_roles ur
+      where ur.user_id = (select auth.uid())
+        and ur.org_id is not null
+        and ur.role in ('editor', 'admin')
+    )
+  );
 ```
 
-`auth_can_admin_org` short-circuits on `auth_is_super_admin()`, so this covers
-both the platform operator and the org's own admins in one predicate. Without
-it, suspending an org removes it from the page you would un-suspend it from, and
-breaks the console for its own staff.
+**Not a call to `auth_can_admin_org(id)`, shipped as its predicate inlined
+instead.** `20260808161720_rls_scope_once_not_per_row.sql` measured that
+passing a *column* to a `STABLE` function on this shape of predicate defeats
+Postgres's ability to evaluate it once per statement and forces per-row
+re-evaluation instead — a query going from 4.9ms to 1,220ms and into a
+production statement timeout. Inlined here from the start rather than shipped
+correlated and fixed later. `org_id is not null` keeps the `in` exactly
+equivalent to `auth_can_admin_org`'s own `exists` in the presence of
+`super_admin` rows, whose `org_id` is `NULL`.
 
-Anonymous callers are unaffected: `auth_can_admin_org` matches nothing for them,
+This covers both the platform operator and the org's own admins in one
+predicate. Without it, suspending an org removes it from the page you would
+un-suspend it from, and breaks the console for its own staff.
+
+Anonymous callers match neither the super-admin nor the `user_roles` branch,
 so a suspended org stays invisible on the storefront.
 
 **`is_active` is still not in the UPDATE grant, and must not be.** Postgres RLS
@@ -130,10 +149,18 @@ is the same trap `20260811097000_org_fee_mode_grant.sql` documents at length for
 drop policy if exists events_read_published on events;
 create policy events_read_published on events
   for select using (
-    status <> 'draft'
-    and exists (select 1 from organizations o where o.id = events.org_id and o.is_active)
+    status <> 'draft'::event_status
+    and org_id in (select id from public.organizations where is_active)
   );
 ```
+
+**Not a correlated `exists (... where o.id = events.org_id ...)`, shipped as an
+uncorrelated `in` instead.** `20260808161720_rls_scope_once_not_per_row.sql` —
+the same migration behind §4.1's inlining — found a correlated per-row subplan
+on this table's read path put a production query 250x over budget. The
+uncorrelated form lets the planner hoist the inner `select` into a hashed
+InitPlan evaluated once per statement, and this is the hottest anonymous query
+in the app, so the shape is not optional.
 
 `events_read_org_admin` (`auth_can_admin_org(org_id)`) is a separate permissive
 policy and is untouched, so org staff keep seeing their own events while
@@ -143,15 +170,28 @@ suspended. Policies are OR'd.
 
 ```sql
 create or replace function delete_organization_tx(p_org_id uuid)
-returns jsonb language plpgsql security definer set search_path = public as $$
+returns jsonb language plpgsql security definer set search_path = '' as $$
 ```
 
-**Why an RPC and not `delete from organizations`:** `registrations.category_id →
-categories` is `ON DELETE NO ACTION`, while `registrations` and `categories`
-both cascade from `organizations`. Postgres does not guarantee it deletes the
-registrations before the categories, so a plain delete can abort with a foreign
-key violation on any org that has both. Verified against the live constraint set
-on 2026-08-18.
+**Not `set search_path = public`.** `20260806202000_harden_auth_helper_search_path.sql`
+found that `= public` still leaves `pg_temp` implicitly searched *first* —
+Postgres always does, unless a path explicitly lists it — so a caller-created
+`pg_temp` object can still shadow a `public` one even with `public` named
+explicitly. The shipped function uses `set search_path = ''` and fully
+qualifies every reference (`public.organizations`, `public.registrations`,
+etc.) instead.
+
+**Why an RPC and not `delete from organizations`:** not because a plain delete
+fails on an ordering hazard — see the correction below, it doesn't. The actual
+reasons: (1) the money guard and the deletes must be one atomic unit — a plain
+`delete from organizations` has no way to check `payments` first and abort
+before touching anything; (2) the console's delete action consumes the
+returned counts (events/categories/registrations/payments/checkins/
+members/payout_statements) to show what was removed, and a bare `delete`
+returns nothing structured; (3) the explicit `registrations` → `categories` →
+`organizations` order costs nothing and is defence-in-depth against a future
+schema change that turns the `NO ACTION` constraint into one Postgres enforces
+mid-cascade.
 
 Order inside the transaction:
 
@@ -165,24 +205,27 @@ Re-checks the money guard as its first statement and raises if it trips, so the
 invariant holds even if the function is ever called from somewhere other than
 `org-provision`. Returns the deleted counts as jsonb.
 
-**Grant it explicitly.** An event trigger (`20260808120200`) revokes EXECUTE on
-every new function, and a missing grant has bitten this repo three times. Grant
-to `service_role` only — nothing else should be able to call this — and verify
-with `has_function_privilege` in the same migration.
+**Grant it explicitly.** Postgres grants EXECUTE to PUBLIC on every new
+function by built-in default, and a missing grant has bitten this repo three
+times — `20260808120200`, an event trigger that once enforced this at DDL
+time, was reversed by `20260808130000` because it also fired on `CREATE OR
+REPLACE` and silently stripped grants from existing functions; the guard now
+is `supabase/tests/function-grants.test.ts`, which audits every `public`
+function's grants. Grant `delete_organization_tx` to `service_role` only —
+nothing else should be able to call this — and verify with
+`has_function_privilege` in the same migration.
 
-**Correction (2026-08-18):** the ordering-hazard claim above was tested and
-does not reproduce. Built the exact fixture this spec describes (one event,
-two categories, a registration in each) and ran a plain `delete from
-organizations` against it: it succeeded. Every cascade and the
+**Verified (2026-08-18):** the ordering-hazard claim above (why an RPC and not
+a plain `delete`) was tested against the exact fixture this spec describes
+(one event, two categories, a registration in each) and does not reproduce —
+a plain `delete from organizations` succeeds. Every cascade and the
 `registrations_category_id_fkey` NO ACTION check resolve inside the same
 top-level statement's after-trigger queue, so by the time that constraint is
 checked the registrations are already gone. The constraint itself is real — a
 direct `delete from categories` with registrations still present does fail —
-an org-level delete just never reaches that state. `delete_organization_tx`'s
-actual justification: the money guard and the deletes must be one atomic
-unit, and it returns the counts Task 5's console consumes. The explicit
-delete order is defence-in-depth against a future constraint change, not a
-reproduced incident.
+an org-level delete just never reaches that state. This is why the function's
+justification above is the money guard's atomicity and the returned counts,
+not the ordering hazard.
 
 ### 4.4 Nothing is granted to `authenticated`
 
@@ -360,8 +403,14 @@ key and its `storage.remove` is unaffected.
 **Backend (`supabase/tests/`, root vitest):**
 
 - `delete_organization_tx` on an org with registrations spread across several
-  categories — the ordering hazard §4.3 exists to prevent. This test fails
-  against a plain `delete from organizations`.
+  categories, and a separate **structural** test asserting the lock order
+  (`registrations` before `payments`) via `pg_get_functiondef`. The structural
+  test exists because the behavioural race it guards against — a concurrent
+  `confirm_payment_tx` and delete taking locks in opposite orders — is a
+  deadlock (`40P01`), and a deadlock is symmetric: it happens regardless of
+  which of the two orders either transaction used, so no behavioural test can
+  tell a correct lock order from its reverse by outcome alone. Reading the
+  order out of the function body is the only way to pin it.
 - The money guard trips on each of `paid`, `refunded`, `partially_refunded`, and
   does not trip on `pending` / `failed`.
 - `registrations-checkout` refuses a suspended org's event.

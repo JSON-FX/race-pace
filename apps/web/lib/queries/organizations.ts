@@ -74,15 +74,6 @@ const num = (v: unknown): number => Number(v ?? 0);
  * independently — `admin_org_totals_v` is `security_invoker`, so its rows are
  * whatever `registrations_read_org_admin` lets this caller see, which for
  * anyone but a super admin is their own org alone.
- *
- * KNOWN LIMITATION: `orgs_read_active` restricts `organizations` SELECT to
- * `is_active = true` for every authenticated caller, super admin included. So
- * the Status column can only ever read "Active" today. Deactivation is out of
- * scope for this task (design §6), and fixing the read would need a migration
- * this task is not allowed to write — but the column is kept because the
- * moment that policy is widened it starts telling the truth, and a list of
- * organizations that cannot express "this one is switched off" is worse than
- * one whose column is currently uniform.
  */
 export async function getPlatformOrganizations(): Promise<{ rows: OrgListRow[]; kpis: PlatformKpis }> {
   const supabase = await createClient();
