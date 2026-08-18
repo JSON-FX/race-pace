@@ -124,12 +124,15 @@ begin
   -- reaches the registrations lock first simply makes the other one wait,
   -- never the other way around.
   --
-  -- This also makes the guard re-check below load-bearing rather than
-  -- decorative: if a settle is already in flight when we arrive, we now
-  -- block on ITS registrations lock until it commits, and the second count
-  -- then sees the row it just marked 'paid' — converting what used to be a
-  -- race into a clean `org_has_payments` refusal instead of a deadlock error
-  -- surfacing to the caller.
+  -- This also makes the FIRST guard count below (immediately after these
+  -- locks) load-bearing rather than decorative: if a settle is already in
+  -- flight when we arrive, we now block on ITS registrations lock until it
+  -- commits, and that first count then sees the row it just marked 'paid' —
+  -- converting what used to be a race into a clean `org_has_payments`
+  -- refusal instead of a deadlock error surfacing to the caller. `raise
+  -- exception` aborts the function immediately, so execution never reaches
+  -- the SECOND guard count (further below) in this scenario — that one
+  -- covers a different case entirely; see its own comment.
   perform 1 from public.registrations where org_id = p_org_id for update;
   perform 1 from public.payments      where org_id = p_org_id for update;
 
@@ -157,11 +160,15 @@ begin
   ) into v_counts;
 
   -- TOCTOU guard, part 2: re-run the guard immediately before the destructive
-  -- deletes. Part 1's locks close the race against a settle that was already
-  -- in flight when we arrived — we now either see its committed 'paid' status
-  -- here, or we blocked on the registrations lock until it finished, so this
-  -- count cannot run against a stale, unlocked snapshot of a settle in
-  -- progress.
+  -- deletes. This is NOT the check that catches a settle already in flight —
+  -- that one is the FIRST count above, and `raise exception` aborts the
+  -- function on the spot, so execution only reaches this second count when
+  -- the first one found nothing. What THIS count catches instead: a
+  -- registration + payment inserted, and settled to 'paid', by a transaction
+  -- that started and committed entirely AFTER the `for update` locks above
+  -- were taken — `for update` only locks rows that already existed at that
+  -- moment, so a brand-new row is invisible to it and would otherwise sail
+  -- past the first check unguarded.
   --
   -- Residual, deliberately not closed: a payment created and settled entirely
   -- AFTER this statement — inside the window between this check and the
