@@ -10,6 +10,16 @@ const MESSAGES: Record<string, string> = {
   registration_not_found: "We couldn't find that registration.",
   registration_failed: "We couldn't save your registration. Please try again.",
   server_error: "Something went wrong on our end. Please try again.",
+  // registrations-checkout:58 and payment-session both answer 409
+  // { error: "org_suspended" } when the platform has switched an organizer
+  // off. Deliberately carries NO "try again" — the condition is permanent
+  // until a super admin un-suspends the org, and the generic fallback this
+  // used to reach ("Something went wrong. Please try again.") invited a
+  // retry loop against it. "Nothing was charged" is the other half: a runner
+  // told only that something failed on the pay screen has no way to know
+  // whether their money moved.
+  org_suspended:
+    "This organizer isn't taking registrations right now. Nothing was charged — try again another time or pick another race.",
   // Fallback copy only — startCheckout's CheckoutError carries a
   // registration_id whenever the 409 body has one, and RegisterWizard routes
   // straight to /pay/<id> in that case rather than showing this string. This
