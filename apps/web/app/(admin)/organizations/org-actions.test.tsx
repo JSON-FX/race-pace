@@ -4,9 +4,19 @@ import userEvent from "@testing-library/user-event";
 
 const invoke = vi.fn();
 const refresh = vi.fn();
+// Named consts (not inline vi.fn()s) so beforeEach can reset call history —
+// without that, "not.toHaveBeenCalled()" assertions see calls left over from
+// earlier tests in this file. vi.hoisted is required here (unlike invoke /
+// refresh above) because the sonner mock factory reads these eagerly at
+// import time, not lazily inside a closure — a plain const hits the TDZ.
+const { toastSuccess, toastError, toastWarning } = vi.hoisted(() => ({
+  toastSuccess: vi.fn(),
+  toastError: vi.fn(),
+  toastWarning: vi.fn(),
+}));
 vi.mock("@/lib/supabase/client", () => ({ createClient: () => ({ functions: { invoke } }) }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
-vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock("sonner", () => ({ toast: { success: toastSuccess, error: toastError, warning: toastWarning } }));
 
 import { OrgActions } from "./org-actions";
 
@@ -15,6 +25,9 @@ const org = { id: "o1", name: "Muspo", slug: "muspo", isActive: true };
 beforeEach(() => {
   invoke.mockReset().mockResolvedValue({ data: { ok: true }, error: null });
   refresh.mockReset();
+  toastSuccess.mockReset();
+  toastError.mockReset();
+  toastWarning.mockReset();
 });
 
 async function openMenu(user: ReturnType<typeof userEvent.setup>) {
@@ -186,5 +199,53 @@ describe("OrgActions — delete", () => {
 
     const { toast } = await import("sonner");
     expect(toast.error).toHaveBeenCalledWith("That organization no longer exists.");
+  });
+
+  it("shows a plain success toast when storage cleanup fully succeeded", async () => {
+    invoke.mockImplementation((_fn: string, opts: { body: { action: string } }) => {
+      if (opts.body.action === "delete_preview") {
+        return Promise.resolve({ data: { ok: true, ...clean }, error: null });
+      }
+      return Promise.resolve({
+        data: { ok: true, deleted: true, name: org.name, storage_cleanup: "complete" },
+        error: null,
+      });
+    });
+    const user = userEvent.setup();
+    render(<OrgActions org={org} />);
+    await openMenu(user);
+    await user.click(screen.getByRole("menuitem", { name: /delete/i }));
+    await user.type(screen.getByLabelText(/type the slug/i), "muspo");
+    await user.click(screen.getByRole("button", { name: /delete organization/i }));
+
+    const { toast } = await import("sonner");
+    expect(toast.success).toHaveBeenCalledWith("Muspo deleted.");
+    expect(toast.warning).not.toHaveBeenCalled();
+  });
+
+  it("warns — not a plain success — when storage cleanup only partially succeeded", async () => {
+    // storage_cleanup: "partial" means the DB rows are gone but some
+    // uploaded files could not be removed. On this project `supabase
+    // storage rm` is a silent no-op against the hosted project, so a
+    // plain success toast would leave orphaned files nobody knows about.
+    invoke.mockImplementation((_fn: string, opts: { body: { action: string } }) => {
+      if (opts.body.action === "delete_preview") {
+        return Promise.resolve({ data: { ok: true, ...clean }, error: null });
+      }
+      return Promise.resolve({
+        data: { ok: true, deleted: true, name: org.name, storage_cleanup: "partial" },
+        error: null,
+      });
+    });
+    const user = userEvent.setup();
+    render(<OrgActions org={org} />);
+    await openMenu(user);
+    await user.click(screen.getByRole("menuitem", { name: /delete/i }));
+    await user.type(screen.getByLabelText(/type the slug/i), "muspo");
+    await user.click(screen.getByRole("button", { name: /delete organization/i }));
+
+    const { toast } = await import("sonner");
+    expect(toast.warning).toHaveBeenCalledWith(expect.stringMatching(/could not be removed/i));
+    expect(toast.success).not.toHaveBeenCalled();
   });
 });

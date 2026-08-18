@@ -112,11 +112,20 @@ export function OrgActions({ org }: { org: OrgSummary }) {
 
   async function destroy() {
     setBusy(true);
-    const { code } = await callOrgProvision({ action: "delete", org_id: org.id, slug: org.slug });
+    const { code, data } = await callOrgProvision({ action: "delete", org_id: org.id, slug: org.slug });
     setBusy(false);
     if (code) return toast.error(DELETE_MESSAGES[code] ?? MESSAGES.server_error);
     setDeleting(false);
-    toast.success(`${org.name} deleted.`);
+    if (data?.storage_cleanup === "partial") {
+      // The DB rows are gone but some uploaded files were not. `supabase
+      // storage rm` is a silent no-op against the hosted project (legacy
+      // service_role JWT vs. this project's sb_secret_ keys), so orphaned
+      // files have no obvious cleanup path — a plain success toast would
+      // leave nobody knowing they exist.
+      toast.warning(`${org.name} deleted, but some of its uploaded files could not be removed and are still in storage.`);
+    } else {
+      toast.success(`${org.name} deleted.`);
+    }
     router.refresh();
   }
 
@@ -184,9 +193,11 @@ export function OrgActions({ org }: { org: OrgSummary }) {
           <DialogHeader>
             <DialogTitle>Delete {org.name}?</DialogTitle>
             <DialogDescription>
-              {preview?.blocked
-                ? "This cannot be deleted."
-                : "This cannot be undone. Everything below is destroyed."}
+              {previewFailed
+                ? "The check failed. We don't know what this would affect yet."
+                : preview?.blocked
+                  ? "This cannot be deleted."
+                  : "This cannot be undone. Everything below is destroyed."}
             </DialogDescription>
           </DialogHeader>
 
