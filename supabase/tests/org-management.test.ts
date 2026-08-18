@@ -452,3 +452,58 @@ describe("a suspended organization's own runners", () => {
     expect((await anon().from("organizations").select("id").eq("id", orgId)).data).toHaveLength(0);
   });
 });
+
+/**
+ * Final whole-branch review finding: `delete_organization_tx`'s residual-race
+ * comment claimed the race was unreachable because "the console only offers
+ * delete on an org that has already been suspended". It does not — the Delete
+ * menu item is unconditional — and even for an org that IS suspended,
+ * `payment-session` had no `is_active` check at all. A registration created
+ * before the suspension could still be handed a fresh PayMongo session, paid,
+ * and settled by the webhook after the delete's guard had already run.
+ *
+ * `registrations-checkout` closes the front door (no NEW entries); this closes
+ * the one behind it (no new CHARGE on an existing entry). Same code and status
+ * as checkout's refusal, deliberately — apps/site/lib/errors.ts maps
+ * `org_suspended` once and both paths land on it.
+ */
+describe("payment-session on a suspended org", () => {
+  it("refuses to mint a checkout session for an entry created before the suspension", async () => {
+    const { orgId, eventId } = await makeSuspendableOrg("t-susp-paysess");
+    const db = svc();
+    const { data: cat } = await db.from("categories")
+      .insert({ org_id: orgId, event_id: eventId, code: "10k", label: "10K", base_price: 100000 })
+      .select("id").single();
+
+    const email = `t-susp-paysess-runner-${orgId}@racepace.test`;
+    const { data: u } = await db.auth.admin.createUser({
+      email, password: "password123", email_confirm: true,
+    });
+    trashUsers.push(u!.user!.id);
+
+    // The entry exists and is payable BEFORE the org is switched off — that is
+    // the whole scenario. Suspending afterwards must not leave it chargeable.
+    const { data: reg } = await db.from("registrations").insert({
+      org_id: orgId, event_id: eventId, category_id: cat!.id,
+      user_id: u!.user!.id, status: "pending", total_amount: 100000,
+    }).select("id").single();
+    await db.from("payments").insert({
+      org_id: orgId, registration_id: reg!.id, amount: 100000, status: "pending",
+    });
+
+    const runner = await signedIn(email);
+    await db.from("organizations").update({ is_active: false }).eq("id", orgId);
+
+    const { data, error } = await runner.functions.invoke("payment-session", {
+      body: { registration_id: reg!.id, method: "gcash" },
+    });
+
+    const code = data?.error ?? await (error as { context?: Response })?.context
+      ?.clone().json().then((b: { error?: string }) => b?.error).catch(() => undefined);
+    expect(code).toBe("org_suspended");
+
+    // Refused, not half-done: no checkout_url was written onto the payment row.
+    const after = await db.from("payments").select("checkout_url").eq("registration_id", reg!.id).single();
+    expect(after.data!.checkout_url).toBeNull();
+  });
+});

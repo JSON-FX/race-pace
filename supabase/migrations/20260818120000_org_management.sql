@@ -303,15 +303,40 @@ begin
   -- moment, so a brand-new row is invisible to it and would otherwise sail
   -- past the first check unguarded.
   --
-  -- Residual, deliberately not closed: a payment created and settled entirely
-  -- AFTER this statement — inside the window between this check and the
-  -- commit of the deletes below. Closing that would need locking the whole
-  -- `organizations` row against concurrent insert, which this function does
-  -- not do. Left open because it is unreachable in the flow this ships for:
-  -- Task 3 makes `registrations-checkout` refuse a suspended org's event, and
-  -- the console only offers delete on an org that has already been suspended
-  -- — so by the time this function can be called, checkout can no longer
-  -- create anything to race it with.
+  -- Residual, deliberately not closed, and REACHABLE — not unreachable, which
+  -- is what an earlier draft of this comment claimed. A payment settled
+  -- entirely inside the window between this check and the commit of the
+  -- deletes below still slips past both counts, because `for update` locks
+  -- only rows that existed when it ran.
+  --
+  -- What the two Edge Function refusals actually cover, checked rather than
+  -- assumed: `registrations-checkout` refuses to create a registration for a
+  -- suspended org, and `payment-session` refuses to mint a checkout session
+  -- for one (both `org_suspended`, 409). Neither is a general lock on this
+  -- race, for two reasons:
+  --
+  --   1. The console's Delete item is UNCONDITIONAL — apps/web/app/(admin)/
+  --      organizations/org-actions.tsx renders it for an active org just as
+  --      readily as a suspended one. So the org reaching this function is not
+  --      guaranteed to be suspended, and against an ACTIVE org both refusals
+  --      are inert and checkout can create and settle an entry at any moment.
+  --   2. Even for a suspended org they are narrowing, not closing. A PayMongo
+  --      hosted session minted BEFORE the suspension stays valid for its own
+  --      24 hours, and the settlement path — `payments-webhook` →
+  --      `_shared/confirm.ts` → `confirm_payment_tx` — reads nothing about
+  --      `is_active` (nor does `payment-verify`, which calls the same
+  --      `confirmPayment`). PayMongo drives that callback, not the runner's
+  --      browser, so no client-side refusal is in its way.
+  --
+  -- Closing it would need locking the `organizations` row itself against
+  -- concurrent insert, which this function does not do. Left open because the
+  -- exposure is bounded: an org with even one settled payment is refused
+  -- outright by both counts above, so the only organizations that ever reach
+  -- these deletes have no payment history at all, and the window is the few
+  -- milliseconds between the second count and this transaction's commit. The
+  -- outcome if it is ever hit is the same reconciliation problem as the
+  -- second residual below — money moved at the processor with no surviving
+  -- local record of it.
   --
   -- Second, separate residual, also deliberately not closed: a `pending`
   -- payment never blocks a delete (by design — see the test at

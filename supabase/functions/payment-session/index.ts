@@ -47,7 +47,7 @@ Deno.serve(async (req) => {
       // One string literal, not a concatenation: supabase-js parses the select
       // at the type level, and `a + b` is `string` to TypeScript — which erases
       // every column type on `reg`.
-      .select("id,user_id,status,total_amount,category_id,event_id,expires_at,organizations(fee_mode,commission_type,commission_rate,commission_flat_cents)")
+      .select("id,user_id,status,total_amount,category_id,event_id,expires_at,organizations(is_active,fee_mode,commission_type,commission_rate,commission_flat_cents)")
       .eq("id", registrationId).single();
     if (!reg || reg.user_id !== userId) return json({ error: "registration_not_found" }, 404);
     if (reg.status !== "pending") return json({ error: "not_pending" }, 409);
@@ -92,6 +92,30 @@ Deno.serve(async (req) => {
     // behaviour (only cancelled/closed/completed events block payment).
     if (isRegistrationClosed(event.status, null)) return json({ error: "registration_closed" }, 409);
 
+    // Read once here, used again by the pass-on branch below.
+    const org = (reg.organizations as unknown as
+      (FeeTerms & { fee_mode: string; is_active: boolean }) | null) ?? null;
+
+    // A SUSPENDED ORG CANNOT TAKE ANOTHER PESO, including on an entry that
+    // already existed when it was switched off.
+    //
+    // `registrations-checkout` refuses to create a NEW registration for a
+    // suspended org (20260818120000 / spec §5). This function was the hole
+    // behind that door: a `pending` registration created BEFORE the suspension
+    // still got a brand-new 24-hour PayMongo session on demand, so the runner
+    // could pay, the webhook could settle it, and `delete_organization_tx`'s
+    // money guard could be satisfied by a payment that did not exist when it
+    // ran. Suspension is also the answer the delete dialog tells an operator
+    // to use instead of deleting a live org, so "suspended" has to actually
+    // mean "no more money moves" for that advice to hold.
+    //
+    // Same code and status as checkout's refusal on purpose: apps/site/lib/
+    // errors.ts maps `org_suspended` once and both paths land on that copy.
+    // `!org?.is_active` also refuses a null embed — org_id is `not null` with
+    // an FK so that cannot happen, and refusing is the safe direction if it
+    // ever does.
+    if (!org?.is_active) return json({ error: "org_suspended" }, 409);
+
     const { data: payment } = await db.from("payments").select("provider").eq("registration_id", reg.id).single();
     const { data: category } = await db.from("categories").select("label,base_price").eq("id", reg.category_id).single();
 
@@ -108,8 +132,6 @@ Deno.serve(async (req) => {
     // scoped session is recreated — because PayMongo's cut depends on the method.
     // A ₱2,000 entry costs ₱30 on GCash and ₱85 on a card; one blended number
     // would over-collect on one and lose money on the other.
-    const org = (reg.organizations as unknown as
-      (FeeTerms & { fee_mode: string }) | null) ?? null;
     let chargeAmount = reg.total_amount;
 
     if (org?.fee_mode === "pass_on") {
