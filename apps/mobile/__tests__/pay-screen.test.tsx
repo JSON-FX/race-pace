@@ -3,7 +3,11 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react-nativ
 const mockReplace = jest.fn();
 const mockOpenAuth = jest.fn().mockResolvedValue({ type: "dismiss" });
 const mockVerify = jest.fn().mockResolvedValue({ status: "pending" });
-const mockCreateMethodCheckout = jest.fn().mockResolvedValue(null); // falls back to the pre-created checkout url
+// { url, code } since the final-review fix — `code` is what tells "the server
+// declined" apart from "the call did not land", and only the second may fall
+// back to the session stored at registration. Null/null here is the
+// transport-failure shape, so the default still exercises the fallback.
+const mockCreateMethodCheckout = jest.fn().mockResolvedValue({ url: null, code: null });
 jest.mock("expo-web-browser", () => ({ openAuthSessionAsync: (...a: unknown[]) => mockOpenAuth(...a) }));
 jest.mock("expo-linking", () => ({ createURL: (p: string) => `racepace://${p}` }));
 jest.mock("react-native-safe-area-context", () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
@@ -118,6 +122,48 @@ describe("Pay screen", () => {
       expect(screen.queryByText(/^Pay /)).toBeNull();
       fireEvent.press(screen.getByText("Enter again"));
       expect(mockReplace).toHaveBeenCalledWith("/event/ev1");
+    });
+  });
+
+  // Final-review Finding A, the mobile half. payment-session refuses to mint a
+  // scoped session for a suspended org, and this screen routed around it:
+  // `payUrl = scoped ?? url`, where `url` is the route's checkoutUrl param or
+  // the session stored at registration — neither of which knows anything about
+  // the organization. registrations-checkout writes checkout_url on every
+  // registration, so that fallback is never empty.
+  describe("a suspended organizer", () => {
+    it("refuses to render a Pay button and says why", () => {
+      mockRegData = {
+        ...mockRegData, status: "pending", event_id: "ev1",
+        expiresAt: new Date(Date.now() + 60 * 60_000).toISOString(),
+        eventStatus: "open",
+        orgIsActive: false,
+        checkoutUrl: "http://x/functions/v1/fake-checkout?rid=r1", // still looks valid
+      };
+      render(<Pay />);
+      expect(screen.queryByText(/^Pay /)).toBeNull();
+      expect(screen.getByText(/isn't taking registrations right now/)).toBeOnTheScreen();
+    });
+
+    it("does not open the stored session when the server refuses mid-flight", async () => {
+      // Still active as far as this render knows — the suspension lands between
+      // the render and the tap, which the render-time guard cannot see.
+      mockRegData = {
+        ...mockRegData, status: "pending", event_id: "ev1",
+        expiresAt: new Date(Date.now() + 60 * 60_000).toISOString(),
+        eventStatus: "open",
+        orgIsActive: true,
+        checkoutUrl: "http://x/functions/v1/fake-checkout?rid=r1",
+      };
+      mockOpenAuth.mockClear();
+      mockCreateMethodCheckout.mockResolvedValueOnce({ url: null, code: "org_suspended" });
+
+      render(<Pay />);
+      fireEvent.press(screen.getByText(/^Pay /));
+
+      await waitFor(() =>
+        expect(screen.getByText(/isn't taking registrations right now/)).toBeOnTheScreen());
+      expect(mockOpenAuth).not.toHaveBeenCalled();
     });
   });
 });
