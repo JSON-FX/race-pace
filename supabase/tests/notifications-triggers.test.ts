@@ -30,8 +30,22 @@ async function cloneEvent(svc: ReturnType<typeof service>, over: Record<string, 
   const { id: _i, created_at: _c, ...rest } = base;
   return (await svc.from("events").insert({ ...rest, ...over }).select().single()).data!;
 }
-async function notesFor(svc: ReturnType<typeof service>, userId: string, type: string) {
-  const { data } = await svc.from("notifications").select("type").eq("user_id", userId).eq("type", type);
+async function notesFor(
+  svc: ReturnType<typeof service>, userId: string, type: string, eventId?: string,
+) {
+  let q = svc.from("notifications").select("type").eq("user_id", userId).eq("type", type);
+  // `event_created` is a BROADCAST: fn_notify_on_event_change fans it out to
+  // every row in `profiles` whenever any event is inserted `open` or moved
+  // draft -> open, deduped per (event, user). So an unfiltered count of this
+  // user's event_created rows is a count of what the WHOLE SUITE published
+  // while this test ran, not of what this test published — and org-management
+  // .test.ts creates several open events in its own fixtures, in parallel,
+  // because the root vitest config sets no fileParallelism: false. That made
+  // the `toBe(1)` below fail intermittently for a reason with nothing to do
+  // with the dedup_key it is there to prove. Filtering by event is what makes
+  // the assertion mean what its comment says.
+  if (eventId) q = q.eq("data->>event_id", eventId);
+  const { data } = await q;
   return data ?? [];
 }
 
@@ -148,11 +162,11 @@ describe("event-change trigger", () => {
     await svc.from("profiles").upsert({ id: runner.id, full_name: "Runner" });
     const draft = await cloneEvent(svc, { name: `NEW ${Date.now()}`, status: "draft" });
     await svc.from("events").update({ status: "open" }).eq("id", draft.id);
-    expect((await notesFor(svc, runner.id, "event_created")).length).toBeGreaterThanOrEqual(1);
+    expect((await notesFor(svc, runner.id, "event_created", draft.id)).length).toBeGreaterThanOrEqual(1);
     // re-publish does not duplicate (dedup_key)
     await svc.from("events").update({ status: "draft" }).eq("id", draft.id);
     await svc.from("events").update({ status: "open" }).eq("id", draft.id);
-    expect((await notesFor(svc, runner.id, "event_created")).length).toBe(1);
+    expect((await notesFor(svc, runner.id, "event_created", draft.id)).length).toBe(1);
 
     await svc.from("notifications").delete().eq("user_id", runner.id);
     // the publish broadcast created event_created rows for every profile — clear them by event
