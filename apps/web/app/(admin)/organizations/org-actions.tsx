@@ -14,6 +14,7 @@ import {
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ManageAdminsDialog } from "./manage-admins-dialog";
 
 export type OrgSummary = { id: string; name: string; slug: string; isActive: boolean };
 
@@ -68,6 +69,7 @@ export function OrgActions({ org }: { org: OrgSummary }) {
   const [name, setName] = useState(org.name);
   const [busy, setBusy] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [managing, setManaging] = useState(false);
   const [preview, setPreview] = useState<Preview | null>(null);
   // A failed preview is distinct from "no preview yet" — it must never be
   // read as an all-clear. Keeps the confirm button disabled either way.
@@ -144,11 +146,16 @@ export function OrgActions({ org }: { org: OrgSummary }) {
           <DropdownMenuItem onSelect={() => setConfirmingActive(true)}>
             {org.isActive ? "Suspend" : "Unsuspend"}
           </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => setManaging(true)}>
+            Manage admins
+          </DropdownMenuItem>
           <DropdownMenuItem variant="destructive" onSelect={openDelete}>
             Delete
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      <ManageAdminsDialog org={org} open={managing} onOpenChange={setManaging} />
 
       <Dialog open={renaming} onOpenChange={setRenaming}>
         <DialogContent>
