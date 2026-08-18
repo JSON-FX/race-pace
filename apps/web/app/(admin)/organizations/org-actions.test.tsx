@@ -181,6 +181,25 @@ describe("OrgActions — delete", () => {
     expect(screen.queryByLabelText(/type the slug/i)).not.toBeInTheDocument();
   });
 
+  it("says the organization is gone, not \"try again\", when the preview 404s", async () => {
+    // Spec §9: "Two operators delete the same org -> Second call finds no row
+    // and returns not_found (404)." Lumping that in with a failed count query
+    // told the second operator to retry something that had already succeeded
+    // for someone else.
+    invoke.mockImplementation((_fn: string, opts: { body: { action: string } }) =>
+      opts.body.action === "delete_preview"
+        ? Promise.resolve({ data: null, error: { context: { clone: () => ({ json: () => Promise.resolve({ error: "not_found" }) }) } } })
+        : Promise.resolve({ data: { ok: true }, error: null }));
+    const user = userEvent.setup();
+    render(<OrgActions org={org} />);
+    await openMenu(user);
+    await user.click(screen.getByRole("menuitem", { name: /delete/i }));
+
+    expect(await screen.findByText(/no longer exists/i)).toBeInTheDocument();
+    expect(screen.queryByText(/try again/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /delete organization/i })).toBeDisabled();
+  });
+
   it("maps a 404 not_found delete error to a realistic message", async () => {
     previewReturning(clean);
     invoke.mockImplementation((_fn: string, opts: { body: { action: string } }) => {

@@ -72,8 +72,13 @@ export function OrgActions({ org }: { org: OrgSummary }) {
   const [managing, setManaging] = useState(false);
   const [preview, setPreview] = useState<Preview | null>(null);
   // A failed preview is distinct from "no preview yet" — it must never be
-  // read as an all-clear. Keeps the confirm button disabled either way.
-  const [previewFailed, setPreviewFailed] = useState(false);
+  // read as an all-clear. Keeps the confirm button disabled either way. The
+  // CODE is kept, not just a boolean: `not_found` is spec §9's concurrent
+  // delete ("two operators delete the same org"), which is a finished fact,
+  // while everything else is a count query that failed and is worth retrying.
+  // Telling the second operator to retry a delete someone else already
+  // completed is the wrong instruction, not just imprecise wording.
+  const [previewError, setPreviewError] = useState<string | null>(null);
   const [typedSlug, setTypedSlug] = useState("");
 
   async function rename() {
@@ -99,14 +104,14 @@ export function OrgActions({ org }: { org: OrgSummary }) {
 
   async function openDelete() {
     setPreview(null);
-    setPreviewFailed(false);
+    setPreviewError(null);
     setTypedSlug("");
     setDeleting(true);
     const { data, code } = await callOrgProvision({ action: "delete_preview", org_id: org.id });
     if (code) {
       // Do not close the dialog and do not fall back to zeros — a count
       // query that failed is not the same thing as an org with nothing in it.
-      setPreviewFailed(true);
+      setPreviewError(code);
       return;
     }
     setPreview(data as unknown as Preview);
@@ -195,12 +200,22 @@ export function OrgActions({ org }: { org: OrgSummary }) {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={deleting} onOpenChange={setDeleting}>
+      <Dialog
+        open={deleting}
+        onOpenChange={(next) => {
+          setDeleting(next);
+          // The row is stale once the org is gone; refresh so the operator is
+          // not left staring at an organization that no longer exists.
+          if (!next && previewError === "not_found") router.refresh();
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete {org.name}?</DialogTitle>
             <DialogDescription>
-              {previewFailed
+              {previewError === "not_found"
+                ? "It is already gone."
+                : previewError
                 ? "The check failed. We don't know what this would affect yet."
                 : preview?.blocked
                   ? "This cannot be deleted."
@@ -208,7 +223,12 @@ export function OrgActions({ org }: { org: OrgSummary }) {
             </DialogDescription>
           </DialogHeader>
 
-          {previewFailed ? (
+          {previewError === "not_found" ? (
+            <p className="text-[13px] text-destructive">
+              This organization no longer exists — someone else deleted it first.
+              Close this and the list will refresh.
+            </p>
+          ) : previewError ? (
             <p className="text-[13px] text-destructive">
               Could not check what this would delete. Try again — nothing was deleted.
             </p>
