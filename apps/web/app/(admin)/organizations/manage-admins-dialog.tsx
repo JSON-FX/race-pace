@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Check, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -33,6 +34,12 @@ export function ManageAdminsDialog({
   const [loadError, setLoadError] = useState(false);
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
+  // SMTP is not configured on this project, so an invite is only usable if the
+  // operator can hand the link over themselves. `null` is "nothing to show
+  // yet"; a successful invite that produced no link sets `""`, which is a
+  // distinct state with its own copy — see the render below.
+  const [inviteLink, setInviteLink] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const call = useCallback(async (body: Record<string, unknown>) => {
     const supabase = createClient();
@@ -65,24 +72,30 @@ export function ManageAdminsDialog({
     // org's rows (or a stale error) sit on screen until the new fetch lands.
     if (open) {
       setMembers(null);
+      // A link belongs to the invite that produced it. Carrying one across a
+      // reopen — or across a switch to a different org — would offer the
+      // operator a sign-in link for the wrong person.
+      setInviteLink(null);
+      setCopied(false);
       load();
     }
   }, [open, load]);
 
-  // Returns whether the call succeeded, so callers can decide what to do
-  // next (e.g. only clear the invite field on success — see the invite
-  // button below).
-  async function run(body: Record<string, unknown>, done: string): Promise<boolean> {
+  // Returns the response body on success and null on failure, so callers can
+  // both decide what to do next (only clear the invite field on success) and
+  // read what came back (the invite link) — `call` already threw and was
+  // toasted by the time this returns null.
+  async function run(body: Record<string, unknown>, done: string): Promise<Record<string, unknown> | null> {
     setBusy(true);
     try {
-      await call(body);
+      const data = await call(body);
       toast.success(done);
       await load();
       router.refresh();
-      return true;
+      return (data as Record<string, unknown> | null) ?? {};
     } catch (e) {
       toast.error((e as Error).message);
-      return false;
+      return null;
     } finally {
       setBusy(false);
     }
@@ -147,19 +160,57 @@ export function ManageAdminsDialog({
               disabled={busy || !email.trim()}
               onClick={async () => {
                 const trimmed = email.trim();
-                const ok = await run(
+                const res = await run(
                   { action: "invite", org_id: org.id, email: trimmed, role: "admin" },
                   `Invite sent to ${trimmed}.`,
                 );
                 // A failed invite must leave the operator's typed address
                 // in place — `run` already toasted the error, clearing the
                 // field on top of that would make them retype it.
-                if (ok) setEmail("");
+                if (!res) return;
+                setEmail("");
+                setCopied(false);
+                // `?? ""` deliberately, not `?? null`: org-members answers ok
+                // with invite_link: null when no link could be generated, and
+                // that is a thing the operator must be TOLD, not a return to
+                // "no invite has happened yet".
+                setInviteLink((res.invite_link as string | null) ?? "");
               }}
             >
               Invite
             </Button>
           </div>
+
+          {/* Mirrors new-org-dialog.tsx's post-create panel: the link is the
+              only way an invited admin gets in until SMTP is configured. */}
+          {inviteLink === null ? null : inviteLink ? (
+            <div className="grid gap-1.5">
+              <p className="text-[12px] text-muted-foreground">
+                The invite email will arrive once SMTP is configured on this project. Until then,
+                send them this sign-in link yourself.
+              </p>
+              <div className="flex items-center gap-2 rounded-xl border bg-muted/40 p-2.5">
+                <code className="min-w-0 flex-1 truncate text-[12px]">{inviteLink}</code>
+                <Button
+                  type="button" size="sm" variant="outline"
+                  onClick={async () => {
+                    await navigator.clipboard.writeText(inviteLink);
+                    setCopied(true);
+                    toast.success("Link copied.");
+                  }}
+                >
+                  {copied ? <Check /> : <Copy />}
+                  {copied ? "Copied" : "Copy"}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <p className="text-[12px] text-muted-foreground">
+              The role was granted, but a sign-in link could not be generated. They will not be
+              able to sign in until SMTP is configured or a link is sent from the
+              organization&apos;s Team page.
+            </p>
+          )}
         </div>
       </DialogContent>
     </Dialog>

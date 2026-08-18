@@ -98,6 +98,66 @@ describe("ManageAdminsDialog", () => {
     await waitFor(() => expect(field).toHaveValue(""));
   });
 
+  it("shows the manual sign-in link the invite came back with, and copies it", async () => {
+    // Final-review finding: SMTP is not configured on this project — that is
+    // the whole reason org-provision's create returns a manual invite_link —
+    // and this dialog used to say "Invite sent to X" and nothing else, so the
+    // invited admin could never actually sign in. org-members now returns the
+    // same /auth/confirm link, and it has to reach the operator's clipboard.
+    const user = userEvent.setup();
+    // Spied AFTER setup(), and spied rather than assigned: userEvent installs
+    // its own navigator.clipboard as a getter-only property, so replacing the
+    // object throws and assigning before setup() would be overwritten.
+    const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined);
+    const link = "http://localhost:3001/auth/confirm?token_hash=abc123&type=magiclink&next=%2Fteam";
+    invoke.mockImplementation((_fn: string, opts: { body: { action: string } }) => {
+      if (opts.body.action === "invite") {
+        return Promise.resolve({ data: { ok: true, invite_link: link }, error: null });
+      }
+      return Promise.resolve({
+        data: { ok: true, members: [
+          { user_id: "u1", email: "boss@muspo.ph", full_name: "Boss", role: "admin" },
+        ] },
+        error: null,
+      });
+    });
+
+    render(<ManageAdminsDialog org={org} open onOpenChange={() => {}} />);
+    await screen.findByText("boss@muspo.ph");
+    await user.type(screen.getByLabelText(/email/i), "new@muspo.ph");
+    await user.click(screen.getByRole("button", { name: /^invite$/i }));
+
+    expect(await screen.findByText(link)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /copy/i }));
+    expect(writeText).toHaveBeenCalledWith(link);
+  });
+
+  it("says so when the invite succeeded but no link could be generated", async () => {
+    // buildInviteLink returns null when ADMIN_APP_URL is unset or generateLink
+    // gave back no hashed_token, and org-members answers ok anyway because the
+    // role grant is already committed. A silent success there would leave the
+    // operator believing an email went out that cannot arrive.
+    const user = userEvent.setup();
+    invoke.mockImplementation((_fn: string, opts: { body: { action: string } }) => {
+      if (opts.body.action === "invite") {
+        return Promise.resolve({ data: { ok: true, invite_link: null }, error: null });
+      }
+      return Promise.resolve({
+        data: { ok: true, members: [
+          { user_id: "u1", email: "boss@muspo.ph", full_name: "Boss", role: "admin" },
+        ] },
+        error: null,
+      });
+    });
+
+    render(<ManageAdminsDialog org={org} open onOpenChange={() => {}} />);
+    await screen.findByText("boss@muspo.ph");
+    await user.type(screen.getByLabelText(/email/i), "new@muspo.ph");
+    await user.click(screen.getByRole("button", { name: /^invite$/i }));
+
+    expect(await screen.findByText(/could not be generated/i)).toBeInTheDocument();
+  });
+
   it("shows a failure state, not a permanent Loading, when the list fails to load", async () => {
     // Finding 2: `load()` used to toast the error and leave `members` at
     // `null` forever, so the body stayed on "Loading…" with no way out.

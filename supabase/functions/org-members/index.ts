@@ -1,6 +1,7 @@
 import { serviceClient } from "../_shared/supabase.ts";
 import { isAssignableRole, wouldLeaveNoAdmin } from "../_shared/team.ts";
 import { preflight, corsHeaders } from "../_shared/cors.ts";
+import { adminConfirmRedirect, buildInviteLink } from "../_shared/orgAdmin.ts";
 
 type Db = ReturnType<typeof serviceClient>;
 
@@ -82,9 +83,23 @@ Deno.serve(async (req) => {
       if (!email) return json({ error: "email_required" }, 400);
       if (!role || !isAssignableRole(role)) return json({ error: "bad_role" }, 400);
 
+      // ADMIN_APP_URL points at apps/web: /auth/confirm, the route that
+      // redeems a server-generated token, only exists there. Read once and
+      // used twice below — same shape as org-provision's `create` branch.
+      const adminUrl = Deno.env.get("ADMIN_APP_URL") ?? "";
+
       let userId = await findUserIdByEmail(db, email);
       if (!userId) {
-        const { data: inv, error: invErr } = await db.auth.admin.inviteUserByEmail(email);
+        // redirectTo lands the SMTP-delivered invite on the same /auth/confirm
+        // route the manual link below points at, once SMTP is configured. Without
+        // it Supabase falls back to `site_url`, which is the runner STOREFRONT
+        // (config.toml) and has no /auth/confirm at all — the invite would land
+        // on a 404 on the wrong app.
+        const redirectTo = adminConfirmRedirect(adminUrl);
+        const { data: inv, error: invErr } = await db.auth.admin.inviteUserByEmail(
+          email,
+          redirectTo ? { redirectTo } : undefined,
+        );
         if (invErr || !inv?.user) return json({ error: "invite_failed" }, 502);
         userId = inv.user.id;
       }
@@ -95,7 +110,29 @@ Deno.serve(async (req) => {
       const { data: orgRoles } = await db.from("user_roles").select("user_id,role").eq("org_id", orgId);
       if (wouldLeaveNoAdmin(orgRoles ?? [], userId, role)) return json({ error: "last_admin" }, 409);
       await setOrgRole(db, orgId, userId, role);
-      return json({ ok: true, member: { user_id: userId, email, role } });
+
+      // SMTP IS NOT CONFIGURED ON THIS PROJECT. That is the entire reason
+      // org-provision's `create` hands back a manual invite_link, and this
+      // branch used to send inviteUserByEmail and nothing else — so "Invite
+      // sent to X" was the last anyone heard of it and the invitee could never
+      // sign in. Same link, built the same way, for the same reason.
+      //
+      // 'magiclink', not 'invite': by this point the account exists
+      // (inviteUserByEmail created it, or it already did), and generateLink's
+      // 'invite' type is for an address with no user yet.
+      //
+      // Best-effort, exactly as org-provision is: the role grant above is
+      // already committed, so a link failure returns ok with invite_link: null
+      // rather than failing an invite that actually succeeded.
+      const redirectTo = adminConfirmRedirect(adminUrl);
+      const { data: link } = await db.auth.admin.generateLink({
+        type: "magiclink",
+        email,
+        options: redirectTo ? { redirectTo } : undefined,
+      });
+      const inviteLink: string | null = buildInviteLink(adminUrl, link?.properties?.hashed_token ?? null);
+
+      return json({ ok: true, member: { user_id: userId, email, role }, invite_link: inviteLink });
     }
 
     if (action === "setRole") {
