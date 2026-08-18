@@ -11,6 +11,10 @@ import { Label } from "@/components/ui/label";
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import { ASSIGNABLE_ROLES, ROLE_LABELS } from "@/lib/team-roles";
 import type { OrgSummary } from "./org-actions";
 
 type Member = { user_id: string; email: string | null; full_name: string | null; role: string };
@@ -26,6 +30,63 @@ type Member = { user_id: string; email: string | null; full_name: string | null;
  *  AND no profile name, and an unlabelled button is worse. */
 function memberLabel(m: Member): string {
   return m.email ?? m.full_name ?? m.user_id;
+}
+
+/**
+ * The role picker for one member, wired to org-members' `setRole`.
+ *
+ * CONTROLLED, and reverted on failure, for the same reason
+ * app/(admin)/team/team-table.tsx's RoleCell is: the edge function is the
+ * real authorization boundary and it does reject changes (409 `last_admin`
+ * when a demotion would leave the org with no admin). A Radix <Select> with
+ * `defaultValue` is uncontrolled and would keep showing the rejected role
+ * until the dialog remounts — telling the operator a demotion happened that
+ * did not.
+ *
+ * `ASSIGNABLE_ROLES` rather than a list written out here: the UI picker and
+ * supabase/functions/_shared/team.ts's `isAssignableRole` have to agree, and
+ * a second copy is a second thing to forget. A role a member already holds
+ * but that is no longer assignable is appended so the trigger never renders
+ * blank — same fallback, same reason, as RoleCell's.
+ */
+function RoleSelect({
+  member, disabled, onChange,
+}: {
+  member: Member;
+  disabled: boolean;
+  onChange: (role: string) => Promise<boolean>;
+}) {
+  const [value, setValue] = useState(member.role);
+  useEffect(() => setValue(member.role), [member.role]);
+
+  const roles: string[] = [...ASSIGNABLE_ROLES];
+  if (!roles.includes(member.role)) roles.push(member.role);
+
+  return (
+    <Select
+      value={value}
+      disabled={disabled}
+      onValueChange={async (role) => {
+        const previous = value;
+        setValue(role);
+        if (!(await onChange(role))) setValue(previous);
+      }}
+    >
+      <SelectTrigger
+        aria-label={`Change role for ${memberLabel(member)}`}
+        className="h-8 w-[120px] rounded-lg"
+      >
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {roles.map((r) => (
+          <SelectItem key={r} value={r}>
+            {ROLE_LABELS[r as keyof typeof ROLE_LABELS] ?? r}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
 }
 
 /**
@@ -120,7 +181,8 @@ export function ManageAdminsDialog({
         <DialogHeader>
           <DialogTitle>Admins for {org.name}</DialogTitle>
           <DialogDescription>
-            Invite the person who should run this organization, or remove someone who should not.
+            Invite the person who should run this organization, change what someone can do, or
+            remove them.
           </DialogDescription>
         </DialogHeader>
 
@@ -146,7 +208,14 @@ export function ManageAdminsDialog({
                     <div className="truncate text-xs text-muted-foreground">{m.email}</div>
                   )}
                 </div>
-                <span className="text-xs text-muted-foreground">{m.role}</span>
+                <RoleSelect
+                  member={m}
+                  disabled={busy}
+                  onChange={async (role) => !!await run(
+                    { action: "setRole", org_id: org.id, user_id: m.user_id, role },
+                    `${memberLabel(m)} is now ${ROLE_LABELS[role as keyof typeof ROLE_LABELS] ?? role}.`,
+                  )}
+                />
                 <Button
                   variant="ghost" size="sm" disabled={busy}
                   aria-label={`Remove ${memberLabel(m)}`}

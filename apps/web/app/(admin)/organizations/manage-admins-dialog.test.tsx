@@ -56,6 +56,63 @@ describe("ManageAdminsDialog", () => {
     });
   });
 
+  // Spec §7.2 promises "invite, change role, remove". org-members has always
+  // supported setRole (index.ts:104) and the dialog offered no way to reach
+  // it, so a super admin could only add or delete a member — never demote one.
+  it("offers every assignable role in the per-member picker", async () => {
+    const user = userEvent.setup();
+    render(<ManageAdminsDialog org={org} open onOpenChange={() => {}} />);
+    await screen.findByText("ed@muspo.ph");
+
+    await user.click(screen.getByRole("combobox", { name: /change role for ed@muspo.ph/i }));
+    // Sourced from ASSIGNABLE_ROLES, not a second hand-written list — drift
+    // between this picker and what org-members accepts fails here.
+    for (const label of ["Admin", "Editor", "Marshal"]) {
+      expect(screen.getByRole("option", { name: label })).toBeInTheDocument();
+    }
+  });
+
+  it("changes a member's role against that org", async () => {
+    const user = userEvent.setup();
+    render(<ManageAdminsDialog org={org} open onOpenChange={() => {}} />);
+    await screen.findByText("ed@muspo.ph");
+
+    await user.click(screen.getByRole("combobox", { name: /change role for ed@muspo.ph/i }));
+    await user.click(screen.getByRole("option", { name: "Marshal" }));
+
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith("org-members", {
+      body: { action: "setRole", org_id: "o1", user_id: "u2", role: "marshal" },
+    }));
+  });
+
+  it("reverts the picker when the server refuses the role change", async () => {
+    // org-members answers 409 last_admin for a change that would leave the org
+    // with no admin. A picker left showing the rejected role would tell the
+    // operator a demotion happened that did not.
+    const user = userEvent.setup();
+    invoke.mockImplementation((_fn: string, opts: { body: { action: string } }) => {
+      if (opts.body.action === "setRole") {
+        return Promise.resolve({ data: null, error: { context: { status: 409 } } });
+      }
+      return Promise.resolve({
+        data: { ok: true, members: [
+          { user_id: "u1", email: "boss@muspo.ph", full_name: "Boss", role: "admin" },
+        ] },
+        error: null,
+      });
+    });
+
+    render(<ManageAdminsDialog org={org} open onOpenChange={() => {}} />);
+    await screen.findByText("boss@muspo.ph");
+    const trigger = screen.getByRole("combobox", { name: /change role for boss@muspo.ph/i });
+    expect(trigger).toHaveTextContent("Admin");
+
+    await user.click(trigger);
+    await user.click(screen.getByRole("option", { name: "Marshal" }));
+
+    await waitFor(() => expect(trigger).toHaveTextContent("Admin"));
+  });
+
   it("names a member with no email by their name, never \"Remove null\"", async () => {
     // org-members returns `email: u?.user?.email ?? null` — an auth account
     // can genuinely have no email (phone/OAuth), and the row's only control
