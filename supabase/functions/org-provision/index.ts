@@ -16,6 +16,8 @@ import {
   isDeleteBlocked,
   orgStoragePrefixes,
   mapDeleteRpcError,
+  adminConfirmRedirect,
+  buildInviteLink,
   type SettledCounts,
 } from "../_shared/orgAdmin.ts";
 
@@ -129,6 +131,12 @@ Deno.serve(async (req) => {
     // strictly a platform operation.
     const { data: callerRoles } = await db.from("user_roles").select("role").eq("user_id", userRes.user.id);
     if (!(callerRoles ?? []).some((r) => r.role === "super_admin")) return json({ error: "forbidden" }, 403);
+
+    // Read once, here, so both the emailed invite (below, on the `create`
+    // branch) and the manual invite_link (end of the same branch) share it.
+    // ADMIN_APP_URL points at apps/web, not apps/site — the invite is for an
+    // organization admin, and /auth/confirm (Task 6) only exists there.
+    const adminUrl = Deno.env.get("ADMIN_APP_URL") ?? "";
 
     // Availability is checked with the SERVICE role deliberately. The
     // `orgs_read_active` RLS policy hides deactivated organizations from every
@@ -366,7 +374,14 @@ Deno.serve(async (req) => {
 
     let invited = false;
     if (!userId) {
-      const { data: inv, error: invErr } = await db.auth.admin.inviteUserByEmail(input.admin_email);
+      // redirectTo lands the SMTP-delivered invite on the same /auth/confirm
+      // route the manual link below points at, once SMTP is configured — see
+      // buildInviteLink's comment for why the raw action_link is never used.
+      const redirectTo = adminConfirmRedirect(adminUrl);
+      const { data: inv, error: invErr } = await db.auth.admin.inviteUserByEmail(
+        input.admin_email,
+        redirectTo ? { redirectTo } : undefined,
+      );
       if (invErr || !inv?.user) {
         await rollback();
         return json({ error: "invite_failed" }, 502);
@@ -383,22 +398,29 @@ Deno.serve(async (req) => {
       return json({ error: "role_failed" }, 500);
     }
 
-    // The action link exists so provisioning is usable BEFORE SMTP is
-    // configured — without it, a successful create leaves the operator with no
-    // way to hand the account over.
+    // The link exists so provisioning is usable BEFORE SMTP is configured —
+    // without it, a successful create leaves the operator with no way to hand
+    // the account over.
     //
     // 'magiclink', not 'invite': the account exists by the time we get here
     // (inviteUserByEmail created it, or it already did), and generateLink's
     // 'invite' type is for an address that has no user yet. A magic link signs
     // the same account in, which is what manual delivery needs.
     //
-    // Best-effort: the org and its admin role are already committed, so a link
-    // failure returns ok with invite_link: null rather than rolling back a
-    // correctly provisioned organization over a convenience field.
+    // The RAW action_link is deliberately NOT returned — see buildInviteLink's
+    // comment in _shared/orgAdmin.ts for why. What ships instead is a link to
+    // the console's /auth/confirm, built from `hashed_token`.
+    //
+    // Still best-effort: the org and its admin role are already committed, so
+    // a link failure returns ok with invite_link: null rather than rolling
+    // back a correctly provisioned organization over a convenience field.
+    const redirectTo = adminConfirmRedirect(adminUrl);
     const { data: link } = await db.auth.admin.generateLink({
-      type: "magiclink", email: input.admin_email,
+      type: "magiclink",
+      email: input.admin_email,
+      options: redirectTo ? { redirectTo } : undefined,
     });
-    const inviteLink: string | null = link?.properties?.action_link ?? null;
+    const inviteLink: string | null = buildInviteLink(adminUrl, link?.properties?.hashed_token ?? null);
 
     return json({ ok: true, org, invited, invite_link: inviteLink });
   } catch (e) {

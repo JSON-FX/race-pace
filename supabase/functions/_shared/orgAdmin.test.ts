@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { validateRename, orgStoragePrefixes, isDeleteBlocked, mapDeleteRpcError } from "./orgAdmin";
+import {
+  validateRename,
+  orgStoragePrefixes,
+  isDeleteBlocked,
+  mapDeleteRpcError,
+  adminConfirmRedirect,
+  buildInviteLink,
+} from "./orgAdmin";
 
 describe("validateRename", () => {
   it("accepts an ordinary name", () => {
@@ -74,5 +81,50 @@ describe("mapDeleteRpcError", () => {
   });
   it("falls back to server_error/500 when the error is undefined", () => {
     expect(mapDeleteRpcError(undefined)).toEqual({ code: "server_error", status: 500 });
+  });
+});
+
+describe("adminConfirmRedirect", () => {
+  it("appends /auth/confirm to a bare ADMIN_APP_URL", () => {
+    expect(adminConfirmRedirect("http://localhost:3001")).toBe("http://localhost:3001/auth/confirm");
+  });
+  // ADMIN_APP_URL is hand-typed in Vercel and Docker Compose, and either
+  // shape has shown up in this repo's other env vars — a trailing slash must
+  // not produce a doubled "//auth/confirm".
+  it("strips a trailing slash before appending", () => {
+    expect(adminConfirmRedirect("http://localhost:3001/")).toBe("http://localhost:3001/auth/confirm");
+  });
+  it("strips multiple trailing slashes", () => {
+    expect(adminConfirmRedirect("https://race-pace-admin.vercel.app///")).toBe(
+      "https://race-pace-admin.vercel.app/auth/confirm",
+    );
+  });
+  // Unconfigured secret: callers must be able to omit `redirectTo` rather
+  // than pass a bare "/auth/confirm" that resolves against Supabase's own
+  // host instead of the console's.
+  it("returns null when ADMIN_APP_URL is unset", () => {
+    expect(adminConfirmRedirect("")).toBeNull();
+  });
+});
+
+describe("buildInviteLink", () => {
+  it("builds a link to the console's /auth/confirm with the hashed token", () => {
+    expect(buildInviteLink("http://localhost:3001", "abc123")).toBe(
+      "http://localhost:3001/auth/confirm?token_hash=abc123&type=magiclink&next=%2Fteam",
+    );
+  });
+  it("normalizes a trailing slash on ADMIN_APP_URL the same way as adminConfirmRedirect", () => {
+    expect(buildInviteLink("http://localhost:3001/", "abc123")).toBe(
+      "http://localhost:3001/auth/confirm?token_hash=abc123&type=magiclink&next=%2Fteam",
+    );
+  });
+  // Best-effort contract: the org and its admin role are already committed
+  // by the time this runs, so a missing ingredient must degrade to null, not
+  // throw or emit a broken URL.
+  it("returns null when ADMIN_APP_URL is unset", () => {
+    expect(buildInviteLink("", "abc123")).toBeNull();
+  });
+  it("returns null when generateLink returned no hashed_token", () => {
+    expect(buildInviteLink("http://localhost:3001", null)).toBeNull();
   });
 });

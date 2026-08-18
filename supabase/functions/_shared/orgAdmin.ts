@@ -53,3 +53,35 @@ export function mapDeleteRpcError(
   if (err?.message?.includes("org_not_found")) return { code: "not_found", status: 404 };
   return { code: "server_error", status: 500 };
 }
+
+/** Normalizes `ADMIN_APP_URL` (the secret may or may not carry a trailing
+ *  slash — Vercel env values are typed by hand and Docker Compose values are
+ *  copy-pasted) and points it at the route Task 6 built to redeem a
+ *  server-generated token: `/auth/confirm`. Returns null when no admin URL is
+ *  configured so callers can omit `redirectTo` entirely rather than pass a
+ *  broken relative URL to Supabase. */
+export function adminConfirmRedirect(adminAppUrl: string): string | null {
+  const trimmed = adminAppUrl.replace(/\/+$/, "");
+  return trimmed ? `${trimmed}/auth/confirm` : null;
+}
+
+/** Builds the manual invite link org-provision hands back to the super admin
+ *  who just created an organization — the same destination an SMTP-emailed
+ *  invite lands on once SMTP is configured (Task 7 design). `type=magiclink`
+ *  because the account already exists by the time this runs; `/team` is
+ *  where an invited admin with a role but no profile yet is useful.
+ *
+ *  The RAW action_link from generateLink is deliberately never used here: it
+ *  routes through Supabase's /auth/v1/verify, which redirects to `next` with
+ *  the tokens in the URL FRAGMENT — unreadable by a server route. This
+ *  builds the /auth/confirm link directly from `hashed_token` instead, which
+ *  that route redeems with verifyOtp.
+ *
+ *  Returns null when either input is missing — no admin URL configured, or
+ *  generateLink didn't return a token — so the best-effort caller can fall
+ *  back to `invite_link: null` rather than construct a broken link. */
+export function buildInviteLink(adminAppUrl: string, hashedToken: string | null): string | null {
+  const redirect = adminConfirmRedirect(adminAppUrl);
+  if (!redirect || !hashedToken) return null;
+  return `${redirect}?token_hash=${hashedToken}&type=magiclink&next=%2Fteam`;
+}
