@@ -5,6 +5,7 @@ import {
   isDeleteBlocked,
   mapDeleteRpcError,
   adminConfirmRedirect,
+  adminInviteRedirect,
   buildInviteLink,
 } from "./orgAdmin";
 
@@ -126,5 +127,21 @@ describe("buildInviteLink", () => {
   });
   it("returns null when generateLink returned no hashed_token", () => {
     expect(buildInviteLink("http://localhost:3001", null)).toBeNull();
+  });
+});
+
+describe("adminInviteRedirect", () => {
+  // The emailed link and the manual link must NOT share a destination. The
+  // manual one carries ?token_hash= and is read by a server route; the emailed
+  // one arrives with the session on the fragment and needs the client page.
+  it("points an emailed invite at the client page, not the server route", () => {
+    expect(adminInviteRedirect("https://admin.example")).toBe("https://admin.example/auth/confirm/finish");
+  });
+  it("carries no query string, so allow-list matching cannot trip on one", () => {
+    expect(adminInviteRedirect("https://admin.example")).not.toContain("?");
+  });
+  it("tolerates a trailing slash and refuses an empty base", () => {
+    expect(adminInviteRedirect("https://admin.example/")).toBe("https://admin.example/auth/confirm/finish");
+    expect(adminInviteRedirect("")).toBeNull();
   });
 });
