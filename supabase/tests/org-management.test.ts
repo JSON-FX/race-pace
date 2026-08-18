@@ -1,8 +1,9 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { createClient } from "@supabase/supabase-js";
+import { Client } from "pg";
 import { loadEnv } from "../../test/env";
 
-const { url, anonKey, serviceKey } = loadEnv();
+const { url, anonKey, serviceKey, dbUrl } = loadEnv();
 const svc = () => createClient(url, serviceKey, { auth: { persistSession: false } });
 const anon = () => createClient(url, anonKey, { auth: { persistSession: false } });
 
@@ -175,5 +176,95 @@ describe("a suspended organization", () => {
     const asOrgAdmin = await (await signedIn(adminEmail))
       .from("events").select("id").eq("org_id", orgId);
     expect(asOrgAdmin.data!.length).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * Fix round 2 (review finding): an earlier version of `delete_organization_tx`
+ * locked `payments` before `registrations`, the opposite order from
+ * `confirm_payment_tx` (which locks the registration row first, via its own
+ * `for update`, and only touches `payments` afterward through a plain
+ * `update`). Two sessions taking locks in opposite orders is a textbook
+ * deadlock, and the reviewer reproduced one on the local DB between these two
+ * functions. The fix makes `delete_organization_tx` lock registrations first
+ * too, so the two functions can never deadlock against each other — whichever
+ * one gets there first just makes the other wait.
+ *
+ * This is staged as a genuine two-connection race, not merely asserted by
+ * reading the function bodies -- same pattern as
+ * registration-gate.test.ts's `waitForLockWait`: two raw `pg` connections,
+ * one polling `pg_stat_activity` for the other's lock-wait state so the
+ * collision is forced deterministically rather than hoped for via a fixed
+ * sleep. Connection A starts (but does not commit) a settle; connection B's
+ * delete is dispatched once A is confirmed to hold the registration lock, and
+ * is polled to confirm it actually blocks on that lock (not racing past it).
+ * A then commits, B unblocks, and the assertion is that B raises
+ * `org_has_payments` -- a clean refusal -- rather than a deadlock error
+ * (40P01) or a hang.
+ */
+describe("delete_organization_tx / confirm_payment_tx lock ordering", () => {
+  it("a settle that commits while a delete is waiting produces org_has_payments, not a deadlock", async () => {
+    const { orgId, regs } = await makeOrg("t-lockrace");
+    const regId = regs[0].id;
+    await svc().from("payments").insert({
+      org_id: orgId, registration_id: regId, amount: 100000, status: "pending",
+    });
+
+    async function waitForLockWait(poller: Client, pid: number, timeoutMs = 5000): Promise<boolean> {
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        const r = await poller.query<{ wait_event_type: string | null }>(
+          "select wait_event_type from pg_stat_activity where pid = $1", [pid],
+        );
+        if (r.rows[0]?.wait_event_type === "Lock") return true;
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+      return false;
+    }
+
+    const clientA = new Client({ connectionString: dbUrl });
+    const clientB = new Client({ connectionString: dbUrl });
+    await clientA.connect();
+    await clientB.connect();
+
+    try {
+      // A: settle the payment. confirm_payment_tx's first statement locks the
+      // registration row `for update`; the transaction is left open
+      // (uncommitted) afterward, so the lock is still held and the 'paid'
+      // write is not yet visible to any other transaction's snapshot.
+      await clientA.query("begin");
+      const resA = await clientA.query<{ confirm_payment_tx: string }>(
+        "select confirm_payment_tx($1,$2,$3,$4,$5,$6)",
+        [regId, "gcash", 0, 100000, `tok_${regId}`, {}],
+      );
+      expect(resA.rows[0]!.confirm_payment_tx).toBe("paid");
+
+      // B: delete_organization_tx also locks registrations first (matching
+      // order, post-fix), so it blocks on the SAME row A is still holding.
+      await clientB.query("begin");
+      const bPid = (await clientB.query<{ pid: number }>("select pg_backend_pid() as pid")).rows[0]!.pid;
+      const bPromise = clientB.query("select delete_organization_tx($1)", [orgId]);
+
+      const blocked = await waitForLockWait(clientA, bPid);
+      expect(
+        blocked,
+        "test setup requires B to actually block on A's uncommitted registrations lock " +
+          "-- if this is false the race was not reproduced and the assertion below is meaningless",
+      ).toBe(true);
+
+      // Commit A: the payment is now durably 'paid'. B unblocks and must see it.
+      await clientA.query("commit");
+
+      await expect(bPromise).rejects.toThrow(/org_has_payments/);
+      await clientB.query("rollback");
+    } finally {
+      await clientA.end();
+      await clientB.end();
+    }
+
+    // The delete was refused, not partially applied -- the org is still there.
+    const still = await svc().from("organizations").select("id").eq("id", orgId);
+    expect(still.data).toHaveLength(1);
+    trash.push(orgId);
   });
 });

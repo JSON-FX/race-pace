@@ -110,12 +110,28 @@ begin
     raise exception 'org_not_found' using errcode = 'P0002';
   end if;
 
-  -- TOCTOU guard, part 1: lock every payment row for this org before we look
-  -- at any of them. `confirm_payment_tx` locks the specific payment row it
-  -- settles, so if one is mid-flight, this blocks here until that transaction
-  -- commits or rolls back — we then see its final status, never a stale
-  -- READ COMMITTED snapshot racing an in-progress settle.
-  perform 1 from public.payments where org_id = p_org_id for update;
+  -- TOCTOU guard, part 1: lock this org's registrations, THEN its payments —
+  -- in that order, deliberately. `confirm_payment_tx` locks the registration
+  -- row first (`select ... from registrations where id = p_registration_id
+  -- for update`) and only touches the payment row afterward, via a plain
+  -- `update payments`. An earlier version of this function locked payments
+  -- first and registrations second, which is the opposite order, and two
+  -- sessions taking locks in opposite orders is a textbook deadlock: with a
+  -- settle and a delete running concurrently, each can end up holding the
+  -- lock the other one wants. Reproduced on the local DB (`ERROR: deadlock
+  -- detected`, 40P01) before this fix. Matching `confirm_payment_tx`'s order
+  -- here makes that deadlock structurally impossible — whichever transaction
+  -- reaches the registrations lock first simply makes the other one wait,
+  -- never the other way around.
+  --
+  -- This also makes the guard re-check below load-bearing rather than
+  -- decorative: if a settle is already in flight when we arrive, we now
+  -- block on ITS registrations lock until it commits, and the second count
+  -- then sees the row it just marked 'paid' — converting what used to be a
+  -- race into a clean `org_has_payments` refusal instead of a deadlock error
+  -- surfacing to the caller.
+  perform 1 from public.registrations where org_id = p_org_id for update;
+  perform 1 from public.payments      where org_id = p_org_id for update;
 
   -- The money guard is re-checked HERE, not only in the Edge Function, so the
   -- invariant survives any future caller. `refunded` and `partially_refunded`
@@ -141,10 +157,11 @@ begin
   ) into v_counts;
 
   -- TOCTOU guard, part 2: re-run the guard immediately before the destructive
-  -- deletes. Part 1's lock closes the race against a settle that was already
-  -- in flight when we arrived; it holds no lock on a payment row that did not
-  -- exist yet, so this second count is what catches one inserted (and already
-  -- committed as paid) between the lock above and here.
+  -- deletes. Part 1's locks close the race against a settle that was already
+  -- in flight when we arrived — we now either see its committed 'paid' status
+  -- here, or we blocked on the registrations lock until it finished, so this
+  -- count cannot run against a stale, unlocked snapshot of a settle in
+  -- progress.
   --
   -- Residual, deliberately not closed: a payment created and settled entirely
   -- AFTER this statement — inside the window between this check and the
@@ -155,6 +172,17 @@ begin
   -- the console only offers delete on an org that has already been suspended
   -- — so by the time this function can be called, checkout can no longer
   -- create anything to race it with.
+  --
+  -- Second, separate residual, also deliberately not closed: a `pending`
+  -- payment never blocks a delete (by design — see the test at
+  -- org-management.test.ts:100-108), so an org can be deleted while a
+  -- PayMongo webhook for one of its pending payments is still in flight. That
+  -- webhook's `confirm_payment_tx` call then finds no matching registration,
+  -- returns `not_found`, and touches nothing — the database stays consistent
+  -- — but money may already have moved at the processor with no local record
+  -- of it. Reconciling that is a PayMongo-dashboard/ops problem, not one this
+  -- function can solve by blocking on `pending`, which would make every
+  -- delete wait on arbitrary in-flight checkouts instead.
   select count(*) into v_blocking
     from public.payments
    where org_id = p_org_id
