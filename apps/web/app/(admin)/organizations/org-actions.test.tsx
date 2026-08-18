@@ -87,3 +87,104 @@ describe("OrgActions", () => {
     expect(screen.getByText(/team keeps console access/i)).toBeInTheDocument();
   });
 });
+
+describe("OrgActions — delete", () => {
+  function previewReturning(preview: Record<string, unknown>) {
+    invoke.mockImplementation((_fn: string, opts: { body: { action: string } }) =>
+      opts.body.action === "delete_preview"
+        ? Promise.resolve({ data: { ok: true, ...preview }, error: null })
+        : Promise.resolve({ data: { ok: true }, error: null }));
+  }
+
+  const clean = {
+    counts: { events: 2, categories: 3, registrations: 0, payments: 0, checkins: 0, members: 1, payout_statements: 0 },
+    blocked: false, blocking: null,
+  };
+
+  it("requires the slug typed exactly before deleting", async () => {
+    previewReturning(clean);
+    const user = userEvent.setup();
+    render(<OrgActions org={org} />);
+    await openMenu(user);
+    await user.click(screen.getByRole("menuitem", { name: /delete/i }));
+
+    const confirm = await screen.findByRole("button", { name: /delete organization/i });
+    expect(confirm).toBeDisabled();
+
+    await user.type(screen.getByLabelText(/type the slug/i), "musp");
+    expect(confirm).toBeDisabled();
+
+    await user.type(screen.getByLabelText(/type the slug/i), "o");
+    expect(confirm).toBeEnabled();
+
+    await user.click(confirm);
+    expect(invoke).toHaveBeenCalledWith("org-provision", {
+      body: { action: "delete", org_id: "o1", slug: "muspo" },
+    });
+  });
+
+  it("shows what will be destroyed", async () => {
+    previewReturning(clean);
+    const user = userEvent.setup();
+    render(<OrgActions org={org} />);
+    await openMenu(user);
+    await user.click(screen.getByRole("menuitem", { name: /delete/i }));
+
+    expect(await screen.findByText(/2 events/i)).toBeInTheDocument();
+    expect(screen.getByText(/3 categories/i)).toBeInTheDocument();
+  });
+
+  it("refuses when money has moved, and says why", async () => {
+    previewReturning({
+      counts: { events: 4, categories: 9, registrations: 412, payments: 412, checkins: 0, members: 2, payout_statements: 1 },
+      blocked: true,
+      blocking: { paid: 400, refunded: 10, partially_refunded: 2 },
+    });
+    const user = userEvent.setup();
+    render(<OrgActions org={org} />);
+    await openMenu(user);
+    await user.click(screen.getByRole("menuitem", { name: /delete/i }));
+
+    // The guard is the edge function's decision, rendered — never recomputed here.
+    expect(await screen.findByText(/412 settled payments/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /delete organization/i })).toBeDisabled();
+    expect(screen.queryByLabelText(/type the slug/i)).not.toBeInTheDocument();
+  });
+
+  it("disables the confirm button when the preview check itself fails", async () => {
+    // A failed count query must never be read as "nothing to delete" — it
+    // must block the confirm button just as hard as a real money guard.
+    invoke.mockImplementation((_fn: string, opts: { body: { action: string } }) =>
+      opts.body.action === "delete_preview"
+        ? Promise.resolve({ data: null, error: { context: { clone: () => ({ json: () => Promise.resolve({ error: "server_error" }) }) } } })
+        : Promise.resolve({ data: { ok: true }, error: null }));
+    const user = userEvent.setup();
+    render(<OrgActions org={org} />);
+    await openMenu(user);
+    await user.click(screen.getByRole("menuitem", { name: /delete/i }));
+
+    expect(await screen.findByText(/could not check/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /delete organization/i })).toBeDisabled();
+    expect(screen.queryByLabelText(/type the slug/i)).not.toBeInTheDocument();
+  });
+
+  it("maps a 404 not_found delete error to a realistic message", async () => {
+    previewReturning(clean);
+    invoke.mockImplementation((_fn: string, opts: { body: { action: string } }) => {
+      if (opts.body.action === "delete_preview") {
+        return Promise.resolve({ data: { ok: true, ...clean }, error: null });
+      }
+      return Promise.resolve({ data: null, error: { context: { clone: () => ({ json: () => Promise.resolve({ error: "not_found" }) }) } } });
+    });
+    const user = userEvent.setup();
+    render(<OrgActions org={org} />);
+    await openMenu(user);
+    await user.click(screen.getByRole("menuitem", { name: /delete/i }));
+
+    await user.type(screen.getByLabelText(/type the slug/i), "muspo");
+    await user.click(screen.getByRole("button", { name: /delete organization/i }));
+
+    const { toast } = await import("sonner");
+    expect(toast.error).toHaveBeenCalledWith("That organization no longer exists.");
+  });
+});

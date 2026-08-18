@@ -25,6 +25,25 @@ const MESSAGES: Record<string, string> = {
   server_error: "Something went wrong. Please try again.",
 };
 
+// delete-only codes on top of the shared MESSAGES map. not_found here means
+// someone else deleted the same org first — the shared message already says that.
+const DELETE_MESSAGES: Record<string, string> = {
+  ...MESSAGES,
+  org_has_payments: "This organization has taken payments. Suspend it instead.",
+  slug_mismatch: "That slug doesn't match. Nothing was deleted.",
+};
+
+type Preview = {
+  counts: Record<string, number>;
+  blocked: boolean;
+  blocking: { paid: number; refunded: number; partially_refunded: number } | null;
+};
+
+function settledTotal(p: Preview): number {
+  const b = p.blocking;
+  return b ? b.paid + b.refunded + b.partially_refunded : 0;
+}
+
 /** functions.invoke surfaces a non-2xx as an error whose body still holds the
  *  code — the same unwrap new-org-dialog.tsx does, and the code is the entire
  *  diagnosis. */
@@ -48,6 +67,12 @@ export function OrgActions({ org }: { org: OrgSummary }) {
   const [confirmingActive, setConfirmingActive] = useState(false);
   const [name, setName] = useState(org.name);
   const [busy, setBusy] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [preview, setPreview] = useState<Preview | null>(null);
+  // A failed preview is distinct from "no preview yet" — it must never be
+  // read as an all-clear. Keeps the confirm button disabled either way.
+  const [previewFailed, setPreviewFailed] = useState(false);
+  const [typedSlug, setTypedSlug] = useState("");
 
   async function rename() {
     setBusy(true);
@@ -70,6 +95,31 @@ export function OrgActions({ org }: { org: OrgSummary }) {
     router.refresh();
   }
 
+  async function openDelete() {
+    setPreview(null);
+    setPreviewFailed(false);
+    setTypedSlug("");
+    setDeleting(true);
+    const { data, code } = await callOrgProvision({ action: "delete_preview", org_id: org.id });
+    if (code) {
+      // Do not close the dialog and do not fall back to zeros — a count
+      // query that failed is not the same thing as an org with nothing in it.
+      setPreviewFailed(true);
+      return;
+    }
+    setPreview(data as unknown as Preview);
+  }
+
+  async function destroy() {
+    setBusy(true);
+    const { code } = await callOrgProvision({ action: "delete", org_id: org.id, slug: org.slug });
+    setBusy(false);
+    if (code) return toast.error(DELETE_MESSAGES[code] ?? MESSAGES.server_error);
+    setDeleting(false);
+    toast.success(`${org.name} deleted.`);
+    router.refresh();
+  }
+
   return (
     <>
       <DropdownMenu>
@@ -84,6 +134,9 @@ export function OrgActions({ org }: { org: OrgSummary }) {
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => setConfirmingActive(true)}>
             {org.isActive ? "Suspend" : "Unsuspend"}
+          </DropdownMenuItem>
+          <DropdownMenuItem variant="destructive" onSelect={openDelete}>
+            Delete
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -121,6 +174,57 @@ export function OrgActions({ org }: { org: OrgSummary }) {
             <Button variant="outline" onClick={() => setConfirmingActive(false)}>Cancel</Button>
             <Button onClick={() => setActive(!org.isActive)} disabled={busy}>
               {org.isActive ? "Suspend" : "Unsuspend"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleting} onOpenChange={setDeleting}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete {org.name}?</DialogTitle>
+            <DialogDescription>
+              {preview?.blocked
+                ? "This cannot be deleted."
+                : "This cannot be undone. Everything below is destroyed."}
+            </DialogDescription>
+          </DialogHeader>
+
+          {previewFailed ? (
+            <p className="text-[13px] text-destructive">
+              Could not check what this would delete. Try again — nothing was deleted.
+            </p>
+          ) : !preview ? (
+            <p className="text-[13px] text-muted-foreground">Checking…</p>
+          ) : preview.blocked ? (
+            <p className="text-[13px]">
+              {settledTotal(preview)} settled payments are attached to this organization.
+              Deleting it would destroy the record of money that actually moved.
+              Suspend it instead.
+            </p>
+          ) : (
+            <>
+              <ul className="text-[13px] text-muted-foreground">
+                <li>{preview.counts.events} events</li>
+                <li>{preview.counts.categories} categories</li>
+                <li>{preview.counts.registrations} registrations</li>
+                <li>{preview.counts.members} team members</li>
+              </ul>
+              <div className="grid gap-2">
+                <Label htmlFor="org-del-slug">Type the slug ({org.slug}) to confirm</Label>
+                <Input id="org-del-slug" value={typedSlug} onChange={(e) => setTypedSlug(e.target.value)} />
+              </div>
+            </>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleting(false)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              onClick={destroy}
+              disabled={busy || !preview || preview.blocked || typedSlug !== org.slug}
+            >
+              Delete organization
             </Button>
           </DialogFooter>
         </DialogContent>
