@@ -11,6 +11,7 @@
 // authorization boundary — exactly the shape org-members uses.
 import { serviceClient } from "../_shared/supabase.ts";
 import { preflight, corsHeaders } from "../_shared/cors.ts";
+import { validateRename } from "../_shared/orgAdmin.ts";
 
 type Db = ReturnType<typeof serviceClient>;
 
@@ -134,6 +135,46 @@ Deno.serve(async (req) => {
       const { data: hit, error } = await db.from("organizations").select("id").eq("slug", slug).maybeSingle();
       if (error) return json({ error: "server_error" }, 500);
       return json({ ok: true, slug, available: !hit });
+    }
+
+    // Every branch below inherits the super_admin gate above. Service role on
+    // purpose: `name` happens to be in the column grant today and `is_active`
+    // deliberately is not, and a rename path that depended on that distinction
+    // would break the moment the grant is tightened again.
+    const ORG_COLUMNS =
+      "id,name,slug,commission_type,commission_rate,commission_flat_cents,refund_policy,refund_fee_cents,is_active,created_at";
+
+    if (action === "update") {
+      const orgId = String(body.org_id ?? "");
+      const name = String(body.name ?? "");
+      if (!orgId) return json({ error: "bad_request" }, 400);
+      const invalid = validateRename(name);
+      if (invalid) return json({ error: invalid }, 400);
+
+      const { data: org, error } = await db
+        .from("organizations")
+        .update({ name: name.trim() })
+        .eq("id", orgId)
+        .select(ORG_COLUMNS)
+        .maybeSingle();
+      if (error) return json({ error: "server_error" }, 500);
+      if (!org) return json({ error: "not_found" }, 404);
+      return json({ ok: true, org });
+    }
+
+    if (action === "set_active") {
+      const orgId = String(body.org_id ?? "");
+      if (!orgId || typeof body.is_active !== "boolean") return json({ error: "bad_request" }, 400);
+
+      const { data: org, error } = await db
+        .from("organizations")
+        .update({ is_active: body.is_active })
+        .eq("id", orgId)
+        .select(ORG_COLUMNS)
+        .maybeSingle();
+      if (error) return json({ error: "server_error" }, 500);
+      if (!org) return json({ error: "not_found" }, 404);
+      return json({ ok: true, org });
     }
 
     if (action !== "create") return json({ error: "unknown_action" }, 400);
