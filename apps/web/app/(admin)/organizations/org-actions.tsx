@@ -113,7 +113,7 @@ export function OrgActions({ org }: { org: OrgSummary }) {
             <DialogTitle>{org.isActive ? "Suspend" : "Unsuspend"} {org.name}?</DialogTitle>
             <DialogDescription>
               {org.isActive
-                ? "Its events leave the runner site and it stops taking registrations. Entries already paid stay valid, and its team keeps console access."
+                ? "Its events leave the runner site and it stops taking new registrations. Paid entries stay valid, and check-in, refunds and payouts keep working. Its team keeps console access."
                 : "Its events return to the runner site and it can take registrations again."}
             </DialogDescription>
           </DialogHeader>

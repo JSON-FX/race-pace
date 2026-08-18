@@ -78,9 +78,12 @@ describe("OrgActions", () => {
     await user.click(screen.getByRole("menuitem", { name: /suspend/i }));
 
     expect(
-      screen.getByText(/leave the runner site and it stops taking registrations/i),
+      screen.getByText(/leave the runner site and it stops taking new registrations/i),
     ).toBeInTheDocument();
-    expect(screen.getByText(/entries already paid stay valid/i)).toBeInTheDocument();
+    expect(screen.getByText(/paid entries stay valid/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/check-in, refunds and payouts keep working/i),
+    ).toBeInTheDocument();
     expect(screen.getByText(/team keeps console access/i)).toBeInTheDocument();
   });
 });
