@@ -66,7 +66,7 @@ export function NewOrgDialog() {
   const [slugState, setSlugState] = useState<SlugState>({ checking: false, available: null });
   const [email, setEmail] = useState("");
   const [commissionType, setCommissionType] = useState("percent");
-  const [percent, setPercent] = useState("10");
+  const [percent, setPercent] = useState("3");
   const [flatPesos, setFlatPesos] = useState("");
   const [refundPolicy, setRefundPolicy] = useState("full");
   const [retentionPesos, setRetentionPesos] = useState("");
@@ -74,7 +74,7 @@ export function NewOrgDialog() {
   function reset() {
     setName(""); setSlug(""); setSlugTouched(false);
     setSlugState({ checking: false, available: null });
-    setEmail(""); setCommissionType("percent"); setPercent("10"); setFlatPesos("");
+    setEmail(""); setCommissionType("percent"); setPercent("3"); setFlatPesos("");
     setRefundPolicy("full"); setRetentionPesos("");
     setError(null); setInviteLink(null); setCreatedName(""); setCopied(false);
   }

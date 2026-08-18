@@ -177,7 +177,7 @@ export default async function OrganizationsPage() {
                     </TableCell>
                     <TableCell>
                       <StatusBadge tone={org.isActive ? "paid" : "neutral"}>
-                        {org.isActive ? "Active" : "Inactive"}
+                        {org.isActive ? "Active" : "Suspended"}
                       </StatusBadge>
                     </TableCell>
                   </TableRow>
