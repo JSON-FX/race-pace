@@ -187,7 +187,7 @@ export function ManageAdminsDialog({
         </DialogHeader>
 
         {loadError ? (
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center justify-between gap-3">
             <p className="text-[13px] text-destructive">Couldn't load the team.</p>
             <Button variant="outline" size="sm" onClick={load}>Retry</Button>
           </div>
@@ -196,9 +196,9 @@ export function ManageAdminsDialog({
         ) : members.length === 0 ? (
           <p className="text-[13px] text-muted-foreground">Nobody can administer this organization yet.</p>
         ) : (
-          <ul className="divide-y">
+          <ul className="min-w-0 divide-y">
             {members.map((m) => (
-              <li key={m.user_id} className="flex items-center justify-between gap-3 py-2">
+              <li key={m.user_id} className="flex min-w-0 items-center justify-between gap-3 py-2">
                 <div className="min-w-0">
                   <div className="truncate text-[13px] font-semibold">{m.full_name ?? memberLabel(m)}</div>
                   {/* Only a second line when it says something the name line
@@ -231,7 +231,7 @@ export function ManageAdminsDialog({
           </ul>
         )}
 
-        <div className="grid gap-2">
+        <div className="grid min-w-0 gap-2">
           <Label htmlFor="org-invite-email">Email</Label>
           <div className="flex gap-2">
             <Input
@@ -266,12 +266,12 @@ export function ManageAdminsDialog({
           {/* Mirrors new-org-dialog.tsx's post-create panel: the link is the
               only way an invited admin gets in until SMTP is configured. */}
           {inviteLink === null ? null : inviteLink ? (
-            <div className="grid gap-1.5">
+            <div className="grid min-w-0 gap-1.5">
               <p className="text-[12px] text-muted-foreground">
                 The invite email will arrive once SMTP is configured on this project. Until then,
                 send them this sign-in link yourself.
               </p>
-              <div className="flex items-center gap-2 rounded-xl border bg-muted/40 p-2.5">
+              <div className="flex min-w-0 items-center gap-2 rounded-xl border bg-muted/40 p-2.5">
                 <code className="min-w-0 flex-1 truncate text-[12px]">{inviteLink}</code>
                 <Button
                   type="button" size="sm" variant="outline"
