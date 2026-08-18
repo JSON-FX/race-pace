@@ -40,29 +40,39 @@ describe("orgStoragePrefixes", () => {
 });
 
 describe("mapDeleteRpcError", () => {
-  // delete_organization_tx raises these as plain Postgres error messages, not
-  // structured codes, so the mapping has to pattern-match on `.includes`. Kept
-  // as one function so the code and the HTTP status can never drift apart —
-  // the handler used to compute this twice and could return one status with a
-  // code that implies another.
-  //
-  // Status only branches on org_has_payments (409); every other case,
-  // org_not_found included, is 500. That is the behaviour this was extracted
-  // from verbatim — org_not_found reaching the RPC means the row vanished
-  // between our own SELECT and the call (a race), not a normal 404, so it is
-  // treated as unexpected rather than as a routine not-found.
-  it("maps a message containing org_has_payments to a 409", () => {
-    expect(mapDeleteRpcError("org_has_payments")).toEqual({ code: "org_has_payments", status: 409 });
-    expect(mapDeleteRpcError("ERROR: org_has_payments (P0001)")).toEqual({ code: "org_has_payments", status: 409 });
+  // delete_organization_tx (20260818120000_org_management.sql) raises with a
+  // real SQLSTATE — `using errcode = 'P0001'` for org_has_payments, 'P0002'
+  // for org_not_found — and supabase-js surfaces that on `error.code`. That
+  // is the primary discriminator. Message `.includes` is only a fallback for
+  // an error that somehow arrives without a code, so a future reword of the
+  // raise text (e.g. "organization has settled payments") can't silently
+  // turn a blocked delete into a 500 instead of a 409 — the P0001 on the
+  // error object still fires even if the wording no longer matches.
+  it("maps SQLSTATE P0001 to org_has_payments/409, regardless of message wording", () => {
+    expect(mapDeleteRpcError({ code: "P0001", message: "org_has_payments: 3 settled payment(s)" }))
+      .toEqual({ code: "org_has_payments", status: 409 });
+    // Reworded message, code untouched — this is the exact drift scenario the
+    // code-first check exists to survive.
+    expect(mapDeleteRpcError({ code: "P0001", message: "organization has settled payments" }))
+      .toEqual({ code: "org_has_payments", status: 409 });
   });
-  it("maps a message containing org_not_found to the not_found code, still on a 500 status", () => {
-    expect(mapDeleteRpcError("org_not_found")).toEqual({ code: "not_found", status: 500 });
-    expect(mapDeleteRpcError("ERROR: org_not_found (P0002)")).toEqual({ code: "not_found", status: 500 });
+  it("maps SQLSTATE P0002 to not_found/404, regardless of message wording", () => {
+    expect(mapDeleteRpcError({ code: "P0002", message: "org_not_found" }))
+      .toEqual({ code: "not_found", status: 404 });
+    expect(mapDeleteRpcError({ code: "P0002", message: "no such organization" }))
+      .toEqual({ code: "not_found", status: 404 });
   });
-  it("falls back to server_error/500 for an unrelated message", () => {
-    expect(mapDeleteRpcError("connection reset by peer")).toEqual({ code: "server_error", status: 500 });
+  it("falls back to matching the message when no code is present", () => {
+    expect(mapDeleteRpcError({ message: "org_has_payments: 1 settled payment(s)" }))
+      .toEqual({ code: "org_has_payments", status: 409 });
+    expect(mapDeleteRpcError({ message: "org_not_found" }))
+      .toEqual({ code: "not_found", status: 404 });
   });
-  it("falls back to server_error/500 when the message is undefined", () => {
+  it("falls back to server_error/500 for an unrelated error", () => {
+    expect(mapDeleteRpcError({ code: "08006", message: "connection reset by peer" }))
+      .toEqual({ code: "server_error", status: 500 });
+  });
+  it("falls back to server_error/500 when the error is undefined", () => {
     expect(mapDeleteRpcError(undefined)).toEqual({ code: "server_error", status: 500 });
   });
 });

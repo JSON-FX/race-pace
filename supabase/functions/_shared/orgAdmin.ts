@@ -31,19 +31,25 @@ export function orgStoragePrefixes(orgId: string): { bucket: string; prefix: str
   ];
 }
 
-/** `delete_organization_tx` raises plain Postgres error text (P0001
- *  org_has_payments, P0002 org_not_found), not a structured code, so this is
- *  the one place that pattern-matches on the message. The delete handler used
- *  to compute the code and the HTTP status separately from the same
- *  `.includes` chain, which is how a future edit could give one branch a code
- *  that implies a different status than the one actually returned.
+/** `delete_organization_tx` (20260818120000_org_management.sql) raises with a
+ *  real SQLSTATE — `using errcode = 'P0001'` for org_has_payments, 'P0002'
+ *  for org_not_found — and supabase-js puts that on `error.code`. The
+ *  SQLSTATE is the primary discriminator; matching on the message text is
+ *  only a fallback for an error that somehow arrives with no code, because a
+ *  future reword of the raise text must not silently turn a blocked delete
+ *  into a 500 instead of a 409. Kept as one function so the code and the
+ *  HTTP status can never drift apart — the handler used to compute this
+ *  twice and could return one status with a code that implies another.
  *
- *  Only org_has_payments gets its own status (409). org_not_found here means
- *  the row vanished between our SELECT and the RPC call — a race, not a
- *  routine 404 — so it is reported as "not_found" but on a 500, same as any
- *  other unexpected RPC failure. */
-export function mapDeleteRpcError(message: string | undefined): { code: string; status: number } {
-  if (message?.includes("org_has_payments")) return { code: "org_has_payments", status: 409 };
-  if (message?.includes("org_not_found")) return { code: "not_found", status: 500 };
+ *  Per spec §9's edge-case table ("Two operators delete the same org →
+ *  Second call finds no row and returns not_found (404)"), org_not_found is
+ *  a routine 404, not a 500. */
+export function mapDeleteRpcError(
+  err: { code?: string | null; message?: string | null } | undefined,
+): { code: string; status: number } {
+  if (err?.code === "P0001") return { code: "org_has_payments", status: 409 };
+  if (err?.code === "P0002") return { code: "not_found", status: 404 };
+  if (err?.message?.includes("org_has_payments")) return { code: "org_has_payments", status: 409 };
+  if (err?.message?.includes("org_not_found")) return { code: "not_found", status: 404 };
   return { code: "server_error", status: 500 };
 }

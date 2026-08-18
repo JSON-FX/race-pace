@@ -185,27 +185,34 @@ Deno.serve(async (req) => {
 
     /** Counts for the confirm dialog AND the guard decision. The browser
      *  renders the reason; it never decides it — `delete` re-runs the same
-     *  check server-side before touching anything. */
+     *  check server-side before touching anything.
+     *
+     *  Both helpers THROW on a query error rather than falling back to 0.
+     *  `count` is `null` on a PostgREST failure exactly like it is on a
+     *  genuine empty table, so swallowing the error here would have made
+     *  delete_preview render a false all-clear — blocked: false, every count
+     *  0 — on a transient failure for an org that actually has thousands of
+     *  rows and hundreds of settled payments. The caller's try/catch turns
+     *  the throw into a 500 instead. */
     async function orgCounts(orgId: string) {
       const head = async (table: string) => {
-        const { count } = await db.from(table).select("id", { count: "exact", head: true }).eq("org_id", orgId);
+        const { count, error } = await db.from(table).select("id", { count: "exact", head: true }).eq("org_id", orgId);
+        if (error) throw error;
         return count ?? 0;
       };
       const settled = async (status: string) => {
-        const { count } = await db.from("payments")
+        const { count, error } = await db.from("payments")
           .select("id", { count: "exact", head: true }).eq("org_id", orgId).eq("status", status);
+        if (error) throw error;
         return count ?? 0;
       };
-      const [events, categories, registrations, payments, checkins, members, payout_statements] =
+      const [events, categories, registrations, payments, checkins, members, payout_statements, paid, refunded, partially_refunded] =
         await Promise.all([
           head("events"), head("categories"), head("registrations"),
           head("payments"), head("checkins"), head("user_roles"), head("payout_statements"),
+          settled("paid"), settled("refunded"), settled("partially_refunded"),
         ]);
-      const blocking: SettledCounts = {
-        paid: await settled("paid"),
-        refunded: await settled("refunded"),
-        partially_refunded: await settled("partially_refunded"),
-      };
+      const blocking: SettledCounts = { paid, refunded, partially_refunded };
       return {
         counts: { events, categories, registrations, payments, checkins, members, payout_statements },
         blocking,
@@ -246,7 +253,7 @@ Deno.serve(async (req) => {
 
       const { data: deleted, error: rpcErr } = await db.rpc("delete_organization_tx", { p_org_id: orgId });
       if (rpcErr) {
-        const { code, status } = mapDeleteRpcError(rpcErr.message);
+        const { code, status } = mapDeleteRpcError(rpcErr);
         return json({ error: code }, status);
       }
 
@@ -255,17 +262,30 @@ Deno.serve(async (req) => {
       // delete whose rows are already gone. Orphaned files are reported, not
       // fatal.
       //
+      // Looped per bucket, not a single list() call: `list` returns at most
+      // one page, and an org with more than PAGE_SIZE objects would have had
+      // the rest silently orphaned while this still reported "complete" — the
+      // same false-all-clear shape as returning 0 on a failed count. Removed
+      // objects fall off the NEXT list() call for the same prefix, so paging
+      // needs no offset bookkeeping: keep listing+removing until a page comes
+      // back shorter than PAGE_SIZE, which is the last one.
+      //
       // This is also the path that WORKS — the `supabase storage rm` CLI is a
       // silent no-op against projects on the new sb_secret_ API keys, but this
       // function holds a real service key.
+      const PAGE_SIZE = 1000;
       let storageOk = true;
       for (const { bucket, prefix } of orgStoragePrefixes(orgId)) {
-        const { data: files, error: listErr } = await db.storage.from(bucket).list(prefix, { limit: 1000 });
-        if (listErr) { storageOk = false; continue; }
-        const paths = (files ?? []).map((f) => `${prefix}/${f.name}`);
-        if (paths.length === 0) continue;
-        const { error: rmErr } = await db.storage.from(bucket).remove(paths);
-        if (rmErr) storageOk = false;
+        while (true) {
+          const { data: files, error: listErr } = await db.storage.from(bucket).list(prefix, { limit: PAGE_SIZE });
+          if (listErr) { storageOk = false; break; }
+          const batch = files ?? [];
+          if (batch.length === 0) break;
+          const paths = batch.map((f) => `${prefix}/${f.name}`);
+          const { error: rmErr } = await db.storage.from(bucket).remove(paths);
+          if (rmErr) { storageOk = false; break; }
+          if (batch.length < PAGE_SIZE) break; // short page: that was the last one
+        }
       }
       if (!storageOk) console.error(`[org-provision] storage cleanup incomplete for org ${orgId}`);
 
@@ -381,7 +401,12 @@ Deno.serve(async (req) => {
     const inviteLink: string | null = link?.properties?.action_link ?? null;
 
     return json({ ok: true, org, invited, invite_link: inviteLink });
-  } catch (_e) {
+  } catch (e) {
+    // A throw reaching here after the delete RPC has already committed (e.g.
+    // an orgCounts network error, or anything else unexpected) used to leave
+    // no trace that the organization was already gone — the caller sees a
+    // generic 500 and nothing in the logs points at which action or org.
+    console.error("[org-provision] unhandled error", e);
     return json({ error: "server_error" }, 500);
   }
 });
