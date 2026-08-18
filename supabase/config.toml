@@ -168,13 +168,16 @@ site_url = "https://race-pace-site.vercel.app"
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
 additional_redirect_urls = [
   "https://race-pace-admin.vercel.app/auth/confirm",
+  "https://race-pace-admin.vercel.app/auth/confirm/finish",
   "https://race-pace-admin.vercel.app/auth/callback",
   "https://race-pace-site.vercel.app/auth/callback",
   "https://admin.racepace.lan/auth/confirm",
+  "https://admin.racepace.lan/auth/confirm/finish",
   "https://admin.racepace.lan/auth/callback",
   "https://racepace.lan/auth/callback",
   "http://localhost:3000/auth/callback",
   "http://localhost:3001/auth/confirm",
+  "http://localhost:3001/auth/confirm/finish",
   "http://localhost:3001/auth/callback",
 ]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).

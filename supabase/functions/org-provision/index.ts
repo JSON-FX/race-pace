@@ -16,7 +16,7 @@ import {
   isDeleteBlocked,
   orgStoragePrefixes,
   mapDeleteRpcError,
-  adminConfirmRedirect,
+  adminInviteRedirect,
   buildInviteLink,
   type SettledCounts,
 } from "../_shared/orgAdmin.ts";
@@ -377,7 +377,7 @@ Deno.serve(async (req) => {
       // redirectTo lands the SMTP-delivered invite on the same /auth/confirm
       // route the manual link below points at, once SMTP is configured — see
       // buildInviteLink's comment for why the raw action_link is never used.
-      const redirectTo = adminConfirmRedirect(adminUrl);
+      const redirectTo = adminInviteRedirect(adminUrl);
       const { data: inv, error: invErr } = await db.auth.admin.inviteUserByEmail(
         input.admin_email,
         redirectTo ? { redirectTo } : undefined,
@@ -414,7 +414,7 @@ Deno.serve(async (req) => {
     // Still best-effort: the org and its admin role are already committed, so
     // a link failure returns ok with invite_link: null rather than rolling
     // back a correctly provisioned organization over a convenience field.
-    const redirectTo = adminConfirmRedirect(adminUrl);
+    const redirectTo = adminInviteRedirect(adminUrl);
     const { data: link } = await db.auth.admin.generateLink({
       type: "magiclink",
       email: input.admin_email,

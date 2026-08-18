@@ -1,7 +1,7 @@
 import { serviceClient } from "../_shared/supabase.ts";
 import { isAssignableRole, wouldLeaveNoAdmin } from "../_shared/team.ts";
 import { preflight, corsHeaders } from "../_shared/cors.ts";
-import { adminConfirmRedirect, buildInviteLink } from "../_shared/orgAdmin.ts";
+import { adminInviteRedirect, buildInviteLink } from "../_shared/orgAdmin.ts";
 
 type Db = ReturnType<typeof serviceClient>;
 
@@ -95,7 +95,7 @@ Deno.serve(async (req) => {
         // it Supabase falls back to `site_url`, which is the runner STOREFRONT
         // (config.toml) and has no /auth/confirm at all — the invite would land
         // on a 404 on the wrong app.
-        const redirectTo = adminConfirmRedirect(adminUrl);
+        const redirectTo = adminInviteRedirect(adminUrl);
         const { data: inv, error: invErr } = await db.auth.admin.inviteUserByEmail(
           email,
           redirectTo ? { redirectTo } : undefined,
@@ -124,7 +124,7 @@ Deno.serve(async (req) => {
       // Best-effort, exactly as org-provision is: the role grant above is
       // already committed, so a link failure returns ok with invite_link: null
       // rather than failing an invite that actually succeeded.
-      const redirectTo = adminConfirmRedirect(adminUrl);
+      const redirectTo = adminInviteRedirect(adminUrl);
       const { data: link } = await db.auth.admin.generateLink({
         type: "magiclink",
         email,

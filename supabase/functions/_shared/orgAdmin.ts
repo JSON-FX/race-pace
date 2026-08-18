@@ -65,6 +65,26 @@ export function adminConfirmRedirect(adminAppUrl: string): string | null {
   return trimmed ? `${trimmed}/auth/confirm` : null;
 }
 
+/** Where an SMTP-delivered invite must land.
+ *
+ *  NOT the same destination as the manual link. Supabase's default
+ *  `{{ .ConfirmationURL }}` template routes through `/auth/v1/verify`, which
+ *  answers with the session in the URL FRAGMENT — unreadable by a server
+ *  route. `/auth/confirm/finish` is a client page that reads it. Sending the
+ *  emailed link at `/auth/confirm` instead bounced live invitees to /login on
+ *  2026-08-18, because that route can only see a `?token_hash=` query.
+ *
+ *  Both destinations must be on the project's redirect allow-list, or GoTrue
+ *  silently falls back to Site URL — which is how that same incident put an
+ *  invite on http://localhost:3000. */
+export function adminInviteRedirect(adminAppUrl: string): string | null {
+  const base = adminConfirmRedirect(adminAppUrl);
+  // No query string on purpose: an allow-list entry has to match this URL,
+  // and how a given Supabase version treats query params in that match is
+  // not something to bet an invite on. The page defaults to /team.
+  return base ? `${base}/finish` : null;
+}
+
 /** Builds the manual invite link org-provision hands back to the super admin
  *  who just created an organization — the same destination an SMTP-emailed
  *  invite lands on once SMTP is configured (Task 7 design). `type=magiclink`
