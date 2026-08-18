@@ -28,6 +28,9 @@ export function ManageAdminsDialog({
 }: { org: OrgSummary; open: boolean; onOpenChange: (v: boolean) => void }) {
   const router = useRouter();
   const [members, setMembers] = useState<Member[] | null>(null);
+  // Distinct from members === null ("still loading") — a failed fetch must
+  // not leave the dialog stuck on "Loading…" forever with no way out.
+  const [loadError, setLoadError] = useState(false);
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -47,15 +50,24 @@ export function ManageAdminsDialog({
   }, []);
 
   const load = useCallback(async () => {
+    setLoadError(false);
     try {
       const data = await call({ action: "list", org_id: org.id });
       setMembers((data as { members?: Member[] })?.members ?? []);
     } catch (e) {
       toast.error((e as Error).message);
+      setLoadError(true);
     }
   }, [call, org.id]);
 
-  useEffect(() => { if (open) load(); }, [open, load]);
+  useEffect(() => {
+    // Reset before refetching, not just on success — otherwise the previous
+    // org's rows (or a stale error) sit on screen until the new fetch lands.
+    if (open) {
+      setMembers(null);
+      load();
+    }
+  }, [open, load]);
 
   // Returns whether the call succeeded, so callers can decide what to do
   // next (e.g. only clear the invite field on success — see the invite
@@ -86,7 +98,12 @@ export function ManageAdminsDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {members === null ? (
+        {loadError ? (
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-[13px] text-destructive">Couldn't load the team.</p>
+            <Button variant="outline" size="sm" onClick={load}>Retry</Button>
+          </div>
+        ) : members === null ? (
           <p className="text-[13px] text-muted-foreground">Loading…</p>
         ) : members.length === 0 ? (
           <p className="text-[13px] text-muted-foreground">Nobody can administer this organization yet.</p>
