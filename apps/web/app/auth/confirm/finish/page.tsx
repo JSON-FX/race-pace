@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { safeNextPath } from "@/lib/routes";
 
@@ -27,12 +27,19 @@ import { safeNextPath } from "@/lib/routes";
  * the session to the same cookies middleware and Server Components read, so
  * once setSession resolves, the redirect below lands authenticated.
  *
+ * `next` is read off `window.location`, NOT `useSearchParams()`. That hook
+ * opts a page out of prerendering unless it sits inside a Suspense boundary,
+ * and Next fails the production build over it — which is how this page 404'd
+ * in production after its first deploy. Everything this page needs already
+ * comes from `window` (the fragment cannot be read any other way), so taking
+ * the query from the same place keeps the build static and the logic in one
+ * place.
+ *
  * Nothing here is a second authorization gate. The (admin) layout and the
  * per-page guards decide what this account may actually see.
  */
 export default function ConfirmFinishPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [failed, setFailed] = useState(false);
   // Effects run twice under React StrictMode in dev, and setSession is not
   // free — a token consumed by the first pass would fail the second and show
@@ -49,7 +56,7 @@ export default function ConfirmFinishPage() {
     // Supabase reports a refused or expired link on the fragment too, rather
     // than by not redirecting.
     const hashError = hash.get("error_description") ?? hash.get("error");
-    const next = safeNextPath(searchParams.get("next"), "/team");
+    const next = safeNextPath(new URLSearchParams(window.location.search).get("next"), "/team");
 
     if (hashError || !accessToken || !refreshToken) {
       router.replace("/login?oauth=invite_expired");
@@ -69,7 +76,7 @@ export default function ConfirmFinishPage() {
         // Back must not return the invitee to it.
         router.replace(next);
       });
-  }, [router, searchParams]);
+  }, [router]);
 
   return (
     <div className="grid min-h-dvh place-items-center px-4">
