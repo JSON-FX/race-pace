@@ -109,8 +109,31 @@ Deno.serve(async (req) => {
     // to use instead of deleting a live org, so "suspended" has to actually
     // mean "no more money moves" for that advice to hold.
     //
-    // Same code and status as checkout's refusal on purpose: apps/site/lib/
-    // errors.ts maps `org_suspended` once and both paths land on that copy.
+    // Same code and status as checkout's refusal — which is only worth
+    // anything because BOTH clients now read it. An earlier draft of this
+    // comment claimed "apps/site/lib/errors.ts maps `org_suspended` once and
+    // both paths land on that copy", and that was FALSE of this path:
+    // createMethodCheckout was `if (error) return null`, so the 409 body was
+    // discarded, no CheckoutError was built, and checkoutErrorMessage was never
+    // called. Worse, PayPanel then fell back to the all-methods session stored
+    // at registration, so the refusal was not merely unexplained — it was
+    // routed around, straight to a live PayMongo page.
+    //
+    // What is true now, on apps/site: registrations-checkout's 409 reaches the
+    // copy via startCheckout → CheckoutError, whose message IS
+    // checkoutErrorMessage(code); THIS function's 409 reaches it via
+    // createMethodCheckout, which returns { url, code } instead of swallowing
+    // the body, and PayPanel renders checkoutErrorMessage(code) from it and
+    // refuses the stored-session fallback on it.
+    //
+    // apps/mobile has NO error-code map. Its pay screen carries this one
+    // sentence inline (ORG_SUSPENDED_COPY, kept verbatim in step with
+    // errors.ts) and gates the same fallback; its REGISTER screen still shows
+    // the raw code, a gap left open deliberately — a suspended org's events are
+    // already off the storefront (events_read_published requires an active
+    // org), so registrations-checkout's version of this refusal is
+    // near-unreachable there, while the pay screen's is the live path.
+    //
     // `!org?.is_active` also refuses a null embed — org_id is `not null` with
     // an FK so that cannot happen, and refusing is the safe direction if it
     // ever does.

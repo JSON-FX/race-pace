@@ -460,6 +460,26 @@ describe("a suspended organization's own runners", () => {
     expect((await stranger.from("organizations").select("id").eq("id", orgId)).data).toHaveLength(0);
   });
 
+  it("does not open one suspended org to a runner registered in a DIFFERENT one", async () => {
+    // The "signed-in stranger" case above uses an account with no registration
+    // anywhere, so it would pass even against a predicate that granted every
+    // registrant every suspended org. This is the case that actually pins the
+    // scope: `auth_registered_event_ids` / `auth_registered_org_ids` return
+    // only the caller's OWN rows, so holding an entry in A must buy nothing in
+    // B. Cross-tenant isolation is the platform's central invariant; a
+    // suspension-visibility fix is not a place to widen it.
+    const a = await makeSuspendedOrgWithTicket("t-susp-xorg-a");
+    const b = await makeSuspendedOrgWithTicket("t-susp-xorg-b");
+    const runnerOfA = await signedIn(a.runnerEmail);
+
+    // Sanity: A's runner really can read A — otherwise the assertions on B
+    // below would pass for the trivial reason that nothing is readable at all.
+    expect((await runnerOfA.from("events").select("id").eq("id", a.eventId)).data).toHaveLength(1);
+
+    expect((await runnerOfA.from("events").select("id").eq("id", b.eventId)).data).toHaveLength(0);
+    expect((await runnerOfA.from("organizations").select("id").eq("id", b.orgId)).data).toHaveLength(0);
+  });
+
   it("still hides both from anon", async () => {
     const { orgId, eventId } = await makeSuspendedOrgWithTicket("t-susp-anonstill");
 
@@ -478,9 +498,17 @@ describe("a suspended organization's own runners", () => {
  * and settled by the webhook after the delete's guard had already run.
  *
  * `registrations-checkout` closes the front door (no NEW entries); this closes
- * the one behind it (no new CHARGE on an existing entry). Same code and status
- * as checkout's refusal, deliberately — apps/site/lib/errors.ts maps
- * `org_suspended` once and both paths land on it.
+ * the one behind it (no new CHARGE on an existing entry).
+ *
+ * THIS 409 IS NOT THE WHOLE FIX, and an earlier version of this comment said
+ * it was — claiming apps/site mapped `org_suspended` once and both paths landed
+ * on that copy. They did not: createMethodCheckout was `if (error) return null`
+ * and PayPanel then fell back to the all-methods session stored at
+ * registration, which registrations-checkout writes on EVERY registration. The
+ * server's refusal was routed around on the dominant path. Both clients were
+ * changed alongside this — see PayPanel.test.tsx's "a suspended organizer" and
+ * pay-screen.test.tsx's describe of the same name, which are the tests that
+ * actually prove a runner cannot pay.
  */
 describe("payment-session on a suspended org", () => {
   it("refuses to mint a checkout session for an entry created before the suspension", async () => {
