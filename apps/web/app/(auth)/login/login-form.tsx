@@ -14,6 +14,7 @@ import { GoogleButton } from "./google-button";
 const OAUTH_MESSAGES: Record<string, string> = {
   cancelled: "Google sign-in was cancelled.",
   failed: "Google sign-in didn't complete. Try again, or use your email and password.",
+  invite_expired: "That invite link has expired or was already used. Ask for a new one.",
 };
 
 export function LoginForm() {
