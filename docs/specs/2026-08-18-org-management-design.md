@@ -392,11 +392,34 @@ key and its `storage.remove` is unaffected.
 
 ## 10. Secrets & one-time setup (operator-run)
 
-1. `supabase secrets set ADMIN_APP_URL=https://race-pace-admin.vercel.app`
+1. `supabase secrets set ADMIN_APP_URL=https://race-pace-admin.vercel.app` —
+   consumed by BOTH `org-provision` (create) and `org-members` (invite). Without
+   it `buildInviteLink` returns null and a newly invited admin has no way in,
+   because SMTP is not configured either.
 2. `supabase config push` — applies §6.1. **Read the diff first**: `config.toml`
    holds the whole `[auth]` block, and pushing it applies every setting in it,
    not only `site_url`.
-3. Redeploy `org-provision` and `registrations-checkout`.
+3. Redeploy `org-provision`, `org-members`, `registrations-checkout` and
+   `payment-session`. The last two both refuse a suspended org (`org_suspended`,
+   409) — checkout for a new entry, payment-session for an existing one — and a
+   half-deployed pair leaves one of those doors open.
+4. **When SMTP is eventually configured, edit the invite email template.**
+   Supabase's default body uses `{{ .ConfirmationURL }}`, which routes through
+   `/auth/v1/verify` and arrives at `redirect_to` with the tokens in the URL
+   FRAGMENT and **no `token_hash` query parameter** — so `/auth/confirm`, a
+   server route, cannot read them and answers
+   `/login?oauth=invite_expired`. The template must instead build the link from
+   `{{ .TokenHash }}`, pointed at the ADMIN console — e.g.
+   `{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=invite&next=%2Fteam`,
+   `.RedirectTo` being the `<ADMIN_APP_URL>/auth/confirm` these functions already
+   pass. Do **not** reach for `{{ .SiteURL }}`: `config.toml` points that at the
+   runner storefront, which has no `/auth/confirm` route. Check the variable
+   names against Supabase's current email-template docs before saving.
+   This is the same reason `buildInviteLink` never returns generateLink's raw
+   `action_link`; `apps/web/app/auth/confirm/route.ts` documents the mechanism.
+   Until this edit is made, the MANUAL link the console hands back is the only
+   invite path that works — configuring SMTP alone does not make the emailed one
+   work.
 
 ## 11. Testing
 

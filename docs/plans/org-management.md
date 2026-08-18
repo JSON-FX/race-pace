@@ -13,7 +13,7 @@
 ## Global Constraints
 
 - **Never edit an applied migration.** `db push` skips a version it has recorded regardless of content. All schema work here is one NEW migration file.
-- **New functions need explicit grants.** An event trigger (`20260808120200`) revokes EXECUTE on every newly created function. Grant in the same migration and verify with `has_function_privilege` — inspecting `pg_default_acl` is not proof.
+- **New functions need explicit grants.** Postgres grants EXECUTE to PUBLIC on every newly created function by built-in default, so a revoke/grant pair is not optional. Grant in the same migration and verify with `has_function_privilege` — inspecting `pg_default_acl` is not proof. (An event trigger, `20260808120200`, once enforced this at DDL time; it was **reversed** by `20260808130000_replace_grant_trigger_with_test_guard.sql` because it fired on `CREATE OR REPLACE` too and silently stripped grants from existing functions. The guard now is `supabase/tests/function-grants.test.ts`, which enumerates every SECURITY DEFINER function in `public`.)
 - **`is_active` and `slug` are never granted to `authenticated`.** RLS cannot be scoped to a column and `organizations_update_branding_org_admin` is column-agnostic, so a grant would let every org admin unsuspend or rename around the platform. `supabase/tests/processor-fee-ledger.test.ts:192` already asserts this and must stay green **unmodified**.
 - **The slug is immutable.** Rename writes `name` only.
 - **Delete is blocked by `paid`, `refunded` AND `partially_refunded` payments.** No override.
@@ -363,10 +363,12 @@ begin
 end;
 $fn$;
 
--- 20260808120200 installs an event trigger that revokes EXECUTE on every newly
--- created function, so this grant is not optional — and a missing grant has
--- bitten this repo three times. service_role ONLY: the org-provision Edge
--- Function is the sole caller, and nothing reachable by a browser should be
+-- Postgres grants EXECUTE to PUBLIC on every newly created function by built-in
+-- default, so this revoke/grant pair is not optional — and a missing grant has
+-- bitten this repo three times. (20260808120200 once enforced this with an event
+-- trigger; it was reversed by 20260808130000 and the guard is now
+-- supabase/tests/function-grants.test.ts.) service_role ONLY: the org-provision
+-- Edge Function is the sole caller, and nothing reachable by a browser should be
 -- able to erase an organization.
 revoke all on function delete_organization_tx(uuid) from public;
 grant execute on function delete_organization_tx(uuid) to service_role;
