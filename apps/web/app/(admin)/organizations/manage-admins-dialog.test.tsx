@@ -56,6 +56,40 @@ describe("ManageAdminsDialog", () => {
     });
   });
 
+  it("names a member with no email by their name, never \"Remove null\"", async () => {
+    // org-members returns `email: u?.user?.email ?? null` — an auth account
+    // can genuinely have no email (phone/OAuth), and the row's only control
+    // announced itself to a screen reader as "Remove null".
+    const user = userEvent.setup();
+    invoke.mockResolvedValue({
+      data: { ok: true, members: [
+        { user_id: "u1", email: "boss@muspo.ph", full_name: "Boss", role: "admin" },
+        { user_id: "u9", email: null, full_name: "No Mail", role: "editor" },
+      ] },
+      error: null,
+    });
+    render(<ManageAdminsDialog org={org} open onOpenChange={() => {}} />);
+    await screen.findByText("No Mail");
+
+    expect(screen.queryByRole("button", { name: /remove null/i })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /remove no mail/i }));
+    expect(invoke).toHaveBeenCalledWith("org-members", {
+      body: { action: "remove", org_id: "o1", user_id: "u9" },
+    });
+  });
+
+  it("falls back to the user id when a member has neither an email nor a name", async () => {
+    invoke.mockResolvedValue({
+      data: { ok: true, members: [
+        { user_id: "u7", email: null, full_name: null, role: "marshal" },
+      ] },
+      error: null,
+    });
+    render(<ManageAdminsDialog org={org} open onOpenChange={() => {}} />);
+
+    expect(await screen.findByRole("button", { name: /remove u7/i })).toBeInTheDocument();
+  });
+
   it("does not clear the typed email when the invite fails", async () => {
     // Ruling 5: `run` swallows its own errors (toasts them), so chaining
     // setEmail("") onto every call — success or failure — would silently

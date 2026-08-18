@@ -15,6 +15,19 @@ import type { OrgSummary } from "./org-actions";
 
 type Member = { user_id: string; email: string | null; full_name: string | null; role: string };
 
+/** How this member is referred to in anything a human reads — the row's
+ *  aria-label and the removal toast.
+ *
+ *  `email` first so the labels stay the identifier an operator recognises, but
+ *  org-members returns `u?.user?.email ?? null` and an auth account can
+ *  genuinely have none (phone or OAuth sign-up). That used to render
+ *  `aria-label="Remove null"` and toast "null removed." The user id is an ugly
+ *  last resort and is meant to be: it only appears for a member with no email
+ *  AND no profile name, and an unlabelled button is worse. */
+function memberLabel(m: Member): string {
+  return m.email ?? m.full_name ?? m.user_id;
+}
+
 /**
  * Who administers an organization, from the PLATFORM console.
  *
@@ -125,7 +138,7 @@ export function ManageAdminsDialog({
             {members.map((m) => (
               <li key={m.user_id} className="flex items-center justify-between gap-3 py-2">
                 <div className="min-w-0">
-                  <div className="truncate text-[13px] font-semibold">{m.full_name ?? m.email}</div>
+                  <div className="truncate text-[13px] font-semibold">{m.full_name ?? memberLabel(m)}</div>
                   {/* Only a second line when it says something the name line
                       didn't already — a null full_name falls back to email
                       above, so repeating it here would render it twice. */}
@@ -136,10 +149,10 @@ export function ManageAdminsDialog({
                 <span className="text-xs text-muted-foreground">{m.role}</span>
                 <Button
                   variant="ghost" size="sm" disabled={busy}
-                  aria-label={`Remove ${m.email}`}
+                  aria-label={`Remove ${memberLabel(m)}`}
                   onClick={() => run(
                     { action: "remove", org_id: org.id, user_id: m.user_id },
-                    `${m.email} removed.`,
+                    `${memberLabel(m)} removed.`,
                   )}
                 >
                   Remove
