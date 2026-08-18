@@ -30,3 +30,20 @@ export function orgStoragePrefixes(orgId: string): { bucket: string; prefix: str
     { bucket: "org-images", prefix: orgId },
   ];
 }
+
+/** `delete_organization_tx` raises plain Postgres error text (P0001
+ *  org_has_payments, P0002 org_not_found), not a structured code, so this is
+ *  the one place that pattern-matches on the message. The delete handler used
+ *  to compute the code and the HTTP status separately from the same
+ *  `.includes` chain, which is how a future edit could give one branch a code
+ *  that implies a different status than the one actually returned.
+ *
+ *  Only org_has_payments gets its own status (409). org_not_found here means
+ *  the row vanished between our SELECT and the RPC call — a race, not a
+ *  routine 404 — so it is reported as "not_found" but on a 500, same as any
+ *  other unexpected RPC failure. */
+export function mapDeleteRpcError(message: string | undefined): { code: string; status: number } {
+  if (message?.includes("org_has_payments")) return { code: "org_has_payments", status: 409 };
+  if (message?.includes("org_not_found")) return { code: "not_found", status: 500 };
+  return { code: "server_error", status: 500 };
+}

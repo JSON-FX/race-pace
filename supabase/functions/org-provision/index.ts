@@ -11,7 +11,13 @@
 // authorization boundary — exactly the shape org-members uses.
 import { serviceClient } from "../_shared/supabase.ts";
 import { preflight, corsHeaders } from "../_shared/cors.ts";
-import { validateRename } from "../_shared/orgAdmin.ts";
+import {
+  validateRename,
+  isDeleteBlocked,
+  orgStoragePrefixes,
+  mapDeleteRpcError,
+  type SettledCounts,
+} from "../_shared/orgAdmin.ts";
 
 type Db = ReturnType<typeof serviceClient>;
 
@@ -175,6 +181,98 @@ Deno.serve(async (req) => {
       if (error) return json({ error: "server_error" }, 500);
       if (!org) return json({ error: "not_found" }, 404);
       return json({ ok: true, org });
+    }
+
+    /** Counts for the confirm dialog AND the guard decision. The browser
+     *  renders the reason; it never decides it — `delete` re-runs the same
+     *  check server-side before touching anything. */
+    async function orgCounts(orgId: string) {
+      const head = async (table: string) => {
+        const { count } = await db.from(table).select("id", { count: "exact", head: true }).eq("org_id", orgId);
+        return count ?? 0;
+      };
+      const settled = async (status: string) => {
+        const { count } = await db.from("payments")
+          .select("id", { count: "exact", head: true }).eq("org_id", orgId).eq("status", status);
+        return count ?? 0;
+      };
+      const [events, categories, registrations, payments, checkins, members, payout_statements] =
+        await Promise.all([
+          head("events"), head("categories"), head("registrations"),
+          head("payments"), head("checkins"), head("user_roles"), head("payout_statements"),
+        ]);
+      const blocking: SettledCounts = {
+        paid: await settled("paid"),
+        refunded: await settled("refunded"),
+        partially_refunded: await settled("partially_refunded"),
+      };
+      return {
+        counts: { events, categories, registrations, payments, checkins, members, payout_statements },
+        blocking,
+      };
+    }
+
+    if (action === "delete_preview") {
+      const orgId = String(body.org_id ?? "");
+      if (!orgId) return json({ error: "bad_request" }, 400);
+      const { data: org } = await db.from("organizations").select("id").eq("id", orgId).maybeSingle();
+      if (!org) return json({ error: "not_found" }, 404);
+
+      const { counts, blocking } = await orgCounts(orgId);
+      const blocked = isDeleteBlocked(blocking);
+      return json({ ok: true, counts, blocked, blocking: blocked ? blocking : null });
+    }
+
+    if (action === "delete") {
+      const orgId = String(body.org_id ?? "");
+      const slug = String(body.slug ?? "");
+      if (!orgId || !slug) return json({ error: "bad_request" }, 400);
+
+      const { data: org } = await db
+        .from("organizations").select("id,slug,name").eq("id", orgId).maybeSingle();
+      if (!org) return json({ error: "not_found" }, 404);
+
+      // Not the UI's confirmation — the dialog has its own. This is the guard
+      // against a mis-targeted call reaching the function at all, which is the
+      // one mistake here that has no undo.
+      if (org.slug !== slug) return json({ error: "slug_mismatch" }, 400);
+
+      // The preview is advisory. THIS is the gate the request goes through on
+      // this side — and delete_organization_tx re-checks it again itself,
+      // under row locks, which is what actually closes the race a caller that
+      // skips the preview could otherwise hit.
+      const { blocking } = await orgCounts(orgId);
+      if (isDeleteBlocked(blocking)) return json({ error: "org_has_payments", blocking }, 409);
+
+      const { data: deleted, error: rpcErr } = await db.rpc("delete_organization_tx", { p_org_id: orgId });
+      if (rpcErr) {
+        const { code, status } = mapDeleteRpcError(rpcErr.message);
+        return json({ error: code }, status);
+      }
+
+      // AFTER the transaction commits, and deliberately not inside it: Postgres
+      // cannot delete an S3 object, and a storage failure must not roll back a
+      // delete whose rows are already gone. Orphaned files are reported, not
+      // fatal.
+      //
+      // This is also the path that WORKS — the `supabase storage rm` CLI is a
+      // silent no-op against projects on the new sb_secret_ API keys, but this
+      // function holds a real service key.
+      let storageOk = true;
+      for (const { bucket, prefix } of orgStoragePrefixes(orgId)) {
+        const { data: files, error: listErr } = await db.storage.from(bucket).list(prefix, { limit: 1000 });
+        if (listErr) { storageOk = false; continue; }
+        const paths = (files ?? []).map((f) => `${prefix}/${f.name}`);
+        if (paths.length === 0) continue;
+        const { error: rmErr } = await db.storage.from(bucket).remove(paths);
+        if (rmErr) storageOk = false;
+      }
+      if (!storageOk) console.error(`[org-provision] storage cleanup incomplete for org ${orgId}`);
+
+      return json({
+        ok: true, deleted, name: org.name,
+        storage_cleanup: storageOk ? "complete" : "partial",
+      });
     }
 
     if (action !== "create") return json({ error: "unknown_action" }, 400);
