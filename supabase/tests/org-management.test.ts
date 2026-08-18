@@ -373,3 +373,82 @@ describe("registrations-checkout on a suspended org", () => {
     expect(code).toBe("org_suspended");
   });
 });
+
+/** A suspended org, one open event, a category, and a runner holding a PAID
+ *  registration in it. Separate from `makeSuspendableOrg` because the ticket
+ *  path needs the registration row itself — the whole finding below is that
+ *  `events`/`organizations` were readable to nobody but org staff once the org
+ *  went inactive, and a paying runner is not org staff. */
+async function makeSuspendedOrgWithTicket(slug: string) {
+  const db = svc();
+  const { orgId, eventId } = await makeSuspendableOrg(slug);
+  const { data: cat } = await db.from("categories")
+    .insert({ org_id: orgId, event_id: eventId, code: "10k", label: "10K", base_price: 100000 })
+    .select("id").single();
+
+  const email = `t-${slug}-runner-${orgId}@racepace.test`;
+  const { data: u } = await db.auth.admin.createUser({
+    email, password: "password123", email_confirm: true,
+  });
+  trashUsers.push(u!.user!.id);
+  await db.from("registrations").insert({
+    org_id: orgId, event_id: eventId, category_id: cat!.id,
+    user_id: u!.user!.id, status: "paid",
+  });
+
+  // A second runner with an account but NO registration anywhere in this org,
+  // to prove the new predicate is scoped to the caller's own entries and is
+  // not just "any signed-in user".
+  const strangerEmail = `t-${slug}-stranger-${orgId}@racepace.test`;
+  const { data: s } = await db.auth.admin.createUser({
+    email: strangerEmail, password: "password123", email_confirm: true,
+  });
+  trashUsers.push(s!.user!.id);
+
+  await db.from("organizations").update({ is_active: false }).eq("id", orgId);
+  return { orgId, eventId, runnerEmail: email, strangerEmail };
+}
+
+/**
+ * Spec decision 3: "Existing paid entries, tickets ... keep working", and the
+ * suspend dialog promises "Paid entries stay valid".
+ *
+ * They did not. `events` had exactly two SELECT policies —
+ * `events_read_published` (which this migration taught to require an active
+ * org) and `events_read_org_admin` — and a runner holding a paid entry is
+ * neither. So apps/site/lib/registration.ts's REG_SELECT returned the
+ * registration with a NULL `events` embed and a NULL `organizations` embed:
+ * /ticket/<id> rendered the literal string "Event" with no hero, no date and
+ * no inclusions, and `mapReg`'s `org?.fee_mode ?? "absorb"` fallback showed a
+ * pass_on org's runner the sticker price instead of what they were actually
+ * charged.
+ */
+describe("a suspended organization's own runners", () => {
+  it("can still read the event and the org they hold a registration for", async () => {
+    const { orgId, eventId, runnerEmail } = await makeSuspendedOrgWithTicket("t-susp-ticket");
+    const runner = await signedIn(runnerEmail);
+
+    const ev = await runner.from("events").select("id,name").eq("id", eventId);
+    expect(ev.data, "a paid runner's ticket cannot render without its event").toHaveLength(1);
+
+    // fee_mode rides on this row. Without it mapReg defaults to 'absorb' and a
+    // pass_on org's runner is shown a total they were never charged.
+    const org = await runner.from("organizations").select("id,name,fee_mode").eq("id", orgId);
+    expect(org.data).toHaveLength(1);
+  });
+
+  it("does not open the suspended org to a signed-in stranger", async () => {
+    const { orgId, eventId, strangerEmail } = await makeSuspendedOrgWithTicket("t-susp-strange");
+    const stranger = await signedIn(strangerEmail);
+
+    expect((await stranger.from("events").select("id").eq("id", eventId)).data).toHaveLength(0);
+    expect((await stranger.from("organizations").select("id").eq("id", orgId)).data).toHaveLength(0);
+  });
+
+  it("still hides both from anon", async () => {
+    const { orgId, eventId } = await makeSuspendedOrgWithTicket("t-susp-anonstill");
+
+    expect((await anon().from("events").select("id").eq("id", eventId)).data).toHaveLength(0);
+    expect((await anon().from("organizations").select("id").eq("id", orgId)).data).toHaveLength(0);
+  });
+});

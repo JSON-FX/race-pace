@@ -5,12 +5,97 @@
 -- Three changes, each with an incident behind it. See
 -- docs/specs/2026-08-18-org-management-design.md.
 --
--- AMENDED IN PLACE 2026-08-18 (review round 1), which is allowed only because
--- this migration has only ever run through a local `db reset` and has never
--- been pushed to the hosted project. See task-2-report.md for the review that
+-- AMENDED IN PLACE 2026-08-18 (review round 1, then the final whole-branch
+-- review), which is allowed only because this migration has only ever run
+-- through a local `db reset` and has never been pushed to the hosted project —
+-- still true as of the final review. See task-2-report.md and
+-- .superpowers/sdd/org-management/final-fix-report.md for the reviews that
 -- produced these changes. Do not treat this header as license to edit any
 -- OTHER migration in place — the rest of this repo's migrations have run
 -- against the hosted project and a follow-up migration is required instead.
+
+-- ---------------------------------------------------------------------------
+-- 0. Two RLS predicates: "what does this caller hold an entry for?"
+-- ---------------------------------------------------------------------------
+-- Sections 1 and 2 below both need to ask whether the CALLER has a
+-- registration in a given org / for a given event. The obvious way to write
+-- that inside a policy is a plain subselect on public.registrations. It does
+-- not work, and the failure is a hard one, not a subtlety:
+--
+--   permission denied for table registrations (42501)
+--
+-- ...for every ANONYMOUS storefront read of `events` and `organizations`.
+-- An RLS policy expression is evaluated as the querying role, and the
+-- executor checks table permissions for every relation in the plan at
+-- executor startup — before any short-circuit, and whether or not the
+-- subplan is ever run. `anon` holds SELECT on `user_roles` (which is why the
+-- existing hoisted branch in section 1 works) but deliberately holds none on
+-- `registrations`. Granting one would put every runner's entries one policy
+-- mistake away from the public internet, to serve a predicate that only ever
+-- needs to answer about the caller's own rows.
+--
+-- So these go through SECURITY DEFINER instead — the same mechanism, and the
+-- same anon-executable exception, that auth_is_super_admin / auth_can_admin_org
+-- / auth_can_check_in_event already are. supabase/tests/function-grants.test.ts
+-- calls that exception out by name and its allowlist is edited alongside this
+-- migration, deliberately, rather than being widened by default.
+--
+-- SET-RETURNING AND ARGUMENT-FREE, both on purpose. 20260808161720 measured a
+-- policy predicate that takes a COLUMN going from 4.9ms to 1,220ms and into a
+-- production statement timeout (57014), because a column argument defeats
+-- STABLE and forces per-row re-evaluation. `id in (select
+-- public.auth_registered_event_ids())` takes no argument and correlates with
+-- nothing, so the planner hoists it into one hashed subplan per statement —
+-- the same shape as that migration's `org_id in (select ...)` rewrite, just
+-- with the table access moved behind a definer boundary. For an anonymous
+-- caller auth.uid() is null and the set is empty, evaluated once.
+-- registrations(user_id) has been indexed since 20260718183018.
+create or replace function auth_registered_event_ids()
+returns setof uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $fn$
+  select r.event_id from public.registrations r where r.user_id = auth.uid()
+$fn$;
+
+create or replace function auth_registered_org_ids()
+returns setof uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $fn$
+  select r.org_id from public.registrations r where r.user_id = auth.uid()
+$fn$;
+
+-- Anon EXECUTE is a REQUIREMENT here, not an oversight: these are called from
+-- inside SELECT policies on `events` and `organizations`, both of which the
+-- anonymous storefront reads, and a policy evaluates as whatever role runs the
+-- query. Revoking it would 42501 the whole storefront. The functions leak
+-- nothing to anon in exchange — auth.uid() is null there, so they return the
+-- empty set.
+revoke all on function auth_registered_event_ids() from public;
+revoke all on function auth_registered_org_ids() from public;
+grant execute on function auth_registered_event_ids() to anon, authenticated, service_role;
+grant execute on function auth_registered_org_ids()   to anon, authenticated, service_role;
+
+-- Proof, not assumption. Inspecting pg_default_acl is not proof.
+do $check$
+declare
+  fn text;
+  who text;
+begin
+  foreach fn in array array['auth_registered_event_ids()', 'auth_registered_org_ids()'] loop
+    foreach who in array array['anon', 'authenticated', 'service_role'] loop
+      if not has_function_privilege(who, fn, 'EXECUTE') then
+        raise exception '%: % EXECUTE grant missing — RLS on events/organizations will 42501', fn, who;
+      end if;
+    end loop;
+  end loop;
+end
+$check$;
 
 -- ---------------------------------------------------------------------------
 -- 1. A suspended org must stay visible to the people who manage it
@@ -30,6 +115,28 @@
 -- equivalent to `auth_can_admin_org`'s own EXISTS in the presence of
 -- super_admin rows, whose org_id is NULL. Anonymous callers match neither
 -- branch, so the storefront still cannot see a suspended organization.
+--
+-- THE FOURTH BRANCH — a runner who holds a registration in this org — was
+-- added in the final whole-branch review, and it is not a convenience. Spec
+-- decision 3 promises "Existing paid entries, tickets ... keep working", and
+-- the suspend dialog tells the operator "Paid entries stay valid". Without
+-- this branch a suspended org's row is unreadable to its own paying runners,
+-- and apps/site/lib/registration.ts's REG_SELECT carries `organizations(
+-- fee_mode, commission_type, commission_rate, commission_flat_cents)` on the
+-- same read as the registration. A null embed there falls to `mapReg`'s
+-- `org?.fee_mode ?? 'absorb'` default, which shows a pass_on org's runner the
+-- STICKER price on their own ticket instead of the grossed-up total they were
+-- actually charged. That is a money figure being wrong on the page a runner
+-- would take to a dispute, not a cosmetic gap.
+--
+-- Same hoisted shape as the branch above and for the same 20260808161720
+-- reason: `id in (select public.auth_registered_org_ids())` is uncorrelated
+-- and argument-free, so it becomes one hashed subplan per statement. A
+-- correlated `exists (... where r.org_id = organizations.id ...)` would be
+-- re-planned per row on a table every storefront page reads. Section 0
+-- explains why the lookup lives behind a SECURITY DEFINER function rather
+-- than being written inline. registrations.org_id is `not null`, so the set
+-- never contains a null and needs no guard.
 drop policy if exists orgs_read_active on organizations;
 create policy orgs_read_active on organizations
   for select using (
@@ -42,6 +149,7 @@ create policy orgs_read_active on organizations
         and ur.org_id is not null
         and ur.role in ('editor', 'admin')
     )
+    or id in (select public.auth_registered_org_ids())
   );
 
 -- ---------------------------------------------------------------------------
@@ -67,6 +175,31 @@ create policy events_read_published on events
     status <> 'draft'::event_status
     and org_id in (select id from public.organizations where is_active)
   );
+
+-- A RUNNER'S OWN TICKET SURVIVES THE SUSPENSION. Same finding as the fourth
+-- branch of `orgs_read_active` above, on the table that actually blanks the
+-- page: a runner holding a paid entry matches neither `events_read_published`
+-- (the org is no longer active) nor `events_read_org_admin` (they are not org
+-- staff), so REG_SELECT's `events(name, status, event_date, hero_image_url,
+-- inclusions, ...)` embed came back null and /ticket/<id> rendered mapReg's
+-- literal "Event" fallback with no hero image, no date and no inclusions.
+--
+-- A THIRD PERMISSIVE POLICY rather than a fourth OR-arm inside
+-- `events_read_published`: policies are OR'd either way, and keeping this
+-- separate leaves that policy's name true — it is about what is on sale, and
+-- this is about what someone already bought. It also deliberately does NOT
+-- re-check `status <> 'draft'` or the org's `is_active`: an entry cannot exist
+-- for an event that was never published, and re-drafting or suspending after
+-- the fact must not retroactively blank a ticket already paid for.
+--
+-- Hoisted, not correlated, per 20260808161720 — this policy is OR'd onto the
+-- hottest anonymous query in the app. For an anonymous caller `auth.uid()` is
+-- null, so the set comes back empty, once per statement, and the storefront is
+-- unchanged. See section 0 for why the lookup is a SECURITY DEFINER function
+-- and not an inline subselect on `registrations`.
+drop policy if exists events_read_own_registration on events;
+create policy events_read_own_registration on events
+  for select using (id in (select public.auth_registered_event_ids()));
 
 -- ---------------------------------------------------------------------------
 -- 3. Deleting an organization
