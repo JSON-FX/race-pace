@@ -170,6 +170,20 @@ every new function, and a missing grant has bitten this repo three times. Grant
 to `service_role` only — nothing else should be able to call this — and verify
 with `has_function_privilege` in the same migration.
 
+**Correction (2026-08-18):** the ordering-hazard claim above was tested and
+does not reproduce. Built the exact fixture this spec describes (one event,
+two categories, a registration in each) and ran a plain `delete from
+organizations` against it: it succeeded. Every cascade and the
+`registrations_category_id_fkey` NO ACTION check resolve inside the same
+top-level statement's after-trigger queue, so by the time that constraint is
+checked the registrations are already gone. The constraint itself is real — a
+direct `delete from categories` with registrations still present does fail —
+an org-level delete just never reaches that state. `delete_organization_tx`'s
+actual justification: the money guard and the deletes must be one atomic
+unit, and it returns the counts Task 5's console consumes. The explicit
+delete order is defence-in-depth against a future constraint change, not a
+reproduced incident.
+
 ### 4.4 Nothing is granted to `authenticated`
 
 The migration adds no column grants at all. Every write in this spec goes

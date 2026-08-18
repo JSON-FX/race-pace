@@ -24,9 +24,14 @@ afterEach(async () => {
   for (const id of trashUsers.splice(0)) await svc().auth.admin.deleteUser(id);
 });
 
-/** An org with an event, TWO categories, and a registration in each.
- *  Two categories is the point: one category cannot reproduce the ordering
- *  hazard this RPC exists to avoid. */
+/** An org with an event, TWO categories, and a registration in each. Two
+ *  categories, not one: `delete_organization_tx` exists for reasons unpacked
+ *  in the migration's header, not to dodge a foreign-key ordering hazard —
+ *  that hazard was tested against exactly this shape and does not reproduce
+ *  (a plain `delete from organizations` succeeds here; see the migration's
+ *  §3 comment for what was actually verified and why the function still
+ *  exists). Kept at two categories anyway so this fixture stays the same
+ *  shape the money-guard tests below reuse. */
 async function makeOrg(slug: string) {
   const db = svc();
   const { data: org } = await db.from("organizations")
@@ -66,9 +71,9 @@ describe("delete_organization_tx", () => {
 
     const { data, error } = await svc().rpc("delete_organization_tx", { p_org_id: orgId });
 
-    // A plain `delete from organizations` fails here: registrations.category_id
-    // is ON DELETE NO ACTION while both tables cascade from the org, so
-    // Postgres may reach the categories before the registrations.
+    // Not a reproduction of a plain-delete failure — there isn't one (see
+    // makeOrg's comment). This proves the RPC's actual job: the money guard
+    // ran, nothing blocked it, and the counts it returns match what existed.
     expect(error).toBeNull();
     expect(data).toMatchObject({ events: 1, categories: 2, registrations: 2 });
 
@@ -110,44 +115,65 @@ describe("delete_organization_tx", () => {
   });
 });
 
-describe("a suspended organization", () => {
-  const MUSPO = "00000000-0000-0000-0000-00000000a001";
+/** An org with one open event and its own admin — purpose-built so the
+ *  suspension tests never touch shared seed data. Root vitest.config.ts sets
+ *  no fileParallelism:false, and backend.test.ts reads Muspo
+ *  (00000000-0000-0000-0000-00000000a001) and its categories as anon in the
+ *  same run; flipping that org's is_active here would race it. */
+async function makeSuspendableOrg(slug: string) {
+  const db = svc();
+  const { data: org } = await db.from("organizations")
+    .insert({ name: `T ${slug}`, slug, commission_type: "percent", commission_rate: 0.03 })
+    .select("id").single();
+  trash.push(org!.id);
 
-  afterEach(async () => {
-    await svc().from("organizations").update({ is_active: true }).eq("id", MUSPO);
+  const { data: ev } = await db.from("events")
+    .insert({ org_id: org!.id, name: "T Race", status: "open" }).select("id").single();
+
+  const email = `t-${slug}-admin-${org!.id}@racepace.test`;
+  const { data: u } = await db.auth.admin.createUser({
+    email, password: "password123", email_confirm: true,
   });
+  trashUsers.push(u!.user!.id);
+  await db.from("user_roles").insert({ user_id: u!.user!.id, org_id: org!.id, role: "admin" });
 
+  return { orgId: org!.id, eventId: ev!.id, adminEmail: email };
+}
+
+describe("a suspended organization", () => {
   it("is invisible to anon but still visible to its own admin and the super admin", async () => {
-    await svc().from("organizations").update({ is_active: false }).eq("id", MUSPO);
+    const { orgId, adminEmail } = await makeSuspendableOrg("t-susp-org");
+    await svc().from("organizations").update({ is_active: false }).eq("id", orgId);
 
-    const asAnon = await anon().from("organizations").select("id").eq("id", MUSPO);
+    const asAnon = await anon().from("organizations").select("id").eq("id", orgId);
     expect(asAnon.data).toHaveLength(0);
 
     // The regression this guards: `orgs_read_active` used to be
     // `using (is_active = true)`, which hid a suspended org from the very page
     // a super admin would un-suspend it from, and broke the console for the
     // org's own staff.
-    const asOrgAdmin = await (await signedIn("muspo@racepace.test"))
-      .from("organizations").select("id").eq("id", MUSPO);
+    const asOrgAdmin = await (await signedIn(adminEmail))
+      .from("organizations").select("id").eq("id", orgId);
     expect(asOrgAdmin.data).toHaveLength(1);
 
     const asSuper = await (await signedIn("admin@racepace.test"))
-      .from("organizations").select("id").eq("id", MUSPO);
+      .from("organizations").select("id").eq("id", orgId);
     expect(asSuper.data).toHaveLength(1);
   });
 
   it("has its events removed from the storefront but not from its own console", async () => {
-    const before = await anon().from("events").select("id").eq("org_id", MUSPO);
+    const { orgId, adminEmail } = await makeSuspendableOrg("t-susp-evt");
+    const before = await anon().from("events").select("id").eq("org_id", orgId);
     expect(before.data!.length).toBeGreaterThan(0);
 
-    await svc().from("organizations").update({ is_active: false }).eq("id", MUSPO);
+    await svc().from("organizations").update({ is_active: false }).eq("id", orgId);
 
-    const asAnon = await anon().from("events").select("id").eq("org_id", MUSPO);
+    const asAnon = await anon().from("events").select("id").eq("org_id", orgId);
     expect(asAnon.data).toHaveLength(0);
 
     // events_read_org_admin is a separate permissive policy; policies are OR'd.
-    const asOrgAdmin = await (await signedIn("muspo@racepace.test"))
-      .from("events").select("id").eq("org_id", MUSPO);
+    const asOrgAdmin = await (await signedIn(adminEmail))
+      .from("events").select("id").eq("org_id", orgId);
     expect(asOrgAdmin.data!.length).toBeGreaterThan(0);
   });
 });
