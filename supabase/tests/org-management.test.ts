@@ -335,3 +335,41 @@ describe("delete_organization_tx / confirm_payment_tx lock ordering", () => {
     }
   });
 });
+
+describe("registrations-checkout on a suspended org", () => {
+  // Own throwaway org, not the seeded Muspo org -- same reason as
+  // makeSuspendableOrg's header comment: flipping is_active on shared seed
+  // data would race backend.test.ts, which reads Muspo as anon in the same
+  // vitest run.
+  it("refuses a direct call with an event id already in hand", async () => {
+    const { orgId, eventId } = await makeSuspendableOrg("t-susp-checkout");
+    const db = svc();
+    const { data: cat } = await db.from("categories")
+      .insert({ org_id: orgId, event_id: eventId, code: "10k", label: "10K", base_price: 100000 })
+      .select("id").single();
+
+    const email = `t-susp-checkout-runner-${orgId}@racepace.test`;
+    const { data: u } = await db.auth.admin.createUser({
+      email, password: "password123", email_confirm: true,
+    });
+    trashUsers.push(u!.user!.id);
+    const runner = await signedIn(email);
+
+    await db.from("organizations").update({ is_active: false }).eq("id", orgId);
+
+    const { data, error } = await runner.functions.invoke("registrations-checkout", {
+      body: {
+        event_id: eventId,
+        category_id: cat!.id,
+        waiver_accepted: true,
+        // registrationInputSchema requires idempotency_key (min 8 chars) --
+        // omitting it fails schema validation before this check ever runs.
+        idempotency_key: "susp-checkout-test-key",
+      },
+    });
+
+    const code = data?.error ?? await (error as { context?: Response })?.context
+      ?.clone().json().then((b: { error?: string }) => b?.error).catch(() => undefined);
+    expect(code).toBe("org_suspended");
+  });
+});
