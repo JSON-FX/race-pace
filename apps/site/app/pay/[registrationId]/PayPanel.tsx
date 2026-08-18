@@ -7,6 +7,7 @@ import { formatPeso } from "@race-pace/shared";
 import { isRegistrationClosed } from "@/lib/eventStatus";
 import { holdExpired } from "@/lib/holdExpiry";
 import { useRegistration, useProcessorRate, createMethodCheckout } from "@/lib/registration";
+import { checkoutErrorMessage } from "@/lib/errors";
 import { PAY_METHODS, breakdown, feeOn, passOnLines } from "@/lib/payment";
 import { MethodLogo } from "@/components/PaymentLogos";
 import { TicketStub } from "@/components/TicketStub";
@@ -107,6 +108,40 @@ export function PayPanel({ registrationId }: { registrationId: string }) {
     );
   }
 
+  // THE ORGANIZER'S ORGANIZATION IS SUSPENDED. Same shape and same reason as
+  // `eventClosed` above: `reg.data.checkoutUrl` holds an all-methods PayMongo
+  // session created before the suspension, and PayMongo does not care that the
+  // platform switched the organizer off — that page is still chargeable, and
+  // registrations-checkout writes `checkout_url` on EVERY registration, so it
+  // is never absent.
+  //
+  // payment-session refuses to mint a NEW session for a suspended org
+  // (org_suspended, 409). That refusal alone was not enough: `pay()` below fell
+  // back to the stored session whenever the scoped call returned nothing, gated
+  // only on the event being closed, so the server's refusal was routed around
+  // on the dominant path. Removing the Pay button entirely is what actually
+  // closes it.
+  //
+  // The copy is `checkoutErrorMessage("org_suspended")` — the same string
+  // lib/errors.ts gives the registration path — rather than a second sentence
+  // written here that would drift from it.
+  const orgSuspended = !reg.data.orgIsActive;
+  if (orgSuspended) {
+    return (
+      <div className="mx-auto w-full max-w-2xl px-6 py-20 text-center">
+        <h1 className="text-[26px] font-semibold tracking-[-0.5px] text-foreground">
+          This organizer is not taking payments
+        </h1>
+        <p className="mt-3 text-[15px] leading-relaxed text-muted-foreground">
+          {checkoutErrorMessage("org_suspended")}
+        </p>
+        <Button asChild className="mt-8 h-auto rounded-pill px-8 py-4 text-[16px] font-semibold">
+          <Link href="/races">Back to My Races</Link>
+        </Button>
+      </div>
+    );
+  }
+
   // A registration also reaches `status === 'expired'` when the organizer
   // closes/cancels/completes the event early, via the
   // `events_close_expires_pending` trigger (20260809100200) — not just when
@@ -164,18 +199,39 @@ export function PayPanel({ registrationId }: { registrationId: string }) {
     sessionStorage.setItem("rp:paying", registrationId);
 
     const scoped = await createMethodCheckout(registrationId, method);
-    // Only fall back to the session created at registration when the event is
-    // still open. createMethodCheckout returns null for ANY failure — including
-    // the server's `registration_closed` 409 — so without this guard a
-    // cancelled race would quietly charge the stored session anyway.
+    // Only fall back to the session created at registration when nothing has
+    // said not to. `createMethodCheckout` mints no URL for ANY failure —
+    // including the server's own 409s — so each thing that must not be paid for
+    // needs naming here, or the stored session quietly charges anyway.
+    //
+    //  - the event closed: mirrored client-side, as it always was.
+    //  - `scoped.code === "org_suspended"`: the SERVER's answer, and the only
+    //    fresh fact available at the moment of the tap. This query has no
+    //    refetch interval, so `orgIsActive` below can be minutes stale; a
+    //    suspension that lands between render and tap is caught here and
+    //    nowhere else.
+    //  - `!reg.data!.orgIsActive`: belt and braces. It is unreachable while the
+    //    `orgSuspended` early return above stands — no Pay button exists to tap
+    //    — and it is kept precisely so that a refactor which moves or drops
+    //    that early return does not silently reopen the fallback. It is not
+    //    claimed to be doing work today.
     const url =
-      scoped ??
+      scoped.url ??
       (isRegistrationClosed(reg.data!.eventStatus ?? "", reg.data!.eventRegistrationClosesAt)
+        || scoped.code === "org_suspended"
+        || !reg.data!.orgIsActive
         ? null
         : reg.data!.checkoutUrl);
     if (!url) {
       setBusy(false);
-      setError("No checkout link is available. Go back and try registering again.");
+      // The mapped copy when the server said why, so a permanent refusal does
+      // not read as "try registering again" — which is what the generic line
+      // below invites, and is wrong advice for a suspended organizer.
+      setError(
+        scoped.code
+          ? checkoutErrorMessage(scoped.code)
+          : "No checkout link is available. Go back and try registering again.",
+      );
       return;
     }
     // Full-page redirect off-site; /pay/callback resumes when PayMongo returns.

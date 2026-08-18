@@ -11,6 +11,15 @@ describe("isProtectedPath", () => {
     expect(isProtectedPath("/auth/callback")).toBe(false);
   });
 
+  it("leaves /auth/confirm PUBLIC — it is the invite-link landing route that creates the session", () => {
+    // Same regression class as /auth/callback above: an invited admin clicking
+    // their magic link is signed out by definition, so guarding this route
+    // means middleware bounces them to /login?next=... before verifyOtp ever
+    // runs. No session gets created and nothing errors — the invite link just
+    // silently does nothing.
+    expect(isProtectedPath("/auth/confirm")).toBe(false);
+  });
+
   it("still protects anything else under /auth", () => {
     // Default-deny is the point: making the whole /auth prefix public would open
     // any future route added there without anyone deciding to.

@@ -25,6 +25,23 @@ const METHODS = [
   { key: "maya", label: "Maya" },
 ];
 
+/**
+ * apps/mobile has NO error-code map — there is no equivalent of
+ * apps/site/lib/errors.ts here, and building one is a bigger decision than this
+ * fix (every other code still surfaces raw). `org_suspended` is the one code
+ * this screen can actually receive and act on, so it gets its copy inline.
+ *
+ * Kept verbatim in step with apps/site/lib/errors.ts's `org_suspended` entry:
+ * the same runner can hit the same wall on either client, and two different
+ * sentences for one condition is how support tickets stop matching each other.
+ * No "try again" imperative — suspension is permanent until a super admin
+ * lifts it — and "Nothing was charged" because a runner told only that
+ * something failed on a pay screen has no way to know whether their money
+ * moved.
+ */
+const ORG_SUSPENDED_COPY =
+  "This organizer isn't taking registrations right now. Nothing was charged — try again another time or pick another race.";
+
 const PILL_BTN = "h-auto py-[15px] sm:h-auto";
 const PILL_TXT = "text-[16px] font-semibold text-primary-foreground";
 const LINK_BASE = "mt-[14px] text-center text-[14px] font-semibold";
@@ -43,7 +60,20 @@ export default function Pay() {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const paid = reg.data?.status === "paid";
-  const url = checkoutUrl ?? reg.data?.checkoutUrl ?? null;
+  // THE ORGANIZER'S ORGANIZATION IS SUSPENDED. `url` below is a PayMongo
+  // session minted before the suspension — from the route param the register
+  // flow passes, or the one stored on the payment row — and PayMongo does not
+  // care that the platform switched the organizer off: that page is still
+  // chargeable. registrations-checkout writes checkout_url on EVERY
+  // registration, so the stored one is never absent.
+  //
+  // payment-session refuses to mint a NEW session for a suspended org
+  // (org_suspended, 409), and `pay()` below used to fall back past that
+  // refusal to exactly this `url`. Nulling it here, plus the early return
+  // further down that removes the Pay button entirely, is what closes it.
+  // Mirrors apps/site's PayPanel `orgSuspended` guard.
+  const orgSuspended = reg.data?.orgIsActive === false;
+  const url = orgSuspended ? null : (checkoutUrl ?? reg.data?.checkoutUrl ?? null);
   // Bookmark/direct-push protection: a runner can land here straight from a
   // push notification or a stale tab long after the 24-hour hold ran out.
   // payment-session (the edge function createMethodCheckout calls) refuses a
@@ -91,7 +121,12 @@ export default function Pay() {
     setPreparing(true);
     const scoped = await createMethodCheckout(registrationId, method);
     setPreparing(false);
-    const payUrl = scoped ?? url;
+    // The SERVER's answer, and the only fresh fact available at the moment of
+    // the tap: a suspension landing between render and tap leaves `orgSuspended`
+    // above stale, and this is the only thing that sees it. Handled before the
+    // fallback, so a refusal cannot be routed around by `url`.
+    if (scoped.code === "org_suspended") { setErr(ORG_SUSPENDED_COPY); return; }
+    const payUrl = scoped.url ?? url;
     if (!payUrl) { setErr("No checkout link available. Go back and try again."); return; }
     const full = payUrl + (payUrl.includes("?") ? "&" : "?") + "return=" + encodeURIComponent(redirect);
     setTimedOut(false); setAwaiting(true);
@@ -162,6 +197,27 @@ export default function Pay() {
           <Text className="mt-6 text-[24px] font-bold tracking-[-0.4px] text-foreground">This race is no longer accepting entries</Text>
           <Text className="mt-[10px] max-w-[280px] text-center text-[15px] leading-[21px] text-muted-foreground">
             {reg.data?.statusNote ?? "The organizer closed registration for this event. You have not been charged."}
+          </Text>
+        </View>
+        <View style={{ paddingBottom: insets.bottom + 20 }}>
+          <Button className={PILL_BTN} onPress={() => router.replace("/(tabs)/races")} accessibilityRole="button">
+            <Text className={PILL_TXT}>Back to My Races</Text>
+          </Button>
+        </View>
+      </View>
+    );
+  }
+
+  if (orgSuspended) {
+    return (
+      <View className="flex-1 bg-background" style={{ paddingTop: insets.top, paddingHorizontal: 22 }}>
+        <View className="flex-1 items-center justify-center">
+          <View className="h-[92px] w-[92px] items-center justify-center rounded-[46px] bg-amber-tint">
+            <Icon as={Ban} size={30} className="text-amber" />
+          </View>
+          <Text className="mt-6 text-[24px] font-bold tracking-[-0.4px] text-foreground">This organizer is not taking payments</Text>
+          <Text className="mt-[10px] max-w-[280px] text-center text-[15px] leading-[21px] text-muted-foreground">
+            {ORG_SUSPENDED_COPY}
           </Text>
         </View>
         <View style={{ paddingBottom: insets.bottom + 20 }}>

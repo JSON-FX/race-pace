@@ -34,6 +34,12 @@ function cachedToRows(cached: CachedTicket[]): RegistrationRow[] {
     eventName: c.eventName, categoryLabel: c.categoryLabel, categoryDistance: null, checkoutUrl: null,
     eventStatus: null, eventDate: null, originalDate: null, statusNote: null,
     orgName: c.orgName ?? null, eventHeroUrl: c.eventHeroUrl ?? null, payment: null,
+    // The offline ticket cache has never stored this and does not need to:
+    // these rows are cached PAID tickets rendered with no network, and the
+    // only consumer of orgIsActive is the pay screen, which reads
+    // useRegistration and never this list. `true` keeps them rendering rather
+    // than inventing a suspension nothing here can actually observe.
+    orgIsActive: true,
   }));
 }
 

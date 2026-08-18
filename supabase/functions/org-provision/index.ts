@@ -11,6 +11,15 @@
 // authorization boundary — exactly the shape org-members uses.
 import { serviceClient } from "../_shared/supabase.ts";
 import { preflight, corsHeaders } from "../_shared/cors.ts";
+import {
+  validateRename,
+  isDeleteBlocked,
+  orgStoragePrefixes,
+  mapDeleteRpcError,
+  adminConfirmRedirect,
+  buildInviteLink,
+  type SettledCounts,
+} from "../_shared/orgAdmin.ts";
 
 type Db = ReturnType<typeof serviceClient>;
 
@@ -123,6 +132,12 @@ Deno.serve(async (req) => {
     const { data: callerRoles } = await db.from("user_roles").select("role").eq("user_id", userRes.user.id);
     if (!(callerRoles ?? []).some((r) => r.role === "super_admin")) return json({ error: "forbidden" }, 403);
 
+    // Read once, here, so both the emailed invite (below, on the `create`
+    // branch) and the manual invite_link (end of the same branch) share it.
+    // ADMIN_APP_URL points at apps/web, not apps/site — the invite is for an
+    // organization admin, and /auth/confirm (Task 6) only exists there.
+    const adminUrl = Deno.env.get("ADMIN_APP_URL") ?? "";
+
     // Availability is checked with the SERVICE role deliberately. The
     // `orgs_read_active` RLS policy hides deactivated organizations from every
     // authenticated caller, but the unique constraint does not care whether a
@@ -134,6 +149,158 @@ Deno.serve(async (req) => {
       const { data: hit, error } = await db.from("organizations").select("id").eq("slug", slug).maybeSingle();
       if (error) return json({ error: "server_error" }, 500);
       return json({ ok: true, slug, available: !hit });
+    }
+
+    // Every branch below inherits the super_admin gate above. Service role on
+    // purpose: `name` happens to be in the column grant today and `is_active`
+    // deliberately is not, and a rename path that depended on that distinction
+    // would break the moment the grant is tightened again.
+    const ORG_COLUMNS =
+      "id,name,slug,commission_type,commission_rate,commission_flat_cents,refund_policy,refund_fee_cents,is_active,created_at";
+
+    if (action === "update") {
+      const orgId = String(body.org_id ?? "");
+      const name = String(body.name ?? "");
+      if (!orgId) return json({ error: "bad_request" }, 400);
+      const invalid = validateRename(name);
+      if (invalid) return json({ error: invalid }, 400);
+
+      const { data: org, error } = await db
+        .from("organizations")
+        .update({ name: name.trim() })
+        .eq("id", orgId)
+        .select(ORG_COLUMNS)
+        .maybeSingle();
+      if (error) return json({ error: "server_error" }, 500);
+      if (!org) return json({ error: "not_found" }, 404);
+      return json({ ok: true, org });
+    }
+
+    if (action === "set_active") {
+      const orgId = String(body.org_id ?? "");
+      if (!orgId || typeof body.is_active !== "boolean") return json({ error: "bad_request" }, 400);
+
+      const { data: org, error } = await db
+        .from("organizations")
+        .update({ is_active: body.is_active })
+        .eq("id", orgId)
+        .select(ORG_COLUMNS)
+        .maybeSingle();
+      if (error) return json({ error: "server_error" }, 500);
+      if (!org) return json({ error: "not_found" }, 404);
+      return json({ ok: true, org });
+    }
+
+    /** Counts for the confirm dialog AND the guard decision. The browser
+     *  renders the reason; it never decides it — `delete` re-runs the same
+     *  check server-side before touching anything.
+     *
+     *  Both helpers THROW on a query error rather than falling back to 0.
+     *  `count` is `null` on a PostgREST failure exactly like it is on a
+     *  genuine empty table, so swallowing the error here would have made
+     *  delete_preview render a false all-clear — blocked: false, every count
+     *  0 — on a transient failure for an org that actually has thousands of
+     *  rows and hundreds of settled payments. The caller's try/catch turns
+     *  the throw into a 500 instead. */
+    async function orgCounts(orgId: string) {
+      const head = async (table: string) => {
+        const { count, error } = await db.from(table).select("id", { count: "exact", head: true }).eq("org_id", orgId);
+        if (error) throw error;
+        return count ?? 0;
+      };
+      const settled = async (status: string) => {
+        const { count, error } = await db.from("payments")
+          .select("id", { count: "exact", head: true }).eq("org_id", orgId).eq("status", status);
+        if (error) throw error;
+        return count ?? 0;
+      };
+      const [events, categories, registrations, payments, checkins, members, payout_statements, paid, refunded, partially_refunded] =
+        await Promise.all([
+          head("events"), head("categories"), head("registrations"),
+          head("payments"), head("checkins"), head("user_roles"), head("payout_statements"),
+          settled("paid"), settled("refunded"), settled("partially_refunded"),
+        ]);
+      const blocking: SettledCounts = { paid, refunded, partially_refunded };
+      return {
+        counts: { events, categories, registrations, payments, checkins, members, payout_statements },
+        blocking,
+      };
+    }
+
+    if (action === "delete_preview") {
+      const orgId = String(body.org_id ?? "");
+      if (!orgId) return json({ error: "bad_request" }, 400);
+      const { data: org } = await db.from("organizations").select("id").eq("id", orgId).maybeSingle();
+      if (!org) return json({ error: "not_found" }, 404);
+
+      const { counts, blocking } = await orgCounts(orgId);
+      const blocked = isDeleteBlocked(blocking);
+      return json({ ok: true, counts, blocked, blocking: blocked ? blocking : null });
+    }
+
+    if (action === "delete") {
+      const orgId = String(body.org_id ?? "");
+      const slug = String(body.slug ?? "");
+      if (!orgId || !slug) return json({ error: "bad_request" }, 400);
+
+      const { data: org } = await db
+        .from("organizations").select("id,slug,name").eq("id", orgId).maybeSingle();
+      if (!org) return json({ error: "not_found" }, 404);
+
+      // Not the UI's confirmation — the dialog has its own. This is the guard
+      // against a mis-targeted call reaching the function at all, which is the
+      // one mistake here that has no undo.
+      if (org.slug !== slug) return json({ error: "slug_mismatch" }, 400);
+
+      // The preview is advisory. THIS is the gate the request goes through on
+      // this side — and delete_organization_tx re-checks it again itself,
+      // under row locks, which is what actually closes the race a caller that
+      // skips the preview could otherwise hit.
+      const { blocking } = await orgCounts(orgId);
+      if (isDeleteBlocked(blocking)) return json({ error: "org_has_payments", blocking }, 409);
+
+      const { data: deleted, error: rpcErr } = await db.rpc("delete_organization_tx", { p_org_id: orgId });
+      if (rpcErr) {
+        const { code, status } = mapDeleteRpcError(rpcErr);
+        return json({ error: code }, status);
+      }
+
+      // AFTER the transaction commits, and deliberately not inside it: Postgres
+      // cannot delete an S3 object, and a storage failure must not roll back a
+      // delete whose rows are already gone. Orphaned files are reported, not
+      // fatal.
+      //
+      // Looped per bucket, not a single list() call: `list` returns at most
+      // one page, and an org with more than PAGE_SIZE objects would have had
+      // the rest silently orphaned while this still reported "complete" — the
+      // same false-all-clear shape as returning 0 on a failed count. Removed
+      // objects fall off the NEXT list() call for the same prefix, so paging
+      // needs no offset bookkeeping: keep listing+removing until a page comes
+      // back shorter than PAGE_SIZE, which is the last one.
+      //
+      // This is also the path that WORKS — the `supabase storage rm` CLI is a
+      // silent no-op against projects on the new sb_secret_ API keys, but this
+      // function holds a real service key.
+      const PAGE_SIZE = 1000;
+      let storageOk = true;
+      for (const { bucket, prefix } of orgStoragePrefixes(orgId)) {
+        while (true) {
+          const { data: files, error: listErr } = await db.storage.from(bucket).list(prefix, { limit: PAGE_SIZE });
+          if (listErr) { storageOk = false; break; }
+          const batch = files ?? [];
+          if (batch.length === 0) break;
+          const paths = batch.map((f) => `${prefix}/${f.name}`);
+          const { error: rmErr } = await db.storage.from(bucket).remove(paths);
+          if (rmErr) { storageOk = false; break; }
+          if (batch.length < PAGE_SIZE) break; // short page: that was the last one
+        }
+      }
+      if (!storageOk) console.error(`[org-provision] storage cleanup incomplete for org ${orgId}`);
+
+      return json({
+        ok: true, deleted, name: org.name,
+        storage_cleanup: storageOk ? "complete" : "partial",
+      });
     }
 
     if (action !== "create") return json({ error: "unknown_action" }, 400);
@@ -207,7 +374,14 @@ Deno.serve(async (req) => {
 
     let invited = false;
     if (!userId) {
-      const { data: inv, error: invErr } = await db.auth.admin.inviteUserByEmail(input.admin_email);
+      // redirectTo lands the SMTP-delivered invite on the same /auth/confirm
+      // route the manual link below points at, once SMTP is configured — see
+      // buildInviteLink's comment for why the raw action_link is never used.
+      const redirectTo = adminConfirmRedirect(adminUrl);
+      const { data: inv, error: invErr } = await db.auth.admin.inviteUserByEmail(
+        input.admin_email,
+        redirectTo ? { redirectTo } : undefined,
+      );
       if (invErr || !inv?.user) {
         await rollback();
         return json({ error: "invite_failed" }, 502);
@@ -224,25 +398,37 @@ Deno.serve(async (req) => {
       return json({ error: "role_failed" }, 500);
     }
 
-    // The action link exists so provisioning is usable BEFORE SMTP is
-    // configured — without it, a successful create leaves the operator with no
-    // way to hand the account over.
+    // The link exists so provisioning is usable BEFORE SMTP is configured —
+    // without it, a successful create leaves the operator with no way to hand
+    // the account over.
     //
     // 'magiclink', not 'invite': the account exists by the time we get here
     // (inviteUserByEmail created it, or it already did), and generateLink's
     // 'invite' type is for an address that has no user yet. A magic link signs
     // the same account in, which is what manual delivery needs.
     //
-    // Best-effort: the org and its admin role are already committed, so a link
-    // failure returns ok with invite_link: null rather than rolling back a
-    // correctly provisioned organization over a convenience field.
+    // The RAW action_link is deliberately NOT returned — see buildInviteLink's
+    // comment in _shared/orgAdmin.ts for why. What ships instead is a link to
+    // the console's /auth/confirm, built from `hashed_token`.
+    //
+    // Still best-effort: the org and its admin role are already committed, so
+    // a link failure returns ok with invite_link: null rather than rolling
+    // back a correctly provisioned organization over a convenience field.
+    const redirectTo = adminConfirmRedirect(adminUrl);
     const { data: link } = await db.auth.admin.generateLink({
-      type: "magiclink", email: input.admin_email,
+      type: "magiclink",
+      email: input.admin_email,
+      options: redirectTo ? { redirectTo } : undefined,
     });
-    const inviteLink: string | null = link?.properties?.action_link ?? null;
+    const inviteLink: string | null = buildInviteLink(adminUrl, link?.properties?.hashed_token ?? null);
 
     return json({ ok: true, org, invited, invite_link: inviteLink });
-  } catch (_e) {
+  } catch (e) {
+    // A throw reaching here after the delete RPC has already committed (e.g.
+    // an orgCounts network error, or anything else unexpected) used to leave
+    // no trace that the organization was already gone — the caller sees a
+    // generic 500 and nothing in the logs points at which action or org.
+    console.error("[org-provision] unhandled error", e);
     return json({ error: "server_error" }, 500);
   }
 });

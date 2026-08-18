@@ -7,11 +7,28 @@ const svc = () => createClient(url, serviceKey, { auth: { persistSession: false 
 const anon = () => createClient(url, anonKey, { auth: { persistSession: false } });
 
 // Referenced inside RLS policies, which evaluate as the querying role — see the two allowlists
-// below for why each needs what it needs. Never revoke EXECUTE on these three, for any role.
-const AUTH_PREDICATES = ["auth_can_admin_org", "auth_can_check_in_event", "auth_is_super_admin"];
+// below for why each needs what it needs. Never revoke EXECUTE on any of these, for any role.
+//
+// The last two were added by 20260818120000_org_management.sql and are a DELIBERATE edit to
+// this list, which is the mechanism the enumeration test at the bottom of this file asks for
+// ("if one is ever legitimately needed, that's a deliberate edit to this test"). They answer
+// "which events / orgs does the caller hold a registration for?" for the SELECT policies on
+// `events` and `organizations`, so a suspended org's own paying runners can still load their
+// ticket. They are SECURITY DEFINER functions specifically SO THAT the alternative —
+// `grant select on public.registrations to anon`, which an inline policy subselect would
+// otherwise need because anon reads both those tables — never has to be granted. See that
+// migration's section 0. For an anonymous caller they return the empty set, so anon EXECUTE
+// discloses nothing.
+const AUTH_PREDICATES = [
+  "auth_can_admin_org",
+  "auth_can_check_in_event",
+  "auth_is_super_admin",
+  "auth_registered_event_ids",
+  "auth_registered_org_ids",
+];
 
 // Group B, per 20260808110000/task-sec-brief.md: client-called, each refuses unauthorized
-// callers internally, so `authenticated` EXECUTE is required — plus the three RLS-policy
+// callers internally, so `authenticated` EXECUTE is required — plus the RLS-policy
 // predicates, which must keep `authenticated` or row-level security evaluation across the schema
 // breaks. Nothing else in `public` should be authenticated-executable without a deliberate edit
 // to this list.
@@ -40,16 +57,16 @@ const AUTHENTICATED_ALLOWLIST = new Set([
   ...AUTH_PREDICATES,
 ]);
 
-// The three RLS-policy predicates are additionally anon-executable — not a gap, a requirement:
+// The RLS-policy predicates are additionally anon-executable — not a gap, a requirement:
 // they're called from inside RLS policies on tables anon can read (e.g. `events`/`organizations`
 // SELECT policies gated on `auth_can_admin_org`-adjacent logic), and a policy evaluates as
 // whatever role is running the query, including anon. This is the ONE sanctioned exception to
 // "no function is anon-executable" — task-sec-brief.md and every review pass since have called
-// these three out by name as the one thing that must never be touched, for any role: "Revoking
+// these out by name as the one thing that must never be touched, for any role: "Revoking
 // EXECUTE from authenticated (or anon, for anon-readable tables whose policies reference them)
 // would break row-level security evaluation across the whole schema." Confirmed via
 // `_function_grant_audit` that this is the schema's actual, unchanged-since-before-this-task
-// state (these three were explicitly out of scope for every migration in this series) — not
+// state (the original three were explicitly out of scope for every migration in this series) — not
 // something to "fix" by revoking anon, which would violate that constraint and risk exactly the
 // outage it warns about.
 const ANON_ALLOWLIST = new Set(AUTH_PREDICATES);
@@ -195,7 +212,7 @@ describe("function grants — service-role-only RPCs reject anon", () => {
   //
   // Enumerates every SECURITY DEFINER function in `public` via the service-role-only
   // `_function_grant_audit` RPC (supabase-js has no way to run arbitrary SQL — see test/env.ts)
-  // and asserts: no function is anon-executable except ANON_ALLOWLIST (the three RLS predicates —
+  // and asserts: no function is anon-executable except ANON_ALLOWLIST (the RLS predicates —
   // no other exception; if one is ever legitimately needed, that's a deliberate edit to this
   // test, not a passive default). No function is authenticated-executable except
   // AUTHENTICATED_ALLOWLIST above.

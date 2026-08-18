@@ -77,19 +77,57 @@ export async function verifyPayment(registrationId: string): Promise<{ status: s
   }
 }
 
+/** What `createMethodCheckout` answers.
+ *
+ *  `code` is the DIFFERENCE BETWEEN "the server declined" AND "the call did not
+ *  land", and the pay screen has to be able to tell those apart. This function
+ *  used to return a bare `string | null`, which collapsed them: PayPanel then
+ *  fell back to the all-methods session stored at registration for BOTH, and
+ *  since registrations-checkout writes `checkout_url` on every registration
+ *  that fallback is always populated. A refusal the server actually articulated
+ *  — `org_suspended` — was therefore routed straight around, to a live PayMongo
+ *  page. */
+export type MethodCheckout = {
+  /** The scoped session, or null when none was minted. */
+  url: string | null;
+  /** The edge function's own error code when it refused, else null. Null also
+   *  covers a network/transport failure, which is the one case where falling
+   *  back to the stored session is legitimate. */
+  code: string | null;
+};
+
 /** Recreate the checkout scoped to the chosen method so PayMongo opens straight
- *  to it. Returns null on any error; the pay page falls back to the all-methods
- *  session created at registration. */
-export async function createMethodCheckout(registrationId: string, method: string): Promise<string | null> {
+ *  to it.
+ *
+ *  Still best-effort — it never throws — but it no longer swallows WHY. See
+ *  MethodCheckout. Mirrors apps/mobile/lib/registration.ts's function of the
+ *  same name, which returns the same shape for the same reason. */
+export async function createMethodCheckout(registrationId: string, method: string): Promise<MethodCheckout> {
   try {
     const supabase = createClient();
     const { data, error } = await supabase.functions.invoke("payment-session", {
       body: { registration_id: registrationId, method, return_url: payReturnUrl(registrationId) },
     });
-    if (error) return null;
-    return (data as { checkout_url?: string })?.checkout_url ?? null;
+    if (error) {
+      // Edge Functions carry their code in the response BODY, not the message —
+      // same unwrap as startCheckout above. A body that will not parse leaves
+      // `code` null, which is the transport-failure shape, and that is the
+      // right default: it is the reading that permits the fallback, and a
+      // caller that cannot read the refusal must not be told there wasn't one.
+      let code: string | null = null;
+      if (error instanceof FunctionsHttpError) {
+        try {
+          const body = await error.context.json();
+          if (body?.error) code = String(body.error);
+        } catch {
+          // keep code null
+        }
+      }
+      return { url: null, code };
+    }
+    return { url: (data as { checkout_url?: string })?.checkout_url ?? null, code: null };
   } catch {
-    return null;
+    return { url: null, code: null };
   }
 }
 
@@ -119,6 +157,13 @@ export type RegistrationRow = {
    *  share, so it is none of the runner's business. `pass_on`: the runner is
    *  charged a grossed-up total and must therefore see every line of it. */
   feeMode: "absorb" | "pass_on";
+  /** Whether the platform still has this organization switched on. Read on the
+   *  SAME embed as the fee terms, and readable to a registrant even while the
+   *  org is suspended thanks to `orgs_read_active`'s registrant branch
+   *  (20260818120000). The pay screen needs it because the stored all-methods
+   *  PayMongo session survives a suspension and would otherwise still be
+   *  chargeable — see PayPanel's `orgSuspended` guard. */
+  orgIsActive: boolean;
   /** The org's commission terms, needed to strike the platform's fee on the base
    *  the organizer priced. Only read in pass_on mode — but read in FULL: the
    *  shape of the commission decides which branch of `feeOn` runs, so carrying
@@ -136,7 +181,7 @@ export type RegistrationRow = {
 // type level, and `a + b` is `string` to TypeScript, which erases every column
 // type on the result.
 const REG_SELECT =
-  "id,status,total_amount,ticket_token,org_id,event_id,expires_at,custom_data,organizations(name,fee_mode,commission_type,commission_rate,commission_flat_cents),events(name,status,event_date,original_date,status_note,hero_image_url,inclusions,registration_closes_at,kit_edit_closes_at),categories(label,distance_km,base_price),payments(checkout_url,created_at,method,amount,platform_fee,net_to_org,provider,provider_ref,status)";
+  "id,status,total_amount,ticket_token,org_id,event_id,expires_at,custom_data,organizations(name,is_active,fee_mode,commission_type,commission_rate,commission_flat_cents),events(name,status,event_date,original_date,status_note,hero_image_url,inclusions,registration_closes_at,kit_edit_closes_at),categories(label,distance_km,base_price),payments(checkout_url,created_at,method,amount,platform_fee,net_to_org,provider,provider_ref,status)";
 
 export function mapReg(r: any): RegistrationRow {
   const payment = Array.isArray(r.payments) ? r.payments[0] : r.payments;
@@ -162,6 +207,15 @@ export function mapReg(r: any): RegistrationRow {
     // default, so the only rows that reach `pass_on` are ones a super admin
     // deliberately moved there.
     feeMode: (org?.fee_mode ?? "absorb") as "absorb" | "pass_on",
+    // `?? true` — the PERMISSIVE default, and safe only because it is paired
+    // with something that is not. A missing embed must not strand a runner
+    // whose org is perfectly fine, and the org row is the one thing RLS could
+    // plausibly withhold. What actually closes the hole if this defaults wrong
+    // is `createMethodCheckout` surfacing payment-session's own `org_suspended`
+    // 409 at the moment of the tap: PayPanel refuses the stored-session
+    // fallback on that code regardless of what this said. Flip that pairing and
+    // this default becomes unsafe.
+    orgIsActive: org?.is_active ?? true,
     // Mirrors computeFee's own defaults (percent, and a null rate it reads as
     // 10%) so the line this screen shows is the fee the server will strike.
     feeTerms: {

@@ -9,7 +9,7 @@ function row(overrides: Partial<RegistrationRow> = {}): RegistrationRow {
     event_id: "e1", expiresAt: null,
     eventName: "Test Race", categoryLabel: "21K", categoryDistance: 21, checkoutUrl: null,
     eventStatus: "open", eventDate: "2026-10-18", originalDate: null, statusNote: null,
-    orgName: null, eventHeroUrl: null,
+    orgName: null, eventHeroUrl: null, orgIsActive: true,
     payment: null,
     ...overrides,
   };

@@ -16,12 +16,23 @@ import { PayPanel } from "../PayPanel";
 // there would have bounced the runner to /events/<id> with no explanation.
 const useRegistrationMock = vi.fn();
 const useProcessorRateMock = vi.fn();
+const createMethodCheckoutMock = vi.fn();
 
 vi.mock("@/lib/registration", () => ({
   useRegistration: (...args: unknown[]) => useRegistrationMock(...args),
   useProcessorRate: (...args: unknown[]) => useProcessorRateMock(...args),
-  createMethodCheckout: vi.fn(),
+  createMethodCheckout: (...args: unknown[]) => createMethodCheckoutMock(...args),
 }));
+
+// jsdom's own window.location.assign throws "Not implemented", and this panel
+// leaves the site with it — so the ONLY way to assert "the runner was, or was
+// not, sent to PayMongo" is to replace it. Redefined rather than spied because
+// window.location is non-configurable on the real object.
+const assign = vi.fn();
+Object.defineProperty(window, "location", {
+  value: { assign, href: "http://localhost/", origin: "http://localhost" },
+  writable: true,
+});
 
 /** The seeded rate card, VAT-inclusive, keyed by the SITE's method key — the
  *  translation to PayMongo's own names lives in RATE_METHOD and is tested there.
@@ -40,7 +51,7 @@ function row(overrides: Partial<RegistrationRow> = {}): RegistrationRow {
     checkoutUrl: null, eventStatus: "open", eventDate: "2099-01-01", originalDate: null,
     statusNote: null, eventRegistrationClosesAt: null, kitEditClosesAt: null, shirtSize: null,
     orgName: "Race Pace", eventHeroUrl: null, basePrice: 150000,
-    inclusions: [], feeMode: "absorb",
+    inclusions: [], feeMode: "absorb", orgIsActive: true,
     feeTerms: { commission_type: "percent", commission_rate: 0.03, commission_flat_cents: 0 },
     payment: null,
     ...overrides,
@@ -59,6 +70,80 @@ beforeEach(() => {
   useRegistrationMock.mockReset();
   useProcessorRateMock.mockReset();
   useProcessorRateMock.mockImplementation((method: string) => ({ data: RATES[method] ?? null }));
+  createMethodCheckoutMock.mockReset().mockResolvedValue({ url: null, code: null });
+  assign.mockReset();
+});
+
+/**
+ * Final-review Finding A: payment-session's new `org_suspended` refusal was
+ * routed around by this very panel. `createMethodCheckout` returns null for any
+ * failure, and the fallback below it was gated ONLY on the event being closed
+ * — nothing about the organization. registrations-checkout writes
+ * `checkout_url` on every registration, so that fallback is ALWAYS populated:
+ * a runner with a pending entry in a suspended org tapped Pay, never saw the
+ * 409, and reached a live PayMongo page the webhook would then settle.
+ *
+ * Two guards, and both are load-bearing. The render-time one stops a Pay button
+ * existing at all for an org already known to be suspended. The one inside
+ * `pay()` catches a suspension that lands between render and tap — this query
+ * does not poll on an interval, so `orgIsActive` can be stale by seconds or
+ * minutes, and the server's own answer is the only fresh fact available then.
+ */
+describe("PayPanel — a suspended organizer", () => {
+  it("refuses to render a Pay button, and says why, even with a stored checkout url", () => {
+    useRegistrationMock.mockReturnValue({
+      isLoading: false,
+      data: row({
+        orgIsActive: false,
+        checkoutUrl: "https://checkout.paymongo.com/still/looks/valid",
+      }),
+    });
+
+    render(<PayPanel registrationId="r1" />);
+
+    expect(screen.queryByRole("button", { name: /^Pay ₱/ })).not.toBeInTheDocument();
+    // The one mapped string, from lib/errors.ts — not a second copy written here.
+    expect(screen.getByText(/isn't taking registrations right now/i)).toBeInTheDocument();
+    expect(screen.getByText(/Nothing was charged/i)).toBeInTheDocument();
+  });
+
+  it("does not fall back to the stored session when the server refuses mid-flight", async () => {
+    // Still active as far as this render knows — the suspension lands between
+    // the render and the tap, which is exactly the case the render-time guard
+    // cannot see.
+    const user = userEvent.setup();
+    useRegistrationMock.mockReturnValue({
+      isLoading: false,
+      data: row({
+        orgIsActive: true,
+        checkoutUrl: "https://checkout.paymongo.com/still/looks/valid",
+      }),
+    });
+    createMethodCheckoutMock.mockResolvedValue({ url: null, code: "org_suspended" });
+
+    render(<PayPanel registrationId="r1" />);
+    await user.click(screen.getByRole("button", { name: /^Pay ₱/ }));
+
+    expect(assign, "the stored all-methods session must not be opened").not.toHaveBeenCalled();
+    expect(await screen.findByText(/isn't taking registrations right now/i)).toBeInTheDocument();
+  });
+
+  it("still falls back to the stored session when the scoped call merely fails", async () => {
+    // The fallback exists for a transport failure and must survive this fix —
+    // narrowing it to nothing would strand every runner whose scoped call
+    // timed out.
+    const user = userEvent.setup();
+    useRegistrationMock.mockReturnValue({
+      isLoading: false,
+      data: row({ checkoutUrl: "https://checkout.paymongo.com/stored" }),
+    });
+    createMethodCheckoutMock.mockResolvedValue({ url: null, code: null });
+
+    render(<PayPanel registrationId="r1" />);
+    await user.click(screen.getByRole("button", { name: /^Pay ₱/ }));
+
+    expect(assign).toHaveBeenCalledWith("https://checkout.paymongo.com/stored");
+  });
 });
 
 describe("PayPanel — a lapsed pending hold", () => {

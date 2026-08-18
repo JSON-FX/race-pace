@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/table";
 import { peso, initials } from "@/lib/format";
 import { NewOrgDialog } from "./new-org-dialog";
+import { OrgActions } from "./org-actions";
 
 /**
  * The scope band (design 2026-08-06 §2, direction B).
@@ -128,12 +129,13 @@ export default async function OrganizationsPage() {
               <TableHead className="text-right">GMV</TableHead>
               <TableHead className="text-right">Rate</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead className="w-10"><span className="sr-only">Actions</span></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="py-10 text-center text-[13px] text-muted-foreground">
+                <TableCell colSpan={7} className="py-10 text-center text-[13px] text-muted-foreground">
                   No organizations yet. Create the first one to get an organizer onto the platform.
                 </TableCell>
               </TableRow>
@@ -177,8 +179,11 @@ export default async function OrganizationsPage() {
                     </TableCell>
                     <TableCell>
                       <StatusBadge tone={org.isActive ? "paid" : "neutral"}>
-                        {org.isActive ? "Active" : "Inactive"}
+                        {org.isActive ? "Active" : "Suspended"}
                       </StatusBadge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <OrgActions org={{ id: org.id, name: org.name, slug: org.slug, isActive: org.isActive }} />
                     </TableCell>
                   </TableRow>
                 );

@@ -57,17 +57,50 @@ export async function verifyPayment(registrationId: string): Promise<{ status: s
   }
 }
 
+/** What `createMethodCheckout` answers.
+ *
+ *  `code` is the DIFFERENCE BETWEEN "the server declined" AND "the call did not
+ *  land". This used to return a bare `string | null`, which collapsed them: the
+ *  pay screen fell back to the all-methods session stored at registration for
+ *  both, and registrations-checkout writes `checkout_url` on every
+ *  registration, so that fallback is always populated. payment-session's
+ *  `org_suspended` 409 was therefore routed straight around to a live PayMongo
+ *  page. Mirrors apps/site/lib/registration.ts's MethodCheckout. */
+export type MethodCheckout = {
+  /** The scoped session, or null when none was minted. */
+  url: string | null;
+  /** The edge function's own error code when it refused, else null. Null also
+   *  covers a network/transport failure — the one case where falling back to
+   *  the stored session is legitimate. */
+  code: string | null;
+};
+
 /** Recreate the PayMongo checkout scoped to the runner's chosen method, so the hosted page opens
- *  straight to it. Best-effort: returns null on any error, and the pay screen falls back to the
- *  all-methods session created at registration. */
-export async function createMethodCheckout(registrationId: string, method: string): Promise<string | null> {
+ *  straight to it. Still best-effort — it never throws — but it no longer swallows WHY. */
+export async function createMethodCheckout(registrationId: string, method: string): Promise<MethodCheckout> {
   try {
     const body = { registration_id: registrationId, method, return_url: Linking.createURL(PAY_RETURN_PATH) };
     const { data, error } = await supabase.functions.invoke("payment-session", { body });
-    if (error) return null;
-    return (data as { checkout_url?: string })?.checkout_url ?? null;
+    if (error) {
+      // Edge Functions carry their code in the response BODY, not the message —
+      // same unwrap as startCheckout above. A body that will not parse leaves
+      // `code` null, which is the transport-failure shape and the reading that
+      // permits the fallback: a caller that cannot read the refusal must not be
+      // told there wasn't one.
+      let code: string | null = null;
+      if (error instanceof FunctionsHttpError) {
+        try {
+          const body = await error.context.json();
+          if (body?.error) code = String(body.error);
+        } catch {
+          // keep code null
+        }
+      }
+      return { url: null, code };
+    }
+    return { url: (data as { checkout_url?: string })?.checkout_url ?? null, code: null };
   } catch {
-    return null;
+    return { url: null, code: null };
   }
 }
 
@@ -91,11 +124,17 @@ export type RegistrationRow = {
   eventName: string; categoryLabel: string; categoryDistance: number | null; checkoutUrl: string | null;
   eventStatus: string | null; eventDate: string | null; originalDate: string | null; statusNote: string | null;
   orgName: string | null; eventHeroUrl: string | null; basePrice?: number | null; inclusions?: string[] | null;
+  /** Whether the platform still has this organization switched on. Readable to
+   *  a registrant even while the org is suspended, via `orgs_read_active`'s
+   *  registrant branch (20260818120000). The pay screen needs it because the
+   *  stored all-methods PayMongo session survives a suspension and would
+   *  otherwise still be chargeable. */
+  orgIsActive: boolean;
   payment: RegistrationPayment | null;
 };
 
 const REG_SELECT =
-  "id,status,total_amount,ticket_token,org_id,event_id,expires_at,organizations(name),events(name,status,event_date,original_date,status_note,hero_image_url,inclusions),categories(label,distance_km,base_price),payments(checkout_url,created_at,method,amount,platform_fee,net_to_org,provider,provider_ref,status)";
+  "id,status,total_amount,ticket_token,org_id,event_id,expires_at,organizations(name,is_active),events(name,status,event_date,original_date,status_note,hero_image_url,inclusions),categories(label,distance_km,base_price),payments(checkout_url,created_at,method,amount,platform_fee,net_to_org,provider,provider_ref,status)";
 
 function mapReg(r: any): RegistrationRow {
   const payment = Array.isArray(r.payments) ? r.payments[0] : r.payments;
@@ -104,6 +143,12 @@ function mapReg(r: any): RegistrationRow {
     event_id: r.event_id, expiresAt: r.expires_at ?? null,
     eventName: r.events?.name ?? "Event", categoryLabel: r.categories?.label ?? "", categoryDistance: r.categories?.distance_km ?? null,
     orgName: r.organizations?.name ?? null,
+    // `?? true` — permissive, and safe only because it is paired with something
+    // that is not: `createMethodCheckout` surfaces payment-session's own
+    // `org_suspended` 409 at the moment of the tap, and the pay screen refuses
+    // the stored-session fallback on that code regardless of what this said. A
+    // missing embed must not strand a runner whose org is perfectly fine.
+    orgIsActive: r.organizations?.is_active ?? true,
     eventHeroUrl: r.events?.hero_image_url ?? null,
     basePrice: r.categories?.base_price ?? null,
     inclusions: r.events?.inclusions ?? null,

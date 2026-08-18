@@ -113,10 +113,14 @@ it is testable without a Next runtime; `middleware.ts` just calls them.
   a follow-up migration instead. Editing in place is acceptable only for a version that has
   only ever run through a local `db reset` — say so in the file header when you do.
 - **New columns and functions need explicit grants.** `organizations`' UPDATE grant is
-  column-scoped (`20260724140000`), and an event trigger revokes EXECUTE on every new function
-  (`20260808120200`). A missing grant has bitten this repo three times. Add the grant in the
-  same migration and verify with `has_column_privilege` / `has_function_privilege` — inspecting
-  `pg_default_acl` is not proof.
+  column-scoped (`20260724140000`). Postgres grants EXECUTE to PUBLIC on every new function by
+  built-in default, so a new function needs an explicit revoke/grant pair too — an event trigger
+  once enforced this at DDL time (`20260808120200`), but it also fired on `CREATE OR REPLACE` and
+  silently stripped grants from existing functions, so it was reversed
+  (`20260808130000`) in favor of `supabase/tests/function-grants.test.ts`, which audits every
+  `public` function's grants instead. A missing grant has bitten this repo three times. Add the
+  grant in the same migration and verify with `has_column_privilege` / `has_function_privilege` —
+  inspecting `pg_default_acl` is not proof.
 - **`NEXT_PUBLIC_SUPABASE_URL` is read at build time** by both `next.config.ts` files to build
   the allowed image hosts. Missing on the first Vercel build → every Supabase-hosted image 400s
   in production while local dev looks fine, and adding it later needs a **redeploy**. Never set

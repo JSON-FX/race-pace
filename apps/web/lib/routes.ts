@@ -7,15 +7,20 @@ import type { Capability } from "@/lib/capabilities";
  * the right posture for an admin surface, but it means every new
  * unauthenticated entry point must be added deliberately.
  *
- * `/auth/callback` is the one that is easy to miss, and it fails in a way that
- * looks like the sign-in button is broken rather than like a routing bug. It is
- * the request that CREATES the session, so it necessarily arrives without one:
- * omitting it made the middleware bounce Google's return leg to
- * `/login?next=%2Fauth%2Fcallback%3Fcode%3D…`, the code was never exchanged, and
- * the operator ended up back on a login form with no error anywhere — no failed
- * exchange, no rejected account, nothing to see in a log.
+ * `/auth/callback` and `/auth/confirm` are the two that are easy to miss, and
+ * both fail in a way that looks like the sign-in button (or invite link) is
+ * broken rather than like a routing bug. Each is the request that CREATES the
+ * session, so it necessarily arrives without one:
+ * - Omitting `/auth/callback` made the middleware bounce Google's return leg to
+ *   `/login?next=%2Fauth%2Fcallback%3Fcode%3D…`, the code was never exchanged,
+ *   and the operator ended up back on a login form with no error anywhere — no
+ *   failed exchange, no rejected account, nothing to see in a log.
+ * - `/auth/confirm` (apps/web/app/auth/confirm/route.ts) redeems an org invite's
+ *   `token_hash` via `verifyOtp`. An invited admin is signed out by definition
+ *   when they click that link, so the same bounce-before-it-runs failure
+ *   applies: leaving it off this list makes the invite link silently inert.
  */
-const PUBLIC_PATHS = ["/login", "/no-access", "/auth/callback"];
+const PUBLIC_PATHS = ["/login", "/no-access", "/auth/callback", "/auth/confirm"];
 
 export function isProtectedPath(pathname: string): boolean {
   return !PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));

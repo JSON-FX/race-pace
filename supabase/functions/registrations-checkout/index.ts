@@ -39,15 +39,23 @@ Deno.serve(async (req) => {
     // nicety only, not a boundary — a cancelled/closed/completed event must
     // never accept a new registration or checkout, even via a direct call
     // with a stale category id already in hand.
+    //
+    // The org's is_active rides along for the same reason. RLS removes a
+    // suspended org's events from the storefront, but this function holds the
+    // service role and RLS does not apply to it — so a direct call with an
+    // event id already in hand would still sell a slot for an organization the
+    // platform has switched off.
     const { data: event } = await db
       .from("events")
-      .select("status, registration_closes_at")
+      .select("status, registration_closes_at, organizations(is_active)")
       .eq("id", category.event_id)
       .single();
     if (!event) return json({ error: "category_not_found" }, 404);
     if (isRegistrationClosed(event.status, event.registration_closes_at)) {
       return json({ error: "registration_closed" }, 409);
     }
+    const org = event.organizations as unknown as { is_active: boolean } | null;
+    if (!org?.is_active) return json({ error: "org_suspended" }, 409);
 
     if (category.slots_taken >= category.slots_total) return json({ error: "sold_out" }, 409);
 
