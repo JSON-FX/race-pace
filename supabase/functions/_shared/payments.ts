@@ -1,13 +1,14 @@
-import { paymongoConfigured, pmCreateCheckoutSession, pmGetCheckoutSession, pmPaymentIdFromSession, pmCreateRefund } from "./paymongo.ts";
+import { paymongoConfigured, pmCreateCheckoutSession, pmGetCheckoutSession, pmPaymentIdFromSession, pmCreateRefund, pmGetRefund } from "./paymongo.ts";
 
 export interface CheckoutInput { registrationId: string; amount: number; description: string; returnUrl: string; methods?: string[]; lineItems?: { name: string; amount: number }[]; billing?: { name?: string; email?: string; phone?: string } }
 export interface CheckoutResult { checkoutUrl: string; providerRef: string }
-export interface RefundInput { providerRef: string; amount: number; reason?: string }
+export interface RefundInput { providerRef: string; amount: number; reason?: string; requestId: string; registrationId: string }
 export interface RefundResult { providerRefundId: string; status: "pending" | "succeeded" | "failed"; raw: unknown }
 export interface PaymentProvider {
   readonly name: string;
   createCheckout(input: CheckoutInput): Promise<CheckoutResult>;
   refund(input: RefundInput): Promise<RefundResult>;
+  getRefund(providerRefundId: string): Promise<RefundResult>;
 }
 
 /** Dev/local provider — no real PayMongo. Serves a hosted sandbox checkout page.
@@ -25,6 +26,11 @@ export class FakePaymentProvider implements PaymentProvider {
   async refund(input: RefundInput): Promise<RefundResult> {
     // No real provider — the DB transition is the whole story for fake/seed/local rows.
     return { providerRefundId: `fake_refund_${input.providerRef}`, status: "succeeded", raw: { fake: true } };
+  }
+  async getRefund(providerRefundId: string): Promise<RefundResult> {
+    // A parked fake refund has no external source of truth. Tests must deliver
+    // its explicit terminal event instead of treating a status check as success.
+    return { providerRefundId, status: "pending", raw: { fake: true } };
   }
 }
 
@@ -52,7 +58,11 @@ export class PayMongoProvider implements PaymentProvider {
     const session = await pmGetCheckoutSession(input.providerRef);
     const paymentId = pmPaymentIdFromSession(session);
     if (!paymentId) throw new Error("paymongo_refund_no_payment");
-    const r = await pmCreateRefund({ paymentId, amount: input.amount, reason: input.reason });
+    const r = await pmCreateRefund({ paymentId, amount: input.amount, reason: input.reason, requestId: input.requestId, registrationId: input.registrationId });
+    return { providerRefundId: r.id, status: r.status, raw: r.raw };
+  }
+  async getRefund(providerRefundId: string): Promise<RefundResult> {
+    const r = await pmGetRefund(providerRefundId);
     return { providerRefundId: r.id, status: r.status, raw: r.raw };
   }
 }

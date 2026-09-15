@@ -40,3 +40,23 @@ describe("ticket email transport", () => {
     expect(smtp.sendMail).not.toHaveBeenCalled();
   });
 });
+
+describe("local Mailpit transport", () => {
+  beforeEach(() => { env = { EMAIL_PROVIDER: "mailpit" }; });
+  it("captures mail without external credentials or live-provider fallback", async () => {
+    expect(await sendEmail("runner@example.com", "Ticket", "html")).toEqual({ok:true});
+    expect(smtp.createTransport).toHaveBeenCalledWith(expect.objectContaining({host:"inbucket",port:1025,ignoreTLS:true}));
+    expect(smtp.createTransport.mock.calls.at(-1)?.[0]).not.toHaveProperty("auth");
+    expect(fetch).not.toHaveBeenCalled();
+  });
+  it("reports recipient rejection without claiming sent", async () => {
+    smtp.sendMail.mockResolvedValueOnce({accepted:[]});
+    expect(await sendEmail("runner@example.com", "Ticket", "html")).toEqual({ok:false,error:"mailpit_rejected"});
+    expect(smtp.close).toHaveBeenCalled();
+  });
+  it("closes a failed transport without contacting Resend", async () => {
+    smtp.sendMail.mockRejectedValueOnce(new Error("SMTP down"));
+    expect(await sendEmail("runner@example.com", "Ticket", "html")).toEqual({ok:false,error:"mailpit_send_failed"});
+    expect(smtp.close).toHaveBeenCalled();expect(fetch).not.toHaveBeenCalled();
+  });
+});

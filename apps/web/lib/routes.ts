@@ -20,10 +20,19 @@ import type { Capability } from "@/lib/capabilities";
  *   when they click that link, so the same bounce-before-it-runs failure
  *   applies: leaving it off this list makes the invite link silently inert.
  */
-const PUBLIC_PATHS = ["/login", "/no-access", "/auth/callback", "/auth/confirm"];
+const PUBLIC_PATHS = [
+  "/login",
+  "/forgot-password",
+  "/auth/recovery",
+  "/no-access",
+  "/auth/callback",
+  "/auth/confirm",
+];
 
 export function isProtectedPath(pathname: string): boolean {
-  return !PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+  return !PUBLIC_PATHS.some(
+    (p) => pathname === p || pathname.startsWith(`${p}/`),
+  );
 }
 
 /** Where to send an anonymous request, remembering where it was headed. */
@@ -62,6 +71,7 @@ export const OAUTH_NEXT_COOKIE = "rp_oauth_next_admin";
 export function homePathFor(capabilities: readonly Capability[]): string {
   if (capabilities.includes("manage_org")) return "/events";
   if (capabilities.includes("check_in")) return "/check-in";
+  if (capabilities.includes("release_kits")) return "/race-kits";
   return "/no-access";
 }
 
@@ -70,7 +80,10 @@ export function homePathFor(capabilities: readonly Capability[]): string {
  *  — a caller that forgot to pass one silently got an admin destination
  *  regardless of what the signed-in account can actually reach. Every
  *  caller must say explicitly where an absent/unsafe `next` should go. */
-export function safeNextPath(next: string | null | undefined, fallback: string): string {
+export function safeNextPath(
+  next: string | null | undefined,
+  fallback: string,
+): string {
   if (!next) return fallback;
   if (!next.startsWith("/")) return fallback;
   // "//evil.com" and "/\evil.com" are both browser-resolved as protocol-relative
@@ -80,4 +93,19 @@ export function safeNextPath(next: string | null | undefined, fallback: string):
   // eslint-disable-next-line no-control-regex -- deliberately matching control chars
   if (/[\x00-\x1f]/.test(next)) return fallback;
   return next;
+}
+
+/** Old invitation links explicitly requested Team even for operational staff. */
+export function invitationNextPath(
+  next: string | null,
+  capabilities: readonly Capability[],
+): string {
+  const home = homePathFor(capabilities);
+  const safe = safeNextPath(next, home);
+  if (
+    safe.split(/[?#]/)[0] === "/team" &&
+    !capabilities.includes("manage_team")
+  )
+    return home;
+  return safe;
 }

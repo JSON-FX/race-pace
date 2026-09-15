@@ -7,13 +7,13 @@ describe("isAssignableRole", () => {
   // app has its own mirror of ASSIGNABLE_ROLES in lib/team-roles.ts; both
   // must stay in sync.
   it("accepts exactly the assignable roles: admin, editor, marshal", () => {
-    expect(ASSIGNABLE_ROLES).toEqual(["admin", "editor", "marshal"]);
+    expect(ASSIGNABLE_ROLES).toEqual(["admin", "editor", "marshal", "claiming"]);
     for (const r of ASSIGNABLE_ROLES) expect(isAssignableRole(r)).toBe(true);
   });
-  it("rejects user, super_admin, claiming, and unknown roles", () => {
+  it("rejects user, super_admin, and unknown roles", () => {
     expect(isAssignableRole("user")).toBe(false);
     expect(isAssignableRole("super_admin")).toBe(false);
-    expect(isAssignableRole("claiming")).toBe(false);
+    expect(isAssignableRole("claiming")).toBe(true);
     expect(isAssignableRole("wizard")).toBe(false);
   });
 });

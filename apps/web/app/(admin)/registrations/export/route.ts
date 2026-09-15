@@ -30,7 +30,7 @@ const HEADER = [
   "Category",
   "Bib",
   "Registered At (UTC)",
-  "Amount (PHP)",
+  "Base Amount (PHP)",
   "Payment Status",
   "Payment Method",
 ];

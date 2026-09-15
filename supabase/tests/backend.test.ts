@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { createClient } from "@supabase/supabase-js";
-import { createHmac } from "node:crypto";
+import { localWebhookSigner } from "../../test/webhook";
 import { loadEnv } from "../../test/env";
 import { seededIds } from "../../test/seeded";
 import { computeFee, type FeeTerms } from "../functions/_shared/fee.ts";
@@ -52,18 +52,19 @@ beforeAll(async () => {
   GCASH_RATE = rate.data;
 });
 
-const WEBHOOK_SECRET = "whsec_test_localdev"; // must match supabase/functions/.env
-function signHeader(rawBody: string): string {
-  const t = Math.floor(Date.now() / 1000).toString();
-  const sig = createHmac("sha256", WEBHOOK_SECRET).update(`${t}.${rawBody}`).digest("hex");
-  return `t=${t},te=${sig}`;
-}
+const signHeader = localWebhookSigner(url);
 function postWebhook(payload: unknown, header?: string) {
   const raw = JSON.stringify(payload);
   return fetch(`${FN}/payments-webhook`, { method: "POST", headers: { "content-type": "application/json", "Paymongo-Signature": header ?? signHeader(raw) }, body: raw });
 }
 const paidEvent = (registrationId: string) => ({ data: { attributes: { type: "checkout_session.payment.paid", data: { attributes: { metadata: { registration_id: registrationId }, payments: [{ attributes: { source: { type: "gcash" } } }] } } } } });
-const refundEvent = (refundId: string, status: string) => ({ data: { attributes: { type: "refund.updated", data: { id: refundId, attributes: { status } } } } });
+const refundEvent = (refundId: string, status: string, amount: number, type = "payment.refund.updated") => {
+  const refund = { id: refundId, type: "refund", attributes: { status, amount } };
+  const resource = type === "payment.refunded"
+    ? { id: "pay_test", type: "payment", attributes: { status: "paid", refunds: [refund] } }
+    : refund;
+  return { data: { attributes: { type, data: resource } } };
+};
 // A webhook fixture whose payment looks like a real CAPTURED PayMongo payment —
 // status "paid" plus amount/fee/net_amount — so reportedProcessorFee() (confirm.ts)
 // finds a figure it is entitled to trust. paidEvent() above deliberately carries
@@ -612,6 +613,28 @@ describe("admin-refund", () => {
     for (const u of [admin, other, runner]) await svc.auth.admin.deleteUser(u.id);
   });
 
+  it("claims one refund for concurrent admin submissions", async () => {
+    const svc = service();
+    const admin = await makeUser(`rf_parallel_admin_${Date.now()}@test.dev`);
+    const runner = await makeUser(`rf_parallel_runner_${Date.now()}@test.dev`);
+    await svc.from("user_roles").insert({ user_id: admin.id, role: "admin", org_id: RWP_RF });
+    const rid = await paidRegistration(runner.token);
+    try {
+      const responses = await Promise.all(Array.from({ length: 4 }, () => refundCall(admin.token, rid)));
+      expect(responses.map(r => r.status)).toEqual([200, 200, 200, 200]);
+      const requests = await svc.from("refund_requests").select("id,status").eq("registration_id", rid);
+      expect(requests.error).toBeNull();
+      expect(requests.data).toHaveLength(1);
+      expect(requests.data![0].status).toBe("succeeded");
+      const audit = await svc.from("registration_audit").select("id").eq("registration_id", rid).eq("action", "refunded");
+      expect(audit.data).toHaveLength(1);
+    } finally {
+      await svc.from("registrations").delete().eq("id", rid);
+      await svc.from("user_roles").delete().eq("user_id", admin.id);
+      for (const user of [admin, runner]) await svc.auth.admin.deleteUser(user.id);
+    }
+  });
+
   it("refuses to refund a pending (not paid) registration with 409", async () => {
     const svc = service();
     const admin = await makeUser(`rf_pend_${Date.now()}@test.dev`);
@@ -649,6 +672,30 @@ describe("admin-refund", () => {
   });
 });
 
+// Signed callback tests need a paid fixture even when real PayMongo is configured.
+// Seed only a fake pending payment, then exercise the real signed confirmation.
+// The separate fake-checkout suite owns testing its browser handoff.
+async function webhookPaidRegistration(userId: string) {
+  const svc = service();
+  const category = await svc.from("categories").select("base_price").eq("id", C4_RF).single();
+  if (category.error) throw category.error;
+  const reg = await svc.from("registrations").insert({
+    org_id: RWP_RF, event_id: E1_RF, category_id: C4_RF,
+    user_id: userId, total_amount: category.data.base_price, status: "pending",
+  }).select("id").single();
+  if (reg.error) throw reg.error;
+  const payment = await svc.from("payments").insert({
+    org_id: RWP_RF, registration_id: reg.data.id,
+    provider: "fake", amount: category.data.base_price, status: "pending",
+  });
+  if (payment.error) throw payment.error;
+  const confirmed = await postWebhook(paidEvent(reg.data.id));
+  expect(confirmed.status).toBe(200);
+  const paid = await svc.from("registrations").select("status").eq("id", reg.data.id).single();
+  expect(paid.data?.status).toBe("paid");
+  return reg.data.id;
+}
+
 describe("payments-webhook signed", () => {
   it("rejects a bad signature with 401", async () => {
     const res = await postWebhook(paidEvent("00000000-0000-0000-0000-0000000000ff"), "t=123,te=deadbeef");
@@ -666,18 +713,18 @@ describe("payments-webhook signed", () => {
     expect(res.status).toBe(200);
   });
 
-  it("reconciles refund.updated=succeeded on a pending refund -> refunded + slot released", async () => {
+  it.each(["payment.refund.updated", "payment.refunded"])("reconciles %s succeeded on a pending refund -> refunded + slot released", async (eventType) => {
     const svc = service();
     const runner = await makeUser(`wh_rf_${Date.now()}@test.dev`);
-    const rid = await paidRegistration(runner.token);
+    const rid = await webhookPaidRegistration(runner.id);
     const before = (await svc.from("categories").select("slots_taken").eq("id", C4_RF).single()).data!.slots_taken;
 
     // simulate a parked (pending) refund like refund.ts writes
     const refId = `ref_test_${Date.now()}`;
-    const pay = (await svc.from("payments").select("raw").eq("registration_id", rid).single()).data!;
-    await svc.from("payments").update({ raw: { ...(pay.raw ?? {}), refund: { status: "pending", id: refId, refunded_by: runner.id, note: null } } }).eq("registration_id", rid);
+    const pay = (await svc.from("payments").select("raw,net_to_org").eq("registration_id", rid).single()).data!;
+    await svc.from("payments").update({ raw: { ...(pay.raw ?? {}), refund: { status: "pending", id: refId, refunded_by: runner.id, note: null, refunded_amount: pay.net_to_org, retained_net: 0 } } }).eq("registration_id", rid);
 
-    const res = await postWebhook(refundEvent(refId, "succeeded"));
+    const res = await postWebhook(refundEvent(refId, "succeeded", pay.net_to_org, eventType));
     expect(res.status).toBe(200);
     expect((await svc.from("registrations").select("status").eq("id", rid).single()).data!.status).toBe("refunded");
     expect((await svc.from("payments").select("status").eq("registration_id", rid).single()).data!.status).toBe("refunded");
@@ -687,18 +734,18 @@ describe("payments-webhook signed", () => {
     await svc.auth.admin.deleteUser(runner.id);
   });
 
-  it("marks refund.updated=failed as failed and leaves the registration paid", async () => {
+  it("marks payment.refund.updated=failed as failed and leaves the registration paid", async () => {
     const svc = service();
     const runner = await makeUser(`wh_rff_${Date.now()}@test.dev`);
-    const rid = await paidRegistration(runner.token);
+    const rid = await webhookPaidRegistration(runner.id);
     const refId = `ref_fail_${Date.now()}`;
-    const pay = (await svc.from("payments").select("raw").eq("registration_id", rid).single()).data!;
-    await svc.from("payments").update({ raw: { ...(pay.raw ?? {}), refund: { status: "pending", id: refId, refunded_by: runner.id, note: null } } }).eq("registration_id", rid);
+    const pay = (await svc.from("payments").select("raw,net_to_org").eq("registration_id", rid).single()).data!;
+    await svc.from("payments").update({ raw: { ...(pay.raw ?? {}), refund: { status: "pending", id: refId, refunded_by: runner.id, note: null, refunded_amount: pay.net_to_org, retained_net: 0 } } }).eq("registration_id", rid);
 
-    const res = await postWebhook(refundEvent(refId, "failed"));
+    const res = await postWebhook(refundEvent(refId, "failed", pay.net_to_org));
     expect(res.status).toBe(200);
     expect((await svc.from("registrations").select("status").eq("id", rid).single()).data!.status).toBe("paid");
-    const after = (await svc.from("payments").select("raw").eq("registration_id", rid).single()).data!;
+    const after = (await svc.from("payments").select("raw,net_to_org").eq("registration_id", rid).single()).data!;
     expect((after.raw as any).refund.status).toBe("failed");
 
     await svc.from("registrations").delete().eq("id", rid);

@@ -11,6 +11,7 @@ import { checkoutErrorMessage } from "@/lib/errors";
 import { PAY_METHODS, breakdown, feeOn, passOnLines } from "@/lib/payment";
 import { MethodLogo } from "@/components/PaymentLogos";
 import { TicketStub } from "@/components/TicketStub";
+import { RefundNotice } from "@/components/RefundNotice";
 import { StepRail } from "@/components/StepRail";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -41,6 +42,27 @@ export function PayPanel({ registrationId }: { registrationId: string }) {
     return (
       <div className="mx-auto w-full max-w-2xl px-6 py-10">
         <p className="py-20 text-center text-muted-foreground">We couldn&apos;t find that registration.</p>
+      </div>
+    );
+  }
+
+  // A saved payment URL outlives its registration. Never offer another checkout
+  // after payment or refund, even when the original provider URL remains stored.
+  if (reg.data.status !== "pending" && reg.data.status !== "expired") {
+    const paid = reg.data.status === "paid";
+    const title = paid ? "Registration paid"
+      : reg.data.status === "refunded" ? "Registration refunded"
+        : reg.data.status === "cancelled" ? "Registration cancelled"
+          : "Payment unavailable";
+    return (
+      <div className="mx-auto w-full max-w-2xl px-6 py-20 text-center">
+        <h1 className="text-[26px] font-semibold tracking-[-0.5px] text-foreground">{title}</h1>
+        <p className="mt-3 text-[15px] leading-relaxed text-muted-foreground">
+          {paid ? "Your registration is paid. You do not need to pay again." : "This registration can no longer be paid. Check My Races for its status."}
+        </p>
+        <Button asChild className="mt-8 h-auto rounded-pill px-8 py-4 text-[16px] font-semibold">
+          <Link href={paid ? `/ticket/${registrationId}` : "/races"}>{paid ? "View ticket" : "Back to My Races"}</Link>
+        </Button>
       </div>
     );
   }
@@ -199,27 +221,14 @@ export function PayPanel({ registrationId }: { registrationId: string }) {
     sessionStorage.setItem("rp:paying", registrationId);
 
     const scoped = await createMethodCheckout(registrationId, method);
-    // Only fall back to the session created at registration when nothing has
-    // said not to. `createMethodCheckout` mints no URL for ANY failure —
-    // including the server's own 409s — so each thing that must not be paid for
-    // needs naming here, or the stored session quietly charges anyway.
-    //
-    //  - the event closed: mirrored client-side, as it always was.
-    //  - `scoped.code === "org_suspended"`: the SERVER's answer, and the only
-    //    fresh fact available at the moment of the tap. This query has no
-    //    refetch interval, so `orgIsActive` below can be minutes stale; a
-    //    suspension that lands between render and tap is caught here and
-    //    nowhere else.
-    //  - `!reg.data!.orgIsActive`: belt and braces. It is unreachable while the
-    //    `orgSuspended` early return above stands — no Pay button exists to tap
-    //    — and it is kept precisely so that a refactor which moves or drops
-    //    that early return does not silently reopen the fallback. It is not
-    //    claimed to be doing work today.
-    const url =
+    // The server's refusal is fresher than the rendered registration. In
+    // particular, not_pending must never fall back to a pre-refund session.
+    const url = scoped.code ? null :
       scoped.url ??
       (isRegistrationClosed(reg.data!.eventStatus ?? "", reg.data!.eventRegistrationClosesAt)
-        || scoped.code === "org_suspended"
         || !reg.data!.orgIsActive
+        || reg.data!.status !== "pending"
+        || holdExpired(reg.data!.status, reg.data!.expiresAt)
         ? null
         : reg.data!.checkoutUrl);
     if (!url) {
@@ -336,6 +345,8 @@ export function PayPanel({ registrationId }: { registrationId: string }) {
           </ul>
         </section>
       ) : null}
+
+      <RefundNotice policy={reg.data.refundPolicy} retention={reg.data.refundFeeCents} />
 
       <h2 className="mt-8 text-[11px] font-semibold uppercase tracking-[0.6px] text-muted-foreground">Pay with</h2>
       <div className="mt-3 flex flex-col gap-3">

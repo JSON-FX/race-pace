@@ -19,6 +19,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PillSelect } from "@/components/PillSelect";
 import { DynamicField } from "@/components/DynamicField";
+import { RefundNotice } from "@/components/RefundNotice";
 import { StepRail } from "@/components/StepRail";
 import { TicketStub } from "@/components/TicketStub";
 import { cn } from "@/lib/utils";
@@ -301,6 +302,8 @@ export function RegisterWizard({ userId, category, event, addons, formFields }: 
             ) : null}
             <Row label="Total" value={formatPeso(total)} strong />
           </dl>
+
+          <RefundNotice policy={event.refundPolicy} retention={event.refundFeeCents} />
 
           <div className="mt-6 flex items-start gap-3 rounded-lg border border-border p-4">
             <Checkbox id="waiver" checked={draft.waiver} onCheckedChange={(c) => patch({ waiver: c === true })} />

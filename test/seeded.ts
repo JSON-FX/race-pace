@@ -64,29 +64,23 @@ export async function seededIds(): Promise<SeededIds> {
   // here needs a valid (event_id, category_id) pair.
   const events = await svc
     .from("events")
-    .select("id, categories(id), registrations(id)")
+    .select("id, categories(id)")
     .eq("org_id", ORG_A)
     .eq("status", "open")
     .order("id");
   if (events.error) throw events.error;
 
-  type Ev = { id: string; categories: { id: string }[]; registrations: { id: string }[] };
+  type Ev = { id: string; categories: { id: string }[] };
   const usable = (events.data ?? []).filter(
     (e) => ((e as Ev).categories?.length ?? 0) > 0,
   ) as unknown as Ev[];
 
-  // EVENT_A2 must have NO pre-existing registrations. The aggregate suite sums
-  // money for its own inserted rows and asserts an exact total, so any seeded
-  // registration on that event silently inflates the expectation — which is
-  // exactly what happened when this helper first just took "the second event"
-  // (it landed on one with 20 seeded registrations, and 285000 became 2185000).
-  const empty = usable.filter((e) => (e.registrations?.length ?? 0) === 0);
-
-  if (usable.length === 0 || empty.length === 0) {
+  // Aggregate tests now filter by their own per-run search stamp. Requiring an
+  // empty event exhausted the seed after repeated walkthroughs and failed runs.
+  // Still choose a distinct event, without deleting existing local QA data.
+  if (usable.length < 2) {
     throw new Error(
-      `Expected at least one open seeded event with categories (found ${usable.length}) ` +
-        `and one of those with no registrations (found ${empty.length}) in org ${ORG_A}. ` +
-        "Run: pnpm exec supabase db reset",
+      `Expected two open seeded events with categories (found ${usable.length}) in org ${ORG_A}.`,
     );
   }
 
@@ -98,8 +92,8 @@ export async function seededIds(): Promise<SeededIds> {
     ORG_B,
     EVENT_A: usable[0].id,
     CATEGORY_A: pickCategory(usable[0]),
-    EVENT_A2: empty[0].id,
-    CATEGORY_A2: pickCategory(empty[0]),
+    EVENT_A2: usable[1].id,
+    CATEGORY_A2: pickCategory(usable[1]),
   };
   return cached;
 }

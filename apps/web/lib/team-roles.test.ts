@@ -1,12 +1,7 @@
-import { describe, it, expect } from "vitest";
+import { it, expect } from "vitest";
 import { ASSIGNABLE_ROLES } from "./team-roles";
-
-describe("team roles", () => {
-  it("does not offer a role that grants nothing", () => {
-    // `claiming` ("Race Kit") has no authorization consumer until the race-kit
-    // spec wires it. Offering it means an org admin can hand a colleague a role
-    // that lands them on /no-access. The DB enum value stays; only the picker
-    // stops listing it.
-    expect(ASSIGNABLE_ROLES).not.toContain("claiming");
-  });
+import { capabilitiesFor } from "./capabilities";
+it("offers only roles with working capabilities", () => {
+  expect(ASSIGNABLE_ROLES).toContain("claiming");
+  for (const role of ASSIGNABLE_ROLES) expect(capabilitiesFor(role, false).length).toBeGreaterThan(0);
 });

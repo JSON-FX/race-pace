@@ -30,7 +30,7 @@ const MESSAGES: Record<string, string> = {
   zero_commission: "Set a commission above zero — the platform earns nothing on a ₱0 fee.",
   bad_refund_policy: "Choose a refund policy.",
   bad_refund_fee: "Enter a valid retention amount.",
-  zero_retention: "A ₱0 retention is the same as a full refund — pick “Full refund” instead.",
+  zero_retention: "A ₱0 retention is the same as a refund excluding fees — pick “Refund excluding fees” instead.",
   slug_taken: "That slug was taken while you were typing. Choose another.",
   invite_failed: "The organization wasn't created — the invite couldn't be sent.",
   role_failed: "The organization wasn't created — the admin role couldn't be assigned.",
@@ -322,7 +322,7 @@ export function NewOrgDialog() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="full">Full refund</SelectItem>
+                      <SelectItem value="full">Refund excluding fees</SelectItem>
                       <SelectItem value="flat_fee">Keep a flat fee</SelectItem>
                       <SelectItem value="none">No refunds</SelectItem>
                     </SelectContent>
@@ -342,8 +342,8 @@ export function NewOrgDialog() {
 
               {refundPolicy === "flat_fee" && !refundOk ? (
                 <p className="text-[12px] text-destructive">
-                  A ₱0 retention is indistinguishable from a full refund — set an amount, or choose
-                  &ldquo;Full refund&rdquo;.
+                  A ₱0 retention is the same as a refund excluding fees — set an amount, or choose
+                  &ldquo;Refund excluding fees&rdquo;.
                 </p>
               ) : null}
 

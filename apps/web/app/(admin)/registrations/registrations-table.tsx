@@ -20,6 +20,7 @@ const STATUS_FILTER: FilterDef = {
     { value: "paid", label: "Paid" },
     { value: "pending", label: "Pending" },
     { value: "refunded", label: "Refunded" },
+    { value: "partially_refunded", label: "Partially refunded" },
     { value: "failed", label: "Failed" },
     // Routed to the registration_status column, not payment_status — see
     // listEventRegistrations in lib/queries/registrations.ts. Neither value
@@ -150,7 +151,7 @@ export function RegistrationsTable({
     },
     {
       accessorKey: "total_amount",
-      header: "Amount",
+      header: "Base amount",
       cell: ({ row }) => <span className="tabular">{peso(row.original.total_amount)}</span>,
     },
     {

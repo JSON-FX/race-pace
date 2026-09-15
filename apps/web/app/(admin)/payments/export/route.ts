@@ -24,14 +24,20 @@ const HEADER = [
   "Platform Fee (PHP)",
   "Processing Fee (PHP)",
   "Processing Fee Source",
-  "Net to Org (PHP)",
+  "Stored Ledger Net to Org (PHP)",
   "Method",
   "Status",
   "Checkout Created At (UTC)",
   "Payment Confirmed At (UTC)",
+  "Refunded Amount (PHP)",
+  "Retained Gross (PHP)",
+  "Current Platform Fees (PHP)",
+  "Current Net to Org (PHP)",
 ];
 
 function toRow(r: Awaited<ReturnType<typeof listOrgPayments>>["rows"][number]): string {
+  const earning = r.status === "paid" || r.status === "partially_refunded";
+  const refunded = r.status === "refunded" || r.status === "partially_refunded";
   return csvRow([
     csvField(r.registration_id),
     csvField(r.event_name),
@@ -50,6 +56,10 @@ function toRow(r: Awaited<ReturnType<typeof listOrgPayments>>["rows"][number]): 
     // ISO 8601 — see the same choice in the Registrations export's toRow.
     new Date(r.created_at).toISOString(),
     r.paid_at ? new Date(r.paid_at).toISOString() : "",
+    centavosToDecimal(refunded ? r.refunded_amount : 0),
+    centavosToDecimal(earning ? r.amount - r.refunded_amount : 0),
+    centavosToDecimal(earning ? r.platform_fee : 0),
+    centavosToDecimal(earning ? r.net_to_org : 0),
   ]);
 }
 

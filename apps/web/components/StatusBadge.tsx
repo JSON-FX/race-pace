@@ -36,6 +36,7 @@ const PAYMENT: Record<string, { label: string; tone: BadgeTone }> = {
   paid: { label: "Paid", tone: "paid" },
   pending: { label: "Pending", tone: "pending" },
   refunded: { label: "Refunded", tone: "info" },
+  partially_refunded: { label: "Partially refunded", tone: "info" },
   failed: { label: "Failed", tone: "danger" },
 };
 

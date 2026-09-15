@@ -2,13 +2,18 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 
 const verifyOtp = vi.fn();
+const roles = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/queries/roles", () => ({ getMyRoles: roles }));
 vi.mock("@/lib/supabase/server", () => ({
   createClient: async () => ({ auth: { verifyOtp } }),
 }));
 
 import { GET } from "./route";
 
-beforeEach(() => verifyOtp.mockReset());
+beforeEach(() => {
+  verifyOtp.mockReset();
+  roles.mockResolvedValue({ capabilities: ["manage_org", "manage_team"] });
+});
 
 function req(qs: string) {
   return new NextRequest(`https://admin.racepace.lan/auth/confirm${qs}`);
@@ -19,7 +24,10 @@ describe("GET /auth/confirm", () => {
     verifyOtp.mockResolvedValue({ error: null });
     const res = await GET(req("?token_hash=abc&type=magiclink&next=/team"));
 
-    expect(verifyOtp).toHaveBeenCalledWith({ token_hash: "abc", type: "magiclink" });
+    expect(verifyOtp).toHaveBeenCalledWith({
+      token_hash: "abc",
+      type: "magiclink",
+    });
     expect(res.status).toBe(307);
     // RELATIVE Location on purpose — the same lesson auth/callback/route.ts
     // documents: behind Traefik or on Vercel, an absolute origin resolves to
@@ -29,10 +37,12 @@ describe("GET /auth/confirm", () => {
 
   it("rejects an absolute `next` rather than open-redirecting", async () => {
     verifyOtp.mockResolvedValue({ error: null });
-    const res = await GET(req("?token_hash=abc&type=magiclink&next=https://evil.example"));
+    const res = await GET(
+      req("?token_hash=abc&type=magiclink&next=https://evil.example"),
+    );
     // Pin safeNextPath's actual fallback, not just the absence of the bad
     // string — `not.toContain` would also pass for an empty or wrong location.
-    expect(res.headers.get("location")).toBe("/team");
+    expect(res.headers.get("location")).toBe("/events");
   });
 
   it("sends an expired or reused link back to login with a reason", async () => {
@@ -51,7 +61,10 @@ describe("GET /auth/confirm", () => {
     verifyOtp.mockResolvedValue({ error: null });
     const res = await GET(req("?token_hash=abc&type=invite&next=/team"));
 
-    expect(verifyOtp).toHaveBeenCalledWith({ token_hash: "abc", type: "invite" });
+    expect(verifyOtp).toHaveBeenCalledWith({
+      token_hash: "abc",
+      type: "invite",
+    });
     expect(res.headers.get("location")).toBe("/team");
   });
 
@@ -65,3 +78,16 @@ describe("GET /auth/confirm", () => {
     expect(res.headers.get("location")).toBe("/login?oauth=invite_expired");
   });
 });
+
+it.each([
+  ["release_kits", "/race-kits"],
+  ["check_in", "/check-in"],
+])(
+  "lands %s invitations on %s even for an old Team link",
+  async (capability, path) => {
+    roles.mockResolvedValue({ capabilities: [capability] });
+    verifyOtp.mockResolvedValue({ error: null });
+    const res = await GET(req("?token_hash=abc&next=/team"));
+    expect(res.headers.get("location")).toBe(path);
+  },
+);

@@ -29,12 +29,20 @@ describe("isDeleteBlocked", () => {
   // Blocking on `refunded` is deliberate: a refund is still money that moved
   // and still a PayMongo record that may have to be reconciled.
   it("blocks on paid, refunded and partially_refunded", () => {
-    expect(isDeleteBlocked({ paid: 1, refunded: 0, partially_refunded: 0 })).toBe(true);
-    expect(isDeleteBlocked({ paid: 0, refunded: 2, partially_refunded: 0 })).toBe(true);
-    expect(isDeleteBlocked({ paid: 0, refunded: 0, partially_refunded: 1 })).toBe(true);
+    expect(
+      isDeleteBlocked({ paid: 1, refunded: 0, partially_refunded: 0 }),
+    ).toBe(true);
+    expect(
+      isDeleteBlocked({ paid: 0, refunded: 2, partially_refunded: 0 }),
+    ).toBe(true);
+    expect(
+      isDeleteBlocked({ paid: 0, refunded: 0, partially_refunded: 1 }),
+    ).toBe(true);
   });
   it("does not block when nothing settled", () => {
-    expect(isDeleteBlocked({ paid: 0, refunded: 0, partially_refunded: 0 })).toBe(false);
+    expect(
+      isDeleteBlocked({ paid: 0, refunded: 0, partially_refunded: 0 }),
+    ).toBe(false);
   });
 });
 
@@ -57,43 +65,64 @@ describe("mapDeleteRpcError", () => {
   // turn a blocked delete into a 500 instead of a 409 — the P0001 on the
   // error object still fires even if the wording no longer matches.
   it("maps SQLSTATE P0001 to org_has_payments/409, regardless of message wording", () => {
-    expect(mapDeleteRpcError({ code: "P0001", message: "org_has_payments: 3 settled payment(s)" }))
-      .toEqual({ code: "org_has_payments", status: 409 });
+    expect(
+      mapDeleteRpcError({
+        code: "P0001",
+        message: "org_has_payments: 3 settled payment(s)",
+      }),
+    ).toEqual({ code: "org_has_payments", status: 409 });
     // Reworded message, code untouched — this is the exact drift scenario the
     // code-first check exists to survive.
-    expect(mapDeleteRpcError({ code: "P0001", message: "organization has settled payments" }))
-      .toEqual({ code: "org_has_payments", status: 409 });
+    expect(
+      mapDeleteRpcError({
+        code: "P0001",
+        message: "organization has settled payments",
+      }),
+    ).toEqual({ code: "org_has_payments", status: 409 });
   });
   it("maps SQLSTATE P0002 to not_found/404, regardless of message wording", () => {
-    expect(mapDeleteRpcError({ code: "P0002", message: "org_not_found" }))
-      .toEqual({ code: "not_found", status: 404 });
-    expect(mapDeleteRpcError({ code: "P0002", message: "no such organization" }))
-      .toEqual({ code: "not_found", status: 404 });
+    expect(
+      mapDeleteRpcError({ code: "P0002", message: "org_not_found" }),
+    ).toEqual({ code: "not_found", status: 404 });
+    expect(
+      mapDeleteRpcError({ code: "P0002", message: "no such organization" }),
+    ).toEqual({ code: "not_found", status: 404 });
   });
   it("falls back to matching the message when no code is present", () => {
-    expect(mapDeleteRpcError({ message: "org_has_payments: 1 settled payment(s)" }))
-      .toEqual({ code: "org_has_payments", status: 409 });
-    expect(mapDeleteRpcError({ message: "org_not_found" }))
-      .toEqual({ code: "not_found", status: 404 });
+    expect(
+      mapDeleteRpcError({ message: "org_has_payments: 1 settled payment(s)" }),
+    ).toEqual({ code: "org_has_payments", status: 409 });
+    expect(mapDeleteRpcError({ message: "org_not_found" })).toEqual({
+      code: "not_found",
+      status: 404,
+    });
   });
   it("falls back to server_error/500 for an unrelated error", () => {
-    expect(mapDeleteRpcError({ code: "08006", message: "connection reset by peer" }))
-      .toEqual({ code: "server_error", status: 500 });
+    expect(
+      mapDeleteRpcError({ code: "08006", message: "connection reset by peer" }),
+    ).toEqual({ code: "server_error", status: 500 });
   });
   it("falls back to server_error/500 when the error is undefined", () => {
-    expect(mapDeleteRpcError(undefined)).toEqual({ code: "server_error", status: 500 });
+    expect(mapDeleteRpcError(undefined)).toEqual({
+      code: "server_error",
+      status: 500,
+    });
   });
 });
 
 describe("adminConfirmRedirect", () => {
   it("appends /auth/confirm to a bare ADMIN_APP_URL", () => {
-    expect(adminConfirmRedirect("http://localhost:3001")).toBe("http://localhost:3001/auth/confirm");
+    expect(adminConfirmRedirect("http://localhost:3001")).toBe(
+      "http://localhost:3001/auth/confirm",
+    );
   });
   // ADMIN_APP_URL is hand-typed in Vercel and Docker Compose, and either
   // shape has shown up in this repo's other env vars — a trailing slash must
   // not produce a doubled "//auth/confirm".
   it("strips a trailing slash before appending", () => {
-    expect(adminConfirmRedirect("http://localhost:3001/")).toBe("http://localhost:3001/auth/confirm");
+    expect(adminConfirmRedirect("http://localhost:3001/")).toBe(
+      "http://localhost:3001/auth/confirm",
+    );
   });
   it("strips multiple trailing slashes", () => {
     expect(adminConfirmRedirect("https://race-pace-admin.vercel.app///")).toBe(
@@ -111,12 +140,12 @@ describe("adminConfirmRedirect", () => {
 describe("buildInviteLink", () => {
   it("builds a link to the console's /auth/confirm with the hashed token", () => {
     expect(buildInviteLink("http://localhost:3001", "abc123")).toBe(
-      "http://localhost:3001/auth/confirm?token_hash=abc123&type=magiclink&next=%2Fteam",
+      "http://localhost:3001/auth/confirm?token_hash=abc123&type=magiclink",
     );
   });
   it("normalizes a trailing slash on ADMIN_APP_URL the same way as adminConfirmRedirect", () => {
     expect(buildInviteLink("http://localhost:3001/", "abc123")).toBe(
-      "http://localhost:3001/auth/confirm?token_hash=abc123&type=magiclink&next=%2Fteam",
+      "http://localhost:3001/auth/confirm?token_hash=abc123&type=magiclink",
     );
   });
   // Best-effort contract: the org and its admin role are already committed
@@ -135,13 +164,17 @@ describe("adminInviteRedirect", () => {
   // manual one carries ?token_hash= and is read by a server route; the emailed
   // one arrives with the session on the fragment and needs the client page.
   it("points an emailed invite at the client page, not the server route", () => {
-    expect(adminInviteRedirect("https://admin.example")).toBe("https://admin.example/auth/confirm/finish");
+    expect(adminInviteRedirect("https://admin.example")).toBe(
+      "https://admin.example/auth/confirm/finish",
+    );
   });
   it("carries no query string, so allow-list matching cannot trip on one", () => {
     expect(adminInviteRedirect("https://admin.example")).not.toContain("?");
   });
   it("tolerates a trailing slash and refuses an empty base", () => {
-    expect(adminInviteRedirect("https://admin.example/")).toBe("https://admin.example/auth/confirm/finish");
+    expect(adminInviteRedirect("https://admin.example/")).toBe(
+      "https://admin.example/auth/confirm/finish",
+    );
     expect(adminInviteRedirect("")).toBeNull();
   });
 });

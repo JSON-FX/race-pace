@@ -171,6 +171,13 @@ describe("getMyRoles", () => {
     });
   });
 
+  it("resolves kit crew without granting organization management", async () => {
+    const getMyRoles = await loadGetMyRoles([{ role: "claiming", org_id: "org-K" }]);
+    const r = await getMyRoles();
+    expect(r!.orgId).toBe("org-K");
+    expect(r!.capabilities).toEqual(["release_kits"]);
+  });
+
   it("resolves an org and check_in for a marshal-only account", async () => {
     const getMyRoles = await loadGetMyRoles([{ role: "marshal", org_id: "org-M" }]);
     const r = await getMyRoles();

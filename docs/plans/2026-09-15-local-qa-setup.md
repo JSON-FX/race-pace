@@ -49,3 +49,7 @@ Hosted permission example: `decrement_slot(uuid)` is executable by anon/authenti
 Browser/server session cookie mismatch fixed in both apps. Confirmed runner can access protected My Races. Final suites: 1,463 tests passed; both app typechecks passed.
 
 Permission stage complete: CLI access restored; three reviewed migrations applied to local and hosted. All 89 migrations match. Client grants now match exactly; service-role differences preserved. Local backend suite 403/403. See docs/issues/2026-09-15-permission-parity.md. Browser admin testing resumed.
+
+## Mailpit update — 2026-09-16
+
+Local Auth now uses the bundled Mailpit at `http://localhost:54524`; Mailtrap credentials are no longer required for local Auth. Set `EMAIL_PROVIDER=mailpit` in ignored `supabase/functions/.env` and serve functions with `pnpm exec supabase functions serve --env-file supabase/functions/.env` for ticket capture. The SMTP network alias is `inbucket:1025`. Stop/start Supabase to apply configuration changes without resetting its database. Hosted email settings remain separate.

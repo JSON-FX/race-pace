@@ -55,7 +55,7 @@ export default async function SettlementPage({
             Gross → Race Pace commission → payment processing → refunds → net to you
           </p>
         </div>
-        <ExportSettlementButton rows={s.rows} eventName={s.event_name} />
+        <ExportSettlementButton eventId={id} />
       </div>
 
       <Card className="mb-4 gap-0 rounded-xl border p-[15px] shadow-card">
@@ -78,8 +78,7 @@ export default async function SettlementPage({
           "Projected net ₱0–₱0". The read model now returns null whenever there
           is nothing left to forecast — sold out, capacity never configured, or
           no entry sold yet to extrapolate a price from — and null is the whole
-          signal: the net above is exact, and a band around a known number only
-          casts doubt on it. */}
+          signal: no unsold-entry forecast can be calculated. */}
       {s.projected !== null ? (
         <p className="mb-4 rounded-[9px] border border-l-[3px] border-l-primary bg-card px-3.5 py-[11px] text-[13px] text-muted-foreground">
           <b className="font-semibold text-foreground">
@@ -87,9 +86,9 @@ export default async function SettlementPage({
           </b>{" "}
           if the {s.projected.remaining} remaining{" "}
           {s.projected.remaining === 1 ? "entry sells" : "entries sell"} at your current average
-          entry price. The {peso(s.totals.net)} above is already banked and exact — only the unsold
-          entries are a range, because your organization absorbs payment processing and a card
-          costs more to process than an e-wallet.
+          entry price. The {peso(s.totals.net)} above is the recorded net from existing payments.
+          Processing fees may still be estimates. This is not confirmation of a bank payout.
+          The forecast varies with the payment methods used for unsold entries.
         </p>
       ) : null}
 

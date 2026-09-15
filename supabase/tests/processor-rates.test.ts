@@ -249,8 +249,9 @@ describe("processor_rate_drift_v", () => {
   it("flags a method whose actual fees consistently exceed the rate card", async () => {
     const f = await fixture(`drift-${Date.now()}`);
     try {
-      // 14 card payments that each cost 3.80% + ₱15 while the card says 3.50%.
-      await f.bill(Array.from({ length: 14 }, () => ({
+      // Fill the complete 20-payment window so saved browser QA payments cannot
+      // dilute the disagreement ratio. Each costs 3.80% + ₱15, versus 3.50%.
+      await f.bill(Array.from({ length: 20 }, () => ({
         method: "card", amount: 200000,
         actual: 9100,    // 3.8% of ₱2,000 + ₱15
         predicted: 8500, // 3.5% + ₱15
@@ -258,12 +259,12 @@ describe("processor_rate_drift_v", () => {
 
       const data = await f.row("card");
 
-      expect(data!.sample_size).toBeGreaterThanOrEqual(14);
+      expect(data!.sample_size).toBe(20);
       expect(data!.card_bps).toBe(350);
       expect(data!.median_implied_bps).toBe(380);
       expect(data!.drifting).toBe(true);
-      // 14 x ₱6.00 under-collected.
-      expect(data!.delta_cents).toBe(8400);
+      // 20 x ₱6.00 under-collected.
+      expect(data!.delta_cents).toBe(12000);
     } finally {
       await f.cleanup();
     }

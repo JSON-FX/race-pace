@@ -24,7 +24,7 @@ function searchPattern(q: string): string | null {
 // — see admin_registrations_v's header comment
 // (supabase/migrations/20260809150000_admin_registrations_v_registration_status.sql)
 // for why. Filter routing below reflects that split.
-export type PaymentStatus = "pending" | "paid" | "failed" | "refunded";
+export type PaymentStatus = "pending" | "paid" | "failed" | "refunded" | "partially_refunded";
 
 // The registration's own lifecycle state, distinct from PaymentStatus above.
 // 'expired'/'cancelled' can ONLY appear here, never on payment_status.

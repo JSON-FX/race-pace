@@ -21,6 +21,7 @@ const STATUS_FILTER: FilterDef = {
     { value: "paid", label: "Paid" },
     { value: "pending", label: "Pending" },
     { value: "refunded", label: "Refunded" },
+    { value: "partially_refunded", label: "Partially refunded" },
     { value: "failed", label: "Failed" },
   ],
 };
@@ -67,7 +68,7 @@ export function PaymentsTable({ rows, total, page, per, sort, activeFilters, q, 
     {
       accessorKey: "method",
       header: "Method",
-      cell: ({ row }) => <MethodBadge method={row.original.method} />,
+      cell: ({ row }) => <MethodBadge method={row.original.method} status={row.original.status} />,
     },
     {
       accessorKey: "amount",

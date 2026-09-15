@@ -56,7 +56,10 @@ export default function ConfirmFinishPage() {
     // Supabase reports a refused or expired link on the fragment too, rather
     // than by not redirecting.
     const hashError = hash.get("error_description") ?? hash.get("error");
-    const next = safeNextPath(new URLSearchParams(window.location.search).get("next"), "/team");
+    const next = safeNextPath(
+      new URLSearchParams(window.location.search).get("next"),
+      "/auth/complete",
+    );
 
     if (hashError || !accessToken || !refreshToken) {
       router.replace("/login?oauth=invite_expired");
@@ -64,17 +67,27 @@ export default function ConfirmFinishPage() {
     }
 
     createClient()
-      .auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
+      .auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken,
+      })
       .then(({ error }) => {
         if (error) {
-          console.error("[auth/confirm/finish] setSession failed", error.message);
+          console.error(
+            "[auth/confirm/finish] setSession failed",
+            error.message,
+          );
           setFailed(true);
           router.replace("/login?oauth=invite_expired");
           return;
         }
         // replace(), not push() — the tokens are in this entry's fragment and
         // Back must not return the invitee to it.
-        router.replace(next);
+        router.replace(
+          next === "/auth/complete"
+            ? next
+            : `/auth/complete?next=${encodeURIComponent(next)}`,
+        );
       });
   }, [router]);
 

@@ -71,15 +71,17 @@ export function renderTicketEmail(input: TicketEmailInput): { subject: string; h
  *  throwing: a failed email must never fail a confirmed payment. */
 export async function sendEmail(to: string, subject: string, html: string): Promise<{ ok: boolean; error?: string }> {
   const provider = Deno.env.get("EMAIL_PROVIDER") ?? "resend";
-  if (provider === "mailtrap") {
+  if (provider === "mailtrap" || provider === "mailpit") {
     const user = Deno.env.get("MAILTRAP_SMTP_USER");
     const pass = Deno.env.get("MAILTRAP_SMTP_PASSWORD");
-    if (!user || !pass) return { ok: false, error: "mailtrap_not_configured" };
+    if (provider === "mailtrap" && (!user || !pass)) return { ok: false, error: "mailtrap_not_configured" };
     try {
       const { default: nodemailer } = await import("npm:nodemailer@10.0.10");
       const transport = nodemailer.createTransport({
-        host: "sandbox.smtp.mailtrap.io", port: 2525, secure: false,
-        requireTLS: true, auth: { user, pass },
+        ...(provider === "mailtrap"
+          ? { host: "sandbox.smtp.mailtrap.io", port: 2525, requireTLS: true, auth: { user, pass } }
+          : { host: Deno.env.get("MAILPIT_SMTP_HOST") ?? "inbucket", port: 1025, ignoreTLS: true }),
+        secure: false,
         connectionTimeout: 10000, greetingTimeout: 10000, socketTimeout: 15000,
         disableFileAccess: true, disableUrlAccess: true,
       });
@@ -88,10 +90,12 @@ export async function sendEmail(to: string, subject: string, html: string): Prom
           from: Deno.env.get("EMAIL_FROM") ?? "Race Pace QA <qa@racepace.test>",
           to, subject, html,
         });
-        return result.accepted.length > 0 ? { ok: true } : { ok: false, error: "mailtrap_rejected" };
+        return result.accepted.length > 0 ? { ok: true } : { ok: false, error: `${provider}_rejected` };
       } finally { transport.close(); }
-    } catch {
-      return { ok: false, error: "mailtrap_send_failed" };
+    } catch (error) {
+      // Log only the transport category, never credentials or message content.
+      console.error("[email] SMTP transport failed", { provider, code: (error as { code?: string }).code ?? "unknown" });
+      return { ok: false, error: `${provider}_send_failed` };
     }
   }
   if (provider !== "resend") return { ok: false, error: "email_provider_invalid" };

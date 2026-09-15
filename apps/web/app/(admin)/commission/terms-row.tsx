@@ -402,7 +402,7 @@ function RefundRow({ org, draft, onChange }: {
             onChange={(policy) => onChange({ ...draft, policy })}
             options={[
               { value: "flat_fee", label: "Flat fee" },
-              { value: "full", label: "Full" },
+              { value: "full", label: "Refund excluding fees" },
               { value: "none", label: "None" },
             ]}
           />

@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/client";
-import { OAUTH_NEXT_COOKIE } from "@/lib/routes";
+import { safeNextPath, OAUTH_NEXT_COOKIE } from "@/lib/routes";
 
 export async function signInWithPassword(email: string, password: string): Promise<{ error?: string }> {
   const supabase = createClient();
@@ -7,10 +7,18 @@ export async function signInWithPassword(email: string, password: string): Promi
   return error ? { error: error.message } : {};
 }
 
-export async function signUpWithPassword(email: string, password: string): Promise<{ error?: string }> {
+export async function signUpWithPassword(email: string, password: string, next = "/"): Promise<{ error?: string; confirmationRequired?: boolean }> {
   const supabase = createClient();
-  const { error } = await supabase.auth.signUp({ email: email.trim(), password });
-  return error ? { error: error.message } : {};
+  document.cookie = `${OAUTH_NEXT_COOKIE}=${encodeURIComponent(safeNextPath(next))}; path=/; max-age=3600; samesite=lax`;
+  try {
+    const { data, error } = await supabase.auth.signUp({
+      email: email.trim(), password,
+      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+    });
+    return error ? { error: error.message } : { confirmationRequired: !data.session };
+  } catch {
+    return { error: "We could not create your account. Please try again." };
+  }
 }
 
 /** OAuth round-trips through Supabase, which redirects back to our callback

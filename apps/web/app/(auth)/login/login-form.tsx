@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
@@ -72,6 +73,8 @@ export function LoginForm() {
           {pending ? "Signing in…" : "Sign in"}
         </Button>
       </form>
+
+      <Link href="/forgot-password" className="block text-center text-sm underline">Forgot password?</Link>
 
       {/* Sets the expectation BEFORE someone tries an address that will be
           refused. Without it, /no-access reads as a bug rather than as the

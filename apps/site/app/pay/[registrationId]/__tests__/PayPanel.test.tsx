@@ -351,3 +351,30 @@ describe("PayPanel — the fee breakdown", () => {
     expect(screen.queryByText(/passes the service and payment-processing costs/i)).not.toBeInTheDocument();
   });
 });
+
+// A stored checkout session is historical data, not permission to pay again.
+describe("PayPanel — registration payment eligibility", () => {
+  it.each(["refunded", "cancelled", "unknown"])("hides checkout for %s bookmarks", (status) => {
+    renderWithRegistration({ status, checkoutUrl: "https://checkout.paymongo.com/stored" });
+    expect(screen.queryByRole("button", { name: /^Pay/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Back to My Races" })).toHaveAttribute("href", "/races");
+    expect(createMethodCheckoutMock).not.toHaveBeenCalled();
+  });
+
+  it("sends paid registrations to their ticket even if the event later closes", () => {
+    renderWithRegistration({ status: "paid", eventStatus: "closed", checkoutUrl: "https://checkout.paymongo.com/stored" });
+    expect(screen.queryByRole("button", { name: /^Pay/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "View ticket" })).toHaveAttribute("href", "/ticket/r1");
+  });
+
+  it.each(["not_pending", "hold_expired", "event_closed", "unknown_refusal"])("never routes around server refusal %s", async (code) => {
+    renderWithRegistration({ checkoutUrl: "https://checkout.paymongo.com/stored" });
+    createMethodCheckoutMock.mockResolvedValue({ url: null, code });
+    await userEvent.setup().click(screen.getByRole("button", { name: /^Pay ₱/ }));
+    expect(assign).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: /^Pay ₱/ })).not.toBeDisabled();
+    if (code === "not_pending") {
+      expect(screen.getByText("This registration can no longer be paid. Check My Races for its status.")).toBeInTheDocument();
+    }
+  });
+});

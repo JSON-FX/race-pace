@@ -35,7 +35,7 @@ function roles(overrides: Partial<MyRoles> = {}): MyRoles {
 
 function row(overrides: Partial<PaymentRow> = {}): PaymentRow {
   return {
-    processor_fee_cents: 0, processor_fee_source: "none", paid_at: null, registration_id: "reg-1",
+    refunded_amount: 0, processor_fee_cents: 0, processor_fee_source: "none", paid_at: null, registration_id: "reg-1",
     event_id: "event-1",
     event_name: "Dahilayan Sky Ultra",
     user_id: "u-1",
@@ -96,10 +96,10 @@ describe("GET /payments/export", () => {
     const lines = body.split("\r\n").filter(Boolean);
 
     expect(lines[0]).toBe(
-      "Registration ID,Event,Runner,Amount (PHP),Platform Fee (PHP),Processing Fee (PHP),Processing Fee Source,Net to Org (PHP),Method,Status,Checkout Created At (UTC),Payment Confirmed At (UTC)",
+      "Registration ID,Event,Runner,Amount (PHP),Platform Fee (PHP),Processing Fee (PHP),Processing Fee Source,Stored Ledger Net to Org (PHP),Method,Status,Checkout Created At (UTC),Payment Confirmed At (UTC),Refunded Amount (PHP),Retained Gross (PHP),Current Platform Fees (PHP),Current Net to Org (PHP)",
     );
     expect(lines[1]).toBe(
-      "reg-1,Dahilayan Sky Ultra,Ana Cruz,1500.00,45.00,15.00,predicted,1440.00,gcash,paid,2026-08-04T11:35:15.624Z,2026-08-04T12:00:00.000Z",
+      "reg-1,Dahilayan Sky Ultra,Ana Cruz,1500.00,45.00,15.00,predicted,1440.00,gcash,paid,2026-08-04T11:35:15.624Z,2026-08-04T12:00:00.000Z,0.00,1500.00,45.00,1440.00",
     );
   });
 
@@ -246,4 +246,20 @@ it("captures the caller client before deferred export reads", async () => {
   expect(createClientMock).toHaveBeenCalledTimes(1);
   expect(listOrgPaymentsMock).toHaveBeenCalledTimes(2);
   for (const call of listOrgPaymentsMock.mock.calls) expect(call[2].db).toBe(exportDb);
+});
+
+
+it.each([
+  ["paid", 0, 98500, ["0.00", "1000.00", "0.00", "985.00"]],
+  ["refunded", 98500, 98500, ["985.00", "0.00", "0.00", "0.00"]],
+  ["partially_refunded", 40000, 58500, ["400.00", "600.00", "0.00", "585.00"]],
+  ["pending", 0, 0, ["0.00", "0.00", "0.00", "0.00"]],
+  ["failed", 0, 0, ["0.00", "0.00", "0.00", "0.00"]],
+] as const)("exports actual refunds and current proceeds for %s", async (status, refunded, net, expected) => {
+  createClientMock.mockReset().mockResolvedValue(exportDb);
+  getMyRolesMock.mockResolvedValue(roles());
+  listOrgPaymentsMock.mockResolvedValue({ rows: [row({ status, amount: 100000, platform_fee: 0, processor_fee_cents: 1500, refunded_amount: refunded, net_to_org: net })], total: 1 });
+  const response = await GET(new Request("http://localhost/payments/export"));
+  const line = (await response.text()).split("\r\n")[1]!;
+  expect(line.split(",").slice(-4)).toEqual(expected);
 });

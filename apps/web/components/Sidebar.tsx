@@ -13,6 +13,7 @@ import { ThemeToggle } from "./ThemeToggle";
 import { LinkPending } from "./NavProgress";
 import { signOutAction } from "@/lib/actions/auth";
 import type { MyRoles } from "@/lib/queries/roles";
+import { ROLE_LABELS, type AssignableRole } from "@/lib/team-roles";
 import { visibleOrgItems, visibleSuperItems, type NavCounts, type NavItem as Item } from "@/lib/nav-items";
 
 function NavItem({ to, label, icon: Icon, count }: Item & { count?: number }) {
@@ -54,7 +55,7 @@ export function Sidebar({
 }: { roles: MyRoles; email: string; orgName: string | null; orgLogoUrl?: string | null; counts: NavCounts }) {
   const local = email.split("@")[0] || "admin";
   const initials = local.slice(0, 2).toUpperCase();
-  const role = roles.isSuperAdmin ? "Super admin" : "Admin";
+  const role = roles.isSuperAdmin ? "Super admin" : ROLE_LABELS[roles.role as AssignableRole] ?? "Staff";
 
   return (
     <UISidebar collapsible="icon">

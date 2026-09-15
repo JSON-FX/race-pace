@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { createClient } from "@supabase/supabase-js";
 import { Client } from "pg";
-import { createHmac } from "node:crypto";
+import { localWebhookSigner } from "../../test/webhook";
 import { loadEnv } from "../../test/env";
 
 const { url, anonKey, serviceKey, dbUrl } = loadEnv();
@@ -597,12 +597,7 @@ describe("late capture on an expired registration", () => {
  * `probeFunctionsServe` above) and skip -- not fail -- when it isn't answering.
  */
 describe("late capture via the real payments-webhook (needs `supabase functions serve`)", () => {
-  const WEBHOOK_SECRET = "whsec_test_localdev"; // must match supabase/functions/.env, same as backend.test.ts
-  function signHeader(rawBody: string): string {
-    const t = Math.floor(Date.now() / 1000).toString();
-    const sig = createHmac("sha256", WEBHOOK_SECRET).update(`${t}.${rawBody}`).digest("hex");
-    return `t=${t},te=${sig}`;
-  }
+  const signHeader = localWebhookSigner(url);
   function postWebhook(payload: unknown) {
     const raw = JSON.stringify(payload);
     return fetch(`${FN}/payments-webhook`, {

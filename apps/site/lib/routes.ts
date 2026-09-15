@@ -27,7 +27,7 @@ export const OAUTH_NEXT_COOKIE = "rp_oauth_next";
  *  fall back to `/`. A single shared predicate so the credential-auth paths
  *  can't silently drift from the OAuth callback's guard. */
 export function safeNextPath(next: string | null | undefined): string {
-  if (!next) return "/";
+  if (!next || next.includes("\\") || /[\x00-\x1f]/.test(next)) return "/";
   if (next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/\\")) return next;
   return "/";
 }

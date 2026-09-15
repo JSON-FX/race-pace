@@ -28,31 +28,44 @@ describe("GET /auth/confirm/finish", () => {
   // The production incident this page exists for: Supabase's default invite
   // template routes through /auth/v1/verify and delivers the session on the
   // fragment, which never reaches the server.
-  it("establishes the session from the URL fragment and lands on /team", async () => {
+  it("establishes the session from the URL fragment and delegates to the role-aware completion route", async () => {
     withUrl("#access_token=at-123&refresh_token=rt-456&type=invite");
     render(<ConfirmFinishPage />);
 
     await waitFor(() =>
-      expect(setSession).toHaveBeenCalledWith({ access_token: "at-123", refresh_token: "rt-456" }));
-    await waitFor(() => expect(replace).toHaveBeenCalledWith("/team"));
+      expect(setSession).toHaveBeenCalledWith({
+        access_token: "at-123",
+        refresh_token: "rt-456",
+      }),
+    );
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/auth/complete"));
   });
 
   it("honours an explicit ?next=, and refuses an absolute one", async () => {
     withUrl("#access_token=at-123&refresh_token=rt-456", "?next=%2Fevents");
     render(<ConfirmFinishPage />);
-    await waitFor(() => expect(replace).toHaveBeenCalledWith("/events"));
+    await waitFor(() =>
+      expect(replace).toHaveBeenCalledWith("/auth/complete?next=%2Fevents"),
+    );
 
     replace.mockReset();
-    withUrl("#access_token=at-123&refresh_token=rt-456", "?next=https%3A%2F%2Fevil.example");
+    withUrl(
+      "#access_token=at-123&refresh_token=rt-456",
+      "?next=https%3A%2F%2Fevil.example",
+    );
     render(<ConfirmFinishPage />);
-    await waitFor(() => expect(replace).toHaveBeenCalledWith("/team"));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/auth/complete"));
   });
 
   it("sends a link carrying an error on the fragment back to login", async () => {
-    withUrl("#error=access_denied&error_description=Email+link+is+invalid+or+has+expired");
+    withUrl(
+      "#error=access_denied&error_description=Email+link+is+invalid+or+has+expired",
+    );
     render(<ConfirmFinishPage />);
 
-    await waitFor(() => expect(replace).toHaveBeenCalledWith("/login?oauth=invite_expired"));
+    await waitFor(() =>
+      expect(replace).toHaveBeenCalledWith("/login?oauth=invite_expired"),
+    );
     expect(setSession).not.toHaveBeenCalled();
   });
 
@@ -60,15 +73,21 @@ describe("GET /auth/confirm/finish", () => {
     withUrl("");
     render(<ConfirmFinishPage />);
 
-    await waitFor(() => expect(replace).toHaveBeenCalledWith("/login?oauth=invite_expired"));
+    await waitFor(() =>
+      expect(replace).toHaveBeenCalledWith("/login?oauth=invite_expired"),
+    );
     expect(setSession).not.toHaveBeenCalled();
   });
 
   it("sends a rejected token back to login rather than a blank screen", async () => {
     withUrl("#access_token=at-123&refresh_token=rt-456");
-    setSession.mockResolvedValue({ error: { message: "Invalid Refresh Token" } });
+    setSession.mockResolvedValue({
+      error: { message: "Invalid Refresh Token" },
+    });
     render(<ConfirmFinishPage />);
 
-    await waitFor(() => expect(replace).toHaveBeenCalledWith("/login?oauth=invite_expired"));
+    await waitFor(() =>
+      expect(replace).toHaveBeenCalledWith("/login?oauth=invite_expired"),
+    );
   });
 });

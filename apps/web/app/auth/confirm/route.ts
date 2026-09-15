@@ -1,7 +1,8 @@
+import { getMyRoles } from "@/lib/queries/roles";
 import { NextResponse, type NextRequest } from "next/server";
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
-import { safeNextPath } from "@/lib/routes";
+import { invitationNextPath } from "@/lib/routes";
 
 /**
  * Magic-link / invite landing route.
@@ -47,14 +48,17 @@ export async function GET(request: NextRequest) {
   const type = rawType as EmailOtpType;
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type });
+  const { error } = await supabase.auth.verifyOtp({
+    token_hash: tokenHash,
+    type,
+  });
   if (error) {
     console.error("[auth/confirm] verifyOtp failed", error.message);
     return redirectRelative("/login?oauth=invite_expired");
   }
 
-  // An invited admin has a role but no profile yet, so /team is the useful
-  // landing spot. safeNextPath rejects anything that is not a same-site
-  // relative path — an absolute target here would be an open redirect.
-  return redirectRelative(safeNextPath(searchParams.get("next"), "/team"));
+  const roles = await getMyRoles();
+  return redirectRelative(
+    invitationNextPath(searchParams.get("next"), roles?.capabilities ?? []),
+  );
 }

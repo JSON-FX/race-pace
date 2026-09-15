@@ -53,3 +53,8 @@ describe("mobile nav", () => {
     expect(moreMobileItems(who(["check_in"]))).toEqual([]);
   });
 });
+
+it("shows kit crew only race kits in navigation and the phone bar", () => {
+  expect(paths(visibleOrgItems(who(["release_kits"])))).toEqual(["/race-kits"]);
+  expect(paths(primaryMobileItems(who(["release_kits"])))).toEqual(["/race-kits"]);
+});

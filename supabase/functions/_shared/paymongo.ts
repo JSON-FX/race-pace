@@ -119,19 +119,43 @@ export function pmMethodFromSession(session: PmSession): string {
 
 export interface PmRefund { id: string; status: "pending" | "succeeded" | "failed"; raw: unknown }
 
-/** POST /refunds — amount in centavos. PayMongo returns status pending|succeeded|failed. */
-export async function pmCreateRefund(input: { paymentId: string; amount: number; reason?: string }): Promise<PmRefund> {
+/** A request ID belongs to one frozen refund attempt, including uncertain retries. */
+export async function pmCreateRefund(input: { paymentId: string; amount: number; reason?: string; requestId: string; registrationId?: string }): Promise<PmRefund> {
   const res = await fetch(`${BASE}/refunds`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: authHeader() },
+    headers: { "Content-Type": "application/json", Authorization: authHeader(), "Idempotency-Key": `refund:${input.requestId}` },
     body: JSON.stringify({
-      data: { attributes: { amount: input.amount, payment_id: input.paymentId, reason: input.reason ?? "requested_by_customer" } },
+      data: { attributes: {
+        amount: input.amount, payment_id: input.paymentId, reason: input.reason ?? "requested_by_customer",
+        metadata: { refund_request_id: input.requestId, ...(input.registrationId ? { registration_id: input.registrationId } : {}) },
+      } },
     }),
   });
   const body = await res.json();
   if (!res.ok) throw new Error(`paymongo_refund_failed: ${JSON.stringify(body?.errors ?? body)}`);
+  return parseRefund(body);
+}
+
+export async function pmGetRefund(id: string): Promise<PmRefund> {
+  const res = await fetch(`${BASE}/refunds/${encodeURIComponent(id)}`, { headers: { Authorization: authHeader() } });
+  const body = await res.json();
+  if (!res.ok) throw new Error(`paymongo_refund_get_failed: ${JSON.stringify(body?.errors ?? body)}`);
+  const refund = parseRefund(body);
+  if (refund.id !== id) throw new Error("paymongo_refund_id_mismatch");
+  return refund;
+}
+
+function parseRefund(body: { data?: { id?: string; attributes?: { status?: string } } }): PmRefund {
   const d = body?.data;
-  return { id: d?.id, status: (d?.attributes?.status ?? "pending") as PmRefund["status"], raw: body };
+  if (typeof d?.id !== "string" || !d.id.startsWith("ref_")) throw new Error("paymongo_refund_id_invalid");
+  // Processing is nonterminal. Passing it through used to bypass refund.ts's
+  // pending branch and release the runner's slot before the refund completed.
+  const reportedStatus = d?.attributes?.status;
+  const status = reportedStatus === "processing" ? "pending" : reportedStatus;
+  if (status !== "pending" && status !== "succeeded" && status !== "failed") {
+    throw new Error("paymongo_refund_status_invalid");
+  }
+  return { id: d?.id, status, raw: body };
 }
 
 /**

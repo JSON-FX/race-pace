@@ -1,7 +1,7 @@
 const MESSAGES: Record<string, string> = {
   sold_out: "This distance just sold out. Try another distance for this race.",
   registration_closed: "Registration for this race is no longer open.",
-  not_pending: "You've already paid for this registration. Check My Races for your ticket.",
+  not_pending: "This registration can no longer be paid. Check My Races for its status.",
   waiver_required: "Please accept the event waiver before registering.",
   invalid_custom_data: "Some answers need fixing. Check the highlighted fields.",
   invalid_input: "Some details are missing or invalid. Check the form and try again.",

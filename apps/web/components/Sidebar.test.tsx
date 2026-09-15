@@ -101,3 +101,11 @@ it("renders the nav without count pills when counts is null (no org scope)", () 
   expect(screen.getByText("Events")).toBeInTheDocument();
   expect(screen.queryByText("12")).not.toBeInTheDocument();
 });
+
+it("labels kit staff correctly and shows only the kit station", () => {
+  renderSidebar(roles({ role: "claiming", isAdmin: false, isOrgAdmin: false, capabilities: ["release_kits"] }));
+  expect(screen.getByText("Race Kit")).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Race kits" })).toBeInTheDocument();
+  expect(screen.queryByText("Payments")).not.toBeInTheDocument();
+  expect(screen.queryByText("Check-in")).not.toBeInTheDocument();
+});

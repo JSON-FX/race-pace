@@ -6,14 +6,32 @@ import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { PhotoAvatar } from "@/components/PhotoAvatar";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
-  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { DataTable, type FilterDef } from "@/components/data-table";
-import { changeRoleAction, removeMemberAction } from "@/lib/actions/team";
-import type { TeamMember } from "@/lib/queries/team";
+import {
+  changeRoleAction,
+  removeMemberAction,
+  resendMemberAction,
+  type TeamState,
+} from "@/lib/actions/team";
+import { DeliveryFeedback } from "@/components/DeliveryFeedback";
+import type { TeamMember, TeamEvent } from "@/lib/queries/team";
 import { ASSIGNABLE_ROLES, ROLE_LABELS } from "@/lib/team-roles";
 import type { SortState } from "@/lib/table-params";
 
@@ -55,7 +73,14 @@ function RoleCell({ member, orgId }: { member: TeamMember; orgId: string }) {
         const previous = value;
         setValue(role);
         startTransition(async () => {
-          const res = await changeRoleAction(member.user_id, orgId, role);
+          const res = await changeRoleAction(
+            member.user_id,
+            orgId,
+            role,
+            ["marshal", "claiming"].includes(role)
+              ? (member.event_scope ?? null)
+              : null,
+          );
           if (res.ok) {
             toast.success("Role updated");
           } else {
@@ -72,18 +97,11 @@ function RoleCell({ member, orgId }: { member: TeamMember; orgId: string }) {
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        {(() => {
-          const roles = [...ASSIGNABLE_ROLES];
-          // Include the member's current role even if it's no longer assignable (e.g.,
-          // old roles being phased out like "claiming"). This keeps the picker from
-          // rendering blank for members already holding that role.
-          if (!roles.includes(member.role as any)) {
-            roles.push(member.role as any);
-          }
-          return roles.map((r) => (
-            <SelectItem key={r} value={r}>{ROLE_LABELS[r]}</SelectItem>
-          ));
-        })()}
+        {ASSIGNABLE_ROLES.map((role) => (
+          <SelectItem key={role} value={role}>
+            {ROLE_LABELS[role]}
+          </SelectItem>
+        ))}
       </SelectContent>
     </Select>
   );
@@ -93,12 +111,18 @@ function RoleCell({ member, orgId }: { member: TeamMember; orgId: string }) {
  * Revocation, not just role management, is a permissions-critical
  * capability — without this, an org admin has no way to cut off a departed
  * staff member's access at all. The edge function independently refuses to
- * remove an org's last admin (409, same `wouldLeaveNoAdmin` guard as
+ * remove an org's last admin (409, same atomic membership guard as
  * changeRoleAction), so the error path here is real and must be surfaced,
  * not swallowed — the dialog stays open with the message until the admin
  * cancels or the removal actually succeeds.
  */
-function RemoveMemberCell({ member, orgId }: { member: TeamMember; orgId: string }) {
+function RemoveMemberCell({
+  member,
+  orgId,
+}: {
+  member: TeamMember;
+  orgId: string;
+}) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -118,10 +142,18 @@ function RemoveMemberCell({ member, orgId }: { member: TeamMember; orgId: string
   }
 
   return (
-    <AlertDialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setError(null); }}>
+    <AlertDialog
+      open={open}
+      onOpenChange={(o) => {
+        setOpen(o);
+        if (!o) setError(null);
+      }}
+    >
       <AlertDialogTrigger asChild>
         <Button
-          variant="ghost" size="icon-sm" aria-label={`Remove ${name}`}
+          variant="ghost"
+          size="icon-sm"
+          aria-label={`Remove ${name}`}
           className="text-muted-foreground hover:text-destructive"
         >
           <Trash2 className="size-4" />
@@ -131,10 +163,15 @@ function RemoveMemberCell({ member, orgId }: { member: TeamMember; orgId: string
         <AlertDialogHeader>
           <AlertDialogTitle>Remove {name}?</AlertDialogTitle>
           <AlertDialogDescription>
-            They&apos;ll immediately lose access to this organization&apos;s admin console. This can&apos;t be undone.
+            They&apos;ll immediately lose access to this organization&apos;s
+            admin console. This can&apos;t be undone.
           </AlertDialogDescription>
         </AlertDialogHeader>
-        {error ? <p role="alert" className="text-[13px] text-destructive">{error}</p> : null}
+        {error ? (
+          <p role="alert" className="text-[13px] text-destructive">
+            {error}
+          </p>
+        ) : null}
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
           <Button variant="destructive" disabled={busy} onClick={confirmRemove}>
@@ -146,10 +183,26 @@ function RemoveMemberCell({ member, orgId }: { member: TeamMember; orgId: string
   );
 }
 
-export function TeamTable({ rows, total, page, per, sort, activeFilters, q, orgId }: {
-  rows: TeamMember[]; total: number; page: number; per: number;
-  sort: SortState[]; activeFilters: Record<string, string>; q: string;
+export function TeamTable({
+  rows,
+  total,
+  page,
+  per,
+  sort,
+  activeFilters,
+  q,
+  orgId,
+  events = [],
+}: {
+  rows: TeamMember[];
+  total: number;
+  page: number;
+  per: number;
+  sort: SortState[];
+  activeFilters: Record<string, string>;
+  q: string;
   orgId: string;
+  events?: TeamEvent[];
 }) {
   // No `canManage` prop: the org-members edge function's "list" action
   // itself 403s a non-org-admin before it ever reaches the members-list
@@ -158,42 +211,148 @@ export function TeamTable({ rows, total, page, per, sort, activeFilters, q, orgI
   // already been let past TeamPage's `roles.isOrgAdmin` gate. There is no
   // real "editor sees a read-only Team page" mode the server can serve
   // today, so there's no read-only rendering branch to keep here either.
-  const columns = useMemo<ColumnDef<TeamMember, unknown>[]>(() => [
-    {
-      accessorKey: "full_name",
-      header: "Member",
-      cell: ({ row }) => (
-        <div className="flex items-center gap-2.5">
-          <PhotoAvatar url={row.original.avatar_url} className="size-8" fallbackClassName="text-[11px]" fallback={initials(row.original)} />
-          <div>
-            <div className="font-semibold">{row.original.full_name ?? "—"}</div>
-            <div className="text-xs text-muted-foreground">{row.original.email ?? "—"}</div>
+  const columns = useMemo<ColumnDef<TeamMember, unknown>[]>(
+    () => [
+      {
+        accessorKey: "full_name",
+        header: "Member",
+        cell: ({ row }) => (
+          <div className="flex items-center gap-2.5">
+            <PhotoAvatar
+              url={row.original.avatar_url}
+              className="size-8"
+              fallbackClassName="text-[11px]"
+              fallback={initials(row.original)}
+            />
+            <div>
+              <div className="font-semibold">
+                {row.original.full_name ?? "—"}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {row.original.email ?? "—"}
+              </div>
+            </div>
           </div>
-        </div>
-      ),
-    },
-    {
-      accessorKey: "role",
-      header: "Role",
-      cell: ({ row }) => <RoleCell member={row.original} orgId={orgId} />,
-    },
-    {
-      id: "actions",
-      header: "",
-      cell: ({ row }) => (
-        <div className="flex justify-end">
-          <RemoveMemberCell member={row.original} orgId={orgId} />
-        </div>
-      ),
-    },
-  ], [orgId]);
+        ),
+      },
+      {
+        accessorKey: "role",
+        header: "Role",
+        cell: ({ row }) => <RoleCell member={row.original} orgId={orgId} />,
+      },
+      {
+        id: "event_scope",
+        header: "Event access",
+        cell: ({ row }) => (
+          <ScopeCell member={row.original} orgId={orgId} events={events} />
+        ),
+      },
+      {
+        id: "actions",
+        header: "",
+        cell: ({ row }) => (
+          <div className="flex items-start justify-end gap-2">
+            <ResendCell member={row.original} orgId={orgId} />
+            <RemoveMemberCell member={row.original} orgId={orgId} />
+          </div>
+        ),
+      },
+    ],
+    [orgId, events],
+  );
 
   return (
     <DataTable
-      columns={columns} data={rows} total={total} page={page} per={per} sort={sort}
-      filterDefs={[ROLE_FILTER]} activeFilters={activeFilters} q={q}
+      columns={columns}
+      data={rows}
+      total={total}
+      page={page}
+      per={per}
+      sort={sort}
+      filterDefs={[ROLE_FILTER]}
+      activeFilters={activeFilters}
+      q={q}
       searchPlaceholder="Search name or email…"
-      emptyState={{ title: "No team members", description: "Invite an organizer to help run your events." }}
+      emptyState={{
+        title: "No team members",
+        description: "Invite an organizer to help run your events.",
+      }}
     />
+  );
+}
+
+function ScopeCell({
+  member,
+  orgId,
+  events,
+}: {
+  member: TeamMember;
+  orgId: string;
+  events: TeamEvent[];
+}) {
+  const [scope, setScope] = useState(member.event_scope ?? "");
+  const [busy, startTransition] = useTransition();
+  useEffect(() => setScope(member.event_scope ?? ""), [member.event_scope]);
+  if (!["marshal", "claiming"].includes(member.role))
+    return (
+      <span className="text-muted-foreground">All organization events</span>
+    );
+  return (
+    <select
+      aria-label={`Event access for ${member.full_name ?? member.email}`}
+      className="h-8 max-w-60 rounded-lg border bg-background px-2 text-sm"
+      value={scope}
+      disabled={busy}
+      onChange={(e) => {
+        const previous = scope,
+          next = e.target.value;
+        setScope(next);
+        startTransition(async () => {
+          const result = await changeRoleAction(
+            member.user_id,
+            orgId,
+            member.role,
+            next || null,
+          );
+          if (result.ok) toast.success("Event access updated");
+          else {
+            setScope(previous);
+            toast.error(result.error ?? "Couldn’t update event access.");
+          }
+        });
+      }}
+    >
+      <option value="">All organization events</option>
+      {scope && !events.some((e) => e.id === scope) && (
+        <option value={scope}>Assigned event unavailable</option>
+      )}
+      {events.map((event) => (
+        <option key={event.id} value={event.id}>
+          {event.name}
+        </option>
+      ))}
+    </select>
+  );
+}
+function ResendCell({ member, orgId }: { member: TeamMember; orgId: string }) {
+  const [state, setState] = useState<TeamState>({});
+  const [busy, startTransition] = useTransition();
+  return (
+    <div className="max-w-72">
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={busy}
+        onClick={() =>
+          startTransition(async () => {
+            setState({});
+            setState(await resendMemberAction(member.user_id, orgId));
+          })
+        }
+      >
+        {busy ? "Sending…" : "Send sign-in email"}
+      </Button>
+      <DeliveryFeedback state={state} />
+    </div>
   );
 }

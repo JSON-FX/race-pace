@@ -13,6 +13,7 @@ export type EventRow = {
   city_psgc_code: string | null; region_name: string | null; province_name: string | null;
   city_name: string | null; venue: string | null; inclusions?: string[] | null;
   joined_count: number; distances: number[];
+  refundPolicy?: string | null; refundFeeCents?: number | null;
   org_name?: string; org_color?: string | null; org_logo_url?: string | null;
   // NOT NULL in the DB (default 'trail' / '[]') — optional here only so the
   // handful of test fixtures built before this task keep type-checking.
@@ -88,6 +89,8 @@ export function mapEvent(r: any): EventRow {
     finish_lat: num(r.finish_lat), finish_lng: num(r.finish_lng),
     joined_count: categories.reduce((sum, c) => sum + c.slots_taken, 0),
     distances: categories.map((c) => c.distance_km).filter((d): d is number => d != null),
+    refundPolicy: r.organizations?.refund_policy ?? null,
+    refundFeeCents: r.organizations?.refund_fee_cents ?? null,
     org_name: r.organizations?.name,
     org_color: r.organizations?.brand_color,
     org_logo_url: r.organizations?.logo_url,
@@ -98,7 +101,7 @@ export function mapEvent(r: any): EventRow {
 export async function fetchMarketplaceEvents(db: SupabaseClient): Promise<EventRow[]> {
   const { data, error } = await db
     .from("events")
-    .select(`${EVENT_COLS},organizations(name,brand_color,logo_url)`)
+    .select(`${EVENT_COLS},organizations(name,brand_color,logo_url,refund_policy,refund_fee_cents)`)
     .order("event_date");
   if (error) throw error;
   return (data ?? []).map(mapEvent);
@@ -107,7 +110,7 @@ export async function fetchMarketplaceEvents(db: SupabaseClient): Promise<EventR
 export async function fetchEvent(db: SupabaseClient, eventId: string): Promise<EventRow | null> {
   const { data, error } = await db
     .from("events")
-    .select(`${EVENT_COLS},organizations(name,brand_color,logo_url)`)
+    .select(`${EVENT_COLS},organizations(name,brand_color,logo_url,refund_policy,refund_fee_cents)`)
     .eq("id", eventId)
     .maybeSingle();
   if (error) throw error;

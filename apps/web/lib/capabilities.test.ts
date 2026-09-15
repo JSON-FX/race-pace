@@ -7,12 +7,12 @@ const sorted = (c: readonly Capability[]) => [...c].sort();
 describe("capabilitiesFor", () => {
   it("gives a super admin every capability", () => {
     expect(sorted(capabilitiesFor(null, true)))
-      .toEqual(sorted(["manage_platform", "manage_team", "manage_org", "check_in"]));
+      .toEqual(sorted(["manage_platform", "manage_team", "manage_org", "check_in", "release_kits"]));
   });
 
   it("gives an org admin team and org management plus check-in, but not platform", () => {
     expect(sorted(capabilitiesFor("admin", false)))
-      .toEqual(sorted(["manage_team", "manage_org", "check_in"]));
+      .toEqual(sorted(["manage_team", "manage_org", "check_in", "release_kits"]));
   });
 
   // The privilege-escalation guard. /team is admin-only today (nav-items.ts
@@ -23,17 +23,16 @@ describe("capabilitiesFor", () => {
   });
 
   it("gives an editor org management and check-in", () => {
-    expect(sorted(capabilitiesFor("editor", false))).toEqual(sorted(["manage_org", "check_in"]));
+    expect(sorted(capabilitiesFor("editor", false))).toEqual(sorted(["manage_org", "check_in", "release_kits"]));
   });
 
   it("gives a marshal check-in and nothing else", () => {
     expect(capabilitiesFor("marshal", false)).toEqual(["check_in"]);
   });
 
-  // `claiming` is assignable in the team UI but has no consumer until the
-  // race-kit spec. It must not silently inherit anything.
-  it("gives the claiming role nothing yet", () => {
-    expect(capabilitiesFor("claiming", false)).toEqual([]);
+  // Kit crew must not inherit registration, payment, or check-in access.
+  it("gives kit crew only kit release", () => {
+    expect(capabilitiesFor("claiming", false)).toEqual(["release_kits"]);
   });
 
   it("gives an unknown or absent role nothing", () => {
@@ -55,16 +54,8 @@ describe("capabilitiesFor", () => {
   // byte-identical to the correct behaviour and no test could catch it by
   // checking output alone.
   //
-  // This is what actually breaks the moment a role gains something admin
-  // lacks — e.g. the race-kit spec's planned `release_kits` on `claiming`.
-  // Give `claiming` that capability and THIS test fails immediately (assert
-  // it yourself: add `release_kits` to `claiming` in BY_ROLE and rerun — the
-  // union stops being a subset of admin's set). That failure is the signal to
-  // add a discriminating test in roles.test.ts (e.g. a resolved marshal row
-  // alongside a claiming row in another org must NOT pick up release_kits).
-  //
-  // Iterates ASSIGNABLE_ROLES rather than hardcoding three role names so a
-  // new role added there is automatically covered, not silently skipped.
+  // Iterate the assignable roles so any future capability outside the admin
+  // set triggers a review of resolved-role versus cross-org union behavior.
   it("has no role whose capabilities escape admin's — the union of every assignable role never exceeds admin's set", () => {
     const admin = capabilitiesFor("admin", false);
     const union = new Set<Capability>();

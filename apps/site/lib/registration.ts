@@ -158,6 +158,8 @@ export type RegistrationRow = {
    *  share, so it is none of the runner's business. `pass_on`: the runner is
    *  charged a grossed-up total and must therefore see every line of it. */
   feeMode: "absorb" | "pass_on";
+  refundPolicy?: string | null;
+  refundFeeCents?: number | null;
   /** Whether the platform still has this organization switched on. Read on the
    *  SAME embed as the fee terms, and readable to a registrant even while the
    *  org is suspended thanks to `orgs_read_active`'s registrant branch
@@ -182,7 +184,7 @@ export type RegistrationRow = {
 // type level, and `a + b` is `string` to TypeScript, which erases every column
 // type on the result.
 const REG_SELECT =
-  "id,status,total_amount,ticket_token,org_id,event_id,expires_at,custom_data,organizations(name,is_active,fee_mode,commission_type,commission_rate,commission_flat_cents),events(name,status,event_date,original_date,status_note,hero_image_url,inclusions,registration_closes_at,kit_edit_closes_at),categories(label,distance_km,base_price),payments(checkout_url,created_at,method,amount,platform_fee,net_to_org,provider,provider_ref,status)";
+  "id,status,total_amount,ticket_token,org_id,event_id,expires_at,custom_data,organizations(name,is_active,fee_mode,commission_type,commission_rate,commission_flat_cents,refund_policy,refund_fee_cents),events(name,status,event_date,original_date,status_note,hero_image_url,inclusions,registration_closes_at,kit_edit_closes_at),categories(label,distance_km,base_price),payments(checkout_url,created_at,method,amount,platform_fee,net_to_org,provider,provider_ref,status)";
 
 export function mapReg(r: any): RegistrationRow {
   const payment = Array.isArray(r.payments) ? r.payments[0] : r.payments;
@@ -200,6 +202,8 @@ export function mapReg(r: any): RegistrationRow {
     categoryLabel: r.categories?.label ?? "",
     categoryDistance: r.categories?.distance_km ?? null,
     orgName: org?.name ?? null,
+    refundPolicy: org?.refund_policy ?? null,
+    refundFeeCents: org?.refund_fee_cents ?? null,
     eventHeroUrl: r.events?.hero_image_url ?? null,
     basePrice: r.categories?.base_price ?? null,
     inclusions: r.events?.inclusions ?? null,

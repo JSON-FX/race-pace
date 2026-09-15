@@ -7,7 +7,7 @@ describe("checkoutErrorMessage", () => {
   });
 
   it("points an already-paid runner at their ticket", () => {
-    expect(checkoutErrorMessage("not_pending")).toBe("You've already paid for this registration. Check My Races for your ticket.");
+    expect(checkoutErrorMessage("not_pending")).toBe("This registration can no longer be paid. Check My Races for its status.");
   });
 
   it("covers every error code the edge functions return", () => {

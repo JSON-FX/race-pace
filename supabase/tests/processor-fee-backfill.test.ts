@@ -411,9 +411,9 @@ describe("legacy partially_refunded rows", () => {
       // 1) Settle it. The organizer is transferred NET_BEFORE and the row is stamped.
       const a = await admin.rpc("payout_open_statement", { p_event_id: f.ev.id });
       if (a.error) throw new Error(`open A: ${a.error.message} (${a.error.code})`);
-      const stmtA = (await s.from("payout_statements").select("net_owed_cents").eq("id", a.data).single()).data!;
+      const stmtA = (await s.from("payout_statements").select("net_owed_cents,revision").eq("id", a.data).single()).data!;
       expect(stmtA.net_owed_cents).toBe(NET_BEFORE);
-      const mark = await admin.rpc("payout_mark_paid", { p_statement_id: a.data, p_reference: "ref", p_note: null });
+      const mark = await admin.rpc("payout_mark_paid", { p_statement_id: a.data, p_expected_revision: stmtA.revision, p_reference: "ref", p_note: null });
       if (mark.error) throw new Error(`mark paid: ${mark.error.message}`);
       expect(mark.data).toBe("paid");
 

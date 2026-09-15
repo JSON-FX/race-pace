@@ -16,6 +16,10 @@ ultra-trail event platform (Mindanao, Philippines).
 
 **Status:** Draft v0.5 · 2026-07-20
 
+## Web and admin readiness — September 2026
+
+Active verification ledger: [end-to-end checklist](./plans/2026-09-15-web-admin-e2e-checklist.md). Local refund ownership and durable callback reconciliation are implemented under [this plan](./plans/2026-09-16-durable-refund-requests.md). Staff invitation redirects, event restrictions and SMTP resend are implemented locally under [this plan](./plans/2026-09-16-staff-invitation-fixes.md). Hosted rollout and production readiness remain pending. The historical roadmap below records earlier checkpoints.
+
 ## Roadmap
 
 **Planning artifacts** — all done: PRD (`00-product-overview.md`), visual flows (`race-pace-flows.html`), [ADR-0001 · tech stack](./adr/0001-cross-platform-tech-stack.md), [ADR-0002 · repo structure](./adr/0002-repository-structure.md), [01 · iOS MVP spec](./01-mobile-ios-mvp.md).
@@ -41,3 +45,12 @@ ultra-trail event platform (Mindanao, Philippines).
 - [ ] **Plan 15 · Settings + Dashboard** — org settings, KPIs/charts
 - [ ] **Plan 16 · super_admin** — org provisioning, commission, payout statements
 - [x] **Organization management** — [spec](./specs/2026-08-18-org-management-design.md) — rename · manage admins · suspend · delete from the Organizations page. Hard delete is money-guarded and runs as one `delete_organization_tx` RPC — not for FK-ordering reasons (a plain `delete from organizations` was tested and does not abort) but because the money guard and the deletes must be one atomic unit, and the RPC returns the counts the console consumes. `orgs_read_active` is widened so a suspended org stays visible to its own admins and the platform operator; suspended orgs leave the storefront and `registrations-checkout` refuses them. Also fixes the provisioning invite link — `site_url` was still `localhost:3000`, and neither app had a route that could consume a magic link — and defaults the create dialog to 3%. (backend 379/394, web 725/725, site 318/318 green — the 15 backend failures are pre-existing and unrelated to this branch: 14 are `payments-webhook` 401s from its signature check, since there is no local `supabase/functions/.env` holding the webhook secret, and 1 is `processor-rates.test.ts` asserting against a hardcoded `2026-08-15` date now in the past; deploy to hosted and end-to-end verification against `whaqarofxdlzxrelbcrq` still pending)
+
+- 2026-09-16 readiness update: pending-refund browser recovery verified with a controlled local fixture. [Selected-event check-in guard](issues/issue-checkin-selected-event.md) fixed and validated locally. Race-kit release and durable check-in undo audit remain open in the [web/admin checklist](plans/2026-09-15-web-admin-e2e-checklist.md).
+- 2026-09-16: [durable check-in audit](specs/checkin-audit.md) implemented and browser-verified locally. [Race-day operations plan](plans/2026-09-16-race-day-operations.md) tracks the remaining kit policy decision and implementation.
+- 2026-09-16: [race-kit release](specs/race-kit-release.md) implemented and verified locally with runner-only collection, refund blocking, admin reversal history, scoped staff and CSV. Supersedes the earlier kit-policy blocker. Browser download acceptance, staff invitations and hosted rollout remain in the [readiness checklist](plans/2026-09-15-web-admin-e2e-checklist.md).
+- 2026-09-16: [staff invitation validation](issues/2026-09-16-staff-invitation-readiness.md) found pilot blockers: operational staff land on Team, event scope cannot be assigned in Team, and existing-user invite feedback overstates email delivery. Real Mailtrap acceptance and immediate access removal passed locally; fixes and full admin-form retest remain pending.
+
+### 2026-09-16: email authentication completion
+
+Runner confirmation now waits for email and resumes the intended route. Web and admin have password recovery screens. See [spec](specs/email-auth-completion.md) and [plan](plans/2026-09-16-email-auth-completion.md). Local Mailpit confirmation and both browser password reset/sign-in journeys are verified. Hosted recovery redirect allowlist remains a deployment task.

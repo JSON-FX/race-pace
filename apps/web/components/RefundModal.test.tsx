@@ -29,3 +29,12 @@ it("preserves the dialog on execution failure", async () => {
   await screen.findByText("Refund ₱955?"); await userEvent.click(screen.getByRole("button", { name: "Confirm refund" }));
   await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Refund failed")); expect(mocks.success).not.toHaveBeenCalled();
 });
+it("lets an admin check a pending refund without changing its note or amount", async () => {
+  mocks.preview.mockResolvedValue({ ok: true, pending: true, already: true, refund_amount: 95500 });
+  mocks.refund.mockResolvedValue({ ok: true, pending: true }); setup();
+  const check = await screen.findByRole("button", { name: "Check refund status" });
+  expect(screen.getByLabelText("Refund note")).toBeDisabled();
+  await userEvent.click(check);
+  expect(mocks.refund).toHaveBeenCalledWith("r", undefined, 95500);
+  expect(mocks.success).not.toHaveBeenCalled();
+});

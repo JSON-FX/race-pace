@@ -25,10 +25,11 @@ export function RefundModal({ registration, onClose, onDone }: {
     return () => { active = false; };
   }, [registration.id]);
   const ready = preview?.ok && !preview.pending && !preview.already && Number.isSafeInteger(preview.refund_amount);
+  const canCheck = preview?.ok && preview.pending;
   const amount = ready ? peso(preview!.refund_amount!) : "";
 
   async function submit() {
-    if (!ready || busy) return;
+    if ((!ready && !canCheck) || busy) return;
     setBusy(true); setError(null);
     let res: RefundResponse;
     try { res = await refundRegistrationAction(registration.id, note || undefined, preview!.refund_amount); }
@@ -58,12 +59,12 @@ export function RefundModal({ registration, onClose, onDone }: {
           <div>Returned to runner: {amount}</div>
           <p>Platform and processing fees are retained, along with any organizer refund fee.</p>
         </dl> : !error ? <p>{preview?.pending ? "Refund pending. The slot stays reserved until the provider confirms it." : preview?.already ? "This registration was already refunded." : "Loading refund amount…"}</p> : null}
-        <Input aria-label="Refund note" placeholder="Reason (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
+        <Input disabled={!!canCheck} aria-label="Refund note" placeholder="Reason (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
         {error ? <span role="alert" className="text-[13px] text-destructive">{error}</span> : null}
         <DialogFooter>
           <Button variant="outline" className="rounded-pill" onClick={onClose}>Keep it</Button>
-          <Button aria-label="Confirm refund" variant="destructive" className="rounded-pill" disabled={busy || !ready} onClick={submit}>
-            {busy ? "Refunding…" : "Refund"}
+          <Button aria-label={canCheck ? "Check refund status" : "Confirm refund"} variant="destructive" className="rounded-pill" disabled={busy || (!ready && !canCheck)} onClick={submit}>
+            {busy ? (canCheck ? "Checking…" : "Refunding…") : canCheck ? "Check refund status" : "Refund"}
           </Button>
         </DialogFooter>
       </DialogContent>

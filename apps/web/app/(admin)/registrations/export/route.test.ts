@@ -115,7 +115,7 @@ describe("GET /registrations/export", () => {
     const lines = body.split("\r\n").filter(Boolean);
 
     expect(lines[0]).toBe(
-      "Registration ID,Runner,Email,Category,Bib,Registered At (UTC),Amount (PHP),Payment Status,Payment Method",
+      "Registration ID,Runner,Email,Category,Bib,Registered At (UTC),Base Amount (PHP),Payment Status,Payment Method",
     );
     expect(lines[1]).toBe("reg-1,Ana Cruz,ana@example.com,21K,A1,2026-08-04T11:35:15.624Z,1500.00,paid,card");
   });

@@ -24,6 +24,7 @@ export type PaymentRow = {
   avatar_url: string | null;
   amount: number;
   platform_fee: number;
+  refunded_amount: number;
   processor_fee_cents: number;
   processor_fee_source: string;
   paid_at: string | null;
@@ -34,7 +35,7 @@ export type PaymentRow = {
 };
 
 const SELECT =
-  "registration_id,event_id,event_name,user_id,full_name,avatar_url,amount,platform_fee,processor_fee_cents,processor_fee_source,paid_at,net_to_org,method,status,created_at";
+  "registration_id,event_id,event_name,user_id,full_name,avatar_url,amount,platform_fee,refunded_amount,processor_fee_cents,processor_fee_source,paid_at,net_to_org,method,status,created_at";
 
 export async function listOrgPayments(
   orgId: string,

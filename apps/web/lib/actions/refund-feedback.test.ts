@@ -23,3 +23,7 @@ it("requires review when the amount changed", async () => {
 it("rejects missing outcome rather than announcing success", async () => {
   m.invoke.mockResolvedValue({ data: null }); expect(await refundRegistrationAction("r")).toMatchObject({ ok: false });
 });
+it("explains when an uncertain refund requires provider review", async () => {
+  m.invoke.mockResolvedValue({ error: { context: new Response(JSON.stringify({ error: "refund_review_required" }), { status: 409 }) } });
+  expect(await refundRegistrationAction("r")).toMatchObject({ ok: false, error: expect.stringMatching(/provider review/) });
+});

@@ -16,6 +16,8 @@ async function requestRefund(body: Record<string, unknown>): Promise<RefundRespo
     const detail = await context?.json?.().catch(() => null);
     return { ok: false, error:
       detail?.error === "refund_amount_changed" ? "The refund amount changed. Close and reopen this dialog to review it."
+      : detail?.error === "refund_review_required" ? "This refund needs a payment provider review before it can be retried. Contact platform support."
+      : detail?.error === "provider_not_configured" ? "Refunds are temporarily unavailable. Contact platform support."
       : context?.status === 403 ? "You don't have permission to refund this registration."
       : context?.status === 409 ? "This registration cannot be refunded under its current status or policy."
       : context?.status === 404 ? "Registration not found."

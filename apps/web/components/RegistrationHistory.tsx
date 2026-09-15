@@ -53,6 +53,10 @@ function Entry({ row }: { row: AuditRow }) {
     row.action === "paid" ? `Paid${amount}`
     : row.action === "refunded" ? `Refunded${amount}`
     : row.action === "partially_refunded" ? `Partially refunded${amount}`
+    : row.action === "kit_released" ? "Race kit released"
+    : row.action === "kit_release_reversed" ? `Kit release reversed: ${String(row.detail.reason ?? "")}`
+    : row.action === "checked_in" ? "Checked in"
+    : row.action === "checkin_undone" ? "Check-in reversed"
     // Falls back to the raw action rather than hiding an event type nobody has taught
     // this component about yet.
     : row.action;
