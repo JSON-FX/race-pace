@@ -25,6 +25,7 @@ vi.mock("@/lib/supabase/client", () => ({
 
 const refundRegistrationAction = vi.fn((..._args: unknown[]) => Promise.resolve({ ok: true }));
 vi.mock("@/lib/actions/registrations", () => ({
+  previewRefundAction: async () => ({ ok: true, refund_amount: 95500, total_paid: 100000, retained_fees: 4500 }),
   refundRegistrationAction: (...a: unknown[]) => refundRegistrationAction(...a),
 }));
 
@@ -37,10 +38,7 @@ const paidRow: RegistrationRow = {
 };
 const pendingRow: RegistrationRow = { ...paidRow, payment_status: "pending", payment_method: null, registration_status: "pending" };
 
-/** The refund button's label carries the amount, so every lookup has to be a
- *  prefix match — an exact "Refund" would silently stop matching the moment
- *  the amount changes. */
-const refundButton = () => screen.getByRole("button", { name: /^Refund ₱/ });
+const refundButton = () => screen.getByRole("button", { name: "Review refund" });
 
 beforeEach(() => {
   refundRegistrationAction.mockClear();
@@ -142,9 +140,10 @@ describe("RegistrationDetail", () => {
     render(<RegistrationDetail row={paidRow} onClose={vi.fn()} onRefunded={onRefunded} />);
 
     await user.click(refundButton());                                            // opens RefundModal
+    await waitFor(() => expect(screen.getByRole("button", { name: "Confirm refund" })).toBeEnabled());
     await user.click(screen.getByRole("button", { name: "Confirm refund" }));     // executes
 
-    await waitFor(() => expect(refundRegistrationAction).toHaveBeenCalledWith("r1", undefined));
+    await waitFor(() => expect(refundRegistrationAction).toHaveBeenCalledWith("r1", undefined, 95500));
     await waitFor(() => expect(onRefunded).toHaveBeenCalled());
   });
 });

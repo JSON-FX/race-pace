@@ -140,6 +140,10 @@ export function RegisterWizard({ userId, category, event, addons, formFields }: 
         try {
           await upsertProfile({
             id: userId,
+            ...(draft.details.full_name?.trim() ? { full_name: draft.details.full_name.trim() } : {}),
+            bib_name: draft.details.bib_name?.trim() || null,
+            date_of_birth: draft.details.date_of_birth || null,
+            emergency_contact: draft.details.emergency_contact?.trim() || null,
             gender: draft.details.gender || null,
             shirt_size: draft.kit.shirt_size || null,
             blood_type: draft.kit.blood_type || null,
@@ -152,6 +156,8 @@ export function RegisterWizard({ userId, category, event, addons, formFields }: 
         category_id: category.id,
         addon_ids: draft.addonIds,
         custom_data: {
+          ...draft.values,
+          full_name: draft.details.full_name?.trim() || undefined,
           bib_name: draft.details.bib_name,
           date_of_birth: draft.details.date_of_birth,
           gender: draft.details.gender,
@@ -159,7 +165,6 @@ export function RegisterWizard({ userId, category, event, addons, formFields }: 
           blood_type: draft.kit.blood_type,
           emergency_contact: draft.details.emergency_contact,
           first_ultra: draft.firstUltra,
-          ...draft.values,
         },
         waiver_accepted: true,
         idempotency_key: draft.idempotencyKey,
@@ -271,8 +276,7 @@ export function RegisterWizard({ userId, category, event, addons, formFields }: 
             </>
           ) : null}
 
-          {/* Merged: gender lives in `details`, shirt/blood in `kit`, and all
-              three are what submit() writes back to the passport. */}
+          {/* Save-back is optional; the registration keeps its own snapshot. */}
           {showSaveBack(profile, { ...draft.details, ...draft.kit }) ? (
             <div className="mt-6 flex items-center gap-3 rounded-lg border border-border p-4">
               <Checkbox id="save_back" checked={draft.saveBack} onCheckedChange={(c) => patch({ saveBack: c === true })} />

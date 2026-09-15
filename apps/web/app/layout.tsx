@@ -19,7 +19,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     // otherwise log a mismatch on every load.
     <html lang="en" suppressHydrationWarning className={`${inter.variable} ${mono.variable}`}>
       <body>
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+        {/* Light is the default on purpose. enableSystem is off because the only
+            theme control in the app (components/ThemeToggle.tsx) is a binary
+            light/dark switch with no way to pick "system" back, so following the
+            OS only ever meant dark-OS users landing in dark with no default. */}
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
           {children}
           <Toaster />
         </ThemeProvider>

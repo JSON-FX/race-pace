@@ -43,6 +43,7 @@ const AUTHENTICATED_ALLOWLIST = new Set([
   "checkin_undo",
   "payout_mark_paid",
   "payout_open_statement",
+  "payout_refresh_statement",
   // 20260811095000_payout_open_statement_v2.sql. Deliberate addition, and it honours the
   // contract above rather than bending it: the function raises 42501 for any caller who is
   // neither a super admin NOR an editor/admin of the event's own org. That is deliberately
@@ -238,4 +239,28 @@ describe("function grants — service-role-only RPCs reject anon", () => {
     expect(r.error).not.toBeNull();
     expect(r.error!.code).toBe("42501");
   });
+
+  it("slot release is service-only and unauthorized callers cannot change capacity", async () => {
+    const { s, uid, email, org, cat } = await fixture("slot_grants", "pending");
+    try {
+      const setup = await s.from("categories").update({ slots_taken: 2 }).eq("id", cat.id);
+      expect(setup.error).toBeNull();
+      const runner = await signedIn(email);
+      for (const client of [anon(), runner]) {
+        const denied = await client.rpc("decrement_slot", { p_category_id: cat.id });
+        expect(denied.error?.code).toBe("42501");
+      }
+      const unchanged = await s.from("categories").select("slots_taken").eq("id", cat.id).single();
+      expect(unchanged.error).toBeNull();
+      expect(unchanged.data?.slots_taken).toBe(2);
+      const released = await s.rpc("decrement_slot", { p_category_id: cat.id });
+      expect(released.error).toBeNull();
+      const after = await s.from("categories").select("slots_taken").eq("id", cat.id).single();
+      expect(after.error).toBeNull();
+      expect(after.data?.slots_taken).toBe(1);
+    } finally {
+      await cleanup(s, org.id, uid);
+    }
+  });
+
 });

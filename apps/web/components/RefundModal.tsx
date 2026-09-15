@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { refundRegistrationAction } from "@/lib/actions/registrations";
+import { refundRegistrationAction, previewRefundAction, type RefundResponse } from "@/lib/actions/registrations";
 import { peso } from "@/lib/format";
 
 export function RefundModal({ registration, onClose, onDone }: {
@@ -16,14 +16,29 @@ export function RefundModal({ registration, onClose, onDone }: {
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const amount = peso(registration.total_amount);
+  const [preview, setPreview] = useState<RefundResponse | null>(null);
+  useEffect(() => {
+    let active = true;
+    previewRefundAction(registration.id).then((result) => {
+      if (active) { setPreview(result); if (!result.ok) setError(result.error ?? "Could not load refund."); }
+    }).catch(() => { if (active) setError("Could not load refund. Close and try again."); });
+    return () => { active = false; };
+  }, [registration.id]);
+  const ready = preview?.ok && !preview.pending && !preview.already && Number.isSafeInteger(preview.refund_amount);
+  const amount = ready ? peso(preview!.refund_amount!) : "";
 
   async function submit() {
+    if (!ready || busy) return;
     setBusy(true); setError(null);
-    const res = await refundRegistrationAction(registration.id, note || undefined);
+    let res: RefundResponse;
+    try { res = await refundRegistrationAction(registration.id, note || undefined, preview!.refund_amount); }
+    catch { res = { ok: false, error: "Could not confirm the result. Close and reopen to check before retrying." }; }
     setBusy(false);
     if (!res.ok) { setError(res.error ?? "Refund failed."); return; }
-    toast.success(`Refunded ${amount}`);
+    if (res.pending) toast.info("Refund pending. The slot stays reserved until the provider confirms it.");
+    else if (res.already) toast.info("This registration was already refunded. No new refund was issued.");
+    else if (typeof res.refund_amount === "number") toast.success(`Refunded ${peso(res.refund_amount)}`);
+    else toast.info("Refund request processed. Refresh the registration to check its status.");
     onDone();
     onClose();
   }
@@ -32,16 +47,22 @@ export function RefundModal({ registration, onClose, onDone }: {
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent className="w-[380px] rounded-xl">
         <DialogHeader>
-          <DialogTitle className="text-[17px] font-bold">Refund {amount}?</DialogTitle>
+          <DialogTitle className="text-[17px] font-bold">{ready ? `Refund ${amount}?` : "Review refund"}</DialogTitle>
           <DialogDescription className="text-[13px] text-muted-foreground">
-            Refunds {registration.full_name ?? "this runner"} and reopens their slot. This can't be undone.
+            The slot for {registration.full_name ?? "this runner"} reopens only after the refund completes. Completed refunds cannot be undone.
           </DialogDescription>
         </DialogHeader>
+        {ready ? <dl className="text-sm space-y-2">
+          <div>Original payment: {peso(preview!.total_paid!)}</div>
+          <div>Retained fees: {peso(preview!.retained_fees!)}</div>
+          <div>Returned to runner: {amount}</div>
+          <p>Platform and processing fees are retained, along with any organizer refund fee.</p>
+        </dl> : !error ? <p>{preview?.pending ? "Refund pending. The slot stays reserved until the provider confirms it." : preview?.already ? "This registration was already refunded." : "Loading refund amount…"}</p> : null}
         <Input aria-label="Refund note" placeholder="Reason (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
         {error ? <span role="alert" className="text-[13px] text-destructive">{error}</span> : null}
         <DialogFooter>
           <Button variant="outline" className="rounded-pill" onClick={onClose}>Keep it</Button>
-          <Button aria-label="Confirm refund" variant="destructive" className="rounded-pill" disabled={busy} onClick={submit}>
+          <Button aria-label="Confirm refund" variant="destructive" className="rounded-pill" disabled={busy || !ready} onClick={submit}>
             {busy ? "Refunding…" : "Refund"}
           </Button>
         </DialogFooter>

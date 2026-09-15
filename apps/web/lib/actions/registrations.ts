@@ -3,32 +3,43 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 
-/** Full refund via the admin-refund Edge Function, which owns the atomic
- *  money transition. Never update payment_status directly from here. */
-export async function refundRegistrationAction(
-  registrationId: string,
-  note?: string,
-): Promise<{ ok: boolean; error?: string }> {
+export type RefundResponse = {
+  ok: boolean; error?: string; pending?: boolean; already?: boolean;
+  refund_amount?: number; total_paid?: number; retained_fees?: number;
+};
+
+async function requestRefund(body: Record<string, unknown>): Promise<RefundResponse> {
   const supabase = await createClient();
-  const { error } = await supabase.functions.invoke("admin-refund", {
-    body: { registration_id: registrationId, note: note ?? null },
-  });
-
+  const { data, error } = await supabase.functions.invoke("admin-refund", { body });
   if (error) {
-    const status = (error as { context?: { status?: number } }).context?.status;
-    return {
-      ok: false,
-      error:
-        status === 403 ? "You don't have permission to refund this registration."
-        : status === 409 ? "This registration can't be refunded — it isn't paid."
-        : status === 404 ? "Registration not found."
-        : "Refund failed. Please try again.",
-    };
+    const context = (error as { context?: Response }).context;
+    const detail = await context?.json?.().catch(() => null);
+    return { ok: false, error:
+      detail?.error === "refund_amount_changed" ? "The refund amount changed. Close and reopen this dialog to review it."
+      : context?.status === 403 ? "You don't have permission to refund this registration."
+      : context?.status === 409 ? "This registration cannot be refunded under its current status or policy."
+      : context?.status === 404 ? "Registration not found."
+      : "Could not confirm the refund result. Close and reopen this dialog to check before retrying." };
   }
+  if (data?.ok !== true) return { ok: false, error: "Could not confirm the refund result. Please refresh." };
+  return data as RefundResponse;
+}
 
-  revalidatePath("/registrations");
-  revalidatePath("/payments");
-  return { ok: true };
+export async function previewRefundAction(registrationId: string): Promise<RefundResponse> {
+  return requestRefund({ registration_id: registrationId, preview: true });
+}
+
+/** The edge function recomputes the amount; the preview is only a confirmation guard. */
+export async function refundRegistrationAction(
+  registrationId: string, note?: string, expectedAmount?: number,
+): Promise<RefundResponse> {
+  const result = await requestRefund({ registration_id: registrationId, note: note ?? null, expected_amount: expectedAmount });
+  if (result.ok) {
+    revalidatePath("/registrations");
+    revalidatePath("/payments");
+    revalidatePath("/payouts");
+  }
+  return result;
 }
 
 export type BulkCancelResult = {

@@ -1,5 +1,6 @@
 "use client";
 
+import { registrationIdentity } from "@race-pace/shared";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Printer } from "lucide-react";
@@ -19,6 +20,7 @@ export function TicketPanel({ registrationId, userId }: { registrationId: string
     getProfile(userId).then((p) => p && setProfile(p));
   }, [userId]);
 
+  const identity = registrationIdentity(reg.data?.identitySnapshot, profile);
   const reference = registrationId.slice(0, 8).toUpperCase();
 
   if (reg.isLoading) return <p className="py-20 text-center text-muted-foreground">Loading…</p>;
@@ -50,8 +52,8 @@ export function TicketPanel({ registrationId, userId }: { registrationId: string
         categoryLabel={reg.data.categoryLabel}
         eventDate={reg.data.eventDate}
         reference={reference}
-        runnerName={profile?.full_name ?? null}
-        bibName={profile?.bib_name ?? null}
+        runnerName={identity.full_name}
+        bibName={identity.bib_name}
         distanceKm={reg.data.categoryDistance}
       />
 
@@ -82,7 +84,7 @@ export function TicketPanel({ registrationId, userId }: { registrationId: string
           <Printer size={17} /> Save as PDF / Print
         </Button>
         <p className="text-center text-[13px] text-muted-foreground">
-          We&apos;ve also emailed this ticket to you. Save it offline — trailheads rarely have signal.
+          Save your ticket as a PDF or print it before race day. You can also find it in My Races.
         </p>
         <Button asChild variant="outline" className="h-auto rounded-pill py-4 text-[15px] font-semibold">
           <Link href="/races">Back to My Races</Link>

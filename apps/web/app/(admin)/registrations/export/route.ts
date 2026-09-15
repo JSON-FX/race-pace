@@ -1,3 +1,4 @@
+import { createClient } from "@/lib/supabase/server";
 import { parseTableParams, searchParamsToRecord, type TableParams } from "@/lib/table-params";
 import { getMyRoles, requireOrgId } from "@/lib/queries/roles";
 import { listEventRegistrations, listOrgEventOptions, getEventRegistrationEmails } from "@/lib/queries/registrations";
@@ -105,6 +106,9 @@ export async function GET(request: Request) {
   let total = 0;
   let emailById = new Map<string, string | null>();
 
+  // Capture cookies while GET still owns the request context. Deferred pulls
+  // must reuse this caller-scoped client, never create another one.
+  const db = await createClient();
   const stream = new ReadableStream<Uint8Array>({
     // A batch loop that ran entirely inside `start()` (the first version of
     // this route) enqueues every batch as fast as the DB returns it,
@@ -130,7 +134,7 @@ export async function GET(request: Request) {
           // Fetched ONCE per request, not once per batch — see
           // getEventRegistrationEmails' doc comment (@/lib/queries/
           // registrations) for the O(n²) cost this replaces.
-          emailById = await getEventRegistrationEmails(eventId);
+          emailById = await getEventRegistrationEmails(eventId, db);
           phase = "rows";
           return;
         }
@@ -147,6 +151,7 @@ export async function GET(request: Request) {
         const { rows, total: batchTotal } = await listEventRegistrations(eventId!, batchParams, {
           includeEmails: false,
           includeCount: page === 1,
+          db,
           includeAddons: false,
         });
         if (page === 1) total = batchTotal;

@@ -96,6 +96,19 @@ describe("admin list views", () => {
     const bystanderCounts = await authed(bystander.token).from("admin_event_reg_counts_v").select("*").eq("event_id", E1);
     expect(bystanderCounts.data ?? []).toHaveLength(0);
 
+    // New-runner identity must survive an absent or later-edited profile.
+    await svc.from("registrations").update({ custom_data: { full_name: "Snapshot Runner", bib_name: "SNAP" } }).eq("id", reg.data!.id);
+    await svc.from("profiles").update({ full_name: null, bib_name: null }).eq("id", runner.id);
+    const snap = await authed(admin.token).from("admin_registrations_v").select("full_name,bib_name").eq("id", reg.data!.id).single();
+    expect(snap.data).toEqual({ full_name: "Snapshot Runner", bib_name: "SNAP" });
+    const snapPay = await authed(admin.token).from("admin_payments_v").select("full_name").eq("registration_id", reg.data!.id).single();
+    expect(snapPay.data?.full_name).toBe("Snapshot Runner");
+    const roster = await authed(admin.token).rpc("checkin_roster", { p_event_id: E1 });
+    expect(roster.error).toBeNull();
+    expect(roster.data?.find((r: { registration_id: string }) => r.registration_id === reg.data!.id)).toMatchObject({ runner: "Snapshot Runner", bib: "SNAP" });
+    await svc.from("profiles").update({ full_name: "Later Name" }).eq("id", runner.id);
+    const unchanged = await authed(admin.token).from("admin_registrations_v").select("full_name").eq("id", reg.data!.id).single();
+    expect(unchanged.data?.full_name).toBe("Snapshot Runner");
     await svc.from("registrations").delete().eq("id", reg.data!.id);
     await svc.from("user_roles").delete().in("user_id", [admin.id, other.id]);
     await svc.from("profiles").delete().eq("id", runner.id);

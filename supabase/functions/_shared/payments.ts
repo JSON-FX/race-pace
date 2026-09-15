@@ -18,7 +18,7 @@ export class FakePaymentProvider implements PaymentProvider {
   constructor(private functionsUrl: string) {}
   async createCheckout(input: CheckoutInput): Promise<CheckoutResult> {
     return {
-      checkoutUrl: `${this.functionsUrl}/fake-checkout?rid=${input.registrationId}`,
+      checkoutUrl: `${this.functionsUrl}/fake-checkout?rid=${encodeURIComponent(input.registrationId)}&return=${encodeURIComponent(input.returnUrl)}`,
       providerRef: `fake_${input.registrationId}`,
     };
   }

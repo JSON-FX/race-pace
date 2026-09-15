@@ -184,3 +184,15 @@ export function fieldEditPolicy(key: string): FieldEditPolicy {
 }
 export * from "./route";
 export * from "./photo";
+
+/** Event identity survives optional profile saving and later profile edits. */
+export function registrationIdentity(
+  snapshot: Record<string, unknown> | null | undefined,
+  profile?: { full_name?: string | null; bib_name?: string | null } | null,
+): { full_name: string | null; bib_name: string | null } {
+  const text = (value: unknown) => typeof value === "string" ? value.trim() || null : null;
+  return {
+    full_name: text(snapshot?.full_name) ?? text(profile?.full_name),
+    bib_name: text(snapshot?.bib_name) ?? text(profile?.bib_name),
+  };
+}

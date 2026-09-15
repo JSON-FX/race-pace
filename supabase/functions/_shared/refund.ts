@@ -2,7 +2,7 @@ import { serviceClient } from "./supabase.ts";
 import { getPaymentProviderByName } from "./payments.ts";
 
 export type RefundResult =
-  | { ok: true; registration_id: string; already?: boolean; pending?: boolean }
+  | { ok: true; registration_id: string; already?: boolean; pending?: boolean; refund_amount?: number; total_paid?: number; retained_fees?: number }
   | { ok: false; error: string; status: number };
 
 const REFUND_REASON = "requested_by_customer";
@@ -15,12 +15,13 @@ export async function refundRegistration(
   registrationId: string,
   refundedBy: string,
   note: string | null = null,
+  options: { preview?: boolean; expectedAmount?: number } = {},
 ): Promise<RefundResult> {
   const db = serviceClient();
   const { data: reg, error: regErr } = await db
     .from("registrations").select("id,category_id,status").eq("id", registrationId).single();
   if (regErr || !reg) return { ok: false, error: "not_found", status: 404 };
-  if (reg.status === "refunded") return { ok: true, registration_id: reg.id, already: true };
+  if (reg.status === "refunded" || reg.status === "partially_refunded") return { ok: true, registration_id: reg.id, already: true };
   if (reg.status !== "paid") return { ok: false, error: "not_refundable", status: 409 };
 
   const { data: pay } = await db
@@ -59,10 +60,14 @@ export async function refundRegistration(
   // so re-striking it on the organizer's retention would charge twice.
   const retainedNet = retained;
 
-  // A refund already in flight (parked pending by a prior call) — do not issue a second
-  // provider refund; the refund.updated webhook will finalize it.
+  const amounts = { refund_amount: refundAmount, total_paid: pay.amount, retained_fees: pay.amount - refundAmount };
+  // Preview uses the same authorized read and policy as execution, without contacting the provider.
   const parked = (pay.raw as { refund?: { status?: string } } | null)?.refund;
   if (parked?.status === "pending") return { ok: true, registration_id: reg.id, pending: true, already: true };
+  if (options.preview) return { ok: true, registration_id: reg.id, ...amounts };
+  if (options.expectedAmount !== undefined && options.expectedAmount !== refundAmount) {
+    return { ok: false, error: "refund_amount_changed", status: 409 };
+  }
 
   // 1) Provider refund — network, BEFORE any DB mutation.
   const provider = getPaymentProviderByName(pay.provider);
@@ -97,7 +102,7 @@ export async function refundRegistration(
     };
     const { error: upErr } = await db.from("payments").update({ raw }).eq("registration_id", reg.id);
     if (upErr) return { ok: false, error: "refund_pending_write_failed", status: 500 };
-    return { ok: true, registration_id: reg.id, pending: true };
+    return { ok: true, registration_id: reg.id, pending: true, ...amounts };
   }
 
   // 3) Succeeded — finalize atomically.
@@ -110,5 +115,5 @@ export async function refundRegistration(
   if (result === "already") return { ok: true, registration_id: reg.id, already: true };
   if (result === "not_paid") return { ok: false, error: "not_refundable", status: 409 };
   if (result === "not_found") return { ok: false, error: "not_found", status: 404 };
-  return { ok: true, registration_id: reg.id };
+  return { ok: true, registration_id: reg.id, ...amounts };
 }

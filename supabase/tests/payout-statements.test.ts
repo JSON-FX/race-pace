@@ -149,7 +149,7 @@ describe("payout statements", () => {
     const { s, as, org, ev, users, regs } = await fixture("late", 2);
     try {
       const first = await openStatement(as, ev.id);
-      await as.rpc("payout_mark_paid", { p_statement_id: first, p_reference: "REF-1", p_note: null });
+      await as.rpc("payout_mark_paid", { p_statement_id: first, p_expected_revision: 0, p_reference: "REF-1", p_note: null });
 
       await s.from("payments").update({ status: "refunded" }).eq("registration_id", regs[0]);
 
@@ -160,7 +160,7 @@ describe("payout statements", () => {
       // so it tracks the processor line automatically.
       expect(Number(st2.refunds_cents)).toBe(177000);
       expect(Number(st2.net_owed_cents)).toBe(-177000); // organizer owes it back
-      await as.rpc("payout_mark_paid", { p_statement_id: second, p_reference: "REC-1", p_note: null });
+      await as.rpc("payout_mark_paid", { p_statement_id: second, p_expected_revision: 0, p_reference: "REC-1", p_note: null });
 
       // A THIRD statement must not re-subtract the same refund.
       const third = await openStatement(as, ev.id);
@@ -187,8 +187,8 @@ describe("payout statements", () => {
     const { s, as, org, ev, users } = await fixture("idem", 1);
     try {
       const id = await openStatement(as, ev.id);
-      expect((await as.rpc("payout_mark_paid", { p_statement_id: id, p_reference: "A", p_note: null })).data).toBe("paid");
-      expect((await as.rpc("payout_mark_paid", { p_statement_id: id, p_reference: "B", p_note: null })).data).toBe("already");
+      expect((await as.rpc("payout_mark_paid", { p_statement_id: id, p_expected_revision: 0, p_reference: "A", p_note: null })).data).toBe("paid");
+      expect((await as.rpc("payout_mark_paid", { p_statement_id: id, p_expected_revision: 0, p_reference: "B", p_note: null })).data).toBe("already");
     } finally {
       await cleanup(s, org.id, users);
     }

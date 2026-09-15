@@ -36,7 +36,7 @@ const MONEY_FALLBACK = { eyebrow: "Amount", band: "bg-muted", ink: "text-foregro
  *  stated reason is the anti-pattern this replaces — the old modal greyed the
  *  button out and left the organizer to infer why. */
 const REFUND_REASON: Record<string, string> = {
-  paid: "Reopens the slot. Can't be undone.",
+  paid: "The slot reopens after the refund completes.",
   pending: "Only a completed payment can be refunded.",
   refunded: "Already refunded — the slot went back on sale.",
   failed: "This payment never completed, so there's nothing to return.",
@@ -241,7 +241,7 @@ export function RegistrationDetail({ row, onClose, onRefunded }: {
             disabled={!canRefund}
             onClick={() => setRefunding(true)}
           >
-            Refund {peso(row.total_amount)}
+            Review refund
           </Button>
         </div>
 

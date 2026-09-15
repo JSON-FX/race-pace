@@ -57,7 +57,7 @@ export function renderTicketEmail(input: TicketEmailInput): { subject: string; h
         </td></tr>
         <tr><td align="center" style="padding:8px 28px 32px;">
           <a href="${esc(input.ticketUrl)}" style="display:inline-block;background:#159A55;color:#ffffff;text-decoration:none;font-size:16px;font-weight:600;padding:14px 32px;border-radius:9999px;">View your ticket</a>
-          <p style="margin:20px 0 0;font-size:13px;line-height:1.5;color:#7a7a7a;">Save this email offline — trailheads rarely have signal.</p>
+          <p style="margin:20px 0 0;font-size:13px;line-height:1.5;color:#7a7a7a;">Open your ticket and save it as a PDF before race day.</p>
         </td></tr>
       </table>
     </td></tr>
@@ -67,9 +67,34 @@ export function renderTicketEmail(input: TicketEmailInput): { subject: string; h
   return { subject, html };
 }
 
-/** Resend's HTTP API — no SMTP client in Deno. Returns a result rather than
+/** Explicit sandbox transport for local QA; Resend remains the default. Returns a result rather than
  *  throwing: a failed email must never fail a confirmed payment. */
 export async function sendEmail(to: string, subject: string, html: string): Promise<{ ok: boolean; error?: string }> {
+  const provider = Deno.env.get("EMAIL_PROVIDER") ?? "resend";
+  if (provider === "mailtrap") {
+    const user = Deno.env.get("MAILTRAP_SMTP_USER");
+    const pass = Deno.env.get("MAILTRAP_SMTP_PASSWORD");
+    if (!user || !pass) return { ok: false, error: "mailtrap_not_configured" };
+    try {
+      const { default: nodemailer } = await import("npm:nodemailer@10.0.10");
+      const transport = nodemailer.createTransport({
+        host: "sandbox.smtp.mailtrap.io", port: 2525, secure: false,
+        requireTLS: true, auth: { user, pass },
+        connectionTimeout: 10000, greetingTimeout: 10000, socketTimeout: 15000,
+        disableFileAccess: true, disableUrlAccess: true,
+      });
+      try {
+        const result = await transport.sendMail({
+          from: Deno.env.get("EMAIL_FROM") ?? "Race Pace QA <qa@racepace.test>",
+          to, subject, html,
+        });
+        return result.accepted.length > 0 ? { ok: true } : { ok: false, error: "mailtrap_rejected" };
+      } finally { transport.close(); }
+    } catch {
+      return { ok: false, error: "mailtrap_send_failed" };
+    }
+  }
+  if (provider !== "resend") return { ok: false, error: "email_provider_invalid" };
   const apiKey = Deno.env.get("RESEND_API_KEY");
   if (!apiKey) return { ok: false, error: "resend_not_configured" };
 

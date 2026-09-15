@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { peso } from "@/lib/format";
 import type { OpenableEvent } from "@/lib/queries/payouts";
-import { openPayoutStatementAction, markPayoutPaidAction } from "@/lib/actions/payouts";
+import { openPayoutStatementAction, markPayoutPaidAction, refreshPayoutStatementAction } from "@/lib/actions/payouts";
 
 /**
  * Cut a new statement for an event.
@@ -130,7 +130,7 @@ export function OpenStatementControl({ events }: { events: OpenableEvent[] }) {
  * never rendered.
  */
 export function SettleStatementButton({ statement }: {
-  statement: { id: string; event_name: string; org_name: string; net_owed_cents: number };
+  statement: { revision?: number; id: string; event_name: string; org_name: string; net_owed_cents: number };
 }) {
   const [open, setOpen] = useState(false);
   const [reference, setReference] = useState("");
@@ -145,7 +145,7 @@ export function SettleStatementButton({ statement }: {
   async function submit() {
     setBusy(true);
     setError(null);
-    const res = await markPayoutPaidAction(statement.id, reference, note);
+    const res = await markPayoutPaidAction(statement.id, reference, note, statement.revision ?? -1);
     setBusy(false);
     if (!res.ok) {
       setError(res.error ?? "Couldn't record the settlement.");
@@ -164,7 +164,7 @@ export function SettleStatementButton({ statement }: {
         size="sm"
         variant={recovery ? "outline" : "default"}
         className="rounded-pill"
-        onClick={() => setOpen(true)}
+        onClick={() => { setError(null); setReference(""); setNote(""); setOpen(true); }}
       >
         {verb}
       </Button>
@@ -222,4 +222,17 @@ export function SettleStatementButton({ statement }: {
       </Dialog>
     </>
   );
+}
+
+export function RefreshStatementButton({ id }: { id: string }) {
+  const [busy, setBusy] = useState(false);
+  return <Button variant="outline" size="sm" disabled={busy} onClick={async () => {
+    setBusy(true);
+    try {
+      const result = await refreshPayoutStatementAction(id);
+      if (result.ok) toast.success("Statement refreshed. Review the new amount before recording a transfer.");
+      else toast.error(result.error);
+    } catch { toast.error("Could not refresh the statement."); }
+    finally { setBusy(false); }
+  }}>{busy ? "Refreshing…" : "Refresh statement"}</Button>;
 }

@@ -524,10 +524,12 @@ describe("fake-checkout sandbox page", () => {
       }),
     }).then((r) => r.json());
 
-    const ret = "racepace://pay-callback";
-    const res = await fetch(
-      `${FN}/fake-checkout?rid=${checkout.registration_id}&return=${encodeURIComponent(ret)}&action=pay`,
-    );
+    // Follow the provider's actual handoff: constructing this URL in the test
+    // hid the missing return parameter that broke the browser checkout.
+    const checkoutUrl = new URL(checkout.checkout_url);
+    expect(checkoutUrl.searchParams.get("return")).toBeTruthy();
+    checkoutUrl.searchParams.set("action", "pay");
+    const res = await fetch(checkoutUrl);
     expect(res.status).toBe(200);
     const html = await res.text();
     expect(html).toContain("Payment complete");

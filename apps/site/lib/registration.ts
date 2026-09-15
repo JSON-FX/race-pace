@@ -151,6 +151,7 @@ export type RegistrationRow = {
   /** Null means "no cutoff" — see lib/kit.ts. */
   kitEditClosesAt: string | null;
   shirtSize: string | null;
+  identitySnapshot?: Record<string, unknown> | null;
   orgName: string | null; eventHeroUrl: string | null; basePrice: number | null; inclusions: string[] | null;
   /** Which side of the fees this org's runners are on. `absorb`: the runner pays
    *  the sticker price and the processing cost comes out of the organizer's
@@ -227,6 +228,7 @@ export function mapReg(r: any): RegistrationRow {
     eventStatus: r.events?.status ?? null,
     eventRegistrationClosesAt: r.events?.registration_closes_at ?? null,
     kitEditClosesAt: r.events?.kit_edit_closes_at ?? null,
+    identitySnapshot: r.custom_data ?? null,
     shirtSize: (r.custom_data as Record<string, unknown> | null)?.shirt_size as string ?? null,
     eventDate: r.events?.event_date ?? null,
     originalDate: r.events?.original_date ?? null,

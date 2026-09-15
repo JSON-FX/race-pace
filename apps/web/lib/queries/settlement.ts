@@ -33,7 +33,7 @@ export type EventSettlement = {
 
 const SELECT =
   "registration_id,amount,platform_fee,processor_fee_cents,processor_fee_source," +
-  "net_to_org,status,refunded_amount,method,created_at," +
+  "net_to_org,status,refunded_amount,method,created_at,paid_at,raw," +
   // `registrations` embeds `categories` through registrations.category_id, but
   // there is NO foreign key from registrations to profiles — user_id points at
   // auth.users, and profiles.id points at auth.users separately. PostgREST
@@ -41,7 +41,7 @@ const SELECT =
   // profiles here answers PGRST200 ("Could not find a relationship between
   // 'registrations' and 'profiles'") rather than returning names. Hence the
   // user_id below and the separate profiles read in getEventSettlement.
-  "registrations!inner(event_id,user_id,categories(label))";
+  "registrations!inner(event_id,user_id,custom_data,categories(label))";
 
 /**
  * The payment statuses that are settlement, in the sense the organizer means.

@@ -1,3 +1,5 @@
+const { exportDb, createClientMock } = vi.hoisted(() => ({ exportDb: {}, createClientMock: vi.fn() }));
+vi.mock("@/lib/supabase/server", () => ({ createClient: createClientMock }));
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { TableParams } from "@/lib/table-params";
 import type { MyRoles } from "@/lib/queries/roles";
@@ -71,6 +73,7 @@ async function readBody(res: Response): Promise<string> {
 
 describe("GET /registrations/export", () => {
   beforeEach(() => {
+    createClientMock.mockReset().mockResolvedValue(exportDb);
     getMyRolesMock.mockReset();
     listEventRegistrationsMock.mockReset();
     listOrgEventOptionsMock.mockReset();
@@ -127,7 +130,7 @@ describe("GET /registrations/export", () => {
     await readBody(res); // drains the stream, which is what actually drives pull() through both batches
 
     expect(getEventRegistrationEmailsMock).toHaveBeenCalledTimes(1);
-    expect(getEventRegistrationEmailsMock).toHaveBeenCalledWith("event-1");
+    expect(getEventRegistrationEmailsMock).toHaveBeenCalledWith("event-1", exportDb);
     // Both batch calls actually happened (not a vacuously-true empty loop) —
     // and the query builder itself must be told NOT to also do its own
     // per-batch email lookup.
@@ -323,4 +326,24 @@ describe("GET /registrations/export", () => {
     expect(getEventRegistrationEmailsMock).not.toHaveBeenCalled();
     expect(body.trim().split("\r\n")).toHaveLength(1);
   });
+});
+
+
+it("captures the caller client before deferred export reads", async () => {
+  let requestOpen = true;
+  createClientMock.mockReset().mockImplementation(async () => {
+    if (!requestOpen) throw new Error("cookies outside request scope");
+    return exportDb;
+  });
+  getMyRolesMock.mockResolvedValue(roles());
+  listOrgEventOptionsMock.mockResolvedValue([{ id: "event-1", name: "Event", count: 1 }]);
+  getEventRegistrationEmailsMock.mockResolvedValue(new Map());
+  listEventRegistrationsMock.mockClear();
+  listEventRegistrationsMock.mockResolvedValueOnce({ rows: Array.from({ length: 1000 }, () => row()), total: 1001 }).mockResolvedValueOnce({ rows: [row()], total: 1001 });
+  const response = await GET(new Request("http://localhost/registrations/export"));
+  requestOpen = false;
+  await response.text();
+  expect(createClientMock).toHaveBeenCalledTimes(1);
+  expect(listEventRegistrationsMock).toHaveBeenCalledTimes(2);
+  for (const call of listEventRegistrationsMock.mock.calls) expect(call[2].db).toBe(exportDb);
 });

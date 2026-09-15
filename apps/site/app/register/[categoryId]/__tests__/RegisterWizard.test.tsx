@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { CategoryRow, AddonRow, FormFieldRow, EventRow } from "@/lib/events";
+import { upsertProfile } from "@/lib/profile";
 import { CheckoutError } from "@/lib/registration";
 import { RegisterWizard } from "../RegisterWizard";
 
@@ -48,17 +49,20 @@ function renderWizard() {
   );
 }
 
-async function fillAndSubmit(user: ReturnType<typeof userEvent.setup>) {
+async function fillAndSubmit(user: ReturnType<typeof userEvent.setup>, saveProfile = false) {
+  await user.type(screen.getByLabelText(/Full name/), "QA Runner");
   await user.type(screen.getByLabelText(/Bib name/), "Runner One");
   fireEvent.change(screen.getByLabelText(/Date of birth/), { target: { value: "1990-01-01" } });
   await user.type(screen.getByLabelText(/Emergency contact/), "Mom · 0917 000 0000");
   await user.click(screen.getByRole("button", { name: "Continue" }));
+  if (saveProfile) await user.click(screen.getByLabelText("Save these details to my profile"));
   await user.click(await screen.findByRole("button", { name: "Continue" }));
   await user.click(screen.getByRole("checkbox"));
   await user.click(await screen.findByRole("button", { name: /^Register/ }));
 }
 
 beforeEach(() => {
+  vi.mocked(upsertProfile).mockClear();
   mockReplace.mockReset();
   startCheckoutMock.mockReset();
   window.sessionStorage.clear();
@@ -88,4 +92,29 @@ describe("RegisterWizard — already_registered 409", () => {
     ).toBeInTheDocument();
     expect(mockReplace).not.toHaveBeenCalled();
   });
+});
+
+
+describe("registration identity snapshot", () => {
+  it("submits identity without saving the global profile", async () => {
+    startCheckoutMock.mockResolvedValue({ registration_id: "new-reg" });
+    renderWizard();
+    await fillAndSubmit(userEvent.setup());
+    expect(startCheckoutMock).toHaveBeenCalledWith(expect.objectContaining({
+      custom_data: expect.objectContaining({ full_name: "QA Runner", bib_name: "Runner One" }),
+    }));
+    expect(upsertProfile).not.toHaveBeenCalled();
+    expect(mockReplace).toHaveBeenCalledWith("/pay/new-reg");
+  });
+});
+
+
+it.each([{}, { error: "Profile save failed" }])("keeps registration identity when optional profile save returns %j", async (result) => {
+  vi.mocked(upsertProfile).mockResolvedValueOnce(result);
+  startCheckoutMock.mockResolvedValue({ registration_id: "new-reg" });
+  renderWizard();
+  await fillAndSubmit(userEvent.setup(), true);
+  expect(upsertProfile).toHaveBeenCalledWith(expect.objectContaining({ full_name: "QA Runner", bib_name: "Runner One" }));
+  expect(startCheckoutMock).toHaveBeenCalledWith(expect.objectContaining({ custom_data: expect.objectContaining({ full_name: "QA Runner" }) }));
+  expect(mockReplace).toHaveBeenCalledWith("/pay/new-reg");
 });

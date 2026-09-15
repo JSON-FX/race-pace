@@ -1,8 +1,8 @@
 import type { AddonRow } from "@/lib/events";
 import type { Profile } from "@/lib/profile";
 
-/** Kit fields the wizard can write back to the Race Passport. */
-const SAVE_BACK_KEYS = ["gender", "shirt_size", "blood_type"] as const;
+/** Profile fields the wizard can optionally save for future entries. */
+const SAVE_BACK_KEYS = ["full_name", "bib_name", "date_of_birth", "emergency_contact", "gender", "shirt_size", "blood_type"] as const;
 
 export const WAIVER_TEXT =
   "I understand that trail and ultra running is an inherently dangerous activity, held over remote and technical terrain, in variable weather, and often far from immediate medical care. I confirm that I am medically fit to take part and have trained appropriately for this distance.\n\n" +

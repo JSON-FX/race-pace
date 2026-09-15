@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/table";
 import { peso, fmtDate, initials } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { OpenStatementControl, SettleStatementButton } from "./statement-actions";
+import { OpenStatementControl, SettleStatementButton, RefreshStatementButton } from "./statement-actions";
 
 /** U+2212 MINUS SIGN, not a hyphen. It is the same width as a digit, so a
  *  column of `tabular-nums` figures stays aligned whether or not a row's
@@ -224,7 +224,7 @@ export default async function PayoutsPage() {
 
                     <TableCell className="py-2.5 text-right">
                       {state === "ready" || state === "owed_back" ? (
-                        <SettleStatementButton statement={row} />
+                        <div className="flex gap-2 justify-end"><RefreshStatementButton id={row.id} /><SettleStatementButton statement={row} /></div>
                       ) : state === "held" ? (
                         // Disabled rather than absent, with the reason already
                         // spelled out in the Status cell beside it. `title`

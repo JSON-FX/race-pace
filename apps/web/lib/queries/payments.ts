@@ -24,6 +24,9 @@ export type PaymentRow = {
   avatar_url: string | null;
   amount: number;
   platform_fee: number;
+  processor_fee_cents: number;
+  processor_fee_source: string;
+  paid_at: string | null;
   net_to_org: number;
   method: string | null;
   status: PaymentStatus;
@@ -31,12 +34,13 @@ export type PaymentRow = {
 };
 
 const SELECT =
-  "registration_id,event_id,event_name,user_id,full_name,avatar_url,amount,platform_fee,net_to_org,method,status,created_at";
+  "registration_id,event_id,event_name,user_id,full_name,avatar_url,amount,platform_fee,processor_fee_cents,processor_fee_source,paid_at,net_to_org,method,status,created_at";
 
 export async function listOrgPayments(
   orgId: string,
   params: TableParams,
   opts: {
+    db?: Awaited<ReturnType<typeof createClient>>;
     /** Default true. See the identical option on `listEventRegistrations`
      *  (@/lib/queries/registrations) — the export route sets this false for
      *  every batch after the first, since `count: "exact"` re-runs a real
@@ -46,7 +50,7 @@ export async function listOrgPayments(
   } = {},
 ): Promise<{ rows: PaymentRow[]; total: number }> {
   const { includeCount = true } = opts;
-  const supabase = await createClient();
+  const supabase = opts.db ?? await createClient();
   const from = (params.page - 1) * params.per;
 
   let req = supabase

@@ -1,3 +1,4 @@
+import { registrationIdentity } from "@race-pace/shared";
 import type { SettlementRow } from "@/lib/settlement-csv";
 
 /**
@@ -79,8 +80,11 @@ export type SettlementPayment = {
   refunded_amount: number;
   method: string | null;
   created_at: string;
+  paid_at?: string | null;
+  raw?: { refunded_at?: unknown } | null;
   registrations: {
     user_id: string | null;
+    custom_data?: Record<string, unknown> | null;
     categories: { label: string } | null;
   } | null;
 };
@@ -135,17 +139,14 @@ export function toSettlementRow(
   const who = p.registrations?.user_id ? names.get(p.registrations.user_id) : undefined;
   // `.trim() ||` rather than `??`: an empty full_name is present-but-useless and
   // would otherwise render a blank cell in the middle of a money table.
+  const identity = registrationIdentity(p.registrations?.custom_data, who);
   const runner_name =
-    (who?.full_name ?? "").trim() || (who?.bib_name ?? "").trim() || "Unknown runner";
+    (identity.full_name ?? "").trim() || (identity.bib_name ?? "").trim() || "Unknown runner";
   return {
     registration_id: p.registration_id,
     runner_name,
     category: p.registrations?.categories?.label ?? "—",
-    // `payments` has no paid_at column; created_at is the row's creation, which
-    // for a paid row is when its checkout was opened. Close enough to date-stamp
-    // the entry, and only ever shown for rows that really did pay — the read
-    // model filters status before this mapping ever sees them.
-    paid_at: p.created_at,
+    paid_at: p.paid_at ?? null,
     method: p.method,
     gross_paid: p.amount,
     rp_commission: p.platform_fee,
@@ -153,9 +154,8 @@ export function toSettlementRow(
     net_to_org: p.net_to_org,
     status: p.status,
     refunded_amount: p.refunded_amount,
-    // `payments` has no refunded_at column either — the refund RPCs stamp it
-    // into `raw` (20260807090400). Left null rather than dug out of jsonb.
-    refunded_at: null,
+    refunded_at: typeof p.raw?.refunded_at === "string" && Number.isFinite(Date.parse(p.raw.refunded_at))
+      ? new Date(p.raw.refunded_at).toISOString() : null,
   };
 }
 

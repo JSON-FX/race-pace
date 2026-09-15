@@ -78,8 +78,8 @@ const SELECT =
  *  many rows the caller ultimately needs. Degrades to an empty map (not a
  *  thrown error) on failure — a broken secondary lookup must not take down
  *  the table's real content (names, amounts, status). */
-export async function getEventRegistrationEmails(eventId: string): Promise<Map<string, string | null>> {
-  const supabase = await createClient();
+export async function getEventRegistrationEmails(eventId: string, db?: Awaited<ReturnType<typeof createClient>>): Promise<Map<string, string | null>> {
+  const supabase = db ?? await createClient();
   const { data: emails, error } = await supabase.rpc("admin_registration_emails", { p_event_id: eventId });
   if (error) {
     console.error("admin_registration_emails failed", error);
@@ -128,6 +128,7 @@ export async function listEventRegistrations(
   eventId: string,
   params: TableParams,
   opts: {
+    db?: Awaited<ReturnType<typeof createClient>>;
     /** Default true (the page's behaviour). The export route passes false
      *  and merges emails itself from a SINGLE `getEventRegistrationEmails`
      *  call made once per request — see that route's comment for why: this
@@ -147,7 +148,7 @@ export async function listEventRegistrations(
   } = {},
 ): Promise<{ rows: RegistrationRow[]; total: number }> {
   const { includeEmails = true, includeCount = true, includeAddons = true } = opts;
-  const supabase = await createClient();
+  const supabase = opts.db ?? await createClient();
   const from = (params.page - 1) * params.per;
 
   let req = supabase

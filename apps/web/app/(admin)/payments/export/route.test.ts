@@ -1,3 +1,5 @@
+const { exportDb, createClientMock } = vi.hoisted(() => ({ exportDb: {}, createClientMock: vi.fn() }));
+vi.mock("@/lib/supabase/server", () => ({ createClient: createClientMock }));
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { TableParams } from "@/lib/table-params";
 import type { MyRoles } from "@/lib/queries/roles";
@@ -33,7 +35,7 @@ function roles(overrides: Partial<MyRoles> = {}): MyRoles {
 
 function row(overrides: Partial<PaymentRow> = {}): PaymentRow {
   return {
-    registration_id: "reg-1",
+    processor_fee_cents: 0, processor_fee_source: "none", paid_at: null, registration_id: "reg-1",
     event_id: "event-1",
     event_name: "Dahilayan Sky Ultra",
     user_id: "u-1",
@@ -55,6 +57,7 @@ async function readBody(res: Response): Promise<string> {
 
 describe("GET /payments/export", () => {
   beforeEach(() => {
+    createClientMock.mockReset().mockResolvedValue(exportDb);
     getMyRolesMock.mockReset();
     listOrgPaymentsMock.mockReset();
     listOrgPaymentsMock.mockResolvedValue({ rows: [row()], total: 1 });
@@ -86,16 +89,17 @@ describe("GET /payments/export", () => {
 
   it("emits a header row followed by the data row, money as plain decimals", async () => {
     getMyRolesMock.mockResolvedValue(roles());
+    listOrgPaymentsMock.mockResolvedValue({ rows: [row({ processor_fee_cents: 1500, processor_fee_source: "predicted", net_to_org: 144000, paid_at: "2026-08-04T12:00:00Z" })], total: 1 });
 
     const res = await GET(new Request("http://localhost/payments/export"));
     const body = await readBody(res);
     const lines = body.split("\r\n").filter(Boolean);
 
     expect(lines[0]).toBe(
-      "Registration ID,Event,Runner,Amount (PHP),Platform Fee (PHP),Net to Org (PHP),Method,Status,Date (UTC)",
+      "Registration ID,Event,Runner,Amount (PHP),Platform Fee (PHP),Processing Fee (PHP),Processing Fee Source,Net to Org (PHP),Method,Status,Checkout Created At (UTC),Payment Confirmed At (UTC)",
     );
     expect(lines[1]).toBe(
-      "reg-1,Dahilayan Sky Ultra,Ana Cruz,1500.00,45.00,1455.00,gcash,paid,2026-08-04T11:35:15.624Z",
+      "reg-1,Dahilayan Sky Ultra,Ana Cruz,1500.00,45.00,15.00,predicted,1440.00,gcash,paid,2026-08-04T11:35:15.624Z,2026-08-04T12:00:00.000Z",
     );
   });
 
@@ -224,4 +228,22 @@ describe("GET /payments/export", () => {
     expect(calledParams.filters.method).toBe("gcash");
     expect(calledParams.q).toBe("ana");
   });
+});
+
+
+it("captures the caller client before deferred export reads", async () => {
+  let requestOpen = true;
+  createClientMock.mockReset().mockImplementation(async () => {
+    if (!requestOpen) throw new Error("cookies outside request scope");
+    return exportDb;
+  });
+  getMyRolesMock.mockResolvedValue(roles());
+  listOrgPaymentsMock.mockClear();
+  listOrgPaymentsMock.mockResolvedValueOnce({ rows: Array.from({ length: 1000 }, () => row()), total: 1001 }).mockResolvedValueOnce({ rows: [row()], total: 1001 });
+  const response = await GET(new Request("http://localhost/payments/export"));
+  requestOpen = false;
+  await response.text();
+  expect(createClientMock).toHaveBeenCalledTimes(1);
+  expect(listOrgPaymentsMock).toHaveBeenCalledTimes(2);
+  for (const call of listOrgPaymentsMock.mock.calls) expect(call[2].db).toBe(exportDb);
 });
