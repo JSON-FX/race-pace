@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen } from "@testing-library/react";
 import type { CategoryRow, EventRow } from "@/lib/events";
 
 // Server component: mock its Next.js primitives + data layer directly rather
@@ -12,8 +13,10 @@ const notFound = vi.fn(() => {
 vi.mock("next/navigation", () => ({ redirect, notFound }));
 
 const getUser = vi.fn();
+const passportResult = vi.fn();
+const passportQuery = { select: () => passportQuery, eq: () => passportQuery, maybeSingle: () => passportResult() };
 vi.mock("@/lib/supabase/server", () => ({
-  createClient: vi.fn().mockResolvedValue({ auth: { getUser } }),
+  createClient: vi.fn().mockResolvedValue({ auth: { getUser }, from: () => passportQuery }),
 }));
 
 const fetchCategory = vi.fn();
@@ -46,6 +49,7 @@ async function loadPage() {
 }
 
 beforeEach(() => {
+  passportResult.mockResolvedValue({ data: { first_name: "QA", last_name: "Runner", date_of_birth: "1950-01-01", gender: "Female", contact_number: "09171234567", emergency_contact_name: "QA Contact", emergency_contact_number: "09171234567", emergency_contact_relationship: "Child" }, error: null });
   vi.resetModules();
   redirect.mockClear();
   notFound.mockClear();
@@ -58,6 +62,14 @@ beforeEach(() => {
 });
 
 describe("RegisterPage", () => {
+  it("shows the Passport completion gate instead of the wizard for missing details", async () => {
+    fetchEvent.mockResolvedValue({ id: "e1", status: "open" } as EventRow);
+    passportResult.mockResolvedValue({ data: null, error: null });
+    const Page = await loadPage();
+    render(await Page({ params: Promise.resolve({ categoryId: "c1" }) }));
+    expect(screen.getByRole("heading", { name: "Complete your Race Passport" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open Race Passport" })).toHaveAttribute("href", "/profile");
+  });
   it("redirects away from a cancelled event instead of rendering the wizard", async () => {
     fetchEvent.mockResolvedValue({ id: "e1", status: "cancelled" } as EventRow);
     const RegisterPage = await loadPage();

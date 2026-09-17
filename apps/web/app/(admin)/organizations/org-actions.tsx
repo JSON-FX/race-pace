@@ -23,6 +23,7 @@ const MESSAGES: Record<string, string> = {
   name_too_long: "That name is too long.",
   not_found: "That organization no longer exists.",
   forbidden: "Only a super admin can do that.",
+  network_error: "Couldn't reach the organization service. Check your connection and try again.",
   server_error: "Something went wrong. Please try again.",
 };
 
@@ -54,9 +55,14 @@ async function callOrgProvision(body: Record<string, unknown>): Promise<{ data?:
   if (error || data?.error) {
     let code = data?.error as string | undefined;
     if (!code && error && "context" in error) {
-      code = await (error as { context?: Response }).context?.clone().json()
-        .then((b: { error?: string }) => b?.error).catch(() => undefined);
+      const context = (error as { context?: { clone?: () => { json?: () => Promise<{ error?: string }> }; json?: () => Promise<{ error?: string }> } }).context;
+      const readable = typeof context?.clone === "function" ? context.clone() : context;
+      if (typeof readable?.json === "function") {
+        code = await readable.json()
+          .then((b) => b?.error).catch(() => undefined);
+      }
     }
+    if (!code && error?.name === "FunctionsFetchError") code = "network_error";
     return { code: code ?? "server_error" };
   }
   return { data };

@@ -115,9 +115,9 @@ describe("GET /registrations/export", () => {
     const lines = body.split("\r\n").filter(Boolean);
 
     expect(lines[0]).toBe(
-      "Registration ID,Runner,Email,Category,Bib,Registered At (UTC),Base Amount (PHP),Payment Status,Payment Method",
+      "Registration ID,Runner,Email,Category,Bib,Registered At (UTC),Base Amount (PHP),Payment Status,Payment Method,Captured Gross (PHP),Refunded (PHP),Payment ID,Booking Order ID",
     );
-    expect(lines[1]).toBe("reg-1,Ana Cruz,ana@example.com,21K,A1,2026-08-04T11:35:15.624Z,1500.00,paid,card");
+    expect(lines[1]).toBe("reg-1,Ana Cruz,ana@example.com,21K,A1,2026-08-04T11:35:15.624Z,1500.00,paid,card,,,,");
   });
 
   it("fetches emails ONCE per request, not once per batch (the O(n²) fix)", async () => {
@@ -181,7 +181,7 @@ describe("GET /registrations/export", () => {
     // Split naively on comma would produce 10 fields instead of 9 if the
     // name weren't quoted — assert the quoted form is present verbatim.
     expect(dataLine).toContain('"Dela Cruz, Ana"');
-    expect(dataLine.split(",")).toHaveLength(10); // the quoted field's internal comma still splits naively; the quoting is what a real CSV parser relies on
+    expect(dataLine.split(",")).toHaveLength(14); // the quoted field's internal comma still splits naively; the quoting is what a real CSV parser relies on
   });
 
   it("escapes a double-quote and a newline inside a field", async () => {
@@ -346,4 +346,27 @@ it("captures the caller client before deferred export reads", async () => {
   expect(createClientMock).toHaveBeenCalledTimes(1);
   expect(listEventRegistrationsMock).toHaveBeenCalledTimes(2);
   for (const call of listEventRegistrationsMock.mock.calls) expect(call[2].db).toBe(exportDb);
+});
+
+it("exports entry base separately from captured gross and refunds", async () => {
+ createClientMock.mockReset().mockResolvedValue(exportDb);
+ listOrgEventOptionsMock.mockResolvedValue([{id:"event-1",name:"QA",count:1}]);
+ getEventRegistrationEmailsMock.mockResolvedValue(new Map());
+ getMyRolesMock.mockResolvedValue(roles());
+ listEventRegistrationsMock.mockResolvedValue({rows:[{...row(),total_amount:100000,payment_amount:106599,refunded_amount:0,payment_status:"paid"}],total:1});
+ const body=await readBody(await GET(new Request("http://localhost/registrations/export")));
+ expect(body).toContain("1000.00");
+ expect(body).toContain("1065.99,0.00");
+});
+
+it("exports each group participant allocation with a shared payment and order reference", async () => {
+  getMyRolesMock.mockResolvedValue(roles());
+  listEventRegistrationsMock.mockResolvedValue({ rows: [
+    row({ id: "r1", booking_order_id: "order-1", payment_id: "capture-1", payment_amount: 10000, refunded_amount: 9000, payment_status: "partially_refunded" }),
+    row({ id: "r2", booking_order_id: "order-1", payment_id: "capture-1", payment_amount: 20000, refunded_amount: 0 }),
+  ], total: 2 });
+  const lines = (await (await GET(new Request("http://localhost/registrations/export"))).text()).trim().split("\r\n");
+  expect(lines).toHaveLength(3);
+  expect(lines[1].split(",").slice(9)).toEqual(["100.00", "90.00", "capture-1", "order-1"]);
+  expect(lines[2].split(",").slice(9)).toEqual(["200.00", "0.00", "capture-1", "order-1"]);
 });

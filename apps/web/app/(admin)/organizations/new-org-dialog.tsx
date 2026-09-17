@@ -34,6 +34,7 @@ const MESSAGES: Record<string, string> = {
   slug_taken: "That slug was taken while you were typing. Choose another.",
   invite_failed: "The organization wasn't created — the invite couldn't be sent.",
   role_failed: "The organization wasn't created — the admin role couldn't be assigned.",
+  network_error: "Couldn't reach the organization service. Check your connection and try again.",
   server_error: "Something went wrong. Please try again.",
 };
 
@@ -136,10 +137,15 @@ export function NewOrgDialog() {
     if (err || data?.error) {
       let code = data?.error as string | undefined;
       if (!code && err && "context" in err) {
-        code = await (err as { context?: Response }).context?.clone().json()
-          .then((b: { error?: string }) => b?.error)
-          .catch(() => undefined);
+        const context = (err as { context?: { clone?: () => { json?: () => Promise<{ error?: string }> }; json?: () => Promise<{ error?: string }> } }).context;
+        const readable = typeof context?.clone === "function" ? context.clone() : context;
+        if (typeof readable?.json === "function") {
+          code = await readable.json()
+            .then((b) => b?.error)
+            .catch(() => undefined);
+        }
       }
+      if (!code && err?.name === "FunctionsFetchError") code = "network_error";
       setError(MESSAGES[code ?? ""] ?? MESSAGES.server_error);
       return;
     }
@@ -178,7 +184,7 @@ export function NewOrgDialog() {
         </Button>
       </DialogTrigger>
 
-      <DialogContent className="max-h-[85vh] overflow-y-auto rounded-xl sm:max-w-[460px]">
+      <DialogContent className="max-h-[85vh] overflow-x-hidden overflow-y-auto rounded-xl sm:max-w-[460px]">
         {inviteLink !== null || createdName ? (
           <>
             <DialogHeader>
@@ -192,7 +198,7 @@ export function NewOrgDialog() {
 
             {inviteLink ? (
               <div className="flex items-center gap-2 rounded-xl border bg-muted/40 p-2.5">
-                <code className="min-w-0 flex-1 truncate text-[12px]">{inviteLink}</code>
+                <code className="block w-0 min-w-0 flex-1 truncate text-[12px]">{inviteLink}</code>
                 <Button
                   type="button" size="sm" variant="outline"
                   onClick={async () => {

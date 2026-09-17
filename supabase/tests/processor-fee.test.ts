@@ -17,6 +17,19 @@ const CARD: ProcessorRate = { percent_bps: 350, fixed_cents: 1500 };
 const GCASH: ProcessorRate = { percent_bps: 150, fixed_cents: 0 };
 const INTL: ProcessorRate = { percent_bps: 450, fixed_cents: 1500 };
 
+it("quotes a zero-commission pilot without taking a platform fee in GCash pass-on mode", () => {
+  const terms = { commission_type: "percent", commission_rate: 0, commission_flat_cents: 0 };
+  const rate = { percent_bps: 250, fixed_cents: 0 };
+  const platformFee = computeFee(10000, terms);
+  expect(platformFee).toBe(0);
+  expect(feeOn(10000, terms)).toBe(0);
+  expect(passOnBreakdown(10000, platformFee, rate)).toEqual({
+    base: 10000, platformFee: 0, processorFee: 257, total: 10257,
+  });
+  expect(passOnLines(10000, platformFee, rate)).toEqual(passOnBreakdown(10000, platformFee, rate));
+  expect(10257 - predictProcessorFee(10257, rate)).toBeGreaterThanOrEqual(10000);
+});
+
 describe("predictProcessorFee", () => {
   it("takes a percentage plus a fixed amount", () => {
     // 3.5% of ₱2,000 = ₱70, + ₱15 = ₱85

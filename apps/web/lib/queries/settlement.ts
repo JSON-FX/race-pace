@@ -135,6 +135,27 @@ async function fetchAllPayments(
   );
 }
 
+/** Group captures are allocated per participant, never repeated at their full amount. */
+async function fetchGroupRows(supabase: Db, eventId: string): Promise<SettlementRow[]> {
+  const all: SettlementRow[] = [];
+  for (let batch = 0; batch < MAX_BATCHES; batch++) {
+    const { data, error } = await supabase.from("admin_group_allocations_v")
+      .select("registration_id,full_name,category_label,paid_at,method,amount,platform_fee,processor_fee_cents,net_to_org,status,refunded_amount")
+      .eq("event_id", eventId).order("registration_id", { ascending: true })
+      .range(batch * BATCH, (batch + 1) * BATCH - 1);
+    if (error) throw error;
+    for (const r of data ?? []) all.push({
+      registration_id: r.registration_id, runner_name: r.full_name || "Unknown runner",
+      category: r.category_label ?? "—", paid_at: r.paid_at, method: r.method,
+      gross_paid: r.amount, rp_commission: r.platform_fee,
+      processing_fee: r.processor_fee_cents, net_to_org: r.net_to_org,
+      status: r.status, refunded_amount: r.refunded_amount, refunded_at: null,
+    });
+    if ((data ?? []).length < BATCH) return all;
+  }
+  throw new Error("Group settlement exceeded the safe export size; refusing a partial report.");
+}
+
 /** Runner names by user_id, chunked so a large event does not overrun the URL. */
 async function fetchRunnerNames(
   supabase: Db, userIds: string[],
@@ -191,7 +212,7 @@ export async function getEventSettlement(eventId: string): Promise<EventSettleme
   if (evErr) throw evErr;
   if (!ev) return null;
 
-  const [pays, ratesRes, unrecRes, catsRes] = await Promise.all([
+  const [pays, ratesRes, unrecRes, catsRes, groupRows] = await Promise.all([
     // The money itself must never be guessed at: a failed — or truncated —
     // payments read throws rather than rendering an authoritative-looking
     // settlement that is missing rows.
@@ -201,6 +222,7 @@ export async function getEventSettlement(eventId: string): Promise<EventSettleme
       .eq("provider", "paymongo").is("effective_to", null),
     supabase.rpc("payout_unreconciled_count", { p_event_id: eventId }),
     supabase.from("categories").select("slots_total,slots_taken").eq("event_id", eventId),
+    fetchGroupRows(supabase, eventId),
   ]);
 
   const userIds = [...new Set(
@@ -211,7 +233,13 @@ export async function getEventSettlement(eventId: string): Promise<EventSettleme
   // payments read just cleared — so no second authorization rule is introduced.
   const names = await fetchRunnerNames(supabase, userIds);
 
-  const rows = toSettlementRows(pays, names);
+  // Merge both ledgers chronologically. Registration UUID breaks same-payment
+  // ties; missing historical payment dates follow dated entries.
+  const rows = [...toSettlementRows(pays, names), ...groupRows].sort((a, b) => {
+    const dateOrder = a.paid_at === b.paid_at ? 0 : a.paid_at === null ? 1
+      : b.paid_at === null ? -1 : Date.parse(a.paid_at) - Date.parse(b.paid_at);
+    return dateOrder || a.registration_id.localeCompare(b.registration_id);
+  });
   const totals = settlementTotals(rows);
 
   const org = ev.organizations as unknown as { name: string; fee_mode: "absorb" | "pass_on" };
@@ -229,7 +257,7 @@ export async function getEventSettlement(eventId: string): Promise<EventSettleme
     );
     const rates = forecastRates((ratesRes.data ?? []) as ProcessorRateCandidate[], avg);
 
-    if (remaining !== null && rates) {
+    if (remaining !== null && rates && totals.net !== null) {
       // totals.net is the EXACT money already banked; only the unsold entries
       // are forecast. Null back means there is nothing left to forecast, and the
       // page then shows no band at all rather than one around a known figure.

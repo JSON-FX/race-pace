@@ -63,7 +63,7 @@ describe("settlementTotals", () => {
     const t = settlementTotals([legacy]);
     expect(t.refunds).toBe(191000);
     expect(t.net).toBe(0);
-    expect(t.gross - t.commission - t.processing - t.refunds).toBe(t.net);
+    expect(t.gross - t.commission - t.processing! - t.refunds).toBe(t.net);
   });
 
   it("reads a partial refund from refunded_amount, where net_to_org is the retention", () => {
@@ -75,7 +75,7 @@ describe("settlementTotals", () => {
     })]);
     expect(t.refunds).toBe(91000);
     expect(t.net).toBe(100000);
-    expect(t.gross - t.commission - t.processing - t.refunds).toBe(t.net);
+    expect(t.gross - t.commission - t.processing! - t.refunds).toBe(t.net);
   });
 
   /**
@@ -96,7 +96,7 @@ describe("settlementTotals", () => {
     expect(t).toEqual({
       gross: 1000000, commission: 30000, processing: 12000, refunds: 473000, net: 485000,
     });
-    expect(t.gross - t.commission - t.processing - t.refunds).toBe(t.net);
+    expect(t.gross - t.commission - t.processing! - t.refunds).toBe(t.net);
   });
 
   /**
@@ -416,5 +416,19 @@ describe("unreconciledCount", () => {
 
   it("reports a missing payload as unknown", () => {
     expect(unreconciledCount({ data: null, error: null })).toBeNull();
+  });
+});
+
+
+describe("group allocation settlement", () => {
+  it("keeps unknown processor fees and net unknown in aggregate totals", () => {
+    expect(settlementTotals([row(), row({ processing_fee: null, net_to_org: null })])).toEqual({
+      gross: 400000, commission: 12000, processing: null, refunds: 0, net: null,
+    });
+  });
+  it("retains group commission while returning the participant net", () => {
+    expect(settlementTotals([row({ status: "partially_refunded", refunded_amount: 191000, net_to_org: 0 })])).toEqual({
+      gross: 200000, commission: 6000, processing: 3000, refunds: 191000, net: 0,
+    });
   });
 });

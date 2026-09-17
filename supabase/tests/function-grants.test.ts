@@ -33,6 +33,12 @@ const AUTH_PREDICATES = [
 // breaks. Nothing else in `public` should be authenticated-executable without a deliberate edit
 // to this list.
 const AUTHENTICATED_ALLOWLIST = new Set([
+  // Safe financial projection filters each private allocation by owning org.
+  "admin_group_financial_lines",
+  // Creates only the caller's managed Passport; ownership and collision tests cover this grant.
+  "passport_create_managed",
+  "organizer_publish_waiver",
+  "event_select_waiver",
   "admin_cancel_registration",
   "admin_registration_emails",
   "admin_org_signups_daily",

@@ -26,7 +26,7 @@ describe("RegistrationsKpiSection", () => {
     expect(screen.getByText("+2 this week")).toBeInTheDocument();
     expect(screen.getByText("Paid")).toBeInTheDocument();
     expect(screen.getByText("50.0% conversion")).toBeInTheDocument();
-    expect(screen.getByText("Gross revenue")).toBeInTheDocument();
+    expect(screen.getByText("Retained gross")).toBeInTheDocument();
     expect(screen.getByText("₱4,800")).toBeInTheDocument();
     expect(screen.getByText("Refunds")).toBeInTheDocument();
     expect(screen.getByText("₱1,200")).toBeInTheDocument();

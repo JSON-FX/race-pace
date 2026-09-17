@@ -1,6 +1,6 @@
 import { paymongoConfigured, pmCreateCheckoutSession, pmGetCheckoutSession, pmPaymentIdFromSession, pmCreateRefund, pmGetRefund } from "./paymongo.ts";
 
-export interface CheckoutInput { registrationId: string; amount: number; description: string; returnUrl: string; methods?: string[]; lineItems?: { name: string; amount: number }[]; billing?: { name?: string; email?: string; phone?: string } }
+export interface CheckoutInput { registrationId: string; amount: number; description: string; returnUrl: string; methods?: string[]; lineItems?: { name: string; amount: number }[]; billing?: { name?: string; email?: string; phone?: string }; passOnFees?: boolean; metadata?: Record<string, string> }
 export interface CheckoutResult { checkoutUrl: string; providerRef: string }
 export interface RefundInput { providerRef: string; amount: number; reason?: string; requestId: string; registrationId: string }
 export interface RefundResult { providerRefundId: string; status: "pending" | "succeeded" | "failed"; raw: unknown }
@@ -48,9 +48,15 @@ export class PayMongoProvider implements PaymentProvider {
       description: input.description,
       successUrl: withStatus(input.returnUrl, "paid"),
       cancelUrl: withStatus(input.returnUrl, "cancel"),
-      metadata: { registration_id: input.registrationId },
+      metadata: { registration_id: input.registrationId, ...input.metadata },
       billing: input.billing,
+      passOnFees: input.passOnFees,
+      idempotencyKey: `checkout:${input.registrationId}`,
     });
+    if (!session.id?.startsWith("cs_") ||
+        !session.checkoutUrl?.startsWith("https://checkout.paymongo.com/")) {
+      throw new Error("paymongo_checkout_response_invalid");
+    }
     return { checkoutUrl: session.checkoutUrl, providerRef: session.id };
   }
   async refund(input: RefundInput): Promise<RefundResult> {

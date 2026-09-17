@@ -71,7 +71,7 @@ async function entry(tag: string, opts: {
     }).select().single()).data!;
     cleanups.push(() => s.from("organizations").delete().eq("id", org.id));
     const ev = (await s.from("events").insert({
-      org_id: org.id, name: "Backfill Race", status: "draft",
+      org_id: org.id, name: "Backfill Race", status: "completed",
     }).select().single()).data!;
     const cat = (await s.from("categories").insert({
       org_id: org.id, event_id: ev.id, code: "40k", label: "40K",

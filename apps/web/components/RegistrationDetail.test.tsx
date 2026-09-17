@@ -32,7 +32,7 @@ vi.mock("@/lib/actions/registrations", () => ({
 const paidRow: RegistrationRow = {
   id: "r1", user_id: "u1", category_id: "c4", category_label: "10K",
   full_name: "Ana Cruz", bib_name: "ANA", avatar_url: null, email: "ana@example.com",
-  total_amount: 100000, payment_status: "paid", payment_method: "gcash", registration_status: "paid",
+  total_amount: 100000, payment_amount: 100000, refunded_amount: 0, payment_status: "paid", payment_method: "gcash", registration_status: "paid",
   created_at: "2026-07-01T00:00:00Z", custom_data: { blood_type: "O", first_ultra: true },
   addons: [{ name: "Singlet", price: 60000 }],
 };
@@ -64,6 +64,10 @@ describe("RegistrationDetail", () => {
 
     rerender(<RegistrationDetail row={{ ...paidRow, payment_status: "refunded" }} onClose={vi.fn()} onRefunded={vi.fn()} />);
     expect(screen.getByText(/already refunded/i)).toBeInTheDocument();
+
+    rerender(<RegistrationDetail row={{ ...paidRow, payment_status: "partially_refunded", refunded_amount: 7450 }} onClose={vi.fn()} onRefunded={vi.fn()} />);
+    expect(screen.getByText(/ticket and slot remain active/i)).toBeInTheDocument();
+    expect(screen.queryByText(/no payment is recorded/i)).not.toBeInTheDocument();
   });
 
   it("labels the money band by payment status, not by colour alone", () => {
@@ -108,12 +112,12 @@ describe("RegistrationDetail", () => {
   // registrations-addons.test.ts), so by the time a row reaches this
   // component, "read failed" and "genuinely no add-ons" are the same shape,
   // `addons: []`. This test now covers that shape at the render layer.
-  it("omits the breakdown entirely when the row carries no add-ons", () => {
+  it("shows the entry base when the row carries no add-ons", () => {
     render(<RegistrationDetail row={{ ...paidRow, addons: [] }} onClose={vi.fn()} onRefunded={vi.fn()} />);
 
     // Never guess: without add-ons, the entry fee is unknowable, so no line
     // may claim to be it.
-    expect(screen.queryByText("10K entry")).not.toBeInTheDocument();
+    expect(screen.getByText("10K entry")).toBeInTheDocument();
     expect(screen.getAllByText("₱1,000").length).toBeGreaterThan(0);
   });
 
@@ -147,3 +151,14 @@ describe("RegistrationDetail", () => {
     await waitFor(() => expect(onRefunded).toHaveBeenCalled());
   });
 });
+
+ it("separates captured gross from entry and checkout fees", () => {
+  render(<RegistrationDetail row={{ ...paidRow, payment_amount: 106599, addons: [] }} onClose={vi.fn()} onRefunded={vi.fn()} />);
+  expect(screen.getByText("₱1,065.99")).toBeInTheDocument();
+  expect(screen.getByText("₱65.99")).toBeInTheDocument();
+  expect(screen.getByText("Fees charged at checkout")).toBeInTheDocument();
+ });
+ it("does not describe entry base as paid when the ledger amount is missing", () => {
+  render(<RegistrationDetail row={{ ...paidRow, payment_amount: null }} onClose={vi.fn()} onRefunded={vi.fn()} />);
+  expect(screen.getByText("Unavailable")).toBeInTheDocument();
+ });

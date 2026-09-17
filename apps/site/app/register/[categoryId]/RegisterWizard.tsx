@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   customDataSchema, isProfileKey, formatPeso, formatDateRange,
-  SHIRT_SIZES, BLOOD_TYPES, GENDERS, type FormField,
+  SHIRT_SIZES, BLOOD_TYPES, GENDERS, type FormField, type PassportInput,
 } from "@race-pace/shared";
 import type { CategoryRow, AddonRow, FormFieldRow, EventRow } from "@/lib/events";
 import { loadDraft, newDraft, saveDraft, clearDraft, type RegistrationDraft } from "@/lib/draft";
@@ -20,19 +20,30 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { PillSelect } from "@/components/PillSelect";
 import { DynamicField } from "@/components/DynamicField";
 import { RefundNotice } from "@/components/RefundNotice";
+import { feeOn } from "@/lib/payment";
 import { StepRail } from "@/components/StepRail";
 import { TicketStub } from "@/components/TicketStub";
 import { cn } from "@/lib/utils";
 
-export function RegisterWizard({ userId, category, event, addons, formFields }: {
+export function RegisterWizard({ userId, category, event, addons, formFields, passport, email, waiver, participantId, assisted = false }: {
+  participantId?: string;
+  assisted?: boolean;
+  waiver?: { id: string; title: string; body: string } | null;
   userId: string;
+  passport?: PassportInput;
+  email?: string;
   category: CategoryRow;
   event: EventRow;
   addons: AddonRow[];
   formFields: FormFieldRow[];
 }) {
   const router = useRouter();
-  const [draft, setDraft] = useState<RegistrationDraft>(() => loadDraft(category.id) ?? newDraft(category.id));
+  const draftKey = `${userId}:${category.id}${participantId ? `:${participantId}` : ""}`;
+  const [draft, setDraft] = useState<RegistrationDraft>(() => {
+    const saved = loadDraft(draftKey) ?? newDraft(category.id);
+    return { ...saved, waiver: false };
+  });
+  useEffect(() => { setDraft(draft => ({ ...draft, waiver: false })); }, [waiver?.id]);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
@@ -42,13 +53,14 @@ export function RegisterWizard({ userId, category, event, addons, formFields }: 
 
   // Persist on every change — a refresh mid-flow must not lose progress, and
   // must not mint a new idempotency key.
-  useEffect(() => { saveDraft(category.id, draft); }, [category.id, draft]);
+  useEffect(() => { saveDraft(draftKey, draft); }, [draftKey, draft]);
 
   // Prefill from the Race Passport once, and never over a value the runner
   // already typed (a resumed draft wins).
   useEffect(() => {
     if (prefilled.current) return;
     prefilled.current = true;
+    if (assisted) return;
     getProfile(userId).then((p) => {
       if (!p) return;
       setProfile(p);
@@ -75,6 +87,9 @@ export function RegisterWizard({ userId, category, event, addons, formFields }: 
     [formFields],
   );
   const total = totalAmount(category.base_price, addons, draft.addonIds);
+  const passOn = event.feeMode === "pass_on";
+  if (passOn && !event.commissionTerms) throw new Error("Race Pace fee terms are unavailable");
+  const platformFee = event.commissionTerms ? feeOn(total, event.commissionTerms) : 0;
   const dateLabel = event.event_date ? formatDateRange(event.event_date, event.end_date, longDate) : null;
   const stubMeta = [dateLabel, event.org_name].filter(Boolean).join(" · ");
 
@@ -100,7 +115,7 @@ export function RegisterWizard({ userId, category, event, addons, formFields }: 
 
   function next() {
     setFormError(null);
-    if (draft.step === 1) {
+    if (draft.step === 1 && !passport) {
       const errs = stepOneErrors(draft.details, REQUIRED_DETAILS);
       setErrors(errs);
       if (Object.keys(errs).length) return;
@@ -136,7 +151,7 @@ export function RegisterWizard({ userId, category, event, addons, formFields }: 
     setBusy(true);
     setFormError(null);
     try {
-      if (draft.saveBack) {
+      if (draft.saveBack && !passport) {
         // Best-effort — a passport write must never block a registration.
         try {
           await upsertProfile({
@@ -167,11 +182,14 @@ export function RegisterWizard({ userId, category, event, addons, formFields }: 
           emergency_contact: draft.details.emergency_contact,
           first_ultra: draft.firstUltra,
         },
+        participant_passport_id: participantId,
+        waiver_acceptance_method: assisted ? "participant_on_helper_device" : "signed_in_self",
         waiver_accepted: true,
+        waiver_version_id: waiver?.id,
         idempotency_key: draft.idempotencyKey,
       });
 
-      clearDraft(category.id);
+      clearDraft(draftKey);
       router.replace(`/pay/${res.registration_id}`);
     } catch (e) {
       // Lost a race with another device/tab, or the event page's own gate was
@@ -180,9 +198,12 @@ export function RegisterWizard({ userId, category, event, addons, formFields }: 
       // completed three-step form with a generic error string. Mirrors
       // apps/mobile/app/register/[categoryId].tsx's handling of the same 409.
       if (e instanceof CheckoutError && e.code === "already_registered" && e.registrationId) {
-        clearDraft(category.id);
+        clearDraft(draftKey);
         router.replace(`/pay/${e.registrationId}`);
         return;
+      }
+      if (e instanceof CheckoutError && e.code === "passport_incomplete") {
+        router.push("/profile"); return;
       }
       setFormError(e instanceof Error ? e.message : "Registration failed.");
     } finally {
@@ -204,7 +225,18 @@ export function RegisterWizard({ userId, category, event, addons, formFields }: 
         />
       </div>
 
-      {draft.step === 1 ? (
+      {draft.step === 1 && passport ? <section className="mt-8 space-y-4">
+        <h2 className="text-2xl font-bold">{assisted ? "Participant Race Passport" : "Your Race Passport"}</h2>
+        <dl className="space-y-3">
+          {[["First name", passport.first_name], ["Last name", passport.last_name], ["Team name", passport.team_name || "None"],
+            ["Date of birth", passport.date_of_birth], ["Gender", passport.gender], ["Contact number", passport.contact_number],
+            ["Emergency contact", passport.emergency_contact_name], ["Emergency number", passport.emergency_contact_number],
+            ["Relationship", passport.emergency_contact_relationship], ["Booking email", email || ""]].map(([label,value]) =>
+              <div key={label}><dt className="text-sm text-muted-foreground">{label}</dt><dd>{value}</dd></div>)}
+        </dl>
+        <a className="inline-block underline" href="/profile">Edit Race Passport</a>
+      </section> : null}
+      {draft.step === 1 && !passport ? (
         <section className="mt-8">
           <h2 className="font-display text-[26px] font-extrabold tracking-[-0.5px] text-foreground">Your details</h2>
           <div className="mt-6 flex flex-col gap-2">
@@ -278,7 +310,7 @@ export function RegisterWizard({ userId, category, event, addons, formFields }: 
           ) : null}
 
           {/* Save-back is optional; the registration keeps its own snapshot. */}
-          {showSaveBack(profile, { ...draft.details, ...draft.kit }) ? (
+          {!passport && showSaveBack(profile, { ...draft.details, ...draft.kit }) ? (
             <div className="mt-6 flex items-center gap-3 rounded-lg border border-border p-4">
               <Checkbox id="save_back" checked={draft.saveBack} onCheckedChange={(c) => patch({ saveBack: c === true })} />
               <Label htmlFor="save_back" className="text-[14px]">Save these details to my profile</Label>
@@ -291,24 +323,28 @@ export function RegisterWizard({ userId, category, event, addons, formFields }: 
         <section className="mt-8">
           <h2 className="font-display text-[26px] font-extrabold tracking-[-0.5px] text-foreground">Review</h2>
           <dl className="mt-6 divide-y divide-divider rounded-xl border border-border">
-            <Row label="Bib name" value={draft.details.bib_name} />
-            <Row label="Date of birth" value={draft.details.date_of_birth} />
-            <Row label="Emergency contact" value={draft.details.emergency_contact} />
+            {passport ? <><Row label="Runner" value={`${passport.first_name} ${passport.last_name}`} /><Row label="Team name" value={passport.team_name || "None"} /></> : <Row label="Bib name" value={draft.details.bib_name} />}
+            <Row label="Date of birth" value={passport?.date_of_birth ?? draft.details.date_of_birth} />
+            <Row label="Emergency contact" value={passport ? `${passport.emergency_contact_name} — ${passport.emergency_contact_number}` : draft.details.emergency_contact} />
             {draft.kit.shirt_size ? <Row label="Shirt size" value={draft.kit.shirt_size} /> : null}
             {draft.kit.blood_type ? <Row label="Blood type" value={draft.kit.blood_type} /> : null}
             <Row label="Entry fee" value={formatPeso(category.base_price)} />
             {draft.addonIds.length ? (
               <Row label="Add-ons" value={`+${formatPeso(total - category.base_price)}`} />
             ) : null}
-            <Row label="Total" value={formatPeso(total)} strong />
+            {passOn && platformFee > 0 ? <Row label="Taxes and fees" value={formatPeso(platformFee)} /> : null}
+            <Row label={passOn ? "Subtotal before payment processing" : "Total to pay"} value={formatPeso(total + (passOn ? platformFee : 0))} strong />
           </dl>
+          {passOn ? <p className="mt-3 text-sm text-muted-foreground">PayMongo calculates the processing fee and final total when you choose a payment method on its checkout page.</p> : null}
+          {!passOn ? <p className="mt-3 text-sm text-muted-foreground">This price includes {formatPeso(platformFee)} in Taxes and fees. PayMongo’s actual processing fee is also deducted from this payment after capture. Neither fee is added to your total.</p> : null}
 
           <RefundNotice policy={event.refundPolicy} retention={event.refundFeeCents} />
 
+          {assisted ? <p className="mt-6 rounded-lg bg-muted p-4 text-sm">Pass this device to {passport?.first_name} {passport?.last_name}. The participant must read and accept the waiver personally. You remain the booking contact.</p> : null}
           <div className="mt-6 flex items-start gap-3 rounded-lg border border-border p-4">
             <Checkbox id="waiver" checked={draft.waiver} onCheckedChange={(c) => patch({ waiver: c === true })} />
             <Label htmlFor="waiver" className="text-[13px] leading-relaxed">
-              I accept the event{" "}
+              {assisted ? `I, ${passport?.first_name} ${passport?.last_name}, personally accept the event ` : "I accept the event "}
               <button type="button" className="font-semibold text-primary underline" onClick={() => setWaiverOpen(true)}>
                 waiver
               </button>{" "}
@@ -332,16 +368,16 @@ export function RegisterWizard({ userId, category, event, addons, formFields }: 
           </Button>
         ) : (
           <Button type="button" disabled={busy} className="h-auto flex-1 rounded-pill py-4 text-[16px] font-semibold" onClick={submit}>
-            {busy ? "Submitting…" : `Register · ${formatPeso(total)}`}
+            {busy ? "Submitting…" : passOn ? "Continue to payment" : `Register · ${formatPeso(total)}`}
           </Button>
         )}
       </div>
 
       <Dialog open={waiverOpen} onOpenChange={setWaiverOpen}>
         <DialogContent className="max-w-lg">
-          <DialogHeader><DialogTitle>Event waiver</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{waiver?.title ?? "Event waiver"}</DialogTitle></DialogHeader>
           <div className="max-h-[60vh] overflow-y-auto whitespace-pre-line text-[14px] leading-relaxed text-foreground">
-            {WAIVER_TEXT}
+            {waiver?.body ?? WAIVER_TEXT}
           </div>
           <Button type="button" className="mt-4 h-auto rounded-pill py-3" onClick={() => { patch({ waiver: true }); setWaiverOpen(false); }}>
             I accept

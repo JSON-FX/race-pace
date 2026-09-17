@@ -11,6 +11,7 @@ it("shows server fees and sends the reviewed amount", async () => {
   mocks.refund.mockResolvedValue({ ok: true, refund_amount: 95500 }); setup();
   expect(await screen.findByText("Refund ₱955?")).toBeInTheDocument();
   expect(screen.getByText("Retained fees: ₱45")).toBeInTheDocument();
+  expect(screen.getByText(/A full refund releases QA's slot\. A partial refund keeps the ticket and slot active\./)).toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "Confirm refund" }));
   expect(mocks.refund).toHaveBeenCalledWith("r", undefined, 95500);
   expect(mocks.success).toHaveBeenCalledWith("Refunded ₱955");

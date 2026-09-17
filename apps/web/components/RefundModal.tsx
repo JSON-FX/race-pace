@@ -50,7 +50,7 @@ export function RefundModal({ registration, onClose, onDone }: {
         <DialogHeader>
           <DialogTitle className="text-[17px] font-bold">{ready ? `Refund ${amount}?` : "Review refund"}</DialogTitle>
           <DialogDescription className="text-[13px] text-muted-foreground">
-            The slot for {registration.full_name ?? "this runner"} reopens only after the refund completes. Completed refunds cannot be undone.
+            A full refund releases {registration.full_name ?? "this runner"}&apos;s slot. A partial refund keeps the ticket and slot active. Completed refunds cannot be undone.
           </DialogDescription>
         </DialogHeader>
         {ready ? <dl className="text-sm space-y-2">

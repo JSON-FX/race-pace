@@ -1,6 +1,7 @@
 // PayMongo API client (server-side; uses the SECRET key via HTTP Basic auth).
 // Docs: https://docs.paymongo.com/reference/checkout-session-resource
 const BASE = "https://api.paymongo.com/v1";
+const V2_CHECKOUT = "https://api.paymongo.com/v2/checkout_sessions";
 
 export function paymongoConfigured(): boolean {
   return !!Deno.env.get("PAYMONGO_SECRET_KEY");
@@ -24,6 +25,10 @@ export interface CreateSessionInput {
   metadata?: Record<string, string>;
   // Prefills the "Customer Information" fields on the hosted checkout page.
   billing?: { name?: string; email?: string; phone?: string };
+  /** PayMongo computes the method-specific fee on its hosted v2 checkout. */
+  passOnFees?: boolean;
+  /** Stable across retries of one registration's checkout creation. */
+  idempotencyKey: string;
 }
 
 export interface PmSession { id: string; checkoutUrl: string; paid: boolean; status: string; raw: unknown }
@@ -45,9 +50,9 @@ function parseSession(body: any): PmSession {
 }
 
 export async function pmCreateCheckoutSession(input: CreateSessionInput): Promise<PmSession> {
-  const res = await fetch(`${BASE}/checkout_sessions`, {
+  const res = await fetch(input.passOnFees ? V2_CHECKOUT : `${BASE}/checkout_sessions`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: authHeader() },
+    headers: { "Content-Type": "application/json", Authorization: authHeader(), "Idempotency-Key": input.idempotencyKey },
     body: JSON.stringify({
       data: {
         attributes: {
@@ -58,6 +63,7 @@ export async function pmCreateCheckoutSession(input: CreateSessionInput): Promis
           cancel_url: input.cancelUrl,
           metadata: input.metadata,
           billing: input.billing,
+          ...(input.passOnFees ? { pass_on_fees: true, reference_number: input.metadata?.registration_id } : {}),
         },
       },
     }),
@@ -74,6 +80,20 @@ export async function pmGetCheckoutSession(id: string): Promise<PmSession> {
   const body = await res.json();
   if (!res.ok) throw new Error(`paymongo_get_failed: ${JSON.stringify(body?.errors ?? body)}`);
   return parseSession(body);
+}
+
+/** A 400 is ambiguous: PayMongo uses it for expired, paid, and ongoing sessions.
+ * Callers must GET the session and reconcile its actual state before changing
+ * the local reservation. */
+export async function pmExpireCheckoutSession(id: string): Promise<"expired" | "inspect"> {
+  if (!/^cs_[A-Za-z0-9_-]+$/.test(id)) throw new Error("invalid_checkout_session_id");
+  const res = await fetch(`${BASE}/checkout_sessions/${encodeURIComponent(id)}/expire`, {
+    method: "POST",
+    headers: { Authorization: authHeader() },
+  });
+  if (res.status === 200) return "expired";
+  if (res.status === 400) return "inspect";
+  throw new Error(`paymongo_expire_failed:${res.status}`);
 }
 
 /** Resolve the pay_… id captured by a paid checkout session (session.payments[].id). */
@@ -192,8 +212,9 @@ export function pmFeeFromAttributes(
   // deno-lint-ignore no-explicit-any
   const a = (chosen as any)?.attributes;
   if (
-    !a || typeof a.fee !== "number" || typeof a.net_amount !== "number" ||
-    typeof a.amount !== "number"
+    !a || !Number.isSafeInteger(a.fee) || !Number.isSafeInteger(a.net_amount) ||
+    !Number.isSafeInteger(a.amount) || a.fee < 0 || a.net_amount < 0 ||
+    a.amount <= 0 || (a.currency !== undefined && a.currency !== "PHP")
   ) return null;
   return { fee: a.fee, netAmount: a.net_amount, amount: a.amount };
 }

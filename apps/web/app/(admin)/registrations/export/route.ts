@@ -33,6 +33,10 @@ const HEADER = [
   "Base Amount (PHP)",
   "Payment Status",
   "Payment Method",
+  "Captured Gross (PHP)",
+  "Refunded (PHP)",
+  "Payment ID",
+  "Booking Order ID",
 ];
 
 function toRow(
@@ -53,6 +57,11 @@ function toRow(
     centavosToDecimal(r.total_amount),
     csvField(r.payment_status),
     csvField(r.payment_method),
+    ["paid", "refunded", "partially_refunded"].includes(r.payment_status ?? "") && r.payment_amount != null
+      ? centavosToDecimal(r.payment_amount) : "",
+    r.refunded_amount != null ? centavosToDecimal(r.refunded_amount) : "",
+    csvField(r.payment_id),
+    csvField(r.booking_order_id),
   ]);
 }
 

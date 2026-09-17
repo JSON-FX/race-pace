@@ -131,8 +131,8 @@ export default async function CommissionPage() {
         <KpiCard
           icon={Landmark}
           label="PASSED TO ORGS"
-          value={peso(totals.net_to_org)}
-          delta={{ tone: "neutral", text: `${peso(totals.unpaid_out_cents)} not yet paid out` }}
+          value={totals.net_to_org === null ? "Incomplete" : peso(totals.net_to_org)}
+          delta={{ tone: "neutral", text: totals.unpaid_out_cents === null ? "Unpaid amount incomplete; reconcile processing fees" : `${peso(totals.unpaid_out_cents)} not yet paid out` }}
         />
       </KpiRow>
 

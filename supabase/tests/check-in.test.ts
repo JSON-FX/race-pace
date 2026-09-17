@@ -9,7 +9,8 @@ const service = createClient(url, serviceKey, { auth: { persistSession: false } 
 const staff = createClient(url, anonKey, { auth: { persistSession: false } });
 // The local serve command loads this ignored file. An explicit environment
 // override also supports a separately configured test runtime. Never log it.
-const functionEnv = new URL("../functions/.env", import.meta.url);
+const functionEnv = process.env.SUPABASE_FUNCTIONS_ENV_FILE
+  ?? new URL("../functions/.env", import.meta.url);
 const signingSecret = process.env.TICKET_SIGNING_SECRET
   ?? (existsSync(functionEnv) ? parse(readFileSync(functionEnv)).TICKET_SIGNING_SECRET : undefined);
 if (!signingSecret?.trim()) throw new Error("check-in tests require TICKET_SIGNING_SECRET");

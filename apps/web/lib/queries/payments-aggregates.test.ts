@@ -5,14 +5,16 @@ import { quotePostgrestValue, toIlikePattern } from "./events";
 const rpcMock = vi.fn();
 const orCapture = vi.fn();
 const eqCapture = vi.fn();
+const orderCapture = vi.fn();
 vi.mock("@/lib/supabase/server", () => ({
   createClient: async () => ({
     rpc: rpcMock,
     from: () => {
       const builder: Record<string, unknown> = {};
-      ["select", "order", "range"].forEach((m) => { builder[m] = () => builder; });
+      ["select", "range"].forEach((m) => { builder[m] = () => builder; });
       // Captured, not a no-op: the event filter reaching the LIST query is half
       // of the card/table parity invariant asserted below.
+      builder.order = (col: string, opts: unknown) => { orderCapture(col, opts); return builder; };
       builder.eq = (col: string, val: unknown) => { eqCapture(col, val); return builder; };
       builder.or = (arg: string) => { orCapture(arg); return builder; };
       (builder as { then: unknown }).then = (resolve: (v: unknown) => unknown) =>
@@ -144,4 +146,18 @@ describe("getPaymentAggregates", () => {
 
     expect(result).toEqual({ grossCents: 0, feeCents: 0, netCents: 0, refundedCents: 0 });
   });
+});
+
+it("uses the capture identity as the stable pagination tie-breaker", async () => {
+  orderCapture.mockClear();
+  await listOrgPayments("org-1", params());
+  expect(orderCapture.mock.calls).toEqual([
+    ["created_at", { ascending: false }],
+    ["payment_id", { ascending: true }],
+  ]);
+});
+
+it("preserves an unknown ledger net instead of reporting zero", async () => {
+  rpcMock.mockResolvedValue({ data: [{ gross_cents: 10000, fee_cents: 200, net_cents: null, refunded_cents: 0 }], error: null });
+  expect((await getPaymentAggregates("org-1", params())).netCents).toBeNull();
 });

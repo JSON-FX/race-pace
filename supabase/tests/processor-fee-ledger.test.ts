@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Client } from "pg";
 import { createHmac } from "node:crypto";
 import { loadEnv } from "../../test/env";
-import { reportedProcessorFee } from "../functions/_shared/confirm.ts";
+import { reportedPaidCaptures, reportedProcessorFee } from "../functions/_shared/confirm.ts";
 
 const { url, anonKey, serviceKey, dbUrl, jwtSecret } = loadEnv();
 const svc = () => createClient(url, serviceKey, { auth: { persistSession: false } });
@@ -400,6 +400,23 @@ describe("reportedProcessorFee — what the provider actually reported", () => {
     };
     expect(reportedProcessorFee(verifyRaw([failed, paidPayment])))
       .toEqual({ fee: 3000, netAmount: 197000, amount: 200000 });
+  });
+
+  it("enumerates both paid IDs in a session for independent capture reconciliation", () => {
+    const first = { id: "pay_first", attributes: {
+      status: "paid", currency: "PHP", livemode: false,
+      amount: 10000, fee: 250, net_amount: 9750,
+    } };
+    const extra = { id: "pay_extra", attributes: {
+      status: "paid", currency: "PHP", livemode: false,
+      amount: 10000, fee: 300, net_amount: 9700,
+    } };
+    const expected = [
+      { id: "pay_first", currency: "PHP", livemode: false, amount: 10000, fee: 250, netAmount: 9750 },
+      { id: "pay_extra", currency: "PHP", livemode: false, amount: 10000, fee: 300, netAmount: 9700 },
+    ];
+    expect(reportedPaidCaptures(verifyRaw([first, extra]))).toEqual(expected);
+    expect(reportedPaidCaptures(webhookRaw([first, extra]))).toEqual(expected);
   });
 });
 

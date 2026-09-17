@@ -69,11 +69,14 @@ export function customDataSchema(fields: FormField[]) {
 
 /** Full registration payload sent to the checkout Edge Function. */
 export const registrationInputSchema = z.object({
+  participant_passport_id: z.string().uuid().optional(),
   event_id: z.string().uuid(),
   category_id: z.string().uuid(),
   addon_ids: z.array(z.string().uuid()).default([]),
   custom_data: z.record(z.unknown()).default({}),
   waiver_accepted: z.boolean(),
+  waiver_version_id: z.string().uuid().optional(),
+  waiver_acceptance_method: z.enum(["signed_in_self", "participant_on_helper_device"]).optional(),
   idempotency_key: z.string().min(8),
 });
 export type RegistrationInput = z.infer<typeof registrationInputSchema>;
@@ -196,5 +199,9 @@ export function registrationIdentity(
     bib_name: text(snapshot?.bib_name) ?? text(profile?.bib_name),
   };
 }
+
+export * from "./passport";
+
+export * from "./groupRegistration";
 
 export { isPublicLaunchClosed, isStagingEnvironment } from "./launchGate";

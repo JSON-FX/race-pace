@@ -27,6 +27,7 @@ import { RegistrationHistory } from "./RegistrationHistory";
 const MONEY: Record<string, { eyebrow: string; band: string; ink: string }> = {
   paid: { eyebrow: "Total paid", band: "bg-paid-tint", ink: "text-forest dark:text-paid" },
   pending: { eyebrow: "Awaiting payment", band: "bg-amber-tint", ink: "text-amber" },
+  partially_refunded: { eyebrow: "Total paid before refund", band: "bg-info-tint", ink: "text-info" },
   refunded: { eyebrow: "Refunded", band: "bg-info-tint", ink: "text-info" },
   failed: { eyebrow: "Payment failed", band: "bg-destructive-tint", ink: "text-destructive" },
 };
@@ -36,7 +37,8 @@ const MONEY_FALLBACK = { eyebrow: "Amount", band: "bg-muted", ink: "text-foregro
  *  stated reason is the anti-pattern this replaces — the old modal greyed the
  *  button out and left the organizer to infer why. */
 const REFUND_REASON: Record<string, string> = {
-  paid: "The slot reopens after the refund completes.",
+  paid: "A full refund releases the slot. A partial refund keeps the ticket and slot active.",
+  partially_refunded: "This payment has already been partially refunded. Its ticket and slot remain active.",
   pending: "Only a completed payment can be refunded.",
   refunded: "Already refunded — the slot went back on sale.",
   failed: "This payment never completed, so there's nothing to return.",
@@ -75,6 +77,9 @@ export function RegistrationDetail({ row, onClose, onRefunded }: {
   const customEntries = Object.entries(row.custom_data ?? {});
   const money = MONEY[row.payment_status ?? ""] ?? MONEY_FALLBACK;
   const tint = avatarTint(row.id);
+  const captured = row.payment_status === "paid" || row.payment_status === "partially_refunded";
+  const displayedAmount = row.payment_status === "refunded" ? row.refunded_amount
+    : captured ? row.payment_amount : row.total_amount;
 
   /**
    * The entry fee, derived rather than read.
@@ -176,10 +181,10 @@ export function RegistrationDetail({ row, onClose, onRefunded }: {
             {/* tabular-nums so the peso figure doesn't reflow between rows of
                 different digits (§6 number-tabular). */}
             <div className={cn("mt-px text-[29px] font-semibold leading-tight tracking-tight tabular-nums", money.ink)}>
-              {peso(row.total_amount)}
+              {displayedAmount == null ? "Unavailable" : peso(displayedAmount)}
             </div>
 
-            {row.addons.length > 0 ? (
+            {row.addons.length > 0 || captured ? (
               <>
                 <div className={cn("my-2.5 h-px bg-current opacity-20", money.ink)} />
                 <dl>
@@ -187,6 +192,12 @@ export function RegistrationDetail({ row, onClose, onRefunded }: {
                   {row.addons.map((a, i) => (
                     <Row key={i} label={a.name ?? "Add-on"} value={peso(a.price)} mono />
                   ))}
+                  {captured && row.payment_amount != null && row.payment_amount !== row.total_amount ? (
+                    <Row label="Fees charged at checkout" value={peso(row.payment_amount - row.total_amount)} mono />
+                  ) : null}
+                  {row.payment_status === "partially_refunded" && row.refunded_amount != null ? (
+                    <Row label="Refunded" value={peso(row.refunded_amount)} mono />
+                  ) : null}
                 </dl>
               </>
             ) : null}

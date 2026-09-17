@@ -13,9 +13,10 @@ This guide covers release preparation; it is not evidence that a deployment is c
 Both use Next.js and Node 24.x. The repository declares pnpm 9.7.0.
 Keep workspace files outside the root directory available to the build: both apps import packages/shared.
 
-The production deployments inspected on 2026-09-16 use admin commit f13f4bb and site commit 0f520c5.
-Both latest branch previews use 8e1321b. Subsequent local readiness fixes are not in those deployments.
-Recheck these facts before releasing.
+Both production projects were deployed and promoted from commit ed8273f on 2026-09-16.
+Admin: dpl_GcEQ8Vkk41VdrH3bLUyhNMk4Dsgb. Runner: dpl_57xNx7fQ3iAX3fZWC7T2EEmF7HGb.
+See docs/reports/2026-09-16-hosted-deployment.md for verification and remaining pilot blockers.
+Recheck these facts before the next release.
 
 ## Vercel environment
 
@@ -74,8 +75,8 @@ A local fake-provider test is not evidence of hosted provider callbacks, email d
 ## Database and functions
 
 Do not assume the hosted database is current. Local had 98 applied migrations on 2026-09-16.
-Hosted inventory was blocked by an explicit 503 scheduled-maintenance response.
-No remote version count or function parity was verified.
+After maintenance ended, all nine pending migrations were applied. Hosted now also has 98 versions.
+All 13 Edge Functions were redeployed, including kit-release. No hosted reset or reseed was performed.
 
 After service recovery, compare hosted migration history with the repository and local history.
 Review every unapplied migration; never edit an already-applied migration to force parity.
@@ -83,6 +84,8 @@ Do not reset or reseed the hosted database as a release step.
 
 Deploy the required migrations and changed Edge Functions in a reviewed, compatible order before relying on their new behavior.
 Changes to shared Edge modules require redeploying their consuming functions.
+For this repository, pass --import-map supabase/functions/deno.json when deploying with --use-api.
+The server bundler did not resolve bare imports without that explicit argument.
 The prior guide's claim of eight migrations and six functions was obsolete.
 
 ## Release sequence
@@ -109,3 +112,11 @@ Do not run a host Next build into the Docker dev stack's live bind-mounted .next
 
 Use clearly marked sample records. Record any provider or bank steps that were simulated.
 A READY Vercel build or an HTTP200 login page alone is not production readiness.
+
+### Group ticket delivery worker (disabled until group rollout)
+
+Deploy `group-ticket-delivery` as a Supabase Edge Function. Its gateway JWT check is disabled intentionally; the handler requires the existing `TICKET_EMAIL_SECRET` bearer secret and `GROUP_TICKET_DELIVERY_ENABLED=true`. Configure `PUBLIC_SITE_URL`, `PUBLIC_FUNCTIONS_URL` and the existing email transport. Never expose the bearer secret to either Next app's public environment.
+
+After rollout approval, invoke it server-to-server with POST from the deployment's scheduler. Each invocation claims at most one pending order; choose cadence/concurrency for expected volume and monitor returned failures. No scheduler is activated by this migration. Local validation used mocked email only; verify with Mailpit and the selected production transport before activation.
+
+Delivery retries use a five-minute lease and exponential backoff capped at one hour. A worker that loses its lease cannot mark a newer attempt complete. SMTP is at-least-once: a crash after acceptance but before completion may cause duplicate email. Tickets and payment confirmation are not recreated. All-refunded bookings close without sending; partially refunded bookings contain only currently paid tickets. A later refund can invalidate a QR already emailed, so staff must always verify current ticket state.

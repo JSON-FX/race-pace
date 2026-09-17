@@ -31,8 +31,10 @@ export type PaymentStatus = "pending" | "paid" | "failed" | "refunded" | "partia
 export type RegistrationStatus = "pending" | "paid" | "refunded" | "cancelled" | "expired";
 
 export type RegistrationRow = {
+  booking_order_id?: string | null;
+  payment_id?: string | null;
   id: string;
-  user_id: string;
+  user_id: string | null;
   category_id: string;
   category_label: string | null;
   full_name: string | null;
@@ -49,6 +51,8 @@ export type RegistrationRow = {
    *  posture as getRegistrationAggregates) or genuinely has no email. */
   email: string | null;
   total_amount: number;
+  payment_amount?: number | null;
+  refunded_amount?: number | null;
   payment_status: PaymentStatus | null;
   payment_method: string | null;
   /** registrations.status, added in
@@ -64,7 +68,7 @@ export type RegistrationRow = {
 };
 
 const SELECT =
-  "id,user_id,category_id,category_label,full_name,bib_name,avatar_url,total_amount,payment_status,payment_method,registration_status,custom_data,created_at";
+  "id,booking_order_id,payment_id,user_id,category_id,category_label,full_name,bib_name,avatar_url,total_amount,payment_amount,refunded_amount,payment_status,payment_method,registration_status,custom_data,created_at";
 
 /** The email side-lookup from `listEventRegistrations`, split out so a
  *  caller paging through MANY batches (the CSV export route) can fetch it

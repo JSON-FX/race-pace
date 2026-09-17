@@ -57,7 +57,7 @@ async function fixture(tag: string, count: number) {
     }).select().single()).data!;
     cleanups.push(() => s.from("organizations").delete().eq("id", org.id));
     const ev = (await s.from("events").insert({
-      org_id: org.id, name: "PayoutV2 Race", status: "draft",
+      org_id: org.id, name: "PayoutV2 Race", status: "completed",
     }).select().single()).data!;
     const cat = (await s.from("categories").insert({
       org_id: org.id, event_id: ev.id, code: "40k", label: "40K",
@@ -134,6 +134,33 @@ async function stmt(s: SupabaseClient, id: string) {
 }
 
 describe("payout_open_statement v2", () => {
+  it("holds an outward payout until its event finishes, even through the RPC", async () => {
+    const f = await fixture("pv2live", 1);
+    try {
+      const admin = await signedInAs(f.adminEmail);
+      const { error: eventError } = await f.s.from("events").update({
+        status: "open", event_date: "2099-12-31",
+      }).eq("id", f.ev.id);
+      expect(eventError).toBeNull();
+      const id = await openStatement(admin, f.ev.id);
+      const args = { p_statement_id: id, p_expected_revision: 0, p_reference: "QA-HELD", p_note: null };
+
+      expect((await admin.rpc("payout_mark_paid", args)).data).toBe("event_unfinished");
+      const { data: held } = await f.s.from("payout_statements")
+        .select("status").eq("id", id).single();
+      expect(held?.status).toBe("open");
+      const { data: payment } = await f.s.from("payments")
+        .select("payout_statement_id").eq("registration_id", f.regIds[0]).single();
+      expect(payment?.payout_statement_id).toBeNull();
+
+      const { error: completeError } = await f.s.from("events").update({ status: "completed" }).eq("id", f.ev.id);
+      expect(completeError).toBeNull();
+      expect((await admin.rpc("payout_mark_paid", args)).data).toBe("paid");
+    } finally {
+      await f.cleanup();
+    }
+  });
+
   it("sums net_to_org and breaks the total down into gross, commission and processing", async () => {
     const f = await fixture("pv2a", 3);
     try {

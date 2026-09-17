@@ -46,7 +46,7 @@ async function makeOrg(slug: string) {
   const cats = [];
   for (const code of ["10k", "21k"]) {
     const { data: c } = await db.from("categories")
-      .insert({ org_id: org!.id, event_id: ev!.id, code, label: code.toUpperCase(), base_price: 100000 })
+      .insert({ org_id: org!.id, event_id: ev!.id, code, label: code.toUpperCase(), base_price: 100000, slots_total: 10 })
       .select("id").single();
     cats.push(c!.id);
   }
@@ -360,7 +360,7 @@ describe("registrations-checkout on a suspended org", () => {
     const { orgId, eventId } = await makeSuspendableOrg("t-susp-checkout");
     const db = svc();
     const { data: cat } = await db.from("categories")
-      .insert({ org_id: orgId, event_id: eventId, code: "10k", label: "10K", base_price: 100000 })
+      .insert({ org_id: orgId, event_id: eventId, code: "10k", label: "10K", base_price: 100000, slots_total: 10 })
       .select("id").single();
 
     const email = `t-susp-checkout-runner-${orgId}@racepace.test`;
@@ -398,7 +398,7 @@ async function makeSuspendedOrgWithTicket(slug: string) {
   const db = svc();
   const { orgId, eventId } = await makeSuspendableOrg(slug);
   const { data: cat } = await db.from("categories")
-    .insert({ org_id: orgId, event_id: eventId, code: "10k", label: "10K", base_price: 100000 })
+    .insert({ org_id: orgId, event_id: eventId, code: "10k", label: "10K", base_price: 100000, slots_total: 10 })
     .select("id").single();
 
   const email = `t-${slug}-runner-${orgId}@racepace.test`;
@@ -515,7 +515,7 @@ describe("payment-session on a suspended org", () => {
     const { orgId, eventId } = await makeSuspendableOrg("t-susp-paysess");
     const db = svc();
     const { data: cat } = await db.from("categories")
-      .insert({ org_id: orgId, event_id: eventId, code: "10k", label: "10K", base_price: 100000 })
+      .insert({ org_id: orgId, event_id: eventId, code: "10k", label: "10K", base_price: 100000, slots_total: 10 })
       .select("id").single();
 
     const email = `t-susp-paysess-runner-${orgId}@racepace.test`;

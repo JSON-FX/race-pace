@@ -35,11 +35,14 @@ export function customDataSchema(fields: FormField[]) {
 }
 
 export const registrationInputSchema = z.object({
+  participant_passport_id: z.string().uuid().optional(),
   event_id: z.string().uuid(),
   category_id: z.string().uuid(),
   addon_ids: z.array(z.string().uuid()).default([]),
   custom_data: z.record(z.unknown()).default({}),
   waiver_accepted: z.boolean(),
+  waiver_version_id: z.string().uuid().optional(),
+  waiver_acceptance_method: z.enum(["signed_in_self", "participant_on_helper_device"]).optional(),
   idempotency_key: z.string().min(8),
 });
 
@@ -54,3 +57,7 @@ export function fieldEditPolicy(key: string): FieldEditPolicy {
   if ((SAFETY_KEYS as readonly string[]).includes(key)) return "safety";
   return "immutable";
 }
+
+export * from "./passport.ts";
+
+export * from "./groupRegistration.ts";

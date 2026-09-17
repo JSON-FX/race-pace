@@ -12,7 +12,7 @@ describe("settlementCsv", () => {
   it("emits a header row followed by one row per registration", () => {
     const lines = settlementCsv([row()]).split("\n");
     expect(lines[0]).toBe(
-      "registration_id,runner_name,category,paid_at,method,gross_paid,rp_commission,processing_fee,net_to_org,status,refunded_amount,refunded_at",
+      "registration_id,runner_name,category,paid_at,method,gross_paid,rp_commission,processing_fee,net_to_org,status,refunded_amount,refunded_at,ledger_net_to_org",
     );
     expect(lines).toHaveLength(2);
   });
@@ -30,7 +30,7 @@ describe("settlementCsv", () => {
 
   it("renders a null paid_at and method as empty fields, not the string null", () => {
     const line = settlementCsv([row({ paid_at: null, method: null })]).split("\n")[1];
-    expect(line).toBe("r1,Ana Cruz,40K,,,2000.00,60.00,30.00,1910.00,paid,0.00,");
+    expect(line).toBe("r1,Ana Cruz,40K,,,2000.00,60.00,30.00,1910.00,paid,0.00,,1910.00");
   });
 
   it("emits only the header for an empty result", () => {
@@ -87,7 +87,7 @@ describe("money field safety", () => {
   it("does not prefix negative refunded amounts", () => {
     const csv = settlementCsv([row({ refunded_amount: -10000 })]);
     const line = csv.split("\n")[1];
-    expect(line).toContain("paid,-100.00,");
+    expect(line).toContain("paid,-100.00,,1910.00");
   });
 });
 
@@ -109,4 +109,32 @@ describe("character escaping regressions", () => {
     // Three quotes become six (each doubled), then wrapped in quotes (8 total)
     expect(csv.split("\n")[1]).toContain('""""""""');
   });
+});
+
+it("exports unknown group actual money explicitly rather than as zero", () => {
+  expect(settlementCsv([row({ processing_fee: null, net_to_org: null })])).toContain("2000.00,60.00,unknown,unknown,paid");
+});
+
+it("exports zero payable net for a full refund while retaining its original ledger net", () => {
+  const csv = settlementCsv([row({
+    gross_paid: 10000, rp_commission: 300, processing_fee: 250,
+    net_to_org: 9450, status: "refunded", refunded_amount: 9450,
+  })]);
+  expect(csv.split("\n")[1]).toContain("100.00,3.00,2.50,0.00,refunded,94.50,,94.50");
+});
+
+it("keeps a partial refund's retained net payable", () => {
+  const csv = settlementCsv([row({
+    gross_paid: 10000, rp_commission: 300, processing_fee: 250,
+    net_to_org: 4450, status: "partially_refunded", refunded_amount: 5000,
+  })]);
+  expect(csv.split("\n")[1]).toContain("100.00,3.00,2.50,44.50,partially_refunded,50.00,,44.50");
+});
+
+it("exports the staging flat-fee partial-refund split", () => {
+  const csv = settlementCsv([row({
+    gross_paid: 10000, rp_commission: 300, processing_fee: 250,
+    net_to_org: 2000, status: "partially_refunded", refunded_amount: 7450,
+  })]);
+  expect(csv.split("\n")[1]).toContain("100.00,3.00,2.50,20.00,partially_refunded,74.50,,20.00");
 });

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -54,6 +55,7 @@ export default function RecoveryPage() {
   }
   return <main className="grid min-h-dvh place-items-center bg-muted p-6">
     <Card className="w-full max-w-sm rounded-xl shadow-lg"><CardContent className="space-y-4 px-6 py-7">
+      <Image src="/topnav-logo.png" alt="Race Pace" width={700} height={372} priority className="mx-auto h-auto w-28" />
       <h1 className="text-xl font-bold">Choose a new password</h1>
       {state === "loading" && <p role="status">Checking your reset link…</p>}
       {state === "invalid" && <><p role="alert">This reset link is invalid, expired, or already used.</p><Link className="block text-sm underline" href="/forgot-password">Request a new reset link</Link></>}

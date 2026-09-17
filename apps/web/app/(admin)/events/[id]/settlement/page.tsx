@@ -11,7 +11,8 @@ import { peso, fmtDate } from "@/lib/format";
 import { ExportSettlementButton } from "./export-button";
 
 const MINUS = "−";
-const deduction = (c: number) => (c === 0 ? peso(0) : `${MINUS}${peso(Math.abs(c))}`);
+const money = (c: number | null) => c === null ? "Unknown" : peso(c);
+const deduction = (c: number | null) => c === null ? "Unknown" : (c === 0 ? peso(0) : `${MINUS}${peso(Math.abs(c))}`);
 
 /**
  * The route param is `id`, not the brief's `eventId`.
@@ -69,7 +70,7 @@ export default async function SettlementPage({
           <div><dt className="text-muted-foreground">Refunds</dt>
             <dd className="font-bold tabular-nums">{deduction(s.totals.refunds)}</dd></div>
           <div><dt className="text-muted-foreground">Net to you</dt>
-            <dd className="text-[15px] font-bold tabular-nums">{peso(s.totals.net)}</dd></div>
+            <dd className="text-[15px] font-bold tabular-nums">{money(s.totals.net)}</dd></div>
         </dl>
       </Card>
 
@@ -86,7 +87,7 @@ export default async function SettlementPage({
           </b>{" "}
           if the {s.projected.remaining} remaining{" "}
           {s.projected.remaining === 1 ? "entry sells" : "entries sell"} at your current average
-          entry price. The {peso(s.totals.net)} above is the recorded net from existing payments.
+          entry price. The {money(s.totals.net)} above is the recorded net from existing payments.
           Processing fees may still be estimates. This is not confirmation of a bank payout.
           The forecast varies with the payment methods used for unsold entries.
         </p>
@@ -97,15 +98,13 @@ export default async function SettlementPage({
           nothing at all, which reads as "everything is confirmed". */}
       {s.unreconciled === null ? (
         <p className="mb-4 rounded-[9px] border border-l-[3px] border-l-amber bg-card px-3.5 py-[11px] text-[13px] text-muted-foreground">
-          We could not check whether any processing fees are still{" "}
-          <b className="font-semibold text-foreground">estimated</b> on this event. Treat the
-          processing and net figures above as provisional until this page loads cleanly.
+          We could not check for unresolved payments, processing fees, or refunds on this event.
+          Treat the processing and net figures above as provisional until this page loads cleanly.
         </p>
       ) : s.unreconciled > 0 ? (
         <p className="mb-4 rounded-[9px] border border-l-[3px] border-l-amber bg-card px-3.5 py-[11px] text-[13px] text-muted-foreground">
-          {s.unreconciled} payment{s.unreconciled === 1 ? " has" : "s have"} an{" "}
-          <b className="font-semibold text-foreground">estimated</b> processing fee awaiting
-          confirmation from the payment provider. The figures above may move by a few pesos.
+          {s.unreconciled} payment{s.unreconciled === 1 ? " has" : "s have"} unresolved payment or refund information. Processing fees and organizer net may be incomplete.
+          Reconcile these entries before settling a payout.
         </p>
       ) : null}
 
@@ -140,7 +139,7 @@ export default async function SettlementPage({
                   <TableCell className="py-2.5 text-right tabular-nums">{deduction(r.rp_commission)}</TableCell>
                   <TableCell className="py-2.5 text-right tabular-nums">{deduction(r.processing_fee)}</TableCell>
                   <TableCell className="py-2.5 text-right font-bold tabular-nums">
-                    {r.status === "refunded" ? peso(0) : peso(r.net_to_org)}
+                    {r.status === "refunded" ? peso(0) : money(r.net_to_org)}
                   </TableCell>
                 </TableRow>
               ))}

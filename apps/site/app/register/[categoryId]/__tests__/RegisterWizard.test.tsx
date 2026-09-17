@@ -69,6 +69,47 @@ beforeEach(() => {
 });
 
 describe("RegisterWizard — already_registered 409", () => {
+  it("keeps the advertised total fixed when both fees are deducted from the organizer payout", () => {
+    const passport = { first_name: "QA", last_name: "Runner", date_of_birth: "1990-01-01", gender: "Female" as const,
+      contact_number: "09171234567", emergency_contact_name: "Contact", emergency_contact_number: "09171234567",
+      emergency_contact_relationship: "Friend" };
+    render(<RegisterWizard userId="u1" category={category} event={{ ...event, feeMode: "absorb", commissionTerms: {
+      commission_type: "percent", commission_rate: 0.03, commission_flat_cents: 0,
+    } }} addons={addons} formFields={formFields} passport={passport} />);
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(screen.getByText("Total to pay").closest("div")).toHaveTextContent("₱1,500.00");
+    expect(screen.getByText(/This price includes ₱45.00 in Taxes and fees/)).toBeInTheDocument();
+    expect(screen.getByText(/Neither fee is added to your total/)).toBeInTheDocument();
+  });
+
+  it("discloses the known platform fee without quoting PayMongo's changing fee", async () => {
+    const passport = { first_name: "QA", last_name: "Runner", date_of_birth: "1990-01-01", gender: "Female" as const,
+      contact_number: "09171234567", emergency_contact_name: "Contact", emergency_contact_number: "09171234567",
+      emergency_contact_relationship: "Friend" };
+    render(<RegisterWizard userId="u1" category={category} event={{ ...event, feeMode: "pass_on", commissionTerms: {
+      commission_type: "percent", commission_rate: 0.03, commission_flat_cents: 0,
+    } }} addons={addons} formFields={formFields} passport={passport} />);
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(screen.getByText("Taxes and fees")).toBeInTheDocument();
+    expect(screen.getByText("₱45.00")).toBeInTheDocument();
+    expect(screen.getByText("Subtotal before payment processing")).toBeInTheDocument();
+    expect(screen.getByText("₱1,545.00")).toBeInTheDocument();
+    expect(screen.getByText(/PayMongo calculates the processing fee and final total/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Continue to payment" })).toBeInTheDocument();
+  });
+
+  it("reviews saved Passport fields without legacy identity inputs", async () => {
+    const passport = { first_name: "QA", last_name: "Runner", team_name: "Trail Team", date_of_birth: "1950-01-01", gender: "Female" as const, contact_number: "09171234567", emergency_contact_name: "QA Contact", emergency_contact_number: "09171234567", emergency_contact_relationship: "Child" };
+    render(<RegisterWizard userId="u1" category={category} event={event} addons={addons} formFields={formFields} passport={passport} email="qa@example.com" />);
+    expect(screen.getByText("Trail Team")).toBeInTheDocument();
+    expect(screen.getByText("qa@example.com")).toBeInTheDocument();
+    expect(screen.queryByLabelText(/Bib name/)).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Edit Race Passport" })).toHaveAttribute("href", "/profile");
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(await screen.findByText("Kit & extras")).toBeInTheDocument();
+  });
   it("routes straight to /pay/<id> instead of showing a dead-end error", async () => {
     startCheckoutMock.mockRejectedValue(new CheckoutError("already_registered", "existing-reg-1"));
     const user = userEvent.setup();
@@ -117,4 +158,25 @@ it.each([{}, { error: "Profile save failed" }])("keeps registration identity whe
   expect(upsertProfile).toHaveBeenCalledWith(expect.objectContaining({ full_name: "QA Runner", bib_name: "Runner One" }));
   expect(startCheckoutMock).toHaveBeenCalledWith(expect.objectContaining({ custom_data: expect.objectContaining({ full_name: "QA Runner" }) }));
   expect(mockReplace).toHaveBeenCalledWith("/pay/new-reg");
+});
+
+it("submits the organizer version shown to the runner", async () => {
+ const user = userEvent.setup();
+ startCheckoutMock.mockResolvedValue({ registration_id: "reg", checkout_url: "https://example.com" });
+ render(<RegisterWizard userId="u1" category={category} event={event} addons={addons} formFields={formFields} waiver={{ id: "version-one", title: "Organizer terms", body: "Exact organizer text" }} />);
+ await fillAndSubmit(user);
+ expect(startCheckoutMock).toHaveBeenCalledWith(expect.objectContaining({ waiver_version_id: "version-one", waiver_accepted: true }));
+});
+
+it("submits assisted acceptance separately from the authenticated booker", async () => {
+ const user = userEvent.setup();
+ const passport = { first_name: "Guest", last_name: "Runner", date_of_birth: "1950-01-01", gender: "Female" as const, contact_number: "09171234567", emergency_contact_name: "Helper", emergency_contact_number: "09171234567", emergency_contact_relationship: "Child" };
+ startCheckoutMock.mockResolvedValue({ registration_id: "guest-reg", checkout_url: "https://example.com" });
+ render(<RegisterWizard userId="helper" participantId="guest-passport" assisted passport={passport} category={category} event={event} addons={addons} formFields={formFields} waiver={{ id:"guest-waiver",title:"Sample",body:"Sample document" }} />);
+ await user.click(screen.getByRole("button", { name:"Continue" }));
+ await user.click(screen.getByRole("button", { name:"Continue" }));
+ expect(screen.getByText(/Pass this device to/)).toBeInTheDocument();
+ await user.click(screen.getByRole("checkbox"));
+ await user.click(screen.getByRole("button", { name:/^Register/ }));
+ expect(startCheckoutMock).toHaveBeenCalledWith(expect.objectContaining({participant_passport_id:"guest-passport",waiver_acceptance_method:"participant_on_helper_device",waiver_version_id:"guest-waiver"}));
 });

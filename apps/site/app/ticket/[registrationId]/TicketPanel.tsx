@@ -20,7 +20,13 @@ export function TicketPanel({ registrationId, userId }: { registrationId: string
     getProfile(userId).then((p) => p && setProfile(p));
   }, [userId]);
 
-  const identity = registrationIdentity(reg.data?.identitySnapshot, profile);
+  const identity = registrationIdentity(
+    reg.data?.identitySnapshot,
+    reg.data?.participantUserId === userId ? profile : null,
+  );
+  const managed = reg.data?.bookedByUserId === userId && reg.data?.participantUserId !== userId;
+  const historyUrl = managed ? "/bookings" : "/races";
+  const historyLabel = managed ? "Bookings I manage" : "My Races";
   const reference = registrationId.slice(0, 8).toUpperCase();
 
   if (reg.isLoading) return <p className="py-20 text-center text-muted-foreground">Loading…</p>;
@@ -53,7 +59,7 @@ export function TicketPanel({ registrationId, userId }: { registrationId: string
           <Button onClick={() => reg.refetch()} className="mt-8 rounded-pill">Refresh ticket</Button>
         ) : null}
         <Button asChild variant="outline" className="mt-4 rounded-pill">
-          <Link href="/races">Back to My Races</Link>
+          <Link href={historyUrl}>Back to {historyLabel}</Link>
         </Button>
       </div>
     );
@@ -106,10 +112,10 @@ export function TicketPanel({ registrationId, userId }: { registrationId: string
           <Printer size={17} /> Save as PDF / Print
         </Button>
         <p className="text-center text-[13px] text-muted-foreground">
-          Save your ticket as a PDF or print it before race day. You can also find it in My Races.
+          Save your ticket as a PDF or print it before race day. You can also find it in {historyLabel}.
         </p>
         <Button asChild variant="outline" className="h-auto rounded-pill py-4 text-[15px] font-semibold">
-          <Link href="/races">Back to My Races</Link>
+          <Link href={historyUrl}>Back to {historyLabel}</Link>
         </Button>
       </div>
     </div>

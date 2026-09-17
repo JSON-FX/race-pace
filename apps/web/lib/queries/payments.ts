@@ -15,7 +15,10 @@ function searchPattern(q: string): string | null {
 }
 
 export type PaymentRow = {
-  registration_id: string;
+  registration_id: string | null;
+  payment_id: string;
+  booking_order_id: string | null;
+  participant_count: number;
   event_id: string | null;
   event_name: string | null;
   user_id: string | null;
@@ -25,17 +28,17 @@ export type PaymentRow = {
   amount: number;
   platform_fee: number;
   refunded_amount: number;
-  processor_fee_cents: number;
+  processor_fee_cents: number | null;
   processor_fee_source: string;
   paid_at: string | null;
-  net_to_org: number;
+  net_to_org: number | null;
   method: string | null;
   status: PaymentStatus;
   created_at: string;
 };
 
 const SELECT =
-  "registration_id,event_id,event_name,user_id,full_name,avatar_url,amount,platform_fee,refunded_amount,processor_fee_cents,processor_fee_source,paid_at,net_to_org,method,status,created_at";
+  "payment_id,booking_order_id,participant_count,registration_id,event_id,event_name,user_id,full_name,avatar_url,amount,platform_fee,refunded_amount,processor_fee_cents,processor_fee_source,paid_at,net_to_org,method,status,created_at";
 
 export async function listOrgPayments(
   orgId: string,
@@ -79,13 +82,13 @@ export async function listOrgPayments(
   }
 
   const s = params.sort[0] ?? { id: "created_at", desc: true };
-  // Secondary `.order("registration_id")` tiebreaker — same reasoning as
+  // Secondary `.order("payment_id")` tiebreaker — same reasoning as
   // `listEventRegistrations`'s `.order("id")`: rows sharing the primary sort
   // value have no guaranteed order across two separate `.range()` calls
   // otherwise, which the export route's batch seam would actually expose.
   req = req
     .order(s.id, { ascending: !s.desc })
-    .order("registration_id", { ascending: true })
+    .order("payment_id", { ascending: true })
     .range(from, from + params.per - 1);
 
   const { data, error, count } = await req;
@@ -137,7 +140,7 @@ export async function listOrgPaymentMethods(orgId: string): Promise<string[]> {
 export type PaymentAggregates = {
   grossCents: number;
   feeCents: number;
-  netCents: number;
+  netCents: number | null;
   refundedCents: number;
 };
 
@@ -146,17 +149,16 @@ const EMPTY_AGGREGATES: PaymentAggregates = { grossCents: 0, feeCents: 0, netCen
 /** KPI-row aggregates for the Payments page. Scoped to the SAME org and filters
  *  (status/method/q) as `listOrgPayments` — computed by a Postgres RPC (see
  *  supabase/migrations/20260806190000_admin_kpi_aggregates.sql) over
- *  admin_payments_v, the same view the table reads. Gross/fee/net are summed
- *  straight from that view's own amount/platform_fee/net_to_org columns —
+ *  admin_payments_v, the same view the table reads. The gross RPC figure is
+ *  captured amount less completed refunds on active payments. Fee/net are summed
+ *  from that view's platform_fee/net_to_org columns —
  *  net is NEVER recomputed as amount - fee client-side, so the card can never
  *  disagree with the ledger.
  *
- *  Gross/fee/net are restricted to `status = 'paid'` rows inside the RPC — a
- *  refunded payment keeps its original amount/fee/net columns (see the
- *  migration's comment), so summing every status would count money already
- *  given back as still "net to org". `listOrgPayments`'s TABLE is unaffected;
- *  only these aggregates narrow. `refundedCents` is unaffected by this and
- *  still sums `status = 'refunded'` rows.
+ *  Paid and partially refunded captures contribute current proceeds. Group
+ *  captures occur once regardless of participant count. A null aggregate net
+ *  means at least one included capture still needs actual-fee reconciliation;
+ *  it must not become an apparent zero or a partial subtotal.
  *
  *  Degrades to zeroes on failure rather than taking the page down. */
 export async function getPaymentAggregates(orgId: string, params: TableParams): Promise<PaymentAggregates> {
@@ -179,7 +181,7 @@ export async function getPaymentAggregates(orgId: string, params: TableParams): 
   return {
     grossCents: Number(row.gross_cents ?? 0),
     feeCents: Number(row.fee_cents ?? 0),
-    netCents: Number(row.net_cents ?? 0),
+    netCents: row.net_cents == null ? null : Number(row.net_cents),
     refundedCents: Number(row.refunded_cents ?? 0),
   };
 }

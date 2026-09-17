@@ -19,7 +19,7 @@ import type { SettlementRow } from "@/lib/settlement-csv";
 export type ProcessorRateLite = { percent_bps: number; fixed_cents: number };
 
 export type SettlementTotals = {
-  gross: number; commission: number; processing: number; refunds: number; net: number;
+  gross: number; commission: number; processing: number | null; refunds: number; net: number | null;
 };
 
 /**
@@ -57,12 +57,12 @@ export function settlementTotals(rows: SettlementRow[]): SettlementTotals {
   for (const r of rows) {
     t.gross += r.gross_paid;
     t.commission += r.rp_commission;
-    t.processing += r.processing_fee;
+    t.processing = t.processing === null || r.processing_fee === null ? null : t.processing + r.processing_fee;
     if (r.status === "refunded") {
-      t.refunds += r.net_to_org;
+      t.refunds += r.net_to_org ?? r.refunded_amount;
     } else {
       t.refunds += r.refunded_amount;
-      t.net += r.net_to_org;
+      t.net = t.net === null || r.net_to_org === null ? null : t.net + r.net_to_org;
     }
   }
   return t;

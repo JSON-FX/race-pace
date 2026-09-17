@@ -40,7 +40,7 @@ export async function RegistrationsKpiSection({ eventId, params }: {
           rolling 30d) and reads as noise against this org's sparse,
           single-month seed data. Rather than fabricate a plausible-looking
           percentage, the card renders the value alone. */}
-      <KpiCard icon={Wallet} label="Gross revenue" value={peso(aggregates.grossCents)} />
+      <KpiCard icon={Wallet} label="Retained gross" value={peso(aggregates.grossCents)} />
       <KpiCard
         icon={Undo2}
         label="Refunds"

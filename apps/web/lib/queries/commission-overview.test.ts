@@ -11,6 +11,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
  * exactly where the three-party ledger's reporting bugs live: reading the column
  * that records the money, and keeping "charged" apart from "retained".
  */
+const categoryEventFilters: string[][] = [];
 let byTable: Record<string, unknown[]> = {};
 /** Tables that should answer with a Postgres error instead of rows. */
 let errorByTable: Record<string, { code?: string; message: string }> = {};
@@ -22,7 +23,11 @@ vi.mock("@/lib/supabase/server", () => ({
       // Every chained method this query uses. They are pass-throughs: the point
       // of these tests is the arithmetic after the rows arrive, and the filters
       // themselves are enforced (and tested) in Postgres.
-      ["select", "order", "in", "is", "eq"].forEach((m) => { builder[m] = () => builder; });
+      ["select", "order", "in", "is", "eq", "range"].forEach((m) => { builder[m] = () => builder; });
+      if (table === "categories") builder.in = (_field: string, ids: string[]) => {
+        categoryEventFilters.push(ids);
+        return builder;
+      };
       (builder as { then: unknown }).then = (resolve: (v: unknown) => unknown) =>
         resolve(
           errorByTable[table]
@@ -48,6 +53,7 @@ const REFUNDED = { ...PAID, status: "refunded", refunded_amount: 191000 };
 
 beforeEach(() => {
   errorByTable = {};
+  categoryEventFilters.length = 0;
   byTable = {
     organizations: [{
       id: ORG, name: "RunWithPoint", created_at: null,
@@ -201,4 +207,46 @@ describe("getRateDrift — advisory, and never able to take the page down", () =
     expect(overview.totals.charged_gross).toBe(400000);
     errorSpy.mockRestore();
   });
+});
+
+
+describe("group participant commission", () => {
+  it("uses participant allocations for counts and refunds, adding unsettled group net once", async () => {
+    byTable.admin_group_allocations_v = [
+      { ...PAID, net_to_org: 191000, payout_statement_id: null },
+      { ...PARTIAL, refunded_amount: 191000, net_to_org: 0, payout_statement_id: "settled" },
+    ];
+    const result = await getCommissionOverview();
+    expect(result.events[0].paid_count).toBe(4);
+    expect(result.events[0].gross).toBe(800000);
+    expect(result.events[0].commission).toBe(24000);
+    expect(result.totals.unpaid_out_cents).toBe(412000);
+    expect(result.totals.refunded_cents).toBe(543000);
+  });
+  it("preserves incomplete organizer net and unpaid amounts", async () => {
+    byTable.admin_org_totals_v = [{ org_id: ORG, paid_count: 1, gross_revenue: 200000,
+      charged_gross: 200000, platform_fee: 6000, net_to_org: null }];
+    byTable.admin_group_allocations_v = [{ ...PAID, net_to_org: null, payout_statement_id: null }];
+    const result = await getCommissionOverview();
+    expect(result.totals.net_to_org).toBeNull();
+    expect(result.orgs[0].net_to_org).toBeNull();
+    expect(result.totals.unpaid_out_cents).toBeNull();
+    expect(result.orgs[0].avg_processor_fee_cents).toBeNull();
+  });
+  it("does not hide a failed group read behind legacy totals", async () => {
+    errorByTable.admin_group_allocations_v = { message: "database unavailable" };
+    await expect(getCommissionOverview()).rejects.toMatchObject({ message: "database unavailable" });
+  });
+});
+
+it("bounds category UUID filters below the proxy URL limit", async () => {
+  byTable.events = Array.from({ length: 205 }, (_, i) => ({ id: `event-${i}`, org_id: ORG, name: "Race", status: "open" }));
+  Object.defineProperty(byTable, "categories", { get: () => [{ org_id: ORG,
+    label: categoryEventFilters.length === 1 ? "10K" : "5K",
+    base_price: categoryEventFilters.length === 1 ? 20000 : 10000,
+  }] });
+  const result = await getCommissionOverview();
+  expect(categoryEventFilters.map(ids => ids.length)).toEqual([100, 100, 5]);
+  expect(new Set(categoryEventFilters.flat()).size).toBe(205);
+  expect(result.orgs[0].cheapest_open).toEqual({ label: "5K", base_price: 10000 });
 });

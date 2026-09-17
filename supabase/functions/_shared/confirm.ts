@@ -40,6 +40,17 @@ export type ConfirmResult =
 export function reportedProcessorFee(
   raw: unknown,
 ): { fee: number; netAmount: number; amount: number } | null {
+  const attrs = paymentAttributes(raw);
+  if (!attrs) return null;
+
+  // deno-lint-ignore no-explicit-any
+  const captured = (attrs.payments as any[]).some((p) => p?.attributes?.status === "paid");
+  if (!captured) return null;
+
+  return pmFeeFromAttributes(attrs);
+}
+
+function paymentAttributes(raw: unknown) {
   // deno-lint-ignore no-explicit-any
   const r = raw as any;
   const candidates = [
@@ -49,14 +60,34 @@ export function reportedProcessorFee(
     r?.attributes, // a bare resource
     r, // an attributes object already
   ];
-  const attrs = candidates.find((c) => Array.isArray(c?.payments));
-  if (!attrs) return null;
+  return candidates.find((c) => Array.isArray(c?.payments)) ?? null;
+}
 
+export function reportedSessionId(raw: unknown): string | null {
+  const r = raw as { session?: { data?: { id?: unknown } }; event?: { data?: { attributes?: { data?: { id?: unknown } } } } };
+  const id = r?.session?.data?.id ?? r?.event?.data?.attributes?.data?.id;
+  return typeof id === "string" && id.startsWith("cs_") ? id : null;
+}
+
+export function reportedPaidCaptures(raw: unknown): Array<{
+  id: string; currency: string; livemode: boolean;
+  amount: number | null; fee: number | null; netAmount: number | null;
+}> {
   // deno-lint-ignore no-explicit-any
-  const captured = (attrs.payments as any[]).some((p) => p?.attributes?.status === "paid");
-  if (!captured) return null;
-
-  return pmFeeFromAttributes(attrs);
+  const attrs = paymentAttributes(raw);
+  // deno-lint-ignore no-explicit-any
+  return (Array.isArray(attrs?.payments) ? attrs.payments : [])
+    // deno-lint-ignore no-explicit-any
+    .filter((p: any) => p?.attributes?.status === "paid")
+    // deno-lint-ignore no-explicit-any
+    .map((p: any) => {
+      const amounts = pmFeeFromAttributes({ payments: [p] });
+      return {
+        id: p?.id, currency: p?.attributes?.currency, livemode: p?.attributes?.livemode,
+        amount: amounts?.amount ?? null, fee: amounts?.fee ?? null,
+        netAmount: amounts?.netAmount ?? null,
+      };
+    });
 }
 
 /** Mark a registration paid, mint its signed ticket, and increment the slot — in one
@@ -82,19 +113,72 @@ export async function confirmPayment(
     // the type level, and `a + b` is `string` to TypeScript — which erases every
     // column type on `reg` (this file used to do exactly that, and typed `reg`
     // as an error object for its whole length).
-    .select("id,event_id,total_amount,status,organizations(commission_type,commission_rate,commission_flat_cents),payments(amount)")
+    .select("id,event_id,total_amount,status,organizations(commission_type,commission_rate,commission_flat_cents),payments(amount,provider,provider_ref,raw,checkout_fee_mode,checkout_platform_fee,checkout_provider_managed_fee)")
     .eq("id", registrationId)
     .single();
   if (!reg) return { ok: false, error: "not_found", status: 404 };
-  if (reg.status === "paid") return { ok: true, registration_id: reg.id, already: true };
-  // refunded/cancelled: no-op (replay-safe), never re-confirm. 'expired' is
-  // deliberately NOT short-circuited here — it must reach confirm_payment_tx
-  // so the resurrect/conflict logic below actually runs. Returning early for
-  // 'expired' (as this used to) would silently swallow a late capture instead
-  // of resurrecting the registration or flagging a conflict.
-  if (reg.status === "refunded" || reg.status === "cancelled") {
+
+  const payment = Array.isArray(reg.payments) ? reg.payments[0] : reg.payments;
+  const paymentTerms = payment as {
+    amount?: number; provider?: string; provider_ref?: string | null; raw?: unknown;
+    checkout_fee_mode?: string | null; checkout_platform_fee?: number | null;
+    checkout_provider_managed_fee?: boolean;
+  } | null | undefined;
+  const reported = reportedProcessorFee(raw);
+  let observedPaymentId: string | null = null;
+  if (paymentTerms?.provider === "paymongo") {
+    // Store the signed-webhook or provider-GET capture before any status
+    // short-circuit or ledger validation. A second pay_ ID is real money even
+    // when this registration already has a ticket or was later refunded.
+    const captures = reportedPaidCaptures(raw);
+    if (!captures.length || captures.some((c) =>
+      typeof c.id !== "string" || !c.id.startsWith("pay_")
+    )) return { ok: false, error: "provider_capture_invalid", status: 503 };
+    const expectedLive = Deno.env.get("PAYMONGO_SECRET_KEY")?.startsWith("sk_live_") === true;
+    const fee = paymentTerms.checkout_platform_fee ?? 0;
+    let reviewRequired = false;
+    let firstCaptureState: string | null = null;
+    for (const capture of captures) {
+      const invalidReason = capture.currency !== "PHP" || typeof capture.livemode !== "boolean"
+        ? "capture_metadata_invalid"
+        : capture.livemode !== expectedLive ? "environment_mismatch"
+        : capture.amount === null || capture.fee === null || capture.netAmount === null ||
+          capture.amount - capture.fee !== capture.netAmount ? "fee_integrity"
+        : paymentTerms.checkout_provider_managed_fee &&
+          (paymentTerms.checkout_fee_mode !== "pass_on" ||
+            paymentTerms.checkout_platform_fee == null ||
+            capture.netAmount < reg.total_amount + fee ||
+            capture.netAmount > reg.total_amount + fee + 1) ? "provider_fee_mismatch"
+        : null;
+      const { data: captureState, error: observeError } = await db.rpc("single_capture_observe", {
+        p_registration_id: reg.id, p_payment_id: capture.id,
+        p_session_id: reportedSessionId(raw), p_amount: capture.amount,
+        p_fee: capture.fee, p_net: capture.netAmount,
+        p_livemode: typeof capture.livemode === "boolean" ? capture.livemode : null,
+        p_invalid_reason: invalidReason,
+        p_resource: raw as Record<string, unknown>,
+      });
+      if (observeError || !["observed", "settled"].includes(captureState)) {
+        console.error("[confirm] capture requires reconciliation", { registrationId: reg.id, paymentId: capture.id, state: captureState, error: observeError });
+        reviewRequired = true;
+      }
+      firstCaptureState ??= captureState;
+      observedPaymentId ??= capture.id;
+    }
+    if (reviewRequired) return { ok: false, error: "capture_review_required", status: 503 };
+    if (reg.status === "paid" || reg.status === "refunded") {
+      if (firstCaptureState === "observed") {
+        const settled = await db.rpc("single_capture_settle", { p_registration_id: reg.id, p_payment_id: observedPaymentId });
+        if (settled.error || settled.data !== "settled") return { ok: false, error: "capture_review_required", status: 503 };
+      }
+      return { ok: true, registration_id: reg.id, already: true };
+    }
+    if (reg.status === "cancelled") return { ok: false, error: "capture_review_required", status: 503 };
+  } else if (reg.status === "paid" || reg.status === "refunded" || reg.status === "cancelled") {
     return { ok: true, registration_id: reg.id, already: true };
   }
+  // 'expired' is deliberately not short-circuited: its captured money must
+  // reach the RPC's resurrection or conflict handling.
 
   let secret: string;
   try {
@@ -117,7 +201,8 @@ export async function confirmPayment(
   };
   // Race Pace's commission is struck on the BASE the organizer priced — the same
   // figure in both fee modes, so a pass-on org's ₱2,000 event still yields ₱60.
-  const fee = computeFee(reg.total_amount, terms);
+  const providerManaged = paymentTerms?.checkout_provider_managed_fee === true;
+  const fee = paymentTerms?.checkout_platform_fee ?? computeFee(reg.total_amount, terms);
 
   // ...but everything downstream of the commission comes out of what the runner
   // was ACTUALLY charged, which is no longer always the base. In absorb mode
@@ -136,8 +221,7 @@ export async function confirmPayment(
   // `let`, not `const`: when the provider reports having captured a different
   // amount than this row was set up to charge, the reported figure wins and this
   // is reconciled to it below. Money that arrived beats money we intended.
-  const payment = Array.isArray(reg.payments) ? reg.payments[0] : reg.payments;
-  let charged = (payment as { amount?: number } | null | undefined)?.amount ?? reg.total_amount;
+  let charged = paymentTerms?.amount ?? reg.total_amount;
 
   // What the processor actually took. PayMongo settles NET, and reports both
   // halves on the payment object we already store in payments.raw.
@@ -145,7 +229,50 @@ export async function confirmPayment(
   // Reading the ACTUAL fee rather than predicting it is what makes the ledger
   // immune to rate drift: if PayMongo changes its pricing tomorrow, this is
   // still exactly right the same day and nobody has to notice anything.
-  const reported = reportedProcessorFee(raw);
+  // PayMongo's rate card is not an accounting source. If its captured payment
+  // has not supplied the actual fee and net amount, retry verification instead
+  // of making a ticket and payout from a guess. The fake local provider retains
+  // its rate-card behavior for offline tests only.
+  if (paymentTerms?.provider === "paymongo") {
+    const identity = reportedPaidCaptures(raw)[0];
+    const expectedLive = Deno.env.get("PAYMONGO_SECRET_KEY")?.startsWith("sk_live_") === true;
+    if (!identity || identity.livemode !== expectedLive) {
+      console.error("[confirm] PayMongo capture identity or environment is invalid", { registrationId: reg.id });
+      return { ok: false, error: "provider_capture_invalid", status: 503 };
+    }
+    if (!paymentTerms.provider_ref?.startsWith("cs_") ||
+        reportedSessionId(raw) !== paymentTerms.provider_ref) {
+      console.error("[confirm] PayMongo capture session does not match reservation", { registrationId: reg.id });
+      return { ok: false, error: "provider_session_mismatch", status: 503 };
+    }
+    if (!reported || reported.amount <= 0 || reported.fee < 0 ||
+        reported.amount - reported.fee !== reported.netAmount) {
+      console.error("[confirm] PayMongo capture has no trustworthy fee", { registrationId: reg.id });
+      return { ok: false, error: "provider_fee_unavailable", status: 503 };
+    }
+    if (!providerManaged && paymentTerms.checkout_fee_mode === "absorb" &&
+        reported.amount !== reg.total_amount) {
+      console.error("[confirm] fixed-price checkout captured a different amount", {
+        registrationId: reg.id, expected: reg.total_amount, captured: reported.amount,
+      });
+      return { ok: false, error: "provider_amount_mismatch", status: 503 };
+    }
+    if (providerManaged &&
+        (paymentTerms.checkout_fee_mode !== "pass_on" ||
+          paymentTerms.checkout_platform_fee === null ||
+          paymentTerms.checkout_platform_fee === undefined ||
+          reported.netAmount < reg.total_amount + fee ||
+          reported.netAmount > reg.total_amount + fee + 1)) {
+      // PayMongo's pass-on promise is that the merchant receives the frozen
+      // entry plus platform fee. A one-cent excess can result from rounding;
+      // it stays in the actual gross and organizer net. More needs review.
+      console.error("[confirm] provider-managed fee does not match frozen subtotal", {
+        registrationId: reg.id, expectedNet: reg.total_amount + fee,
+        capturedNet: reported.netAmount,
+      });
+      return { ok: false, error: "provider_fee_mismatch", status: 503 };
+    }
+  }
 
   let processorFee = 0;
   let processorFeeSource = "none";
@@ -273,11 +400,26 @@ export async function confirmPayment(
       `[webhook] CAPTURE CONFLICT registration=${reg.id} — payment captured on an expired registration ` +
         `while a live entry exists for the same runner+event. MANUAL REFUND REQUIRED.`,
     );
-    // No registration/payment/ticket state changed, so this is not a genuine
-    // confirmation and must not fall through to the ticket-email step below.
-    return { ok: true, registration_id: reg.id, already: true };
+    if (observedPaymentId) {
+      const review = await db.from("single_payment_captures")
+        .update({ state: "reconciliation_required", reason: "fulfillment_conflict" })
+        .eq("provider_payment_id", observedPaymentId).eq("registration_id", reg.id);
+      if (review.error) console.error("[confirm] capture review update failed", { registrationId: reg.id, error: review.error });
+    }
+    // No ticket was created. The capture remains in the inbox and blocks
+    // payout until staff resolves the refund or fulfillment conflict.
+    return { ok: false, error: "capture_review_required", status: 503 };
   }
   const already = result === "already" || result === "not_pending";
+
+  if (observedPaymentId) {
+    const settled = await db.rpc("single_capture_settle", { p_registration_id: reg.id, p_payment_id: observedPaymentId });
+    if (settled.error || settled.data !== "settled") {
+      console.error("[confirm] paid ledger capture still needs review", { registrationId: reg.id, paymentId: observedPaymentId, result: settled.data, error: settled.error });
+      // The ticket/ledger RPC already committed. Keep the capture unresolved
+      // to block payout, while allowing the runner to receive the ticket.
+    }
+  }
 
   // DELIBERATELY no event-status check here, unlike registrations-checkout and
   // payment-session. By the time this runs PayMongo has already captured the

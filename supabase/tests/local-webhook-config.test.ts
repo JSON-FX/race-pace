@@ -11,7 +11,7 @@ describe("local webhook signing configuration", () => {
     vi.mocked(readFileSync).mockReturnValue('PAYMONGO_WEBHOOK_SECRET="fixture-key"\n');
     vi.spyOn(Date, "now").mockReturnValue(1700000000000);
     const raw = '{"data": {"value": 1}}';
-    const sign = localWebhookSigner("http://127.0.0.1:54521");
+    const sign = localWebhookSigner("http://127.0.0.1:54521", "supabase/functions/.env");
     const expected = createHmac("sha256", "fixture-key").update(`1700000000.${raw}`).digest("hex");
     expect(sign(raw)).toBe(`t=1700000000,te=${expected}`);
     expect(readFileSync).toHaveBeenCalledWith("supabase/functions/.env");

@@ -15,8 +15,9 @@ afterEach(() => { vi.unstubAllGlobals(); vi.clearAllMocks(); });
 
 describe("ticket email transport", () => {
   it("captures only through the TLS-required Mailtrap sandbox", async () => {
-    expect(await sendEmail("runner@example.com", "Ticket", "<p>Ticket</p>")).toEqual({ ok: true });
+    expect(await sendEmail("runner@example.com", "Ticket", "<p>Ticket</p>", "Ticket\nReference: ABC")).toEqual({ ok: true });
     expect(smtp.createTransport).toHaveBeenCalledWith(expect.objectContaining({ host: "sandbox.smtp.mailtrap.io", requireTLS: true }));
+    expect(smtp.sendMail).toHaveBeenCalledWith(expect.objectContaining({ text: "Ticket\nReference: ABC" }));
     expect(smtp.close).toHaveBeenCalled();
     expect(fetch).not.toHaveBeenCalled();
   });
@@ -35,8 +36,8 @@ describe("ticket email transport", () => {
     delete env.EMAIL_PROVIDER;
     env.RESEND_API_KEY = "test-key";
     vi.mocked(fetch).mockResolvedValue(new Response("{}", { status: 200 }));
-    expect(await sendEmail("runner@example.com", "Ticket", "html")).toEqual({ ok: true });
-    expect(fetch).toHaveBeenCalledWith("https://api.resend.com/emails", expect.any(Object));
+    expect(await sendEmail("runner@example.com", "Ticket", "html", "Ticket\nReference: ABC")).toEqual({ ok: true });
+    expect(fetch).toHaveBeenCalledWith("https://api.resend.com/emails", expect.objectContaining({ body: expect.stringContaining('"text":"Ticket\\nReference: ABC"') }));
     expect(smtp.sendMail).not.toHaveBeenCalled();
   });
 });

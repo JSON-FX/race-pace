@@ -32,7 +32,9 @@ describe("processor_rates", () => {
     // Quoted ex-VAT x 1.12. 3.125% -> 3.50%, ₱13.39 -> ₱15.00.
     expect(byKey.get("card:local")).toMatchObject({ percent_bps: 350, fixed_cents: 1500 });
     expect(byKey.get("card:international")).toMatchObject({ percent_bps: 450, fixed_cents: 1500 });
-    expect(byKey.get("gcash:local")).toMatchObject({ percent_bps: 150, fixed_cents: 0 });
+    // The original 1.50% GCash card underpredicted all four staging captures.
+    // Pass-on must use the corrected VAT-inclusive 2.50% rate.
+    expect(byKey.get("gcash:local")).toMatchObject({ percent_bps: 250, fixed_cents: 0 });
     expect(byKey.get("paymaya:local")).toMatchObject({ percent_bps: 150, fixed_cents: 0 });
   });
 

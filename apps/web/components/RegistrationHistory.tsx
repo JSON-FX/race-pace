@@ -50,7 +50,7 @@ function Entry({ row }: { row: AuditRow }) {
   // getting the from/to card above, since there is no "previous amount" to show.
   const amount = typeof row.detail.amount === "number" ? ` ${peso(row.detail.amount)}` : "";
   const label =
-    row.action === "paid" ? `Paid${amount}`
+    row.action === "paid" ? (row.detail.amount_basis === "captured_gross" ? `Paid${amount}` : `Payment confirmed · entry base${amount}`)
     : row.action === "refunded" ? `Refunded${amount}`
     : row.action === "partially_refunded" ? `Partially refunded${amount}`
     : row.action === "kit_released" ? "Race kit released"

@@ -74,6 +74,7 @@ function reg(overrides: Partial<RegistrationRow> = {}): RegistrationRow {
     orgName: "Race Pace", eventHeroUrl: null, basePrice: 150000,
     inclusions: [], feeMode: "absorb", orgIsActive: true,
     feeTerms: { commission_type: "percent", commission_rate: 0.03, commission_flat_cents: 0 },
+    checkoutPlatformFee: null, checkoutProviderManagedFee: false,
     payment: null,
     ...overrides,
   };

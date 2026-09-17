@@ -35,7 +35,7 @@ function roles(overrides: Partial<MyRoles> = {}): MyRoles {
 
 function row(overrides: Partial<PaymentRow> = {}): PaymentRow {
   return {
-    refunded_amount: 0, processor_fee_cents: 0, processor_fee_source: "none", paid_at: null, registration_id: "reg-1",
+    payment_id: "payment-1", booking_order_id: null, participant_count: 1, refunded_amount: 0, processor_fee_cents: 0, processor_fee_source: "none", paid_at: null, registration_id: "reg-1",
     event_id: "event-1",
     event_name: "Dahilayan Sky Ultra",
     user_id: "u-1",
@@ -96,10 +96,10 @@ describe("GET /payments/export", () => {
     const lines = body.split("\r\n").filter(Boolean);
 
     expect(lines[0]).toBe(
-      "Registration ID,Event,Runner,Amount (PHP),Platform Fee (PHP),Processing Fee (PHP),Processing Fee Source,Stored Ledger Net to Org (PHP),Method,Status,Checkout Created At (UTC),Payment Confirmed At (UTC),Refunded Amount (PHP),Retained Gross (PHP),Current Platform Fees (PHP),Current Net to Org (PHP)",
+      "Registration ID,Event,Runner,Amount (PHP),Platform Fee (PHP),Processing Fee (PHP),Processing Fee Source,Stored Ledger Net to Org (PHP),Method,Status,Checkout Created At (UTC),Payment Confirmed At (UTC),Refunded Amount (PHP),Retained Gross (PHP),Current Platform Fees (PHP),Current Net to Org (PHP),Payment ID,Booking Order ID,Participant Count",
     );
     expect(lines[1]).toBe(
-      "reg-1,Dahilayan Sky Ultra,Ana Cruz,1500.00,45.00,15.00,predicted,1440.00,gcash,paid,2026-08-04T11:35:15.624Z,2026-08-04T12:00:00.000Z,0.00,1500.00,45.00,1440.00",
+      "reg-1,Dahilayan Sky Ultra,Ana Cruz,1500.00,45.00,15.00,predicted,1440.00,gcash,paid,2026-08-04T11:35:15.624Z,2026-08-04T12:00:00.000Z,0.00,1500.00,45.00,1440.00,payment-1,,1",
     );
   });
 
@@ -261,5 +261,22 @@ it.each([
   listOrgPaymentsMock.mockResolvedValue({ rows: [row({ status, amount: 100000, platform_fee: 0, processor_fee_cents: 1500, refunded_amount: refunded, net_to_org: net })], total: 1 });
   const response = await GET(new Request("http://localhost/payments/export"));
   const line = (await response.text()).split("\r\n")[1]!;
-  expect(line.split(",").slice(-4)).toEqual(expected);
+  expect(line.split(",").slice(12, 16)).toEqual(expected);
+});
+
+it("exports one capture for a group and leaves unknown actual amounts blank", async () => {
+  getMyRolesMock.mockResolvedValue(roles());
+  listOrgPaymentsMock.mockResolvedValue({ rows: [row({
+    registration_id: null, payment_id: "capture-1", booking_order_id: "order-1",
+    participant_count: 3, processor_fee_cents: null, net_to_org: null,
+    processor_fee_source: "none",
+  })], total: 1 });
+  const lines = (await (await GET(new Request("http://localhost/payments/export"))).text()).trim().split("\r\n");
+  expect(lines).toHaveLength(2);
+  const cells = lines[1].split(",");
+  expect(cells[0]).toBe("");
+  expect(cells[5]).toBe("");
+  expect(cells[7]).toBe("");
+  expect(cells[15]).toBe("");
+  expect(cells.slice(16)).toEqual(["capture-1", "order-1", "3"]);
 });

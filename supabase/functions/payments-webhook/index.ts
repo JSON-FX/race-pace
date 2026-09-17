@@ -2,6 +2,8 @@ import { confirmPayment } from "../_shared/confirm.ts";
 import { serviceClient } from "../_shared/supabase.ts";
 import { refundResourcesFromEvent, verifyWebhookSignature } from "../_shared/paymongo-webhook.ts";
 import { pmMethodFromAttributes } from "../_shared/paymongo.ts";
+import { applyGroupRefundWebhook } from "../_shared/groupRefund.ts";
+import { verifyGroupPayment } from "../_shared/groupPaymentService.ts";
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -24,6 +26,20 @@ Deno.serve(async (req) => {
     const db = serviceClient();
 
     if (type === "checkout_session.payment.paid" || type === "payment.paid") {
+      const attemptId = resource?.attributes?.metadata?.payment_attempt_id;
+      if (attemptId) {
+        if (Deno.env.get("GROUP_PAYMENTS_ENABLED") !== "true") return json({ error: "group_checkout_not_available" }, 503);
+        if (typeof attemptId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(attemptId)) {
+          return json({ error: "invalid_group_attempt" }, 400);
+        }
+        // Re-fetch the stored session. Metadata routes the notification; it
+        // does not replace verification of the bound provider capture.
+        const verified = await verifyGroupPayment(attemptId);
+        // A paid notification can precede the provider GET becoming consistent.
+        // Acknowledge only a durable capture outcome, not an unpaid snapshot.
+        if (verified.status === "pending") return json({ error: "group_capture_not_visible" }, 503);
+        return json(verified);
+      }
       const rid = resource?.attributes?.metadata?.registration_id as string | undefined;
       if (!rid) return json({ ok: true, ignored: "no_registration_id" });
       // Shared with payment-verify so both confirm paths record the same
@@ -32,7 +48,12 @@ Deno.serve(async (req) => {
       // [0] then reports the method the runner abandoned.
       const method = pmMethodFromAttributes(resource?.attributes);
       const r = await confirmPayment(rid, method, { source: "webhook", event: evt });
-      if (!r.ok) return json({ error: r.error }, r.status); // surface failures so PayMongo retries
+      if (!r.ok && r.error === "capture_review_required") {
+        // The signed capture is durably recorded and blocks payout. A retry
+        // cannot fix an extra charge or amount mismatch; alert staff instead.
+        return json({ ok: true, review_required: true });
+      }
+      if (!r.ok) return json({ error: r.error }, r.status); // transient failures can retry
       return json({ ok: true, registration_id: r.registration_id });
     }
 
@@ -40,6 +61,7 @@ Deno.serve(async (req) => {
     if (refunds !== null) {
       if (!refunds.length) return json({ error: "invalid_refund_resource" }, 400);
       for (const refundResource of refunds) {
+        if (await applyGroupRefundWebhook(refundResource)) continue;
         // Commit the signed resource before acknowledgment. An early callback
         // remains available even when the provider response has not bound its ID.
         const stored = await db.rpc("refund_event_store", { p_resource: refundResource });

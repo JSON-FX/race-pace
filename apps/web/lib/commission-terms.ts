@@ -153,9 +153,8 @@ export function describeRefund(
   if (processorFeeCents === null) {
     const unknown =
       `Race Pace keeps its ${pesoExact(commission)} commission and the processor keeps its fee; ` +
-      "neither comes back on a refund. No payment of theirs records a processor fee — either " +
-      "none has been processed yet, or they predate the three-party ledger and Race Pace " +
-      "absorbed the processing — so the exact figures cannot be shown here.";
+      "neither comes back on a refund. Processing fees are unavailable or awaiting confirmation, " +
+      "so the exact refund figures cannot be shown here.";
     return terms.refund_policy === "full"
       ? `Gets back the ${pesoExact(entry)} entry less Race Pace's commission and the ` +
         `processor's fee — the whole of what the organizer would have been paid. ${unknown}`

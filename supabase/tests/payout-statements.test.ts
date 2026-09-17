@@ -38,9 +38,8 @@ async function fixture(tag: string, count: number) {
       refund_policy: "full", refund_fee_cents: 0,
     }).select().single()).data!;
     cleanups.push(() => s.from("organizations").delete().eq("id", org.id));
-    // status doesn't matter — payout_open_statement/payout_mark_paid only look up org_id
-    // off the event, never through an anon/public read.
-    const ev = (await s.from("events").insert({ org_id: org.id, name: "Payout Race", status: "draft" }).select().single()).data!;
+    // Settlement is only allowed after the event completes.
+    const ev = (await s.from("events").insert({ org_id: org.id, name: "Payout Race", status: "completed" }).select().single()).data!;
     // registrations.category_id is NOT NULL — capacity and price live on categories.
     const cat = (await s.from("categories").insert({
       org_id: org.id, event_id: ev.id, code: "50k", label: "50K",

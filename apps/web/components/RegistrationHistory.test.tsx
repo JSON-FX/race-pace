@@ -47,7 +47,7 @@ describe("RegistrationHistory", () => {
   it("collapses a payment entry to a single line", async () => {
     auditResult = { data: [row({ action: "paid", detail: { method: "gcash", amount: 230000 }, actor_role: "system" })], error: null };
     render(<RegistrationHistory registrationId="r1" />);
-    expect(await screen.findByText(/paid/i)).toBeInTheDocument();
+    expect(await screen.findByText("Payment confirmed · entry base ₱2,300")).toBeInTheDocument();
     expect(screen.queryByText("empty")).not.toBeInTheDocument();
   });
 
@@ -84,4 +84,10 @@ describe("RegistrationHistory", () => {
     expect(to.className).toContain("text-accent-foreground");
     expect(to.className).not.toMatch(/(^|\s)text-accent(\s|$)/);
   });
+});
+
+it("labels new captured-gross history as paid", async () => {
+ auditResult = { data: [row({action:"paid", detail:{amount:106599,amount_basis:"captured_gross"}})], error:null };
+ render(<RegistrationHistory registrationId="r1" />);
+ expect(await screen.findByText("Paid ₱1,065.99")).toBeInTheDocument();
 });

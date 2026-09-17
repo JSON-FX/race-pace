@@ -38,7 +38,7 @@ export type OrgCommissionRow = RefundTerms & {
    *  would print 15.4% for a 3% org the moment one entry is partially refunded. */
   charged_gross: number;
   platform_fee: number;
-  net_to_org: number;
+  net_to_org: number | null;
   /** What runners were CHARGED per paid entry — `charged_gross / paid_count`,
    *  not `gross_revenue / paid_count`. The denominator of every "≈" on the row,
    *  and the price the refund worked example is written about, so it has to be a
@@ -87,7 +87,7 @@ export type CommissionOverview = {
     /** Platform GMV: what runners were charged, before refunds. The denominator
      *  of the effective rate. */
     charged_gross: number;
-    net_to_org: number;
+    net_to_org: number | null;
     paid_count: number;
     /** Returned to runners, from `payments.refunded_amount` on both refund kinds.
      *  NOT `amount`: a refund now returns `net_to_org` (20260811094000), so
@@ -98,7 +98,7 @@ export type CommissionOverview = {
     refunded_cents: number;
     refund_count: number;
     /** Net earnings on payments no statement has settled yet. */
-    unpaid_out_cents: number;
+    unpaid_out_cents: number | null;
   };
 };
 
@@ -120,7 +120,7 @@ type PaymentSlice = {
   event_name: string | null;
   amount: number;
   platform_fee: number;
-  net_to_org: number;
+  net_to_org: number | null;
   status: string;
   refunded_amount: number;
 };
@@ -159,7 +159,28 @@ type PaymentSlice = {
  * longer satisfy any identity worth reading.
  */
 function processorBorneByOrg(p: PaymentSlice): number {
-  return p.amount - p.platform_fee - p.net_to_org - p.refunded_amount;
+  return p.net_to_org === null ? 0 : p.amount - p.platform_fee - p.net_to_org - p.refunded_amount;
+}
+
+type GroupSlice = PaymentSlice & { payout_statement_id: string | null };
+
+async function commissionPayments(db: Awaited<ReturnType<typeof createClient>>, group: boolean): Promise<GroupSlice[]> {
+  const rows: GroupSlice[] = [];
+  for (let batch = 0; batch < 100; batch++) {
+    let query = db.from(group ? "admin_group_allocations_v" : "admin_payments_v")
+      .select("org_id,event_id,event_name,amount,platform_fee,net_to_org,status,refunded_amount" + (group ? ",payout_statement_id" : ""));
+    if (!group) query = query.is("booking_order_id", null);
+    const { data, error } = await query.order(group ? "registration_id" : "payment_id")
+      .range(batch * 1000, (batch + 1) * 1000 - 1);
+    if (error) throw error;
+    rows.push(...(data ?? []) as unknown as GroupSlice[]);
+    if ((data ?? []).length < 1000) return rows;
+  }
+  throw new Error("Commission payments exceeded the safe report size; refusing partial totals.");
+}
+
+function sumKnown(rows: { net_to_org: number | null }[]): number | null {
+  return rows.some(r => r.net_to_org === null) ? null : rows.reduce((sum, r) => sum + (r.net_to_org ?? 0), 0);
 }
 
 /**
@@ -174,7 +195,7 @@ function processorBorneByOrg(p: PaymentSlice): number {
 export async function getCommissionOverview(): Promise<CommissionOverview> {
   const supabase = await createClient();
 
-  const [orgsRes, totalsRes, eventsRes, paymentsRes, unpaidRes] = await Promise.all([
+  const [orgsRes, totalsRes, eventsRes, legacyPayments, unpaidRes, groupPayments] = await Promise.all([
     supabase
       .from("organizations")
       // ONE string literal, not a concatenation. supabase-js parses the select
@@ -190,9 +211,7 @@ export async function getCommissionOverview(): Promise<CommissionOverview> {
     // refund worked example needs (see processorBorneByOrg), and a query of its
     // own would add a round trip and a second exposure to PostgREST's max_rows
     // for a figure this row set already contains.
-    supabase
-      .from("admin_payments_v")
-      .select("org_id,event_id,event_name,amount,platform_fee,net_to_org,status,refunded_amount"),
+    commissionPayments(supabase, false),
     // Only the column that is summed. `payout_statement_id` is not on
     // admin_payments_v (it was added to `payments` by the payouts migration
     // after the view was last replaced), so this is its own narrow read rather
@@ -202,9 +221,10 @@ export async function getCommissionOverview(): Promise<CommissionOverview> {
       .select("net_to_org")
       .in("status", EARNING_STATUSES)
       .is("payout_statement_id", null),
+    commissionPayments(supabase, true),
   ]);
 
-  for (const res of [orgsRes, totalsRes, eventsRes, paymentsRes, unpaidRes]) {
+  for (const res of [orgsRes, totalsRes, eventsRes, unpaidRes]) {
     if (res.error) throw res.error;
   }
 
@@ -215,10 +235,10 @@ export async function getCommissionOverview(): Promise<CommissionOverview> {
   }[];
   const totals = (totalsRes.data ?? []) as {
     org_id: string; paid_count: number; gross_revenue: number; charged_gross: number;
-    platform_fee: number; net_to_org: number;
+    platform_fee: number; net_to_org: number | null;
   }[];
   const events = (eventsRes.data ?? []) as { id: string; name: string; org_id: string; status: string }[];
-  const payments = (paymentsRes.data ?? []) as PaymentSlice[];
+  const payments: PaymentSlice[] = [...legacyPayments, ...groupPayments];
 
   const openEventIds = events.filter((e) => OPEN_EVENT_STATUSES.includes(e.status)).map((e) => e.id);
 
@@ -226,16 +246,24 @@ export async function getCommissionOverview(): Promise<CommissionOverview> {
   // cheapest entry can no longer be charged against it, so warning about it
   // would be noise the operator cannot act on.
   const cheapestByOrg = new Map<string, CheapestCategory>();
-  if (openEventIds.length > 0) {
-    const { data, error } = await supabase
-      .from("categories")
-      .select("org_id,label,base_price")
-      .in("event_id", openEventIds)
-      .order("base_price");
-    if (error) throw error;
-    for (const c of (data ?? []) as { org_id: string; label: string; base_price: number }[]) {
-      // Ordered ascending, so the first row seen for an org is its cheapest.
-      if (!cheapestByOrg.has(c.org_id)) cheapestByOrg.set(c.org_id, { label: c.label, base_price: c.base_price });
+  // Bound UUID filters below the proxy URL limit. Each chunk can itself
+  // contain many categories, so page it rather than accepting a capped result.
+  for (let offset = 0; offset < openEventIds.length; offset += 100) {
+    const eventIds = openEventIds.slice(offset, offset + 100);
+    for (let batch = 0; batch < 100; batch++) {
+      const { data, error } = await supabase.from("categories")
+        .select("org_id,label,base_price")
+        .in("event_id", eventIds).order("base_price").order("id")
+        .range(batch * 1000, (batch + 1) * 1000 - 1);
+      if (error) throw error;
+      for (const c of (data ?? []) as { org_id: string; label: string; base_price: number }[]) {
+        const existing = cheapestByOrg.get(c.org_id);
+        if (!existing || c.base_price < existing.base_price) {
+          cheapestByOrg.set(c.org_id, { label: c.label, base_price: c.base_price });
+        }
+      }
+      if ((data ?? []).length < 1000) break;
+      if (batch === 99) throw new Error("Commission categories exceeded the safe report size; refusing a partial price comparison.");
     }
   }
 
@@ -298,7 +326,7 @@ export async function getCommissionOverview(): Promise<CommissionOverview> {
       gross_revenue,
       charged_gross,
       platform_fee: t?.platform_fee ?? 0,
-      net_to_org: t?.net_to_org ?? 0,
+      net_to_org: t ? t.net_to_org : 0,
       avg_entry_cents: avg,
       cheapest_open: cheapest,
       // A worked example needs a real number to work on. The org's own average
@@ -308,7 +336,8 @@ export async function getCommissionOverview(): Promise<CommissionOverview> {
       // `null`, never 0. The worked example turns this into either a peso figure
       // or a sentence explaining that there is none, and those must not be the
       // same branch.
-      avg_processor_fee_cents: proc ? Math.round(proc.total / proc.rows) : null,
+      avg_processor_fee_cents: payments.some(p => p.org_id === o.id && EARNING_STATUSES.includes(p.status) && p.net_to_org === null)
+        ? null : proc ? Math.round(proc.total / proc.rows) : null,
     };
   });
 
@@ -347,7 +376,7 @@ export async function getCommissionOverview(): Promise<CommissionOverview> {
       commission: orgs.reduce((s, o) => s + o.platform_fee, 0),
       gross: orgs.reduce((s, o) => s + o.gross_revenue, 0),
       charged_gross: orgs.reduce((s, o) => s + o.charged_gross, 0),
-      net_to_org: orgs.reduce((s, o) => s + o.net_to_org, 0),
+      net_to_org: sumKnown(orgs),
       paid_count: orgs.reduce((s, o) => s + o.paid_count, 0),
       // One column for both refund kinds. The `refunded` arm used to read
       // `amount`, which was right only while a refund returned the whole charge —
@@ -355,10 +384,10 @@ export async function getCommissionOverview(): Promise<CommissionOverview> {
       // platform_fee + processor_fee_cents.
       refunded_cents: refunds.reduce((s, r) => s + (r.refunded_amount ?? 0), 0),
       refund_count: refunds.length,
-      unpaid_out_cents: ((unpaidRes.data ?? []) as { net_to_org: number }[]).reduce(
-        (s, r) => s + (r.net_to_org ?? 0),
-        0,
-      ),
+      unpaid_out_cents: sumKnown([
+        ...((unpaidRes.data ?? []) as { net_to_org: number | null }[]),
+        ...groupPayments.filter(p => p.payout_statement_id === null && EARNING_STATUSES.includes(p.status)),
+      ]),
     },
   };
 }

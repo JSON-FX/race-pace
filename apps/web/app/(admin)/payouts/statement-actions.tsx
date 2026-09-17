@@ -21,13 +21,9 @@ import { openPayoutStatementAction, markPayoutPaidAction, refreshPayoutStatement
 /**
  * Cut a new statement for an event.
  *
- * Opening is manual by design (§8) — there is no automatic gate on event
- * completion — so unfinished events stay in the picker rather than being
- * filtered out. What guards the early case is a confirmation, not a
- * prohibition: an event still taking registrations has a growing net figure,
- * so an operator who cuts it now will owe a second, top-up statement later.
- * That is legitimate (a stage race that wants an interim transfer) but it
- * should be a decision, not a slip.
+ * Staff may open a statement for review before an event finishes. The database
+ * still blocks recording an outward payout until completion. A live event can
+ * gain more payments, so staff must refresh the statement before settlement.
  */
 export function OpenStatementControl({ events }: { events: OpenableEvent[] }) {
   const [eventId, setEventId] = useState<string>("");
@@ -52,7 +48,7 @@ export function OpenStatementControl({ events }: { events: OpenableEvent[] }) {
   function submit() {
     if (!selected) return;
     // Finished events go straight through; unfinished ones stop for a
-    // confirmation that names the consequence.
+    // confirmation that explains the review-only state.
     if (selected.event_finished) void open(selected.id);
     else setConfirming(true);
   }
@@ -96,10 +92,9 @@ export function OpenStatementControl({ events }: { events: OpenableEvent[] }) {
               {selected?.name} hasn&apos;t finished yet
             </AlertDialogTitle>
             <AlertDialogDescription className="text-[13px] text-muted-foreground">
-              It is still taking registrations, so the amount owed will keep growing after this
-              statement is cut. Settling it now pays only what has come in so far — you&apos;ll
-              need a second, top-up statement for the rest. Nothing is double-paid either way:
-              each payment is stamped with the statement that settled it.
+              It is still taking registrations, so the amount owed may change after this
+              statement is opened. You can review it now, but recording a payout stays locked
+              until the event finishes. Refresh the statement before settling it.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

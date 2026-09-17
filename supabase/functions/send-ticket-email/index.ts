@@ -26,14 +26,22 @@ Deno.serve(async (req) => {
     const db = serviceClient();
     const { data: reg } = await db
       .from("registrations")
-      .select("id,user_id,status,total_amount,ticket_token,events(name,event_date,venue),categories(label)")
+      .select("id,user_id,booked_by_user_id,custom_data,status,ticket_token,events(name,event_date,venue),categories(label)")
       .eq("id", registrationId)
       .single();
 
     if (!reg) return json({ error: "not_found" }, 404);
     if (reg.status !== "paid" || !reg.ticket_token) return json({ error: "not_paid" }, 409);
 
-    const { data: userRes } = await db.auth.admin.getUserById(reg.user_id);
+    // Registration total is the entry price, not the captured gross when fees
+    // are passed on. Receipts must use the payment ledger, never that estimate.
+    const { data: payment, error: paymentError } = await db.from("payments")
+      .select("amount").eq("registration_id", registrationId).eq("status", "paid").single();
+    if (paymentError || !payment || !Number.isSafeInteger(payment.amount) || payment.amount < 0) {
+      return json({ error: "paid_payment_required" }, 409);
+    }
+
+    const { data: userRes } = await db.auth.admin.getUserById(reg.booked_by_user_id ?? reg.user_id);
     const to = userRes?.user?.email;
     if (!to) return json({ error: "no_email" }, 422);
 
@@ -56,7 +64,8 @@ Deno.serve(async (req) => {
     const event = reg.events as { name: string; event_date: string | null; venue: string | null } | null;
     const category = reg.categories as { label: string } | null;
 
-    const { subject, html } = renderTicketEmail({
+    const { subject, html, text } = renderTicketEmail({
+      participantName: typeof reg.custom_data?.full_name === "string" ? reg.custom_data.full_name : null,
       eventName: event?.name ?? "Your race",
       categoryLabel: category?.label ?? "",
       eventDate: event?.event_date ?? null,
@@ -64,10 +73,10 @@ Deno.serve(async (req) => {
       reference: reg.id.slice(0, 8).toUpperCase(),
       ticketUrl: `${siteUrl}/ticket/${reg.id}`,
       qrUrl: `${functionsUrl}/ticket-qr?token=${encodeURIComponent(reg.ticket_token)}`,
-      total: reg.total_amount,
+      total: payment.amount,
     });
 
-    const result = await sendEmail(to, subject, html);
+    const result = await sendEmail(to, subject, html, text);
     if (!result.ok) {
       console.error("[send-ticket-email] send failed", { registrationId, error: result.error });
       return json({ error: "send_failed", details: result.error }, 502);

@@ -1,5 +1,6 @@
+import { canAccessBooking } from "../_shared/bookingAccess.ts";
 import { serviceClient } from "../_shared/supabase.ts";
-import { getPaymentProviderByName } from "../_shared/payments.ts";
+import { getPaymentProviderByName, type CheckoutInput } from "../_shared/payments.ts";
 import { preflight, corsHeaders } from "../_shared/cors.ts";
 import { isRegistrationClosed } from "../_shared/eventStatus.ts";
 import { computeFee, type FeeTerms } from "../_shared/fee.ts";
@@ -47,15 +48,15 @@ Deno.serve(async (req) => {
       // One string literal, not a concatenation: supabase-js parses the select
       // at the type level, and `a + b` is `string` to TypeScript — which erases
       // every column type on `reg`.
-      .select("id,user_id,status,total_amount,category_id,event_id,expires_at,organizations(is_active,fee_mode,commission_type,commission_rate,commission_flat_cents)")
+      .select("id,user_id,booked_by_user_id,booking_order_id,status,total_amount,category_id,event_id,expires_at,organizations(is_active,fee_mode,commission_type,commission_rate,commission_flat_cents)")
       .eq("id", registrationId).single();
-    if (!reg || reg.user_id !== userId) return json({ error: "registration_not_found" }, 404);
+    if (!reg || !canAccessBooking(userId, reg)) return json({ error: "registration_not_found" }, 404);
+    if (reg.booking_order_id) return json({ error: "group_checkout_not_available" }, 409);
     if (reg.status !== "pending") return json({ error: "not_pending" }, 409);
 
-    // Same lazy-expiry predicate as registrations-checkout's isLapsedPending: a
-    // PayMongo hosted checkout session itself expires at 24 hours (see this
-    // migration set's header,  20260809100200_expire_stale_registrations.sql),
-    // so minting a BRAND-NEW session for a hold whose window has already lapsed
+    // Same lazy-expiry predicate as registrations-checkout's isLapsedPending.
+    // PayMongo checkout sessions do not expire automatically, so minting a
+    // BRAND-NEW session for a hold whose window has already lapsed
     // would hand the runner a working checkout page for an entry that is dead
     // in every other sense -- exactly the gap that let a stale session capture
     // money after the runner re-entered from the event page, landing on
@@ -73,6 +74,14 @@ Deno.serve(async (req) => {
     // what this response just told the caller.
     const isLapsedPending = reg.status === "pending" && !!reg.expires_at && Date.parse(reg.expires_at) <= Date.now();
     if (isLapsedPending) {
+      const { data: expiringPayment } = await db.from("payments").select("provider")
+        .eq("registration_id", reg.id).maybeSingle();
+      if (expiringPayment?.provider === "paymongo") {
+        // Leave the local row pending while the worker closes the hosted
+        // session. Releasing it first would permit a second entry and a late
+        // charge against the first one.
+        return json({ error: "hold_expired" }, 409);
+      }
       await db.from("registrations").update({ status: "expired", expires_at: null }).eq("id", reg.id);
       return json({ error: "hold_expired" }, 409);
     }
@@ -139,7 +148,55 @@ Deno.serve(async (req) => {
     // ever does.
     if (!org?.is_active) return json({ error: "org_suspended" }, 409);
 
-    const { data: payment } = await db.from("payments").select("provider").eq("registration_id", reg.id).single();
+    const { data: payment } = await db.from("payments")
+      .select("provider,provider_ref,checkout_url,checkout_fee_mode,checkout_platform_fee,checkout_provider_managed_fee,checkout_request,amount,status,created_at")
+      .eq("registration_id", reg.id).single();
+    if (!payment) return json({ error: "payment_setup_unavailable" }, 503);
+    const feeMode = payment?.checkout_fee_mode ?? org.fee_mode;
+    if (payment.provider === "paymongo") {
+      // A hosted session already offers every enabled payment method. Reusing
+      // it prevents a second, still-chargeable URL from escaping the ledger's
+      // single provider_ref, regardless of who absorbs the fee.
+      if (feeMode === "pass_on" && !payment.checkout_provider_managed_fee) {
+        return json({ error: "provider_fee_session_required" }, 409);
+      }
+      if (!payment.provider_ref && !payment.checkout_url) {
+        // The first create may have reached PayMongo while the Edge response
+        // or DB update was lost. Retry only the saved server-built request.
+        // PayMongo keeps idempotency results for 24 hours; stop short of that
+        // window so recovery cannot mint an untracked second session.
+        const frozen = payment.checkout_request as CheckoutInput | null;
+        const ageMs = Date.now() - Date.parse(payment.created_at);
+        if (payment.status !== "pending" || !frozen || frozen.registrationId !== reg.id ||
+            frozen.amount !== payment.amount || frozen.passOnFees !== payment.checkout_provider_managed_fee ||
+            typeof frozen.returnUrl !== "string" || !Array.isArray(frozen.lineItems) ||
+            !frozen.lineItems.every((item) => typeof item.name === "string" && Number.isSafeInteger(item.amount) && item.amount > 0) ||
+            frozen.lineItems.reduce((sum, item) => sum + item.amount, 0) !== frozen.amount ||
+            !Number.isFinite(ageMs) || ageMs < 0 || ageMs >= 23 * 60 * 60 * 1000) {
+          return json({ error: "provider_fee_session_unavailable" }, 503);
+        }
+        const checkout = await getPaymentProviderByName("paymongo").createCheckout(frozen);
+        const { data: bound, error: bindError } = await db.from("payments").update({
+          provider_ref: checkout.providerRef, checkout_url: checkout.checkoutUrl,
+        }).eq("registration_id", reg.id).eq("status", "pending").is("provider_ref", null)
+          .select("provider_ref,checkout_url").maybeSingle();
+        if (bindError) return json({ error: "payment_setup_failed" }, 500);
+        if (bound) return json({ checkout_url: bound.checkout_url });
+        // A concurrent retry may have bound the same idempotent session.
+        const { data: winner } = await db.from("payments").select("provider_ref,checkout_url")
+          .eq("registration_id", reg.id).maybeSingle();
+        if (winner?.provider_ref === checkout.providerRef && winner.checkout_url === checkout.checkoutUrl) {
+          return json({ checkout_url: checkout.checkoutUrl });
+        }
+        return json({ error: "provider_fee_session_unavailable" }, 503);
+      }
+      if (!payment.provider_ref?.startsWith("cs_") ||
+          !payment.checkout_url?.startsWith("https://checkout.paymongo.com/")) {
+        return json({ error: "provider_fee_session_unavailable" }, 503);
+      }
+      return json({ checkout_url: payment.checkout_url });
+    }
+    if (payment.provider !== "fake") return json({ error: "payment_setup_unavailable" }, 503);
     const { data: category } = await db.from("categories").select("label,base_price").eq("id", reg.category_id).single();
 
     // Itemize the hosted checkout the same way registrations-checkout does: entry fee + grouped add-ons.
@@ -157,7 +214,7 @@ Deno.serve(async (req) => {
     // would over-collect on one and lose money on the other.
     let chargeAmount = reg.total_amount;
 
-    if (org?.fee_mode === "pass_on") {
+    if (feeMode === "pass_on") {
       const { data: rateRows } = await db.rpc("processor_rate_at", {
         p_provider: "paymongo", p_method: pmMethod, p_scope: "local",
         p_at: new Date().toISOString(),
@@ -170,7 +227,7 @@ Deno.serve(async (req) => {
         console.error(`[payment-session] no processor rate for method=${pmMethod} — pass-on org ${reg.event_id}`);
         return json({ error: "rate_card_missing" }, 503);
       }
-      const platformFee = computeFee(reg.total_amount, org);
+      const platformFee = payment?.checkout_platform_fee ?? computeFee(reg.total_amount, org);
       const b = passOnBreakdown(reg.total_amount, platformFee, rate);
       chargeAmount = b.total;
       // Zero lines are skipped, same as the add-ons line above: a ₱0.00 item on
@@ -200,10 +257,13 @@ Deno.serve(async (req) => {
     // column — so a stale value here is not bookkeeping, it is the organizer
     // being paid the wrong amount with nothing to flag it. In absorb mode this
     // rewrites the same number it already held.
-    await db.from("payments").update({
+    const { error: paymentUpdateError } = await db.from("payments").update({
       provider_ref: checkout.providerRef, checkout_url: checkout.checkoutUrl,
       amount: chargeAmount,
+      checkout_fee_mode: feeMode,
+      checkout_platform_fee: payment?.checkout_platform_fee ?? computeFee(reg.total_amount, org),
     }).eq("registration_id", reg.id);
+    if (paymentUpdateError) return json({ error: "payment_setup_failed" }, 500);
 
     return json({ checkout_url: checkout.checkoutUrl });
   } catch (e) {

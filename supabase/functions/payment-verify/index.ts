@@ -1,3 +1,4 @@
+import { canAccessBooking } from "../_shared/bookingAccess.ts";
 import { serviceClient } from "../_shared/supabase.ts";
 import { confirmPayment } from "../_shared/confirm.ts";
 import { paymongoConfigured, pmGetCheckoutSession, pmMethodFromSession } from "../_shared/paymongo.ts";
@@ -29,10 +30,10 @@ Deno.serve(async (req) => {
 
     const { data: reg } = await db
       .from("registrations")
-      .select("id,status,user_id")
+      .select("id,status,user_id,booked_by_user_id")
       .eq("id", registrationId)
       .single();
-    if (!reg || reg.user_id !== userId) return json({ error: "not_found" }, 404);
+    if (!reg || !canAccessBooking(userId, reg)) return json({ error: "not_found" }, 404);
     if (reg.status === "paid") return json({ status: "paid", already: true });
 
     // Without PayMongo configured there's nothing to re-fetch; report current status.
