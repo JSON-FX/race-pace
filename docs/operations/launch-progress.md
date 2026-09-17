@@ -3,9 +3,36 @@
 Updated: 2026-09-17. Overall: NOT READY FOR LAUNCH.
 Scope: runner website and admin only. Status reflects recorded verification, not a new live provider audit.
 
-This is the primary progress table. Update affected rows after every completed action, failed verification, or blocker. Include evidence and the next action in the same update. Do not mark a row complete on submission alone. The dated hosted checkpoint is historical supporting evidence; this table takes precedence for current status.
+Keep the original 20-item checklist below as the primary progress view. Update affected rows after every completed action, failed verification, or blocker. The detailed evidence table expands its items without replacing their order. Do not mark a row complete on submission alone. The dated hosted checkpoint is historical supporting evidence; these tables take precedence for current status.
 
 Next action: test a QR scan and duplicate scan on staging, then exercise failed payment, callback replay, refunds and report exports. Verify real mobile email rendering and production configuration separately.
+
+## Original 20-item launch checklist
+
+| Order | Work | Status |
+|---|---|---|
+| 1 | Domain and hosting connections | Done; staging domains serve HTTPS. |
+| 2 | Separate staging infrastructure | Done; isolated Supabase and Vercel environments. |
+| 3 | Staging database migrations | Done; 121 versions and PSGC reference data applied. |
+| 4 | Database permissions and organization isolation | Partial; two-organization isolation and grant audit remain. |
+| 5 | Google authentication | Configured; audience, branding and live login remain. |
+| 6 | Resend domain verification | Done; notify.racepace.com.ph verified. |
+| 7 | Authentication and ticket emails | Partial; real delivery and desktop branding passed. Mobile appearance, remaining types and automatic ticket email remain. |
+| 8 | Backend secrets and functions | Partial; staging functions active and ticket signing fails closed. QR replay and remaining operational checks remain. |
+| 9 | PayMongo test payments and webhooks | Happy path passed; failure, callback replay and refund remain. |
+| 10 | Worker schedules and delivery monitoring | Partial; retry and monitoring review remain. |
+| 11 | Deploy staging web and admin | Done for current test build; reconcile the working-tree snapshot with reviewed source. |
+| 12 | Staging and production CI/CD | Pending. |
+| 13 | Test accounts, organizations, events, and registration | Partial; one staging organizer, event and paid self-registration passed. Google, second-org and non-member cases remain. |
+| 14 | Complete and test non-member/group checkout | Incomplete; keep unfinished flags off. |
+| 15 | Test fees, zero commissions, refunds, and payouts | Partial; one payment reconciled. Pass-on visual, zero commission, refunds and payouts remain. |
+| 16 | Test QR tickets, kit releases, and optional check-ins | Partial; QR rendered, kit release and manual check-in/reversal passed. QR scan/replay and marshal scope remain. |
+| 17 | Verify reports, exports, privacy, and usability | Partial; dashboard totals match. Live CSV contents, privacy boundaries and mobile layout remain. |
+| 18 | Finalize production configuration and deployment | Pending staging pass. |
+| 19 | Remove confirmed production test data | Required before launch; preserve legitimate data and access. |
+| 20 | Final launch checks and organizer acceptance | Pending. |
+
+## Detailed evidence table
 
 | # | Work | Status | Next action / completion evidence |
 |---|---|---|---|
