@@ -25,6 +25,13 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  if ((process.env.VERCEL_TARGET_ENV ?? process.env.VERCEL_ENV) === "production") {
+    return (
+      <html lang="en" className={`${archivo.variable} ${archivoNarrow.variable} ${jetbrainsMono.variable}`}>
+        <body style={{ margin: 0 }}>{children}</body>
+      </html>
+    );
+  }
   return (
     <html lang="en" className={`${archivo.variable} ${archivoNarrow.variable} ${jetbrainsMono.variable}`}>
       {/* min-h-dvh + flex so the footer sits at the BOTTOM of a short page

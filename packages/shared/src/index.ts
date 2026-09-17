@@ -196,3 +196,5 @@ export function registrationIdentity(
     bib_name: text(snapshot?.bib_name) ?? text(profile?.bib_name),
   };
 }
+
+export { isPublicLaunchClosed, isStagingEnvironment } from "./launchGate";

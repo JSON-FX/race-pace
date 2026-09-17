@@ -1,0 +1,88 @@
+.page {
+  --ink: #0f2a20;
+  --green: #159a55;
+  --muted: #53675b;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  overflow: hidden;
+  background: #fdfefc;
+  color: var(--ink);
+}
+
+.scene { position: absolute; z-index: 0; inset: 0; overflow: hidden; pointer-events: none; }
+.mountain {
+  position: absolute;
+  inset: 0;
+  background: url('/coming-soon-mountains.png') center bottom / cover no-repeat;
+  transform: translate3d(var(--shift-x, 0px), var(--shift-y, 0px), 0) scale(1.07);
+  transition: transform 380ms cubic-bezier(.2, .8, .2, 1);
+  will-change: transform;
+}
+
+.header {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 31px clamp(28px, 5.1vw, 82px);
+}
+.brand { display: flex; align-items: center; gap: 12px; font-size: 23px; font-weight: 900; letter-spacing: -.06em; white-space: nowrap; }
+.brand img { display: block; width: 70px; height: auto; object-fit: contain; }
+.headerNote, .footer { font-size: 11px; font-weight: 700; line-height: 1.5; letter-spacing: .18em; }
+.headerNote { margin-right: 220px; }
+
+.body {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex: 1;
+  align-items: flex-start;
+  width: min(100% - 10.2vw, 1440px);
+  margin: auto;
+  padding-top: clamp(70px, 10vh, 140px);
+}
+.copy { width: 100%; min-width: 0; max-width: 810px; }
+.eyebrow { margin: 0 0 28px; color: var(--green); font-size: 24px; font-weight: 800; line-height: 1.2; letter-spacing: .08em; }
+.copy h1 { margin: 0 0 20px; font-size: clamp(70px, 7.1vw, 114px); font-weight: 800; line-height: .98; letter-spacing: -.076em; }
+.copy h1 em { color: var(--green); font-style: normal; }
+.support { max-width: 540px; margin: 0 0 13px; font-size: clamp(18px, 1.45vw, 22px); font-weight: 500; line-height: 1.53; letter-spacing: -.025em; }
+.availability { max-width: 435px; margin: 0; color: var(--muted); font-size: 15px; line-height: 1.65; }
+.contact { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-top: 20px; font-size: 15px; font-weight: 700; }
+.contact a { display: inline-grid; place-items: center; min-height: 44px; padding: 0 20px; border-radius: 999px; background: var(--ink); color: white; font-size: 14px; font-weight: 800; text-decoration: none; transition: background-color 180ms ease, transform 180ms ease; }
+.contact a:hover { background: #117742; transform: translateY(-2px); }
+.contact a:active { transform: translateY(0); }
+.contact a:focus-visible { outline: 3px solid var(--green); outline-offset: 5px; }
+
+.footer { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; min-height: 66px; padding: 16px clamp(28px, 5.1vw, 82px); background: var(--ink); color: white; }
+
+@media (max-width: 1000px) { .headerNote { margin-right: 180px; } }
+@media (max-width: 720px) {
+  .page { min-height: max(100dvh, 780px); }
+  .header { min-height: 83px; padding: 20px 24px; }
+  .brand { gap: 7px; font-size: 20px; }
+  .brand img { width: 59px; }
+  .headerNote { display: none; }
+  .mountain {
+    background-size: auto 75%;
+    background-position: 58% bottom;
+    -webkit-mask-image: linear-gradient(to bottom, transparent 22%, #000 77%);
+    mask-image: linear-gradient(to bottom, transparent 22%, #000 77%);
+  }
+  .body { box-sizing: border-box; width: 100%; margin: 0; padding: 66px 24px 0; }
+  .eyebrow { margin-bottom: 20px; font-size: 18px; }
+  .copy h1 { font-size: clamp(55px, 12.7vw, 82px); }
+  .support { max-width: 360px; font-size: 18px; }
+  .availability { font-size: 14px; }
+  .footer { min-height: 57px; padding: 12px 24px; font-size: 9px; }
+}
+@media (max-width: 420px) {
+  .body { padding-top: 56px; }
+  .availability { max-width: 330px; }
+  .footer { gap: 18px; }
+}
+@media (hover: none), (prefers-reduced-motion: reduce) {
+  .mountain { transition: none; will-change: auto; }
+}

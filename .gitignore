@@ -68,3 +68,4 @@ Thumbs.db
 .vscode/*
 !.vscode/extensions.json
 .playwright-mcp/
+.vercel/
