@@ -57,7 +57,7 @@ const flat = (c: number) => ({ commission_type: "fixed", commission_rate: null, 
 
 // CROSS-ASSERTION with supabase/tests/fee.test.ts ("computeFee"): the cases
 // below are that suite's, re-run against this port. `feeOn` is display-only, but
-// it decides the "Race Pace service fee" LINE, and PayMongo charges the sum of
+// it decides the platform-fee LINE labeled "Taxes and fees", and PayMongo charges the sum of
 // the lines — so a port that disagrees with the server is a different charge,
 // not a different label. If one moves, move both.
 describe("feeOn", () => {

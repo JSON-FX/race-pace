@@ -220,7 +220,7 @@ describe("PayPanel — the fee breakdown", () => {
     renderWithRegistration({ total_amount: 200000, basePrice: 200000, feeMode: "absorb" });
 
     expect(screen.getByRole("button", { name: "Pay ₱2,000.00" })).toBeInTheDocument();
-    expect(screen.queryByText(/service fee/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Taxes and fees/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/payment processing/i)).not.toBeInTheDocument();
     expect(screen.queryByText("Total to pay")).not.toBeInTheDocument();
     // The panel absorb mode already had, unchanged: entry fee, and a booking
@@ -239,7 +239,7 @@ describe("PayPanel — the fee breakdown", () => {
     // ₱2,000 base, RP 3% = ₱60, GCash 1.5% grossed up = ₱31.38. Each fee line
     // is rendered with a leading "+", like the add-ons line it sits under:
     // these are amounts ADDED to the entry fee, not a restatement of it.
-    expect(screen.getByText(/Race Pace service fee/i)).toBeInTheDocument();
+    expect(screen.getByText("Taxes and fees")).toBeInTheDocument();
     expect(screen.getByText("+₱60.00")).toBeInTheDocument();
     expect(screen.getByText(/Payment processing/i)).toBeInTheDocument();
     expect(screen.getByText("+₱31.38")).toBeInTheDocument();
@@ -306,7 +306,7 @@ describe("PayPanel — the fee breakdown", () => {
     renderWithRegistration(PASS_ON);
 
     expect(screen.queryByText(/Payment processing/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Race Pace service fee/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Taxes and fees/i)).not.toBeInTheDocument();
     // The sticker price must NOT appear as a total: not on the button, and not
     // on the ticket stub, which shows a dash instead.
     expect(screen.queryByRole("button", { name: /^Pay ₱/ })).not.toBeInTheDocument();

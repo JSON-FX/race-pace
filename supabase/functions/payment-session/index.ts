@@ -177,7 +177,7 @@ Deno.serve(async (req) => {
       // the hosted page is noise at best, and PayMongo has no reason to accept
       // one. Skipping only zeros keeps the lines summing to chargeAmount, which
       // is what PayMongo actually charges.
-      if (b.platformFee > 0) lineItems.push({ name: "Race Pace service fee", amount: b.platformFee });
+      if (b.platformFee > 0) lineItems.push({ name: "Taxes and fees", amount: b.platformFee });
       if (b.processorFee > 0) lineItems.push({ name: "Payment processing", amount: b.processorFee });
     }
 

@@ -284,7 +284,7 @@ export function PayPanel({ registrationId }: { registrationId: string }) {
                 what is charged. */}
             {lines.platformFee > 0 ? (
               <div className="flex justify-between px-5 py-3.5">
-                <dt className="text-[14px] text-muted-foreground">Race Pace service fee</dt>
+                <dt className="text-[14px] text-muted-foreground">Taxes and fees</dt>
                 <dd className="text-[14px] font-semibold tabular-nums text-foreground">
                   +{formatPeso(lines.platformFee)}
                 </dd>
