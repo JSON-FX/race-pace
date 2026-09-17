@@ -10,6 +10,10 @@ const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains-mo
 export const metadata: Metadata = {
   title: "Race Pace Admin",
   description: "Event organizer console",
+  icons: {
+    icon: [{ url: "/favicon.png", type: "image/png", sizes: "256x256" }],
+    apple: [{ url: "/favicon.png", type: "image/png", sizes: "256x256" }],
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
