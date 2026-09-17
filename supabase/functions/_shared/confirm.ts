@@ -1,5 +1,5 @@
 import { serviceClient } from "./supabase.ts";
-import { mintTicketToken } from "./ticket.ts";
+import { mintTicketToken, requireTicketSigningSecret } from "./ticket.ts";
 import { computeFee, type FeeTerms } from "./fee.ts";
 import { predictProcessorFee, type ProcessorRate } from "./processorFee.ts";
 import { pmFeeFromAttributes } from "./paymongo.ts";
@@ -94,6 +94,16 @@ export async function confirmPayment(
   // of resurrecting the registration or flagging a conflict.
   if (reg.status === "refunded" || reg.status === "cancelled") {
     return { ok: true, registration_id: reg.id, already: true };
+  }
+
+  let secret: string;
+  try {
+    secret = requireTicketSigningSecret(Deno.env.get("TICKET_SIGNING_SECRET"));
+  } catch {
+    // A captured payment can be retried. Fail before any ledger correction or
+    // confirmation when a ticket would otherwise use a predictable key.
+    console.error("[confirm] ticket signing is not configured", { registrationId: reg.id });
+    return { ok: false, error: "ticket_signing_not_configured", status: 503 };
   }
 
   // The org's terms are read ONCE here and frozen onto the payment row below, so
@@ -234,7 +244,6 @@ export async function confirmPayment(
 
   const net = charged - fee - processorFee;
 
-  const secret = Deno.env.get("TICKET_SIGNING_SECRET") ?? "dev-secret";
   const token = await mintTicketToken(
     { rid: reg.id, eid: reg.event_id, iat: Math.floor(Date.now() / 1000) },
     secret,

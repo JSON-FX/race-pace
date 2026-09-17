@@ -1,5 +1,5 @@
 import { serviceClient } from "../_shared/supabase.ts";
-import { verifyTicketToken } from "../_shared/ticket.ts";
+import { requireTicketSigningSecret, verifyTicketToken } from "../_shared/ticket.ts";
 import { canCheckIn, type RoleRow } from "../_shared/authz.ts";
 import { preflight, corsHeaders } from "../_shared/cors.ts";
 
@@ -23,7 +23,9 @@ Deno.serve(async (req) => {
       return json({ error: "event_id_required" }, 400);
     }
 
-    const secret = Deno.env.get("TICKET_SIGNING_SECRET") ?? "dev-secret";
+    const configuredSecret = Deno.env.get("TICKET_SIGNING_SECRET");
+    if (!configuredSecret?.trim()) return json({ error: "ticket_signing_not_configured" }, 503);
+    const secret = requireTicketSigningSecret(configuredSecret);
     const payload = await verifyTicketToken(token, secret);
     if (!payload) return json({ error: "invalid_ticket" }, 400);
 

@@ -11,8 +11,8 @@ const staff = createClient(url, anonKey, { auth: { persistSession: false } });
 // override also supports a separately configured test runtime. Never log it.
 const functionEnv = new URL("../functions/.env", import.meta.url);
 const signingSecret = process.env.TICKET_SIGNING_SECRET
-  ?? (existsSync(functionEnv) ? parse(readFileSync(functionEnv)).TICKET_SIGNING_SECRET : undefined)
-  ?? "dev-secret";
+  ?? (existsSync(functionEnv) ? parse(readFileSync(functionEnv)).TICKET_SIGNING_SECRET : undefined);
+if (!signingSecret?.trim()) throw new Error("check-in tests require TICKET_SIGNING_SECRET");
 let org: string, event: string, otherEvent: string, user: string, registration: string, ticket: string;
 async function checked<T>(result: { data: T; error: unknown }): Promise<T> {
   if (result.error) throw result.error;
