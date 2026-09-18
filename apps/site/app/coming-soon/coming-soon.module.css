@@ -55,6 +55,10 @@
 .contact a:hover { background: #117742; transform: translateY(-2px); }
 .contact a:active { transform: translateY(0); }
 .contact a:focus-visible { outline: 3px solid var(--green); outline-offset: 5px; }
+.generalContact { margin: 12px 0 0; color: var(--muted); font-size: 14px; line-height: 1.6; }
+.generalContact a { color: var(--ink); font-weight: 700; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+.generalContact a:hover { color: #117742; }
+.generalContact a:focus-visible { outline: 3px solid var(--green); outline-offset: 4px; }
 
 .footer { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; min-height: 66px; padding: 16px clamp(28px, 5.1vw, 82px); background: var(--ink); color: white; }
 
