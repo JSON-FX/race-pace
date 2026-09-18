@@ -59,7 +59,7 @@ export const getMyRoles = cache(async (): Promise<MyRoles | null> => {
   // guarantees an admin row always wins over an editor row, independent of
   // row order — then derive every other field from that same row.
   //
-  // KNOWN LIMITATION, not fixed here: a user holding `admin` rows in TWO
+  // KNOWN LIMITATION for non-super-admins: a user holding `admin` rows in TWO
   // different orgs (also a legitimate, supported state) still has no way to
   // pick between them — `find(role === "admin")` returns whichever admin
   // row is first after the `.order("role").order("org_id")` above, which
@@ -79,10 +79,10 @@ export const getMyRoles = cache(async (): Promise<MyRoles | null> => {
     ?? rows.find((r) => r.role === "marshal")
     ?? rows.find((r) => r.role === "claiming");
 
-  // A super admin legitimately has no org-scoped admin/editor row. Rather than
-  // leaving orgId null — which sends every org-scoped page to <NoOrgScope /> —
-  // fall back to the org they have selected. This is the "KNOWN LIMITATION"
-  // noted above finally being resolved for the super-admin case.
+  // A super admin can switch across every organization, even when they also
+  // hold admin rows. The selected org must win: preferring resolvedRow pinned
+  // a dual-role super admin to their first admin org while the switcher showed
+  // the newly selected one. Org-scoped pages then read and wrote the wrong org.
   //
   // Only fetched for a super admin: getOrgContext reads `organizations`, and a
   // non-super-admin's orgId already comes from resolvedRow, so the extra round
@@ -97,9 +97,9 @@ export const getMyRoles = cache(async (): Promise<MyRoles | null> => {
 
   return {
     role: isSuperAdmin ? "super_admin" : resolvedRow?.role ?? rows[0]?.role ?? null,
-    // resolvedRow first: a super admin who ALSO holds a real org-scoped admin
-    // row keeps that org, so the fallback only fires when there is nothing else.
-    orgId: resolvedRow?.org_id ?? orgCtx?.activeOrgId ?? null,
+    orgId: isSuperAdmin
+      ? orgCtx?.activeOrgId ?? resolvedRow?.org_id ?? null
+      : resolvedRow?.org_id ?? null,
     isSuperAdmin,
     // "Admin, editor or super_admin" — NOT "cleared the (admin) layout
     // gate": the layout only requires SOME capability (marshal included, so
