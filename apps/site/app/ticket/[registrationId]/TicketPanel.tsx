@@ -53,7 +53,7 @@ export function TicketPanel({ registrationId, userId }: { registrationId: string
         <p className="mt-3 text-[15px] text-muted-foreground">{message}</p>
         {pending ? (
           <Button asChild className="mt-8 h-auto rounded-pill px-8 py-4 text-[16px] font-semibold">
-            <Link href={`/pay/${registrationId}`}>Complete payment</Link>
+            <Link href={reg.data.bookingOrderId ? `/group/order/${reg.data.bookingOrderId}` : `/pay/${registrationId}`}>Complete payment</Link>
           </Button>
         ) : paid ? (
           <Button onClick={() => reg.refetch()} className="mt-8 rounded-pill">Refresh ticket</Button>
@@ -82,6 +82,7 @@ export function TicketPanel({ registrationId, userId }: { registrationId: string
         runnerName={identity.full_name}
         bibName={identity.bib_name}
         distanceKm={reg.data.categoryDistance}
+        checkInRequired={reg.data.eventCheckInRequired}
       />
 
       <RaceKitCard

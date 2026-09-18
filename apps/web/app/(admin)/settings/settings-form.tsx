@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import { useRouter } from "next/navigation";
-import { updateOrgNameAction, type SettingsState } from "@/lib/actions/settings";
+import { updateOrgNameAction, updateOrgCheckInDefaultAction, type SettingsState } from "@/lib/actions/settings";
 import type { OrgBranding } from "@/lib/queries/org";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,7 @@ import { CropUploader } from "@/components/CropUploader";
 export function SettingsForm({ org, canEdit }: { org: OrgBranding; canEdit: boolean }) {
   const router = useRouter();
   const [state, formAction, pending] = useActionState<SettingsState, FormData>(updateOrgNameAction, {});
+  const [checkInState, checkInAction, checkInPending] = useActionState<SettingsState, FormData>(updateOrgCheckInDefaultAction, {});
   // uploadOrgImage + updateOrgBrandingAction write straight to Postgres/Storage
   // and revalidatePath only affects the *next* server render — refresh so the
   // just-saved image shows without a manual reload.
@@ -40,6 +41,26 @@ export function SettingsForm({ org, canEdit }: { org: OrgBranding; canEdit: bool
               {pending ? "Saving…" : "Save"}
             </Button>
           </CardFooter>
+        </form>
+      </Card>
+
+      <Card className="rounded-xl">
+        <CardHeader>
+          <CardTitle>Event check-in</CardTitle>
+          <CardDescription>Choose the starting setting for new events. Existing events keep their own setting.</CardDescription>
+        </CardHeader>
+        <form action={checkInAction}>
+          <CardContent className="space-y-3">
+            <input type="hidden" name="orgId" value={org.id} />
+            <input type="hidden" name="checkInRequired" value="false" />
+            <label className="flex items-start gap-3 text-sm">
+              <input type="checkbox" name="checkInRequired" value="true" defaultChecked={org.check_in_required_default} disabled={!canEdit} />
+              <span>Require event check-in by default</span>
+            </label>
+            {checkInState.error ? <p role="alert" className="text-destructive">{checkInState.error}</p> : null}
+            {checkInState.success ? <p role="status">{checkInState.success}</p> : null}
+          </CardContent>
+          <CardFooter><Button type="submit" disabled={!canEdit || checkInPending}>{checkInPending ? "Saving…" : "Save default"}</Button></CardFooter>
         </form>
       </Card>
 

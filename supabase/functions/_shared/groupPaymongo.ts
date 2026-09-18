@@ -45,7 +45,10 @@ export async function createGroupSession(body: unknown, attemptId: string, secre
   const data = object(object(raw).data);
   const url = object(data.attributes).checkout_url;
   if (!identifier(data.id, "cs") || typeof url !== "string") throw new Error("group_provider_response_invalid");
-  try { const parsed = new URL(url); if (parsed.protocol !== "https:" || parsed.username || parsed.password) throw new Error(); } catch { throw new Error("group_provider_response_invalid"); }
+  try {
+    const parsed = new URL(url);
+    if (parsed.origin !== "https://checkout.paymongo.com" || parsed.username || parsed.password) throw new Error();
+  } catch { throw new Error("group_provider_response_invalid"); }
   return { sessionId: data.id, checkoutUrl: url };
 }
 export async function retrieveGroupSession(sessionId: string, secret: string): Promise<unknown> {

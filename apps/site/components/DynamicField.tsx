@@ -9,13 +9,15 @@ import type { FormFieldRow } from "@/lib/events";
 /** Renders one organizer-configured `form_fields` row. Mirrors
  *  apps/mobile/components/DynamicField.tsx so the same event's questions
  *  look and behave the same on both surfaces. */
-export function DynamicField({ field, value, onChange, error }: {
+export function DynamicField({ field, value, onChange, error, idPrefix = "" }: {
   field: FormFieldRow;
   value: unknown;
   onChange: (v: unknown) => void;
   error?: string;
+  idPrefix?: string;
 }) {
   const label = `${field.label}${field.required ? " *" : ""}`;
+  const inputId = `${idPrefix}${field.key}`;
 
   if (field.type === "select") {
     return (
@@ -32,8 +34,8 @@ export function DynamicField({ field, value, onChange, error }: {
   if (field.type === "checkbox") {
     return (
       <div className="mt-6 flex items-center gap-3 rounded-lg border border-border p-4">
-        <Checkbox id={field.key} checked={!!value} onCheckedChange={(c) => onChange(c === true)} />
-        <Label htmlFor={field.key} className="text-[14px]">{label}</Label>
+        <Checkbox id={inputId} checked={!!value} onCheckedChange={(c) => onChange(c === true)} />
+        <Label htmlFor={inputId} className="text-[14px]">{label}</Label>
       </div>
     );
   }
@@ -50,9 +52,9 @@ export function DynamicField({ field, value, onChange, error }: {
 
   return (
     <div className="mt-6 flex flex-col gap-2">
-      <Label htmlFor={field.key}>{label}</Label>
+      <Label htmlFor={inputId}>{label}</Label>
       <Input
-        id={field.key}
+        id={inputId}
         type={inputType}
         value={value != null ? String(value) : ""}
         onChange={(e) => {

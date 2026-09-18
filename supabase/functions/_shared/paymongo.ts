@@ -102,8 +102,8 @@ export function pmPaymentIdFromSession(session: PmSession): string | null {
   const a = (session.raw as any)?.data?.attributes ?? {};
   // deno-lint-ignore no-explicit-any
   const payments: any[] = Array.isArray(a.payments) ? a.payments : [];
-  const chosen = payments.find((p) => p?.attributes?.status === "paid") ?? payments[0];
-  return chosen?.id ?? null;
+  const chosen = payments.find((p) => p?.attributes?.status === "paid");
+  return typeof chosen?.id === "string" && /^pay_[A-Za-z0-9_-]+$/.test(chosen.id) ? chosen.id : null;
 }
 
 /**

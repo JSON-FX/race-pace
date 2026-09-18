@@ -50,6 +50,14 @@ describe("fetchMyEntry", () => {
     });
   });
 
+  it("preserves the parent order so pending group entries resume one payment", async () => {
+    const future = new Date(Date.now() + 60_000).toISOString();
+    const db = fakeDb({ id: "r1", status: "pending", category_id: "c1", expires_at: future, booking_order_id: "order-1" });
+    expect(await fetchMyEntry(db, "e1", "u1")).toEqual({
+      id: "r1", status: "pending", categoryId: "c1", expiresAt: future, bookingOrderId: "order-1",
+    });
+  });
+
   it("treats a pending entry past its expires_at as already gone — mirrors registrations-checkout's lazy check", async () => {
     // The 15-minute sweep is what actually deletes/expires the row in the
     // database; this helper cannot wait for it, so it has to reach the same

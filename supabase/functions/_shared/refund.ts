@@ -79,11 +79,23 @@ export async function refundRegistration(
   const provider = getPaymentProviderByName(request.provider);
   let result;
   try {
+    let providerPaymentId: string | undefined;
+    if (request.provider === "paymongo" && !request.provider_refund_id) {
+      const { data: captures, error: captureError } = await db.from("single_payment_captures")
+        .select("provider_payment_id,session_id")
+        .eq("registration_id", registrationId).eq("state", "settled").limit(2);
+      if (captureError || (captures?.length ?? 0) > 1) throw new Error("refund_capture_lookup_failed");
+      const capture = captures?.[0];
+      if (capture) {
+        if (capture.session_id !== request.provider_ref) throw new Error("refund_capture_session_mismatch");
+        providerPaymentId = capture.provider_payment_id;
+      }
+    }
     result = claim.action === "reconcile" && request.provider_refund_id
       ? await provider.getRefund(request.provider_refund_id)
       : await provider.refund({
           providerRef: request.provider_ref, amount: request.refund_amount,
-          reason: "requested_by_customer", requestId: request.id, registrationId,
+          providerPaymentId, reason: "requested_by_customer", requestId: request.id, registrationId,
         });
   } catch {
     if (claim.action === "submit") {

@@ -126,6 +126,16 @@ describe("RacesList — a pending row whose hold has lapsed", () => {
     expect(screen.getByRole("link", { name: "Complete payment" })).toHaveAttribute("href", "/pay/live1");
     expect(screen.queryByText(/Payment window closed/)).not.toBeInTheDocument();
   });
+
+  it("resumes the parent group order and hides individual discard", () => {
+    useMyRegistrationsMock.mockReturnValue({
+      data: [reg({ id: "group-line", bookingOrderId: "group-order", expiresAt: new Date(Date.now() + 60 * 60_000).toISOString() })],
+      isLoading: false,
+    });
+    renderList();
+    expect(screen.getByRole("link", { name: "Complete payment" })).toHaveAttribute("href", "/group/order/group-order");
+    expect(screen.queryByRole("button", { name: "Discard" })).not.toBeInTheDocument();
+  });
 });
 
 describe("RacesList — discard confirmation dialog", () => {

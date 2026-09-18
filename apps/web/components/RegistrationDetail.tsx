@@ -9,6 +9,7 @@ import { peso, fmtDateTime, initials } from "@/lib/format";
 import { fieldLabel, fieldValue } from "@/lib/field-labels";
 import { cn } from "@/lib/utils";
 import type { RegistrationRow } from "@/lib/queries/registrations";
+import { registrationTeamName } from "@/lib/registration-team";
 import { PaymentStatusBadge, RegistrationStatusBadge } from "./StatusBadge";
 import { MethodBadge } from "./MethodBadge";
 import { RefundModal } from "./RefundModal";
@@ -74,7 +75,8 @@ export function RegistrationDetail({ row, onClose, onRefunded }: {
 }) {
   const [refunding, setRefunding] = useState(false);
   const canRefund = row.payment_status === "paid";
-  const customEntries = Object.entries(row.custom_data ?? {});
+  const customEntries = Object.entries(row.custom_data ?? {}).filter(([key]) => key !== "team_name" && key !== "bib_name");
+  const teamName = registrationTeamName(row.custom_data);
   const money = MONEY[row.payment_status ?? ""] ?? MONEY_FALLBACK;
   const tint = avatarTint(row.id);
   const captured = row.payment_status === "paid" || row.payment_status === "partially_refunded";
@@ -142,9 +144,9 @@ export function RegistrationDetail({ row, onClose, onRefunded }: {
             ) : null}
 
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
-              {row.bib_name ? (
+              {teamName ? (
                 <span className="rounded-pill bg-muted px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-foreground">
-                  {row.bib_name}
+                  Team: {teamName}
                 </span>
               ) : null}
               {/* Same registration_status-wins-for-expired/cancelled swap as

@@ -75,7 +75,7 @@ export function EventPageBody({
   // DistanceRow does — and, same as DistanceRow, that takes priority over
   // `closed`. A completed/cancelled event can still owe a runner a look at
   // the entry they already hold; "See race details" would bury it.
-  const topHref = myEntry ? (myEntry.status === "paid" ? "/races" : `/pay/${myEntry.id}`) : "#distances";
+  const topHref = myEntry ? (myEntry.status === "paid" ? "/races" : myEntry.bookingOrderId ? `/group/order/${myEntry.bookingOrderId}` : `/pay/${myEntry.id}`) : "#distances";
   const topLabel = myEntry
     ? myEntry.status === "paid"
       ? "View your entry"
@@ -429,7 +429,7 @@ function DistanceRow({
               // mode; StatusBadge.tsx's bg-*-tint/text-* is the established
               // pairing).
               <Link
-                href={myEntry.status === "paid" ? "/races" : `/pay/${myEntry.id}`}
+                href={myEntry.status === "paid" ? "/races" : myEntry.bookingOrderId ? `/group/order/${myEntry.bookingOrderId}` : `/pay/${myEntry.id}`}
                 aria-label={
                   myEntry.status === "paid"
                     ? `You're in — view entry — ${category.label}`
@@ -454,7 +454,7 @@ function DistanceRow({
               // competes with the runner's actual entry above or a live
               // "Join" pill on another card.
               <Link
-                href={myEntry.status === "paid" ? "/races" : `/pay/${myEntry.id}`}
+                href={myEntry.status === "paid" ? "/races" : myEntry.bookingOrderId ? `/group/order/${myEntry.bookingOrderId}` : `/pay/${myEntry.id}`}
                 aria-label={
                   myEntry.status === "paid"
                     ? `${category.label} — you're registered on another distance`

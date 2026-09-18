@@ -140,11 +140,13 @@ export type RegistrationRow = {
   id: string; status: string; total_amount: number; ticket_token: string | null; org_id: string;
   /** The race this entry is for — needed to link back to its event page. */
   event_id: string;
+  bookingOrderId?: string | null;
   /** When an unpaid entry stops holding this runner's one-per-event slot.
    *  Null once paid — a paid entry has no hold to run out. */
   expiresAt: string | null;
   eventName: string; categoryLabel: string; categoryDistance: number | null; checkoutUrl: string | null;
   eventStatus: string | null; eventDate: string | null; originalDate: string | null; statusNote: string | null;
+  eventCheckInRequired?: boolean;
   /** Null means "no deadline" — see lib/eventStatus.ts. */
   eventRegistrationClosesAt: string | null;
   /** Null means "no cutoff" — see lib/kit.ts. */
@@ -188,7 +190,7 @@ export type RegistrationRow = {
 // type level, and `a + b` is `string` to TypeScript, which erases every column
 // type on the result.
 const REG_SELECT =
-  "id,user_id,booked_by_user_id,status,total_amount,ticket_token,org_id,event_id,expires_at,custom_data,organizations(name,is_active,fee_mode,commission_type,commission_rate,commission_flat_cents,refund_policy,refund_fee_cents),events(name,status,event_date,original_date,status_note,hero_image_url,inclusions,registration_closes_at,kit_edit_closes_at),categories(label,distance_km,base_price),payments(checkout_url,created_at,method,amount,platform_fee,net_to_org,provider,provider_ref,status,checkout_fee_mode,checkout_platform_fee,checkout_provider_managed_fee)";
+  "id,user_id,booked_by_user_id,booking_order_id,status,total_amount,ticket_token,org_id,event_id,expires_at,custom_data,organizations(name,is_active,fee_mode,commission_type,commission_rate,commission_flat_cents,refund_policy,refund_fee_cents),events(name,status,event_date,original_date,status_note,hero_image_url,inclusions,registration_closes_at,kit_edit_closes_at,check_in_required),categories(label,distance_km,base_price),payments(checkout_url,created_at,method,amount,platform_fee,net_to_org,provider,provider_ref,status,checkout_fee_mode,checkout_platform_fee,checkout_provider_managed_fee)";
 
 export function mapReg(r: any): RegistrationRow {
   const payment = Array.isArray(r.payments) ? r.payments[0] : r.payments;
@@ -200,6 +202,7 @@ export function mapReg(r: any): RegistrationRow {
   const org = Array.isArray(r.organizations) ? r.organizations[0] : r.organizations;
   return {
     id: r.id, status: r.status, total_amount: r.total_amount,
+    bookingOrderId: r.booking_order_id ?? null,
     ticket_token: r.ticket_token ?? null, org_id: r.org_id, event_id: r.event_id,
     participantUserId: r.user_id ?? null,
     bookedByUserId: r.booked_by_user_id ?? null,
@@ -238,6 +241,7 @@ export function mapReg(r: any): RegistrationRow {
     },
     checkoutUrl: payment?.checkout_url ?? null,
     eventStatus: r.events?.status ?? null,
+    eventCheckInRequired: r.events?.check_in_required !== false,
     eventRegistrationClosesAt: r.events?.registration_closes_at ?? null,
     kitEditClosesAt: r.events?.kit_edit_closes_at ?? null,
     identitySnapshot: r.custom_data ?? null,

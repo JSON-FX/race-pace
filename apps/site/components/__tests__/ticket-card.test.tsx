@@ -26,6 +26,13 @@ describe("TicketCard", () => {
     expect(container.querySelector("svg")).toBeInTheDocument();
   });
 
+  it("explains when organizer check-in is optional without hiding the QR", () => {
+    const { container } = render(<TicketCard {...props} checkInRequired={false} />);
+    expect(screen.getByText("Check-in not required. Keep this QR as your race ticket and for any kit release.")).toBeInTheDocument();
+    expect(screen.queryByText("Show this QR at check-in")).not.toBeInTheDocument();
+    expect(container.querySelector("svg")).toBeInTheDocument();
+  });
+
   it("shows the reference code and runner details", () => {
     render(<TicketCard {...props} />);
     expect(screen.getByText("A1B2C3D4")).toBeInTheDocument();

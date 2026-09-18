@@ -33,7 +33,7 @@ const paidRow: RegistrationRow = {
   id: "r1", user_id: "u1", category_id: "c4", category_label: "10K",
   full_name: "Ana Cruz", bib_name: "ANA", avatar_url: null, email: "ana@example.com",
   total_amount: 100000, payment_amount: 100000, refunded_amount: 0, payment_status: "paid", payment_method: "gcash", registration_status: "paid",
-  created_at: "2026-07-01T00:00:00Z", custom_data: { blood_type: "O", first_ultra: true },
+  created_at: "2026-07-01T00:00:00Z", custom_data: { blood_type: "O", first_ultra: true, team_name: "Ridge Crew" },
   addons: [{ name: "Singlet", price: 60000 }],
 };
 const pendingRow: RegistrationRow = { ...paidRow, payment_status: "pending", payment_method: null, registration_status: "pending" };
@@ -49,6 +49,8 @@ describe("RegistrationDetail", () => {
     const { rerender } = render(<RegistrationDetail row={pendingRow} onClose={vi.fn()} onRefunded={vi.fn()} />);
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByText("Ana Cruz")).toBeInTheDocument();
+    expect(screen.getByText("Team: Ridge Crew")).toBeInTheDocument();
+    expect(screen.queryByText("ANA")).not.toBeInTheDocument();
     expect(screen.getByText("10K")).toBeInTheDocument();
     expect(refundButton()).toBeDisabled();
 

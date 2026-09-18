@@ -48,7 +48,7 @@ const rows: RegistrationRow[] = [
     id: "r1", user_id: "u1", category_id: "c1", category_label: "50K Ultra",
     full_name: "Maria Josefa Santos", bib_name: "D-1042", avatar_url: null, email: "maria.santos@gmail.com",
     total_amount: 285000, payment_status: "paid", payment_method: "gcash", registration_status: "paid",
-    created_at: "2026-08-03T09:14:00Z", custom_data: {}, addons: [],
+    created_at: "2026-08-03T09:14:00Z", custom_data: { team_name: "Trail Friends" }, addons: [],
   },
   {
     id: "r2", user_id: "u2", category_id: "c1", category_label: "25K",
@@ -146,11 +146,11 @@ describe("RegistrationsTable", () => {
     expect(screen.getByText("MJ")).toBeInTheDocument(); // avatar initials
   });
 
-  // Bib column: font-mono value when assigned, em-dash fallback when not —
-  // r1 has a bib, r2 doesn't.
-  it("renders the Bib column with an em-dash fallback for an unassigned bib", () => {
+  it("shows the registration's team snapshot and never relabels a legacy bib as a team", () => {
     render(<RegistrationsTable {...props} />);
-    expect(screen.getByText("D-1042")).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Team Name" })).toBeInTheDocument();
+    expect(screen.getByText("Trail Friends")).toBeInTheDocument();
+    expect(screen.queryByText("D-1042")).not.toBeInTheDocument();
     expect(screen.getByText("—")).toBeInTheDocument();
   });
 
@@ -186,7 +186,7 @@ describe("RegistrationsTable", () => {
     expect(screen.getByRole("option", { name: "Cancelled" })).toBeInTheDocument();
   });
 
-  // "Send email"/"Assign bibs"/"Mark checked-in" have no real backend yet
+  // "Send email"/"Mark checked-in" have no real backend yet
   // (see task-v3-report.md) — they must render disabled, not silently do
   // nothing when clicked.
   it("renders the backend-less bulk actions as disabled once rows are selected", async () => {
@@ -194,7 +194,7 @@ describe("RegistrationsTable", () => {
     render(<RegistrationsTable {...props} />);
     await user.click(screen.getAllByLabelText("Select row")[0]);
     expect(screen.getByRole("button", { name: /Send email/ })).toBeDisabled();
-    expect(screen.getByRole("button", { name: /Assign bibs/ })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: /Assign bibs/ })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Mark checked-in/ })).toBeDisabled();
     expect(screen.getByRole("button", { name: /^Cancel$/ })).not.toBeDisabled();
   });

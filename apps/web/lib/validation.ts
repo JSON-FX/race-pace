@@ -53,6 +53,7 @@ export const eventInputSchema = z.object({
   flag_off: timeStr,
   status: z.enum(EVENT_STATUSES),
   discipline: z.enum(EVENT_DISCIPLINES),
+  check_in_required: z.boolean(),
   registration_closes_at: isoDateTimeStr,
   kit_edit_closes_at: isoDateTimeStr,
   elevation_gain_m: intNonNeg.nullable(),

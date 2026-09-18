@@ -18,6 +18,15 @@ it("sends the selected station for manual check-in and blocks a wrong-event resp
   expect(screen.getByText("Nobody has checked in yet.")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: /^Check in$/ })).toBeEnabled();
 });
+
+it("shows a disabled-event response instead of a successful scan", async () => {
+  mocks.invoke.mockResolvedValue({ error: { context: { json: async () => ({ error: "check_in_disabled" }) } } });
+  render(<CheckInStation eventId="event-a" eventName="Race A" initialRows={[row]} />);
+  fireEvent.click(screen.getByRole("button", { name: /^Check in$/ }));
+  await screen.findByText("Check-in not required");
+  expect(screen.getByText(/No attendance was recorded/)).toBeInTheDocument();
+  expect(screen.getByText("Nobody has checked in yet.")).toBeInTheDocument();
+});
 it("ignores an old scan response after switching events", async () => {
   let finish!: (value: unknown) => void;
   mocks.invoke.mockReturnValue(new Promise(resolve => { finish = resolve; }));

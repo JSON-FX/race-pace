@@ -6,6 +6,7 @@ import { fmtDate } from "@/lib/format";
 import type { RosterRow } from "@/lib/checkin";
 import { CheckInStation } from "./scanner";
 import { EventSwitcher } from "./event-switcher";
+import { CheckInHistory } from "./history";
 
 type CheckinEvent = { id: string; name: string; event_date: string | null; end_date: string | null };
 
@@ -82,7 +83,13 @@ export default async function CheckInPage({
     );
   }
 
-  const { data: rosterData } = await supabase.rpc("checkin_roster", { p_event_id: event.id });
+  const { data: required, error: modeError } = await supabase.rpc("checkin_event_required", { p_event_id: event.id });
+  if (modeError || typeof required !== "boolean") {
+    return <Shell><Card className="p-5" role="alert">Couldn’t load this event’s check-in setting. Refresh and try again.</Card></Shell>;
+  }
+  const { data: rosterData } = required
+    ? await supabase.rpc("checkin_roster", { p_event_id: event.id })
+    : { data: [] };
   const rows = (rosterData ?? []) as RosterRow[];
 
   return (
@@ -108,9 +115,19 @@ export default async function CheckInPage({
         ) : null}
       </div>
 
-      <CheckInStation eventId={event.id} eventName={event.name} initialRows={rows} />
+      {required ? (
+        <CheckInStation eventId={event.id} eventName={event.name} initialRows={rows} />
+      ) : (
+        <>
+          <Card className="p-5" role="status">
+            <h2 className="font-semibold">Check-in not required</h2>
+            <p className="text-sm text-muted-foreground">This organizer disabled check-in for this event. Paid tickets and kit collection remain available.</p>
+          </Card>
+          <CheckInHistory eventId={event.id} revision={0} />
+        </>
+      )}
 
-      <div className="mt-[13px] rounded-[9px] border border-l-[3px] border-l-amber bg-card px-3.5 py-[11px] text-[13px] text-muted-foreground">
+      {required && <div className="mt-[13px] rounded-[9px] border border-l-[3px] border-l-amber bg-card px-3.5 py-[11px] text-[13px] text-muted-foreground">
         <b className="font-semibold text-foreground">Two rules the server enforces.</b>{" "}
         An unpaid entry shows as <b className="font-semibold text-foreground">Blocked</b> rather than
         checkable — the check-in function returns <code>not_paid</code> (409) and refuses it, so the
@@ -118,7 +135,7 @@ export default async function CheckInPage({
         someone already in returns <code>already: true</code>, which surfaces as an amber
         &ldquo;already checked in&rdquo; instead of a green tick, so a double-scan never reads as a
         fresh success.
-      </div>
+      </div>}
     </Shell>
   );
 }

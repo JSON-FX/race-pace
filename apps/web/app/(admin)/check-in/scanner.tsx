@@ -33,6 +33,8 @@ function messageFor(code: string): { title: string; detail: string } {
   switch (code) {
     case "wrong_event":
       return { title: "Ticket belongs to another event", detail: "No check-in was recorded. Select the correct event before scanning again." };
+    case "check_in_disabled":
+      return { title: "Check-in not required", detail: "This organizer disabled check-in for this event. No attendance was recorded." };
     case "not_paid":
       return { title: "Blocked — payment not complete", detail: "This registration isn't paid, so the server refuses the check-in. Take payment first, then scan again." };
     case "invalid_ticket":
