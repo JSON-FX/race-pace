@@ -28,6 +28,8 @@ Zero-commission pilot organizer provisioning: [implementation plan](./plans/2026
 
 Protected production runner smoke: [provider fix plan](./plans/2026-09-18-production-runner-provider.md). The production root layout must supply the same React Query context as staging when the protected deployment URL serves runner pages.
 
+Super-admin organization scope: [selection fix plan](./plans/2026-09-18-super-admin-org-scope.md). The validated organization selected in the console must be the one used by org-scoped queries, even when the super admin also holds an org admin role.
+
 Unbound PayMongo checkout review: [implementation plan](./plans/2026-09-18-unbound-paymongo-review.md). The fail-closed payment endpoint and platform alert are deployed to staging. A safe operator review queue and provider-backed resolution are planned; the payment launch gate remains open.
 
 ## Production purchasing
