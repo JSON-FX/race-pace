@@ -26,6 +26,13 @@ const STATUS_FILTER: FilterDef = {
   ],
 };
 
+function currentNet(row: PaymentRow): string {
+  // Full refunds retain the original net_to_org in the ledger for payout
+  // clawback. The Payments summary and settlement show the current zero.
+  if (row.status === "refunded") return peso(0);
+  return row.net_to_org == null ? "Awaiting reconciliation" : peso(row.net_to_org);
+}
+
 export function PaymentsTable({ rows, total, page, per, sort, activeFilters, q, methods }: {
   rows: PaymentRow[]; total: number; page: number; per: number;
   sort: SortState[]; activeFilters: Record<string, string>; q: string;
@@ -88,7 +95,11 @@ export function PaymentsTable({ rows, total, page, per, sort, activeFilters, q, 
     {
       accessorKey: "net_to_org",
       header: "Net",
-      cell: ({ row }) => <span className="tabular font-semibold">{row.original.net_to_org == null ? "Awaiting reconciliation" : peso(row.original.net_to_org)}</span>,
+      // The row displays current net, while the database keeps the original
+      // net for a full-refund clawback. Sorting by that stored column would
+      // order refunded zeroes by their pre-refund values instead.
+      enableSorting: false,
+      cell: ({ row }) => <span className="tabular font-semibold">{currentNet(row.original)}</span>,
     },
     { accessorKey: "status", header: "Status", cell: ({ row }) => <PaymentStatusBadge status={row.original.status} /> },
     {
