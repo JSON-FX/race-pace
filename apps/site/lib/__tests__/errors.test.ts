@@ -22,6 +22,7 @@ describe("checkoutErrorMessage", () => {
       "invalid_input", "unauthorized", "category_not_found",
       "registration_not_found", "registration_failed", "server_error",
       "registration_closed", "already_registered", "org_suspended",
+      "checkout_reconciliation_required",
     ]) {
       expect(checkoutErrorMessage(code)).not.toBe("");
       expect(checkoutErrorMessage(code)).not.toContain("_");
@@ -31,6 +32,12 @@ describe("checkoutErrorMessage", () => {
 
   it("explains a cancelled/closed event can't be registered for", () => {
     expect(checkoutErrorMessage("registration_closed")).toBe("Registration for this race is no longer open.");
+  });
+
+  it("does not invite another checkout while an unbound PayMongo session is under review", () => {
+    expect(checkoutErrorMessage("checkout_reconciliation_required")).toBe(
+      "We need to check this payment with PayMongo before you try again. Your slot remains held. Contact Race Pace support with your registration reference.",
+    );
   });
 
   it("points a duplicate registration at My Races as the fallback (RegisterWizard prefers routing to /pay/<id> when it has one)", () => {
