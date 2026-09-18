@@ -5,7 +5,7 @@ import { updateSession } from "@/lib/supabase/middleware";
 
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
-  if (isPublicLaunchClosed(process.env.VERCEL_TARGET_ENV ?? process.env.VERCEL_ENV, request.nextUrl.hostname)) {
+  if (isPublicLaunchClosed(process.env.VERCEL_TARGET_ENV ?? process.env.VERCEL_ENV, request.nextUrl.hostname, process.env.VERCEL_URL)) {
     if (pathname === "/robots.txt") {
       return new NextResponse("User-agent: *\nDisallow: /\n", {
         headers: { "content-type": "text/plain; charset=utf-8", "x-robots-tag": "noindex, nofollow, noarchive" },

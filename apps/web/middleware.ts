@@ -4,7 +4,7 @@ import { isPublicLaunchClosed, isStagingEnvironment } from "@race-pace/shared";
 import { updateSession } from "@/lib/supabase/middleware";
 
 export async function middleware(request: NextRequest) {
-  if (isPublicLaunchClosed(process.env.VERCEL_TARGET_ENV ?? process.env.VERCEL_ENV, request.nextUrl.hostname)) {
+  if (isPublicLaunchClosed(process.env.VERCEL_TARGET_ENV ?? process.env.VERCEL_ENV, request.nextUrl.hostname, process.env.VERCEL_URL)) {
     if (request.nextUrl.pathname === "/robots.txt") {
       return new NextResponse("User-agent: *\nDisallow: /\n", {
         headers: { "content-type": "text/plain; charset=utf-8", "x-robots-tag": "noindex, nofollow, noarchive" },
