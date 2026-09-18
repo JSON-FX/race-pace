@@ -27,7 +27,6 @@ const MESSAGES: Record<string, string> = {
   bad_slug: "That name doesn't produce a usable URL slug — type one manually.",
   bad_email: "Enter a valid email address for the first admin.",
   bad_commission: "Enter a valid commission.",
-  zero_commission: "Set a commission above zero — the platform earns nothing on a ₱0 fee.",
   bad_refund_policy: "Choose a refund policy.",
   bad_refund_fee: "Enter a valid retention amount.",
   zero_retention: "A ₱0 retention is the same as a refund excluding fees — pick “Refund excluding fees” instead.",
@@ -162,8 +161,8 @@ export function NewOrgDialog() {
   const percentNum = Number(percent);
   const retentionNum = Number(retentionPesos);
   const commissionOk = commissionType === "fixed"
-    ? Number.isFinite(flatPesosNum) && flatPesosNum > 0
-    : Number.isFinite(percentNum) && percentNum > 0 && percentNum <= 100;
+    ? flatPesos !== "" && Number.isFinite(flatPesosNum) && flatPesosNum >= 0
+    : percent !== "" && Number.isFinite(percentNum) && percentNum >= 0 && percentNum <= 100;
   const refundOk = refundPolicy !== "flat_fee" || (Number.isFinite(retentionNum) && retentionNum > 0);
   const canSubmit = !busy && name.trim() !== "" && isValidSlug(normalizeSlug(slug || name))
     && email.trim() !== "" && commissionOk && refundOk;
@@ -294,13 +293,13 @@ export function NewOrgDialog() {
                   </Label>
                   {commissionType === "fixed" ? (
                     <Input
-                      id="org-commission-value" type="number" min="1" step="1" inputMode="decimal"
+                      id="org-commission-value" type="number" min="0" step="1" inputMode="decimal"
                       className="tabular" value={flatPesos} placeholder="75"
                       onChange={(e) => setFlatPesos(e.target.value)}
                     />
                   ) : (
                     <Input
-                      id="org-commission-value" type="number" min="0.1" max="100" step="0.1" inputMode="decimal"
+                      id="org-commission-value" type="number" min="0" max="100" step="0.1" inputMode="decimal"
                       className="tabular" value={percent}
                       onChange={(e) => setPercent(e.target.value)}
                     />
@@ -308,15 +307,19 @@ export function NewOrgDialog() {
                 </div>
               </div>
 
-              {/* Not a style choice — the column defaults are `fixed` / ₱0, so an
-                  operator who skips this field would create an organization Race
-                  Pace earns nothing from. The function refuses it; this says why
-                  before they hit that wall. */}
+              {/* An empty term is invalid; an explicitly entered zero is the
+                  pilot's commission waiver. The form opens at 3% so zero is
+                  never selected by accident. */}
               {!commissionOk ? (
                 <p className="text-[12px] text-destructive">
                   {commissionType === "fixed"
-                    ? "Set a flat fee above ₱0 — the platform earns nothing otherwise."
-                    : "Set a rate between 0 and 100%."}
+                    ? "Enter a flat fee of ₱0 or more."
+                    : "Enter a rate between 0 and 100%."}
+                </p>
+              ) : null}
+              {commissionOk && (commissionType === "fixed" ? flatPesosNum === 0 : percentNum === 0) ? (
+                <p className="text-[12px] text-muted-foreground">
+                  Race Pace commission is zero for this organization. Payment processing fees still apply.
                 </p>
               ) : null}
 

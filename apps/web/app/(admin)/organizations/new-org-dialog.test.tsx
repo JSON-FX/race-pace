@@ -1,5 +1,5 @@
 import { beforeEach, describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
@@ -19,6 +19,26 @@ describe("NewOrgDialog", () => {
     render(<NewOrgDialog />);
     await user.click(screen.getByRole("button", { name: /new organization/i }));
     expect(screen.getByLabelText(/rate/i)).toHaveValue(3);
+  });
+
+  it("submits an explicitly entered zero percent for a pilot organizer", async () => {
+    invoke.mockImplementation((_name, options) => options?.body?.action === "check_slug"
+      ? Promise.resolve({ data: { available: true }, error: null })
+      : Promise.resolve({ data: { org: { name: "Pilot organizer" }, invite_link: null }, error: null }));
+
+    const user = userEvent.setup();
+    render(<NewOrgDialog />);
+    await user.click(screen.getByRole("button", { name: /new organization/i }));
+    await user.type(screen.getByLabelText("Name"), "Pilot organizer");
+    await user.type(screen.getByLabelText("First admin"), "qa@example.com");
+    await user.clear(screen.getByLabelText(/rate/i));
+    await user.type(screen.getByLabelText(/rate/i), "0");
+    expect(screen.getByText(/commission is zero/i)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /create and invite/i }));
+
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith("org-provision", expect.objectContaining({
+      body: expect.objectContaining({ action: "create", commission_type: "percent", commission_rate: 0 }),
+    })));
   });
 
   it("shows a connection error when a function fetch fails without a Response context", async () => {
