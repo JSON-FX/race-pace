@@ -26,6 +26,8 @@ Fixed-price pilot payment work: [PayMongo fee contract](./specs/paymongo-provide
 
 Zero-commission pilot organizer provisioning: [implementation plan](./plans/2026-09-18-zero-commission-org-provision.md). The form and provisioning function require an explicit nonnegative term and accept 0% or ₱0 for the pilot.
 
+Protected production runner smoke: [provider fix plan](./plans/2026-09-18-production-runner-provider.md). The production root layout must supply the same React Query context as staging when the protected deployment URL serves runner pages.
+
 Unbound PayMongo checkout review: [implementation plan](./plans/2026-09-18-unbound-paymongo-review.md). The fail-closed payment endpoint and platform alert are deployed to staging. A safe operator review queue and provider-backed resolution are planned; the payment launch gate remains open.
 
 ## Production purchasing
