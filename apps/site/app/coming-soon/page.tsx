@@ -32,8 +32,11 @@ export default function ComingSoonPage() {
           <p className={styles.availability}>The Race Pace platform is getting ready. Registration is not open yet.</p>
           <div className={styles.contact}>
             <span>Organizing an event?</span>
-            <a href="mailto:support.racepace@gmail.com">Get in touch</a>
+            <a href="mailto:onboarding@racepace.com.ph">Get in touch</a>
           </div>
+          <p className={styles.generalContact}>
+            General inquiries? <a href="mailto:inquiries@racepace.com.ph">Email inquiries@racepace.com.ph</a>
+          </p>
         </div>
       </div>
 
