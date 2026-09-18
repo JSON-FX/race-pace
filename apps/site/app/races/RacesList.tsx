@@ -30,6 +30,10 @@ function isPast(eventDate: string | null): boolean {
   return eventDate < new Date().toISOString().slice(0, 10);
 }
 
+function isInactive(reg: RegistrationRow): boolean {
+  return ["refunded", "cancelled", "expired"].includes(reg.status) || holdExpired(reg.status, reg.expiresAt);
+}
+
 /** Coarse on purpose: a to-the-second countdown on a 24-hour hold reads as
  *  panic, and the sweep that actually reclaims the slot only runs every 15
  *  minutes, so second-level precision would be a lie anyway. Hour buckets
@@ -114,7 +118,7 @@ export function RacesList() {
   const { data, isLoading } = useMyRegistrations();
   const queryClient = useQueryClient();
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [tab, setTab] = useState<"upcoming" | "finished">("upcoming");
+  const [tab, setTab] = useState<"upcoming" | "finished" | "inactive">("upcoming");
   // Holds the registration id awaiting confirmation, not the deletion itself —
   // cancelRegistration hard-DELETEs the row (see lib/registration.ts), so a
   // bare button click here would be one mis-tap away from destroying a real
@@ -127,11 +131,12 @@ export function RacesList() {
   // from a success that silently didn't happen.
   const [dialogError, setDialogError] = useState<string | null>(null);
 
-  const { upcoming, finished } = useMemo(() => {
+  const { upcoming, finished, inactive } = useMemo(() => {
     const rows = data ?? [];
     return {
-      upcoming: rows.filter((r) => !isPast(r.eventDate)),
-      finished: rows.filter((r) => isPast(r.eventDate)),
+      upcoming: rows.filter((r) => !isInactive(r) && !isPast(r.eventDate)),
+      finished: rows.filter((r) => !isInactive(r) && isPast(r.eventDate)),
+      inactive: rows.filter(isInactive),
     };
   }, [data]);
 
@@ -194,16 +199,17 @@ export function RacesList() {
     }
   }
 
-  const rows = tab === "upcoming" ? upcoming : finished;
+  const rows = tab === "upcoming" ? upcoming : tab === "finished" ? finished : inactive;
 
   const TABS = [
     { key: "upcoming" as const, label: "Upcoming", count: upcoming.length },
     { key: "finished" as const, label: "Finished", count: finished.length },
+    { key: "inactive" as const, label: "Inactive", count: inactive.length },
   ];
 
   return (
     <div>
-      <div role="tablist" aria-label="Race entries" className="flex gap-6 border-b border-divider">
+      <div role="tablist" aria-label="Race entries" className="flex gap-4 overflow-x-auto border-b border-divider sm:gap-6">
         {TABS.map((t) => (
           <button
             key={t.key}
@@ -212,7 +218,7 @@ export function RacesList() {
             aria-selected={tab === t.key}
             onClick={() => setTab(t.key)}
             className={cn(
-              "relative -mb-px pb-3 text-[13.5px] font-semibold transition-colors",
+              "relative -mb-px shrink-0 pb-3 text-[12.5px] font-semibold transition-colors sm:text-[13.5px]",
               tab === t.key ? "text-foreground" : "text-muted-foreground hover:text-foreground",
             )}
           >
@@ -226,7 +232,7 @@ export function RacesList() {
 
       {rows.length === 0 ? (
         <p className="py-16 text-center text-[15px] text-muted-foreground">
-          {tab === "upcoming" ? "Nothing coming up." : "No finished races yet."}
+          {tab === "upcoming" ? "Nothing coming up." : tab === "finished" ? "No finished races yet." : "No inactive entries."}
         </p>
       ) : (
         <div className="mt-5 flex flex-col gap-4">
@@ -261,12 +267,8 @@ export function RacesList() {
                           .filter(Boolean)
                           .join(" · ")}
                       </p>
-                      {/* The entry reference a runner quotes at check-in.
-                          Derived exactly as TicketPanel derives it — same
-                          slice of the same id — so the number here and the
-                          number on the ticket can never disagree. There is no
-                          bib NUMBER in the system: the ticket's "Bib" field is
-                          the runner's bib name, so don't label this one that. */}
+                      {/* This reference matches the code beneath the ticket QR.
+                          It is an entry identifier, not a bib number. */}
                       <p className="font-mono-race mt-1.5 text-[10.5px] uppercase tracking-[1.1px] text-muted-foreground">
                         {[
                           r.status === "paid"
