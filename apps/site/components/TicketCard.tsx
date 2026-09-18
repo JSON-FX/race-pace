@@ -18,7 +18,7 @@ export function TicketCard({
   eventDate,
   reference,
   runnerName,
-  bibName,
+  teamName,
   distanceKm,
   checkInRequired = true,
 }: {
@@ -28,7 +28,7 @@ export function TicketCard({
   eventDate: string | null;
   reference: string;
   runnerName: string | null;
-  bibName: string | null;
+  teamName: string | null;
   distanceKm: number | null;
   checkInRequired?: boolean;
 }) {
@@ -73,7 +73,7 @@ export function TicketCard({
       {/* Runner stub */}
       <dl className="grid grid-cols-2 gap-px border-t border-border bg-border">
         <Cell label="Runner" value={runnerName || "—"} />
-        <Cell label="Bib" value={bibName || reference} />
+        <Cell label="Team name" value={teamName || "—"} />
         <Cell label="Category" value={categoryLabel} />
         <Cell label="Distance" value={distanceKm ? `${distanceKm} KM` : "—"} />
       </dl>

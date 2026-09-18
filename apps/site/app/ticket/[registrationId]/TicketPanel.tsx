@@ -28,6 +28,9 @@ export function TicketPanel({ registrationId, userId }: { registrationId: string
   const historyUrl = managed ? "/bookings" : "/races";
   const historyLabel = managed ? "Bookings I manage" : "My Races";
   const reference = registrationId.slice(0, 8).toUpperCase();
+  const teamName = typeof reg.data?.identitySnapshot?.team_name === "string"
+    ? reg.data.identitySnapshot.team_name.trim() || null
+    : null;
 
   if (reg.isLoading) return <p className="py-20 text-center text-muted-foreground">Loading…</p>;
   if (!reg.data) return <p className="py-20 text-center text-muted-foreground">We couldn&apos;t find that registration.</p>;
@@ -80,7 +83,7 @@ export function TicketPanel({ registrationId, userId }: { registrationId: string
         eventDate={reg.data.eventDate}
         reference={reference}
         runnerName={identity.full_name}
-        bibName={identity.bib_name}
+        teamName={teamName}
         distanceKm={reg.data.categoryDistance}
         checkInRequired={reg.data.eventCheckInRequired}
       />

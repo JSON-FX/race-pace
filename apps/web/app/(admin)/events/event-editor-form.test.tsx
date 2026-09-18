@@ -104,6 +104,19 @@ it("warns before disabling an existing event and honors cancellation", async () 
   }
 });
 
+it("saves a disabled check-in mode after the organizer confirms", async () => {
+  const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+  try {
+    render(<EventEditorForm initial={editorData()} orgId="a1" />);
+    fireEvent.click(screen.getByRole("checkbox", { name: "Require event check-in" }));
+    fireEvent.click(screen.getByText("Save event"));
+    await waitFor(() => expect(mockSaveEventAction).toHaveBeenCalled());
+    expect(lastSavedEvent().check_in_required).toBe(false);
+  } finally {
+    confirm.mockRestore();
+  }
+});
+
 it("allows saving a cancelled event instead of dead-ending on the status validator", async () => {
   render(<EventEditorForm initial={editorData({ status: "cancelled" })} orgId="a1" />);
   fireEvent.click(await screen.findByText("Save event"));

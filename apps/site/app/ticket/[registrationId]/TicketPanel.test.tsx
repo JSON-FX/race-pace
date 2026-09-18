@@ -9,7 +9,7 @@ vi.mock("@/lib/registration", async (importOriginal) => ({
   useRegistration: () => ({ data: state.data, isLoading: false, refetch: state.refetch }),
 }));
 vi.mock("@/lib/profile", () => ({ getProfile: state.profile }));
-vi.mock("@/components/TicketCard", () => ({ TicketCard: ({ runnerName }: { runnerName: string }) => <div data-testid="race-pass">Race pass QR {runnerName}</div> }));
+vi.mock("@/components/TicketCard", () => ({ TicketCard: ({ runnerName, teamName }: { runnerName: string; teamName: string | null }) => <div data-testid="race-pass">Race pass QR {runnerName} {teamName}</div> }));
 vi.mock("@/components/RaceKitCard", () => ({ RaceKitCard: ({ onChange }: { onChange: () => void }) => <button onClick={onChange}>Change kit size</button> }));
 vi.mock("@/components/ShirtSizeSheet", () => ({ ShirtSizeSheet: () => <div>Size editor</div> }));
 
@@ -82,4 +82,10 @@ it("returns helper tickets to managed bookings", () => {
  state.data = mapReg({id:"guest",user_id:null,booked_by_user_id:"helper",status:"paid",ticket_token:"guest-token",custom_data:{full_name:"Guest Runner"}});
  render(<TicketPanel registrationId="guest" userId="helper" />);
  expect(screen.getByRole("link",{name:"Back to Bookings I manage"})).toHaveAttribute("href","/bookings");
+});
+
+it("shows the team saved with the registration rather than later profile changes", () => {
+ state.data = mapReg({id:"team-entry",user_id:"runner-id",status:"paid",ticket_token:"team-token",custom_data:{full_name:"Team Runner",team_name:"Trail Crew"}});
+ render(<TicketPanel registrationId="team-entry" userId="runner-id" />);
+ expect(screen.getByTestId("race-pass")).toHaveTextContent("Trail Crew");
 });
