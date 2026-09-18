@@ -9,6 +9,9 @@ import { eventInputSchema, categoryInputSchema, addonInputSchema, sanitizeListFi
 import { reconcileChildren } from "@/lib/reconcile-children";
 
 const GENERIC_ERROR = "Something went wrong. Please try again.";
+const WAIVER_PUBLISH_ERROR = "Publish an organizer waiver and assign it to this event before opening registration.";
+const eventSaveError = (error: { message?: string } | null) =>
+  error?.message?.includes("event_waiver_required_for_publishing") ? WAIVER_PUBLISH_ERROR : GENERIC_ERROR;
 
 // ---- Draft shapes, ported verbatim from the old lib/eventWrites.ts -------
 
@@ -185,7 +188,7 @@ export async function saveEventAction(_prev: EditorState, formData: FormData): P
     const ins = await supabase.from("events").insert(EVENT_COLS(event)).select("id").single();
     if (ins.error) {
       console.error("[events] event insert failed", { orgId: event.org_id, error: ins.error });
-      return { error: GENERIC_ERROR };
+      return { error: eventSaveError(ins.error) };
     }
     finalEventId = ins.data!.id;
   } else {
@@ -197,7 +200,7 @@ export async function saveEventAction(_prev: EditorState, formData: FormData): P
     const upd = await supabase.from("events").update(EVENT_COLS(event)).eq("id", finalEventId).select("id");
     if (upd.error) {
       console.error("[events] event update failed", { eventId: finalEventId, error: upd.error });
-      return { error: GENERIC_ERROR };
+      return { error: eventSaveError(upd.error) };
     }
     if (!upd.data || upd.data.length === 0) return { error: GENERIC_ERROR };
   }

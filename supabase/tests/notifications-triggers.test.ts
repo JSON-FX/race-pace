@@ -6,9 +6,9 @@ import { seededIds } from "../../test/seeded";
 // Resolved from the seed rather than restated — see test/seeded.ts. This file
 // used the ids as inline literals rather than named constants, which is why the
 // drift was even harder to spot here.
-let ORG: string, EVENT: string, CATEGORY: string;
+let ORG: string, EVENT: string, CATEGORY: string, WAIVER: string;
 beforeAll(async () => {
-  ({ ORG_A: ORG, EVENT_A: EVENT, CATEGORY_A: CATEGORY } = await seededIds());
+  ({ ORG_A: ORG, EVENT_A: EVENT, CATEGORY_A: CATEGORY, WAIVER_A: WAIVER } = await seededIds());
 });
 
 const { url, anonKey, serviceKey } = loadEnv();
@@ -95,7 +95,7 @@ describe("checkins table", () => {
     const runner = await makeUser(`ci_run_${Date.now()}@test.dev`);
     const reg = await svc.from("registrations").insert({
       org_id: ORG, event_id: EVENT,
-      category_id: CATEGORY, user_id: runner.id, status: "paid", total_amount: 100000,
+      category_id: CATEGORY, user_id: runner.id, status: "paid", total_amount: 100000, waiver_version_id: WAIVER,
     }).select().single();
 
     const ins = await svc.from("checkins").insert({
@@ -125,7 +125,7 @@ describe("registration trigger", () => {
     const runner = await makeUser(`rt_run_${Date.now()}@test.dev`);
     const reg = await svc.from("registrations").insert({
       org_id: ORG, event_id: EVENT,
-      category_id: CATEGORY, user_id: runner.id, status: "pending", total_amount: 100000,
+      category_id: CATEGORY, user_id: runner.id, status: "pending", total_amount: 100000, waiver_version_id: WAIVER,
     }).select().single();
 
     const n1 = await latestNote(svc, runner.id);
@@ -148,7 +148,7 @@ describe("event-change trigger", () => {
     const ev = await cloneEvent(svc, { name: `ET ${Date.now()}`, status: "open" });
     await svc.from("registrations").insert({
       org_id: ev.org_id, event_id: ev.id, category_id: CATEGORY,
-      user_id: runner.id, status: "paid", total_amount: 100000,
+      user_id: runner.id, status: "paid", total_amount: 100000, waiver_version_id: ev.waiver_version_id,
     });
 
     await svc.from("events").update({ original_date: "2026-01-01" }).eq("id", ev.id);
@@ -182,7 +182,7 @@ describe("check-in trigger", () => {
     const runner = await makeUser(`ck_run_${Date.now()}@test.dev`);
     const reg = await svc.from("registrations").insert({
       org_id: ORG, event_id: EVENT,
-      category_id: CATEGORY, user_id: runner.id, status: "paid", total_amount: 100000,
+      category_id: CATEGORY, user_id: runner.id, status: "paid", total_amount: 100000, waiver_version_id: WAIVER,
     }).select().single();
     await svc.from("checkins").insert({
       org_id: reg.data!.org_id, registration_id: reg.data!.id, event_id: reg.data!.event_id, checked_in_by: runner.id,
@@ -205,7 +205,7 @@ describe("event reminders", () => {
     const ev = await cloneEvent(svc, { name: `RM ${Date.now()}`, status: "open", event_date: inDays(7) });
     await svc.from("registrations").insert({
       org_id: ev.org_id, event_id: ev.id, category_id: CATEGORY,
-      user_id: runner.id, status: "paid", total_amount: 100000,
+      user_id: runner.id, status: "paid", total_amount: 100000, waiver_version_id: ev.waiver_version_id,
     });
 
     await svc.rpc("fn_enqueue_event_reminders");

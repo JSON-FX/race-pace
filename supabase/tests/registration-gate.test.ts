@@ -60,19 +60,23 @@ async function makeUser(email: string) {
   return { id: created.data.user!.id, token: signedIn.data.session!.access_token };
 }
 
-async function makeEvent(slug: string) {
+async function makeEvent(slug: string, checkout = false) {
   const svc = service();
   const org = await svc.from("organizations").insert({ name: `Gate ${slug}`, slug: `gate-${slug}` }).select().single();
+  const waiver = checkout
+    ? await svc.from("organizer_waiver_versions").insert({ org_id: org.data!.id, title: "Gate QA waiver", body: "Synthetic acceptance for checkout tests." }).select("id").single()
+    : null;
+  if (waiver?.error) throw waiver.error;
   const ev = await svc.from("events")
-    .insert({ org_id: org.data!.id, name: `Gate Race ${slug}`, status: "open" }).select().single();
+    .insert({ org_id: org.data!.id, name: `Gate Race ${slug}`, status: "open", waiver_version_id: waiver?.data?.id ?? null }).select().single();
   const cat = await svc.from("categories")
     .insert({ org_id: org.data!.id, event_id: ev.data!.id, code: "10k", label: "10K", base_price: 100000, slots_total: 10 })
     .select().single();
-  return { orgId: org.data!.id, eventId: ev.data!.id, categoryId: cat.data!.id };
+  return { orgId: org.data!.id, eventId: ev.data!.id, categoryId: cat.data!.id, waiverId: waiver?.data?.id ?? null };
 }
 
-function regRow(f: { orgId: string; eventId: string; categoryId: string }, userId: string) {
-  return { org_id: f.orgId, event_id: f.eventId, category_id: f.categoryId, user_id: userId, total_amount: 100000 };
+function regRow(f: { orgId: string; eventId: string; categoryId: string; waiverId?: string | null }, userId: string) {
+  return { org_id: f.orgId, event_id: f.eventId, category_id: f.categoryId, user_id: userId, total_amount: 100000, waiver_version_id: f.waiverId ?? null };
 }
 
 describe("one live registration per event", () => {
@@ -249,7 +253,7 @@ async function stageFixture(client: Client) {
     [`Gate TX ${Date.now()}`, `gate-tx-${Date.now()}-${Math.random().toString(36).slice(2)}`],
   );
   const event = await client.query<{ id: string }>(
-    "insert into events (org_id, name, status) values ($1, $2, 'open') returning id",
+    "insert into events (org_id, name, status) values ($1, $2, 'draft') returning id",
     [org.rows[0].id, "Gate TX Race"],
   );
   const category = await client.query<{ id: string }>(
@@ -767,7 +771,7 @@ describe("payment-session expiry gate", () => {
 describe("registrations-checkout duplicate handling", () => {
   it.skipIf(!functionsUp)("returns already_registered with the existing entry", async () => {
     const svc = service();
-    const f = await makeEvent(`co${Date.now()}`);
+    const f = await makeEvent(`co${Date.now()}`, true);
     const runner = await makeUser(`gate_co_${Date.now()}@test.dev`);
 
     const reg = await svc.from("registrations").insert(regRow(f, runner.id)).select().single();
@@ -781,7 +785,7 @@ describe("registrations-checkout duplicate handling", () => {
       headers: { "content-type": "application/json", Authorization: `Bearer ${runner.token}` },
       body: JSON.stringify({
         event_id: f.eventId, category_id: f.categoryId, addon_ids: [],
-        custom_data: {}, waiver_accepted: true, idempotency_key: `k_${Date.now()}`,
+        custom_data: {}, waiver_accepted: true, waiver_version_id: f.waiverId, idempotency_key: `k_${Date.now()}`,
       }),
     });
 
@@ -813,7 +817,7 @@ describe("registrations-checkout duplicate handling", () => {
     "expires a lapsed pending hold in the pre-check and issues a real new registration, not already_registered",
     async () => {
       const svc = service();
-      const f = await makeEvent(`lazy${Date.now()}`);
+      const f = await makeEvent(`lazy${Date.now()}`, true);
       const runner = await makeUser(`gate_lazy_${Date.now()}@test.dev`);
 
       const stale = await svc.from("registrations").insert(regRow(f, runner.id)).select().single();
@@ -828,7 +832,7 @@ describe("registrations-checkout duplicate handling", () => {
         headers: { "content-type": "application/json", Authorization: `Bearer ${runner.token}` },
         body: JSON.stringify({
           event_id: f.eventId, category_id: f.categoryId, addon_ids: [],
-          custom_data: {}, waiver_accepted: true, idempotency_key: `k_lazy_${Date.now()}`,
+          custom_data: {}, waiver_accepted: true, waiver_version_id: f.waiverId, idempotency_key: `k_lazy_${Date.now()}`,
         }),
       });
 
@@ -882,7 +886,7 @@ describe("registrations-checkout 23505 handler (genuine concurrent race)", () =>
   it.skipIf(!functionsUp)(
     "the pre-check misses an uncommitted sibling, the insert collides, and the loser gets already_registered pointing at the real winner",
     async () => {
-      const f = await makeEvent(`race_co${Date.now()}`);
+      const f = await makeEvent(`race_co${Date.now()}`, true);
       const runner = await makeUser(`gate_race_co_${Date.now()}@test.dev`);
 
       const holder = new Client({ connectionString: dbUrl });
@@ -894,9 +898,9 @@ describe("registrations-checkout 23505 handler (genuine concurrent race)", () =>
         await holder.query("begin");
         const holderPid = (await holder.query<{ pid: number }>("select pg_backend_pid() as pid")).rows[0]!.pid;
         const ins = await holder.query<{ id: string }>(
-          "insert into registrations (org_id, event_id, category_id, user_id, total_amount, status) " +
-            "values ($1, $2, $3, $4, 100000, 'pending') returning id",
-          [f.orgId, f.eventId, f.categoryId, runner.id],
+          "insert into registrations (org_id, event_id, category_id, user_id, total_amount, status, waiver_version_id) " +
+            "values ($1, $2, $3, $4, 100000, 'pending', $5) returning id",
+          [f.orgId, f.eventId, f.categoryId, runner.id, f.waiverId],
         );
         const holderRegId = ins.rows[0]!.id;
 
@@ -905,7 +909,7 @@ describe("registrations-checkout 23505 handler (genuine concurrent race)", () =>
           headers: { "content-type": "application/json", Authorization: `Bearer ${runner.token}` },
           body: JSON.stringify({
             event_id: f.eventId, category_id: f.categoryId, addon_ids: [],
-            custom_data: {}, waiver_accepted: true, idempotency_key: `k_race_${Date.now()}`,
+            custom_data: {}, waiver_accepted: true, waiver_version_id: f.waiverId, idempotency_key: `k_race_${Date.now()}`,
           }),
         });
 
@@ -943,7 +947,7 @@ describe("registrations-checkout 23505 handler (genuine concurrent race)", () =>
     "when the row that wins the race is itself lapsed, the 23505 handler expires it and retries once, producing a real new registration",
     async () => {
       const svc = service();
-      const f = await makeEvent(`race_lazy${Date.now()}`);
+      const f = await makeEvent(`race_lazy${Date.now()}`, true);
       const runner = await makeUser(`gate_race_lazy_${Date.now()}@test.dev`);
 
       const holder = new Client({ connectionString: dbUrl });
@@ -956,9 +960,9 @@ describe("registrations-checkout 23505 handler (genuine concurrent race)", () =>
         const holderPid = (await holder.query<{ pid: number }>("select pg_backend_pid() as pid")).rows[0]!.pid;
         const lapsed = new Date(Date.now() - 60_000).toISOString();
         const ins = await holder.query<{ id: string }>(
-          "insert into registrations (org_id, event_id, category_id, user_id, total_amount, status, expires_at) " +
-            "values ($1, $2, $3, $4, 100000, 'pending', $5) returning id",
-          [f.orgId, f.eventId, f.categoryId, runner.id, lapsed],
+          "insert into registrations (org_id, event_id, category_id, user_id, total_amount, status, expires_at, waiver_version_id) " +
+            "values ($1, $2, $3, $4, 100000, 'pending', $5, $6) returning id",
+          [f.orgId, f.eventId, f.categoryId, runner.id, lapsed, f.waiverId],
         );
         const holderRegId = ins.rows[0]!.id;
 
@@ -967,7 +971,7 @@ describe("registrations-checkout 23505 handler (genuine concurrent race)", () =>
           headers: { "content-type": "application/json", Authorization: `Bearer ${runner.token}` },
           body: JSON.stringify({
             event_id: f.eventId, category_id: f.categoryId, addon_ids: [],
-            custom_data: {}, waiver_accepted: true, idempotency_key: `k_race_lazy_${Date.now()}`,
+            custom_data: {}, waiver_accepted: true, waiver_version_id: f.waiverId, idempotency_key: `k_race_lazy_${Date.now()}`,
           }),
         });
 

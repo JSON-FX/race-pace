@@ -14,7 +14,7 @@ it("keeps one live entry per Passport even when the participant's account change
   await db.query("insert into auth.users(id,email) values($1,$2),($3,$4)", [a, `${a}@example.com`, b, `${b}@example.com`]);
   const passport = (await db.query("select id from public.runner_passports where claimed_user_id=$1", [a])).rows[0].id;
   await db.query("insert into public.organizations(id,name,slug) values($1::uuid,'Participant boundary QA',$2)", [org,org]);
-  await db.query("insert into public.events(id,org_id,name,status) values($1,$2,'Participant boundary','open')", [event, org]);
+  await db.query("insert into public.events(id,org_id,name,status) values($1,$2,'Participant boundary','draft')", [event, org]);
   await db.query("insert into public.categories(id,org_id,event_id,code,label,base_price,slots_total) values($1,$2,$3,'Q','QA',10000,10)", [category, org, event]);
   const insert = "insert into public.registrations(id,org_id,event_id,category_id,user_id,total_amount,idempotency_key) values($1,$2,$3,$4,$5,10000,$6)";
   await db.query(insert, [original,org,event,category,a,randomUUID()]);

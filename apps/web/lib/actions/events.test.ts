@@ -151,6 +151,22 @@ describe("saveEventAction", () => {
     expect(revalidatePath).toHaveBeenCalledWith("/events/e9/edit");
   });
 
+  it("explains why an event cannot open before its organizer waiver is assigned", async () => {
+    getMyRoles.mockResolvedValue(roles());
+    from.mockReturnValueOnce(chain({ data: null, error: { message: "event_waiver_required_for_publishing" } }));
+    const res = await saveEventAction({}, savePayload({ status: "open" }));
+    expect(res.error).toMatch(/Publish an organizer waiver/);
+  });
+
+  it("explains a blocked draft-to-open update without exposing database details", async () => {
+    getMyRoles.mockResolvedValue(roles());
+    from.mockReturnValueOnce(chain({ data: { status: "draft", check_in_required: true }, error: null }))
+      .mockReturnValueOnce(chain({ data: null, error: { message: "event_waiver_required_for_publishing" } }));
+    const res = await saveEventAction({}, savePayload({ id: "e1", status: "open" }));
+    expect(res.error).toMatch(/Publish an organizer waiver/);
+    expect(res.error).not.toContain("event_waiver_required_for_publishing");
+  });
+
   // EVENT_COLS is a hand-maintained object builder (not a type-checked
   // pass-through of EventDraft), so nothing but a runtime assertion on the
   // actual payload handed to `.insert(...)`/`.update(...)` would catch

@@ -17,9 +17,9 @@ async function makeUser(email: string) {
 // deliberately takes the SECOND seeded event so its aggregate assertions are not
 // polluted by rows other suites write against the first one; CATEGORY_A2 must
 // pair with EVENT_A2 or the registration insert breaks the event/category link.
-let RWP: string, EVT: string, C4: string;
+let RWP: string, EVT: string, C4: string, WAIVER: string;
 beforeAll(async () => {
-  ({ ORG_A: RWP, EVENT_A2: EVT, CATEGORY_A2: C4 } = await seededIds());
+  ({ ORG_A: RWP, EVENT_A2: EVT, CATEGORY_A2: C4, WAIVER_A2: WAIVER } = await seededIds());
 });
 // NOTE: existing tests in this directory (admin-registrations.test.ts,
 // admin-list-views.test.ts) reference event e1 / category c4, but the
@@ -51,7 +51,7 @@ describe("admin_registration_aggregates — '*' in the search box (IMPORTANT 1)"
     const runner = await makeUser(`kpi_star_run_${Date.now()}@test.dev`);
     await svc.from("profiles").insert({ id: runner.id, full_name: "Dahilayan Sky Runner" });
     const reg = await svc.from("registrations")
-      .insert({ org_id: RWP, event_id: EVT, category_id: C4, user_id: runner.id, status: "paid", total_amount: 100000 })
+      .insert({ org_id: RWP, event_id: EVT, category_id: C4, user_id: runner.id, status: "paid", total_amount: 100000, waiver_version_id: WAIVER })
       .select().single();
     expect(reg.error).toBeNull();
 
@@ -110,7 +110,7 @@ describe("admin_payment_aggregates — paid-only gross/fee/net (IMPORTANT 2)", (
       const runner = await makeUser(`kpi_paid_${userSuffix}_${Date.now()}@test.dev`);
       await svc.from("profiles").insert({ id: runner.id, full_name: `Payer ${userSuffix} ${stamp}` });
       const reg = await svc.from("registrations")
-        .insert({ org_id: RWP, event_id: EVT, category_id: C4, user_id: runner.id, status: "paid", total_amount: amount })
+        .insert({ org_id: RWP, event_id: EVT, category_id: C4, user_id: runner.id, status: "paid", total_amount: amount, waiver_version_id: WAIVER })
         .select().single();
       const pay = await svc.from("payments")
         .insert({
@@ -190,7 +190,7 @@ describe("registration partial refunds", () => {
       expect((await svc.from("profiles").upsert({ id: runner.id, full_name: stamp })).error).toBeNull();
       const reg = await svc.from("registrations").insert({
         org_id: RWP, event_id: EVT, category_id: C4, user_id: runner.id,
-        status: "paid", total_amount: 100000,
+        status: "paid", total_amount: 100000, waiver_version_id: WAIVER,
       }).select("id").single();
       expect(reg.error).toBeNull();
       registrationId = reg.data!.id;

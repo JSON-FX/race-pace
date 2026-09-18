@@ -17,9 +17,9 @@ async function makeUser(email: string) {
 
 // Resolved from the seed rather than restated — see test/seeded.ts for why
 // the old hardcoded constants silently became dangling foreign keys.
-let RWP: string, APO: string, E1: string, C4: string;
+let RWP: string, APO: string, E1: string, C4: string, WAIVER: string;
 beforeAll(async () => {
-  ({ ORG_A: RWP, ORG_B: APO, EVENT_A: E1, CATEGORY_A: C4 } = await seededIds());
+  ({ ORG_A: RWP, ORG_B: APO, EVENT_A: E1, CATEGORY_A: C4, WAIVER_A: WAIVER } = await seededIds());
 });
 
 describe("admin list views", () => {
@@ -35,7 +35,7 @@ describe("admin list views", () => {
     const bystander = await makeUser(`av_bys_${Date.now()}@test.dev`);
 
     const reg = await svc.from("registrations")
-      .insert({ org_id: RWP, event_id: E1, category_id: C4, user_id: runner.id, status: "paid", total_amount: 100000 })
+      .insert({ org_id: RWP, event_id: E1, category_id: C4, user_id: runner.id, status: "paid", total_amount: 100000, waiver_version_id: WAIVER })
       .select().single();
     await svc.from("payments").insert({ org_id: RWP, registration_id: reg.data!.id, amount: 100000, platform_fee: 10000, net_to_org: 90000, method: "gcash", status: "paid" });
 

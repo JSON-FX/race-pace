@@ -61,9 +61,12 @@ Deno.serve(async (req) => {
       .eq("id", category.event_id)
       .single();
     if (!event) return json({ error: "category_not_found" }, 404);
-    if (isRegistrationClosed(event.status, event.registration_closes_at)) {
+    if (!["open", "almost_full"].includes(event.status) || isRegistrationClosed(event.status, event.registration_closes_at)) {
       return json({ error: "registration_closed" }, 409);
     }
+    // Older open events can still lack an organizer waiver. Never sell another
+    // slot for them, even when the request also omits a version (null === null).
+    if (!event.waiver_version_id) return json({ error: "event_waiver_unavailable" }, 409);
     if ((event.waiver_version_id ?? null) !== (input.waiver_version_id ?? null)) {
       return json({ error: "waiver_version_changed" }, 409);
     }

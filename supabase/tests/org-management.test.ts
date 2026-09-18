@@ -21,7 +21,13 @@ const trash: string[] = [];
 const trashUsers: string[] = [];
 afterEach(async () => {
   // Best-effort: a test that already deleted its org leaves a no-op here.
-  for (const id of trash.splice(0)) await svc().from("organizations").delete().eq("id", id);
+  for (const id of trash.splice(0)) {
+    // This suite's checkout fixture selects a published waiver. Unbind its
+    // synthetic event before removing the immutable document and the org.
+    await svc().from("events").update({ waiver_version_id: null }).eq("org_id", id);
+    await svc().from("organizer_waiver_versions").delete().eq("org_id", id);
+    await svc().from("organizations").delete().eq("id", id);
+  }
   for (const id of trashUsers.splice(0)) await svc().auth.admin.deleteUser(id);
 });
 
@@ -357,8 +363,12 @@ describe("registrations-checkout on a suspended org", () => {
   // data would race backend.test.ts, which reads Muspo as anon in the same
   // vitest run.
   it("refuses a direct call with an event id already in hand", async () => {
-    const { orgId, eventId } = await makeSuspendableOrg("t-susp-checkout");
+    const { orgId, eventId } = await makeSuspendableOrg(`t-susp-checkout-${Date.now()}`);
     const db = svc();
+    const waiver = await db.from("organizer_waiver_versions")
+      .insert({ org_id: orgId, title: "Suspension QA waiver", body: "Synthetic checkout acceptance." }).select("id").single();
+    expect(waiver.error).toBeNull();
+    expect((await db.from("events").update({ waiver_version_id: waiver.data!.id }).eq("id", eventId)).error).toBeNull();
     const { data: cat } = await db.from("categories")
       .insert({ org_id: orgId, event_id: eventId, code: "10k", label: "10K", base_price: 100000, slots_total: 10 })
       .select("id").single();
@@ -377,6 +387,7 @@ describe("registrations-checkout on a suspended org", () => {
         event_id: eventId,
         category_id: cat!.id,
         waiver_accepted: true,
+        waiver_version_id: waiver.data!.id,
         // registrationInputSchema requires idempotency_key (min 8 chars) --
         // omitting it fails schema validation before this check ever runs.
         idempotency_key: "susp-checkout-test-key",

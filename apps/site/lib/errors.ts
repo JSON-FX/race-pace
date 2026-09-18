@@ -6,6 +6,7 @@ const MESSAGES: Record<string, string> = {
   registration_closed: "Registration for this race is no longer open.",
   not_pending: "This registration can no longer be paid. Check My Races for its status.",
   waiver_version_changed: "The organizer updated the waiver. Reload this page and review the new version before registering.",
+  event_waiver_unavailable: "Registration is unavailable until the organizer publishes an event waiver.",
   participant_already_registered: "This participant already has an entry. Contact the person who made that booking.",
   participant_not_accessible: "This participant Passport is not available to your account.",
   participant_acceptance_required: "Assisted registration requires an organizer waiver and the participant’s personal acceptance.",

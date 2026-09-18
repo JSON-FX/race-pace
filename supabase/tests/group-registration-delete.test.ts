@@ -21,7 +21,7 @@ it("denies direct runner deletion of an ordered line while preserving single-ent
       );
     }
     await db.query("insert into public.organizations(id,name,slug) values($1,'Order delete QA',$2)", [org, `order-delete-${org}`]);
-    await db.query("insert into public.events(id,org_id,name,status) values($1,$2,'Order delete QA','open')", [event, org]);
+    await db.query("insert into public.events(id,org_id,name,status) values($1,$2,'Order delete QA','draft')", [event, org]);
     await db.query("insert into public.categories(id,org_id,event_id,code,label,base_price,slots_total) values($1,$2,$3,'QA','QA',10000,10)", [category, org, event]);
     await db.query("insert into public.booking_orders(id,org_id,event_id,category_id,booked_by_user_id,idempotency_key,status) values($1,$2,$3,$4,$5,$6,'pending')", [order, org, event, category, groupUser, randomUUID()]);
     await db.query("insert into public.registrations(id,org_id,event_id,category_id,user_id,booked_by_user_id,booking_order_id,status,total_amount) values($1,$2,$3,$4,$5,$5,$6,'pending',10000)", [groupRegistration, org, event, category, groupUser, order]);
