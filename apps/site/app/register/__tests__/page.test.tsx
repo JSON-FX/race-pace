@@ -62,6 +62,15 @@ beforeEach(() => {
 });
 
 describe("RegisterPage", () => {
+  it("stops a legacy open event without an organizer waiver before showing checkout", async () => {
+    fetchEvent.mockResolvedValue({ id: "e1", status: "open", waiver_version_id: null } as EventRow);
+    const Page = await loadPage();
+    render(await Page({ params: Promise.resolve({ categoryId: "c1" }) }));
+    expect(screen.getByRole("heading", { name: "Registration is temporarily unavailable" })).toBeInTheDocument();
+    expect(screen.getByText(/organizer needs to publish an event waiver/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Register/ })).not.toBeInTheDocument();
+  });
+
   it("shows the Passport completion gate instead of the wizard for missing details", async () => {
     fetchEvent.mockResolvedValue({ id: "e1", status: "open" } as EventRow);
     passportResult.mockResolvedValue({ data: null, error: null });

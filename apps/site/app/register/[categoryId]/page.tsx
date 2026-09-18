@@ -77,6 +77,16 @@ export default async function RegisterPage({ params, searchParams }: { params: P
     </main></>;
   }
 
+  // Older events can still be open without an organizer waiver. Checkout
+  // rejects them; stop the runner before showing the generic legacy text.
+  if (!event.waiver_version_id) {
+    return <><SiteHeader /><main className="mx-auto max-w-xl px-6 py-12">
+      <h1 className="text-2xl font-bold">Registration is temporarily unavailable</h1>
+      <p className="mt-4">The organizer needs to publish an event waiver before registration can open.</p>
+      <Link className="mt-6 inline-block underline" href={`/events/${category.event_id}`}>Return to event</Link>
+    </main></>;
+  }
+
   const { data: waiver } = event.waiver_version_id
     ? await db.from("organizer_waiver_versions").select("id,title,body").eq("id", event.waiver_version_id).single()
     : { data: null };
