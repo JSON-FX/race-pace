@@ -57,10 +57,8 @@ type CreateInput = {
  *
  * The commercial terms are required INPUTS here, not defaults. `organizations`
  * defaults commission_type to 'fixed' and commission_flat_cents to 0, so a
- * create-then-forget path would silently produce an organization Race Pace
- * earns nothing from — and nobody would notice until the first payout was
- * computed against a zero fee. A zero percentage is the same organization by a
- * different route, so it is refused on the same grounds.
+ * missing term must not silently produce a zero-fee organization. An explicit
+ * zero is valid for pilot organizers; the admin form still defaults to 3%.
  *
  * A flat_fee refund policy with a ₱0 retention is likewise refused: it is
  * indistinguishable from a 'full' refund, and an operator who meant "full"
@@ -74,13 +72,13 @@ export function validateCreateInput(input: CreateInput): string | null {
 
   if (input.commission_type === "fixed") {
     if (!Number.isInteger(input.commission_flat_cents)) return "bad_commission";
-    if (input.commission_flat_cents <= 0) return "zero_commission";
+    if (input.commission_flat_cents < 0) return "bad_commission";
   } else if (input.commission_type === "percent") {
     const rate = input.commission_rate;
     if (typeof rate !== "number" || !Number.isFinite(rate)) return "bad_commission";
     // Stored as a fraction (0.10 = 10%). The UI converts; the DB must never see
     // 10 meaning 10%, which would be a 1000% fee.
-    if (rate <= 0 || rate > 1) return "zero_commission";
+    if (rate < 0 || rate > 1) return "bad_commission";
   } else {
     return "bad_commission";
   }
@@ -310,10 +308,8 @@ Deno.serve(async (req) => {
       slug: normalizeSlug(String(body.slug ?? body.name ?? "")),
       admin_email: String(body.admin_email ?? "").trim().toLowerCase(),
       commission_type: String(body.commission_type ?? ""),
-      commission_rate: body.commission_rate === null || body.commission_rate === undefined
-        ? null
-        : Number(body.commission_rate),
-      commission_flat_cents: Number(body.commission_flat_cents ?? 0),
+      commission_rate: typeof body.commission_rate === "number" ? body.commission_rate : null,
+      commission_flat_cents: typeof body.commission_flat_cents === "number" ? body.commission_flat_cents : NaN,
       refund_policy: String(body.refund_policy ?? ""),
       refund_fee_cents: Number(body.refund_fee_cents ?? 0),
     };
