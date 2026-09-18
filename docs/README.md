@@ -24,6 +24,8 @@ Active verification ledger: [end-to-end checklist](./plans/2026-09-15-web-admin-
 
 Fixed-price pilot payment work: [PayMongo fee contract](./specs/paymongo-provider-fees.md), [implementation plan](./plans/2026-09-18-paymongo-provider-fees.md), and [review findings](../.claude/code-reviews/2026-09-18-fixed-price-paymongo.md). Staging code and price disclosure are deployed; a fresh sandbox capture, session expiry, and durable reconciliation remain before production.
 
+Zero-commission pilot organizer provisioning: [implementation plan](./plans/2026-09-18-zero-commission-org-provision.md). The form and provisioning function require an explicit nonnegative term and accept 0% or ₱0 for the pilot.
+
 Unbound PayMongo checkout review: [implementation plan](./plans/2026-09-18-unbound-paymongo-review.md). The fail-closed payment endpoint and platform alert are deployed to staging. A safe operator review queue and provider-backed resolution are planned; the payment launch gate remains open.
 
 ## Production purchasing
