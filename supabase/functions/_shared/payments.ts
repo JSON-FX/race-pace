@@ -2,7 +2,7 @@ import { paymongoConfigured, pmCreateCheckoutSession, pmGetCheckoutSession, pmPa
 
 export interface CheckoutInput { registrationId: string; amount: number; description: string; returnUrl: string; methods?: string[]; lineItems?: { name: string; amount: number }[]; billing?: { name?: string; email?: string; phone?: string }; passOnFees?: boolean; metadata?: Record<string, string> }
 export interface CheckoutResult { checkoutUrl: string; providerRef: string }
-export interface RefundInput { providerRef: string; amount: number; reason?: string; requestId: string; registrationId: string }
+export interface RefundInput { providerRef: string; providerPaymentId?: string; amount: number; reason?: string; requestId: string; registrationId: string }
 export interface RefundResult { providerRefundId: string; status: "pending" | "succeeded" | "failed"; raw: unknown }
 export interface PaymentProvider {
   readonly name: string;
@@ -60,9 +60,13 @@ export class PayMongoProvider implements PaymentProvider {
     return { checkoutUrl: session.checkoutUrl, providerRef: session.id };
   }
   async refund(input: RefundInput): Promise<RefundResult> {
-    // provider_ref is the checkout session id; resolve the pay_… id, then refund it.
-    const session = await pmGetCheckoutSession(input.providerRef);
-    const paymentId = pmPaymentIdFromSession(session);
+    // New captures persist their paid pay_ ID before fulfillment. Prefer that
+    // immutable evidence so a later unavailable checkout-session GET cannot
+    // strand a valid refund. Historical payments still use the session lookup.
+    if (input.providerPaymentId && !/^pay_[A-Za-z0-9_-]+$/.test(input.providerPaymentId)) {
+      throw new Error("paymongo_refund_payment_id_invalid");
+    }
+    const paymentId = input.providerPaymentId ?? pmPaymentIdFromSession(await pmGetCheckoutSession(input.providerRef));
     if (!paymentId) throw new Error("paymongo_refund_no_payment");
     const r = await pmCreateRefund({ paymentId, amount: input.amount, reason: input.reason, requestId: input.requestId, registrationId: input.registrationId });
     return { providerRefundId: r.id, status: r.status, raw: r.raw };

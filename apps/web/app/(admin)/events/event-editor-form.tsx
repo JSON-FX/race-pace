@@ -33,10 +33,11 @@ const RouteEditor = dynamic(
 
 const fieldLabel = "mb-1.5 block text-[11px] font-semibold tracking-wide text-muted-foreground";
 
-function blankDraft(orgId: string): EventDraft {
+function blankDraft(orgId: string, checkInDefault: boolean): EventDraft {
   return {
     org_id: orgId, name: "", city_psgc_code: null, region_name: null, province_name: null, city_name: null, venue: null,
     event_date: null, end_date: null, flag_off: null, status: "draft", discipline: "trail",
+    check_in_required: checkInDefault,
     registration_closes_at: null, kit_edit_closes_at: null,
     elevation_gain_m: null, cutoff_hours: null, start_lat: null, start_lng: null, finish_lat: null, finish_lng: null,
     route: null, description: null, hero_image_url: null, gallery: [], schedule: [], inclusions: [],
@@ -53,11 +54,11 @@ function seedAddons(data: EditorData): AddonDraft[] {
   return data.addons.map((a) => ({ id: a.id, name: a.name, price: a.price }));
 }
 
-export function EventEditorForm({ initial, orgId }: { initial: EditorData | null; orgId: string | null }) {
+export function EventEditorForm({ initial, orgId, checkInDefault = true, canEditCheckIn = true }: { initial: EditorData | null; orgId: string | null; checkInDefault?: boolean; canEditCheckIn?: boolean }) {
   const router = useRouter();
 
   const [event, setEvent] = useState<EventDraft>(() =>
-    initial ? { ...initial.event, inclusions: initial.event.inclusions ?? [] } : blankDraft(orgId ?? ""));
+    initial ? { ...initial.event, inclusions: initial.event.inclusions ?? [] } : blankDraft(orgId ?? "", checkInDefault));
   const [cats, setCats] = useState<CategoryDraft[]>(() => (initial ? seedCats(initial) : []));
   const [addons, setAddons] = useState<AddonDraft[]>(() => (initial ? seedAddons(initial) : []));
   const [origCats, setOrigCats] = useState<{ id?: string }[]>(() => (initial ? initial.categories.map((c) => ({ id: c.id })) : []));
@@ -71,7 +72,7 @@ export function EventEditorForm({ initial, orgId }: { initial: EditorData | null
   // stuck on for work that did land.
   const [baseline, setBaseline] = useState(() =>
     JSON.stringify({
-      event: initial ? { ...initial.event, inclusions: initial.event.inclusions ?? [] } : blankDraft(orgId ?? ""),
+      event: initial ? { ...initial.event, inclusions: initial.event.inclusions ?? [] } : blankDraft(orgId ?? "", checkInDefault),
       cats: initial ? seedCats(initial) : [],
       addons: initial ? seedAddons(initial) : [],
     }));
@@ -134,6 +135,8 @@ export function EventEditorForm({ initial, orgId }: { initial: EditorData | null
 
   function onSave() {
     if (invalid) { setError(invalid); return; }
+    if (initial?.event.check_in_required && !event.check_in_required &&
+      !window.confirm("Disable check-in for this event? Existing check-in records remain in the history, and new scans will be blocked.")) return;
     setError(null);
     const sanitized = sanitizeListFields(event);
     const payload = {
@@ -233,6 +236,19 @@ export function EventEditorForm({ initial, orgId }: { initial: EditorData | null
                   <Input aria-label="Flag-off" type="time" className={inputCls} value={event.flag_off ?? ""} onChange={(e) => set({ flag_off: e.target.value || null })} />
                 </Field>
               </div>
+              <label className="flex items-start gap-3 rounded-lg border p-3 text-sm">
+                <input
+                  type="checkbox"
+                  aria-label="Require event check-in"
+                  checked={event.check_in_required}
+                  disabled={!canEditCheckIn}
+                  onChange={(e) => set({ check_in_required: e.target.checked })}
+                />
+                <span>
+                  <span className="block font-semibold">Require event check-in</span>
+                  <span className="block text-muted-foreground">Turn this off when the organizer does not scan runners at the venue. Tickets and kit release still work.</span>
+                </span>
+              </label>
               <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
                 <Field label="Registration closes" hint="Leave empty to close by status only">
                   <Input

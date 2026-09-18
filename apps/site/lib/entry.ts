@@ -8,6 +8,7 @@ export type MyEntry = {
   status: "pending" | "paid";
   categoryId: string;
   expiresAt: string | null;
+  bookingOrderId?: string | null;
 };
 
 /** Mirrors the lazy check in registrations-checkout: a pending entry past its
@@ -23,7 +24,7 @@ export async function fetchMyEntry(
 
   const { data } = await db
     .from("registrations")
-    .select("id,status,category_id,expires_at")
+    .select("id,status,category_id,expires_at,booking_order_id")
     .eq("event_id", eventId)
     .eq("user_id", userId)
     .in("status", ["pending", "paid"])
@@ -37,5 +38,6 @@ export async function fetchMyEntry(
     status: data.status as "pending" | "paid",
     categoryId: data.category_id,
     expiresAt: data.expires_at ?? null,
+    ...(data.booking_order_id ? { bookingOrderId: data.booking_order_id } : {}),
   };
 }

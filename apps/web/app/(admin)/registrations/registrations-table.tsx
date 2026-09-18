@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Mail, Hash, CheckCircle2, XCircle } from "lucide-react";
+import { Mail, CheckCircle2, XCircle } from "lucide-react";
 import { DataTable, type FilterDef, type BulkAction } from "@/components/data-table";
 import { PaymentStatusBadge, RegistrationStatusBadge } from "@/components/StatusBadge";
 import { RegistrationDetail } from "@/components/RegistrationDetail";
@@ -11,6 +11,7 @@ import { RunnerAvatar } from "@/components/RunnerAvatar";
 import { BulkCancelDialog } from "@/components/BulkCancelDialog";
 import { peso, fmtDateTime } from "@/lib/format";
 import type { RegistrationRow } from "@/lib/queries/registrations";
+import { registrationTeamName } from "@/lib/registration-team";
 import type { SortState } from "@/lib/table-params";
 
 const STATUS_FILTER: FilterDef = {
@@ -134,11 +135,12 @@ export function RegistrationsTable({
     },
     { accessorKey: "category_label", header: "Category", cell: ({ row }) => row.original.category_label ?? "—" },
     {
-      accessorKey: "bib_name",
-      header: "Bib",
+      id: "team_name",
+      header: "Team Name",
+      enableSorting: false,
       cell: ({ row }) => (
-        row.original.bib_name
-          ? <span className="tabular">{row.original.bib_name}</span>
+        registrationTeamName(row.original.custom_data)
+          ? <span>{registrationTeamName(row.original.custom_data)}</span>
           : <span className="text-muted-foreground">—</span>
       ),
     },
@@ -197,17 +199,10 @@ export function RegistrationsTable({
       onSelect: () => {},
     },
     {
-      label: "Assign bibs",
-      icon: Hash,
-      disabled: true,
-      disabledReason: "There's no bib-assignment RPC yet — this would be a no-op if it ran.",
-      onSelect: () => {},
-    },
-    {
       label: "Mark checked-in",
       icon: CheckCircle2,
       disabled: true,
-      disabledReason: "Check-in ships in PR2, alongside the race-day roster.",
+      disabledReason: "Use the Check-in station to verify each runner's ticket. Bulk check-in is not supported.",
       onSelect: () => {},
     },
     {
@@ -223,7 +218,7 @@ export function RegistrationsTable({
       <DataTable
         columns={columns} data={rows} total={total} page={page} per={per} sort={sort}
         filterDefs={filterDefs} activeFilters={activeFilters} q={q}
-        searchPlaceholder="Search name, email, bib…"
+        searchPlaceholder="Search runner name…"
         bulkActions={bulkActions}
         getRowId={(row) => row.id}
         // Registrations is scoped by ?event=<uuid>. "Clear all" wipes every

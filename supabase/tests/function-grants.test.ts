@@ -45,6 +45,10 @@ const AUTHENTICATED_ALLOWLIST = new Set([
   "admin_payment_aggregates",
   "admin_registration_aggregates",
   "checkin_events",
+  // Organizer-only setting predicate and station mode read both enforce
+  // caller scope internally; neither exposes private rows to another org.
+  "checkin_setting_admin",
+  "checkin_event_required",
   "checkin_history",
   "auth_can_release_kits",
   "kit_release_events",
@@ -64,6 +68,9 @@ const AUTHENTICATED_ALLOWLIST = new Set([
   // admin, roleless runner) and the org-staff pass are asserted in
   // payout-statements-v2.test.ts, so this entry is not taken on trust.
   "payout_unreconciled_count",
+  // Used only by the runner DELETE policy. The definer bypasses the payments
+  // SELECT policy that otherwise loops back into registrations RLS.
+  "registration_payment_clear_for_delete",
   "update_registration_fields_tx",
   ...AUTH_PREDICATES,
 ]);

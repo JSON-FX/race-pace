@@ -3,6 +3,7 @@ import { getMyRoles, requireOrgId } from "@/lib/queries/roles";
 import { hasCapability } from "@/lib/capabilities";
 import { NoOrgScope } from "@/components/no-org-scope";
 import { EventEditorForm } from "../event-editor-form";
+import { getOrg } from "@/lib/queries/org";
 
 export default async function NewEventPage() {
   const roles = await getMyRoles();
@@ -27,5 +28,6 @@ export default async function NewEventPage() {
     );
   }
 
-  return <EventEditorForm initial={null} orgId={orgId} />;
+  const org = await getOrg(orgId);
+  return <EventEditorForm initial={null} orgId={orgId} checkInDefault={org.check_in_required_default} canEditCheckIn={roles!.isOrgAdmin} />;
 }

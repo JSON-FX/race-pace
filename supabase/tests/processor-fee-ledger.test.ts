@@ -175,12 +175,14 @@ describe("processor fee columns", () => {
     describe("the organizations UPDATE grant stays column-scoped", () => {
       /** Every column `authenticated` is deliberately allowed to write, and why:
        *  branding (20260724130000), rename (20260806180000), commercial terms
-       *  (20260807090600), fee mode (20260811097000). */
+       *  (20260807090600), fee mode (20260811097000), check-in default
+       *  (20260918100000). */
       const GRANTED = [
         "logo_url", "banner_url", "name",
         "commission_type", "commission_rate", "commission_flat_cents",
         "refund_policy", "refund_fee_cents",
         "fee_mode",
+        "check_in_required_default",
       ];
 
       async function withPg<T>(fn: (c: Client) => Promise<T>): Promise<T> {

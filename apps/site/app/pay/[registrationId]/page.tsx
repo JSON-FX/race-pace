@@ -17,10 +17,11 @@ export default async function PayPage({ params }: { params: Promise<{ registrati
   // An already-paid registration has nothing to pay — send them to the ticket.
   const { data: reg } = await db
     .from("registrations")
-    .select("status,event_id,events(status,registration_closes_at)")
+    .select("status,event_id,booking_order_id,events(status,registration_closes_at)")
     .eq("id", registrationId)
     .maybeSingle();
   if (reg?.status === "paid") redirect(`/ticket/${registrationId}`);
+  if (reg?.booking_order_id) redirect(`/group/order/${reg.booking_order_id}`);
 
   // The event can be cancelled after a runner registered, while their pending
   // registration still holds a live PayMongo session. Don't render a payable

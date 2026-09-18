@@ -29,5 +29,5 @@ export default async function EditEventPage({ params }: { params: Promise<{ id: 
   // write side), so only a resolved-org mismatch for a non-super-admin 404s.
   if (!roles?.isSuperAdmin && data.event.org_id !== roles?.orgId) notFound();
 
-  return <EventEditorForm initial={data} orgId={requireOrgId(roles)} />;
+  return <EventEditorForm initial={data} orgId={requireOrgId(roles)} canEditCheckIn={roles!.isOrgAdmin} />;
 }

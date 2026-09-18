@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { parseTableParams, searchParamsToRecord, type TableParams } from "@/lib/table-params";
 import { getMyRoles, requireOrgId } from "@/lib/queries/roles";
 import { listEventRegistrations, listOrgEventOptions, getEventRegistrationEmails } from "@/lib/queries/registrations";
+import { registrationTeamName } from "@/lib/registration-team";
 import { csvField, csvRow, centavosToDecimal } from "@/lib/csv";
 
 export const dynamic = "force-dynamic";
@@ -28,7 +29,7 @@ const HEADER = [
   "Runner",
   "Email",
   "Category",
-  "Bib",
+  "Team Name",
   "Registered At (UTC)",
   "Base Amount (PHP)",
   "Payment Status",
@@ -48,7 +49,7 @@ function toRow(
     csvField(r.full_name),
     csvField(emailById.get(r.id) ?? null),
     csvField(r.category_label),
-    csvField(r.bib_name),
+    csvField(registrationTeamName(r.custom_data)),
     // ISO 8601, unambiguous — not the table's `MMM D, HH:mm` (see fmtDateTime
     // in @/lib/format), which is fine for a narrow on-screen date column but
     // ambiguous once it leaves the app (no year, no explicit timezone) and

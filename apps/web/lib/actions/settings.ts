@@ -92,3 +92,24 @@ export async function updateOrgNameAction(_prev: SettingsState, formData: FormDa
   revalidatePath("/settings");
   return { success: "Organization name updated." };
 }
+
+export async function updateOrgCheckInDefaultAction(_prev: SettingsState, formData: FormData): Promise<SettingsState> {
+  const orgId = String(formData.get("orgId") ?? "");
+  const values = formData.getAll("checkInRequired");
+  if (!orgId || values.length === 0 || values.some(v => v !== "true" && v !== "false")) return { error: "Choose a check-in default." };
+  const roles = await getMyRoles();
+  const denied = assertCanEditOrg(roles, orgId);
+  if (denied) return { error: denied };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("organizations")
+    .update({ check_in_required_default: values.includes("true") }).eq("id", orgId).select("id");
+  if (error) {
+    console.error("[settings] check-in default update failed", { orgId, error });
+    return { error: GENERIC_ERROR };
+  }
+  if (!data?.length) return { error: GENERIC_ERROR };
+  revalidatePath("/settings");
+  revalidatePath("/events/new");
+  return { success: "Default check-in setting updated for new events." };
+}

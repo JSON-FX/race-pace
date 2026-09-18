@@ -318,10 +318,10 @@ export function RacesList() {
                           </p>
                         ) : (
                           <Button asChild className="h-auto rounded-pill px-5 py-2.5 text-[13px] font-semibold">
-                            <Link href={`/pay/${r.id}`}>Complete payment</Link>
+                            <Link href={r.bookingOrderId ? `/group/order/${r.bookingOrderId}` : `/pay/${r.id}`}>Complete payment</Link>
                           </Button>
                         )}
-                        <Button
+                        {!r.bookingOrderId ? <Button
                           type="button"
                           variant="outline"
                           disabled={busyId === r.id}
@@ -329,7 +329,7 @@ export function RacesList() {
                           className="h-auto rounded-pill px-5 py-2.5 text-[13px] font-semibold text-destructive hover:text-destructive"
                         >
                           {busyId === r.id ? "Discarding…" : "Discard"}
-                        </Button>
+                        </Button> : null}
                       </>
                     ) : null}
                     <Button

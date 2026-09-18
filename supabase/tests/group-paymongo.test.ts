@@ -57,6 +57,18 @@ describe("group PayMongo boundary", () => {
     await expect(createGroupSession({}, attemptId, "secret")).rejects.toThrow("response_invalid");
     await expect(retrieveGroupSession("cs_abc", "secret")).rejects.toThrow("response_invalid");
   });
+  it.each([
+    "https://checkout.paymongo.com.evil.example/abc",
+    "https://evil.example/abc",
+    "https://checkout.paymongo.com:444/abc",
+    "http://checkout.paymongo.com/abc",
+  ])("rejects an off-provider checkout URL %s", async checkoutUrl => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ data: {
+      id: "cs_abc", attributes: { checkout_url: checkoutUrl },
+    } }))));
+    await expect(createGroupSession(buildGroupSessionRequest(input), attemptId, "secret"))
+      .rejects.toThrow("group_provider_response_invalid");
+  });
   it("requires concrete paid captures even when an intent succeeded", () => {
     expect(extractGroupCaptures({ data: { id: "cs_abc", attributes: { payment_intent: { attributes: { status: "succeeded" } }, payments: [payment({ status: "failed" })] } } })).toEqual([]);
   });

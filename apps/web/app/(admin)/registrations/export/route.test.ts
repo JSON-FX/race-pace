@@ -61,7 +61,7 @@ function row(overrides: Partial<RegistrationRow> = {}): RegistrationRow {
     payment_method: "card",
     registration_status: "paid",
     created_at: "2026-08-04T11:35:15.624Z",
-    custom_data: {},
+    custom_data: { team_name: "Ridge Crew" },
     addons: [],
     ...overrides,
   };
@@ -115,9 +115,18 @@ describe("GET /registrations/export", () => {
     const lines = body.split("\r\n").filter(Boolean);
 
     expect(lines[0]).toBe(
-      "Registration ID,Runner,Email,Category,Bib,Registered At (UTC),Base Amount (PHP),Payment Status,Payment Method,Captured Gross (PHP),Refunded (PHP),Payment ID,Booking Order ID",
+      "Registration ID,Runner,Email,Category,Team Name,Registered At (UTC),Base Amount (PHP),Payment Status,Payment Method,Captured Gross (PHP),Refunded (PHP),Payment ID,Booking Order ID",
     );
-    expect(lines[1]).toBe("reg-1,Ana Cruz,ana@example.com,21K,A1,2026-08-04T11:35:15.624Z,1500.00,paid,card,,,,");
+    expect(lines[1]).toBe("reg-1,Ana Cruz,ana@example.com,21K,Ridge Crew,2026-08-04T11:35:15.624Z,1500.00,paid,card,,,,");
+  });
+
+  it("leaves Team Name empty when an older registration only has a bib", async () => {
+    getMyRolesMock.mockResolvedValue(roles());
+    listEventRegistrationsMock.mockResolvedValue({ rows: [row({ custom_data: {} })], total: 1 });
+
+    const lines = (await readBody(await GET(new Request("http://localhost/registrations/export")))).split("\r\n");
+    expect(lines[1]).toContain("Ana Cruz,ana@example.com,21K,,2026-08-04");
+    expect(lines[1]).not.toContain(",A1,");
   });
 
   it("fetches emails ONCE per request, not once per batch (the O(n²) fix)", async () => {

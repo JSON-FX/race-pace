@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { pmCreateRefund, pmGetRefund } from "../functions/_shared/paymongo.ts";
+import { PayMongoProvider } from "../functions/_shared/payments.ts";
 import { refundResourcesFromEvent } from "../functions/_shared/paymongo-webhook.ts";
 
 const refund = (id = "ref_test", status = "succeeded") => ({
@@ -50,6 +51,36 @@ describe("PayMongo refund response status", () => {
     respond("succeeded");
     expect((await pmGetRefund("ref_test")).status).toBe("succeeded");
     expect(fetch).toHaveBeenCalledWith("https://api.paymongo.com/v1/refunds/ref_test", expect.not.objectContaining({ method: "POST" }));
+  });
+  it("refunds a persisted paid payment without retrieving its checkout session", async () => {
+    respond("succeeded");
+    await new PayMongoProvider().refund({ providerRef: "cs_test", providerPaymentId: "pay_captured", amount: 97500, requestId: "request_test", registrationId: "registration_test" });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(fetch).toHaveBeenCalledWith("https://api.paymongo.com/v1/refunds", expect.objectContaining({ method: "POST" }));
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0]?.[1]?.body)).data.attributes.payment_id).toBe("pay_captured");
+  });
+  it("rejects an invalid persisted payment ID before calling PayMongo", async () => {
+    respond("succeeded");
+    await expect(new PayMongoProvider().refund({ providerRef: "cs_test", providerPaymentId: "not_a_payment", amount: 97500, requestId: "request_test", registrationId: "registration_test" })).rejects.toThrow("paymongo_refund_payment_id_invalid");
+    expect(fetch).not.toHaveBeenCalled();
+  });
+  it("does not refund a failed checkout attempt when no payment was captured", async () => {
+    vi.stubGlobal("Deno", { env: { get: () => "sk_test_unit_fixture" } });
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ data: { id: "cs_test", attributes: { payments: [{ id: "pay_failed", attributes: { status: "failed" } }] } } }), { status: 200 })));
+    await expect(new PayMongoProvider().refund({ providerRef: "cs_test", amount: 97500, requestId: "request_test", registrationId: "registration_test" })).rejects.toThrow("paymongo_refund_no_payment");
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+  it("uses a paid payment from a historical checkout without an inbox record", async () => {
+    vi.stubGlobal("Deno", { env: { get: () => "sk_test_unit_fixture" } });
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => url.includes("/checkout_sessions/")
+      ? new Response(JSON.stringify({ data: { id: "cs_test", attributes: { payments: [
+          { id: "pay_failed", attributes: { status: "failed" } },
+          { id: "pay_paid", attributes: { status: "paid" } },
+        ] } } }), { status: 200 })
+      : new Response(JSON.stringify({ data: { id: "ref_test", attributes: { status: "succeeded" } } }), { status: 200 })));
+    await new PayMongoProvider().refund({ providerRef: "cs_test", amount: 97500, requestId: "request_test", registrationId: "registration_test" });
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[1]?.[1]?.body)).data.attributes.payment_id).toBe("pay_paid");
   });
   it.each(["pending", "processing"])("keeps %s refunds pending", async (status) => {
     respond(status);

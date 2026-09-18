@@ -48,6 +48,7 @@ export default async function RegisterPage({ params, searchParams }: { params: P
     return <><SiteHeader /><main className="mx-auto max-w-xl px-6 py-12">
       <h1 className="text-2xl font-bold">Who is joining?</h1>
       <p className="mt-3">Choose the participant's Race Passport. Each participant has a separate registration, payment and ticket.</p>
+      {process.env.GROUP_CHECKOUT_ENABLED === "true" ? <Link className="mt-6 block rounded-lg bg-primary p-4 text-center font-semibold text-primary-foreground" href={`/register/${categoryId}/group`}>Register several participants in one payment</Link> : null}
       <ul className="mt-6 space-y-3">{participants?.filter(p => !p.claimed_user_id || p.claimed_user_id === user.id).map(p => <li key={p.id}>
         <Link className="block rounded-lg border p-4 underline" href={`/register/${categoryId}?participant=${p.id}`}>{p.claimed_user_id === user.id ? "Register myself" : `${p.first_name ?? "Incomplete"} ${p.last_name ?? "Passport"}`}</Link>
       </li>)}</ul>

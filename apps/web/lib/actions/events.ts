@@ -21,6 +21,7 @@ export type EventDraft = {
   id?: string; org_id: string; name: string;
   city_psgc_code: string | null; region_name: string | null; province_name: string | null; city_name: string | null; venue: string | null;
   event_date: string | null; end_date: string | null; flag_off: string | null; status: string; discipline: EventDiscipline;
+  check_in_required: boolean;
   registration_closes_at: string | null; kit_edit_closes_at: string | null;
   elevation_gain_m: number | null; cutoff_hours: number | null; description: string | null;
   start_lat: number | null; start_lng: number | null; finish_lat: number | null; finish_lng: number | null;
@@ -32,6 +33,7 @@ const EVENT_COLS = (e: EventDraft) => ({
   org_id: e.org_id, name: e.name,
   city_psgc_code: e.city_psgc_code, region_name: e.region_name, province_name: e.province_name, city_name: e.city_name, venue: e.venue,
   event_date: e.event_date, end_date: e.end_date, flag_off: e.flag_off, status: e.status, discipline: e.discipline,
+  check_in_required: e.check_in_required,
   registration_closes_at: e.registration_closes_at, kit_edit_closes_at: e.kit_edit_closes_at,
   elevation_gain_m: e.elevation_gain_m, cutoff_hours: e.cutoff_hours,
   start_lat: e.start_lat, start_lng: e.start_lng, finish_lat: e.finish_lat, finish_lng: e.finish_lng,
@@ -154,12 +156,20 @@ export async function saveEventAction(_prev: EditorState, formData: FormData): P
   // the database, not because the client claimed it.
   let currentStatus: string | null = null;
   if (eventId) {
-    const cur = await supabase.from("events").select("status").eq("id", eventId).single();
+    const cur = await supabase.from("events").select("status,check_in_required").eq("id", eventId).single();
     if (cur.error) {
       console.error("[events] event status lookup failed", { eventId, error: cur.error });
       return { error: GENERIC_ERROR };
     }
     currentStatus = cur.data.status;
+    if (cur.data.check_in_required !== sanitized.check_in_required && !roles?.isOrgAdmin) {
+      return { error: "Only organization admins can change event check-in." };
+    }
+  } else if (!roles?.isOrgAdmin) {
+    const org = await supabase.from("organizations").select("check_in_required_default").eq("id", sanitized.org_id).single();
+    if (org.error || org.data?.check_in_required_default !== sanitized.check_in_required) {
+      return { error: "Only organization admins can change event check-in." };
+    }
   }
   const statusOk = sanitized.status === "cancelled"
     ? currentStatus === "cancelled"
