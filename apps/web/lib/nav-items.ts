@@ -18,7 +18,7 @@
  */
 import {
   LayoutDashboard, CalendarDays, ClipboardList, CreditCard,
-  QrCode, PackageCheck, Users, Settings as SettingsIcon, Building2, Percent, Banknote, type LucideIcon,
+  QrCode, PackageCheck, Users, Settings as SettingsIcon, Building2, Percent, Banknote, ShieldAlert, type LucideIcon,
 } from "lucide-react";
 import type { MyRoles } from "@/lib/queries/roles";
 import { hasCapability, type Capability } from "@/lib/capabilities";
@@ -49,6 +49,7 @@ export const SUPER_ITEMS: NavItem[] = [
   { to: "/organizations", label: "Organizations", icon: Building2, requires: "manage_platform" },
   { to: "/commission", label: "Commission", icon: Percent, requires: "manage_platform" },
   { to: "/payouts", label: "Payouts", icon: Banknote, requires: "manage_platform" },
+  { to: "/checkout-reviews", label: "Checkout reviews", icon: ShieldAlert, requires: "manage_platform" },
 ];
 
 /** Org-scoped nav, filtered by capability. Replaces the hand-written
