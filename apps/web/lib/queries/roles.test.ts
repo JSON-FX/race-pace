@@ -62,14 +62,9 @@ describe("getMyRoles", () => {
     return (await import("./roles")).getMyRoles;
   }
 
-  // getOrgContext() only runs for a super admin, and this file's supabase
-  // mock above supports two chained .order() calls while the real
-  // getOrgContext makes only one — so under that mock, orgCtx?.activeOrgId is
-  // always null, and `resolvedRow?.org_id ?? orgCtx?.activeOrgId` can't be
-  // told apart from the wrong precedence `orgCtx?.activeOrgId ??
-  // resolvedRow?.org_id`: `null ?? "org-E"` and `"org-E" ?? null` are the same
-  // value. Mock @/lib/org-context directly with a DIFFERENT, distinguishable
-  // org id so a test using this helper can actually tell which side won.
+  // getOrgContext() only runs for a super admin, and this file's Supabase
+  // mock does not model its queries. Supply a different selected org so the
+  // test can prove that the switcher and org-scoped queries agree.
   async function loadGetMyRolesWithOrgContext(rows: { role: string; org_id: string }[]) {
     vi.resetModules();
     vi.doMock("@/lib/supabase/server", () => ({
@@ -285,21 +280,17 @@ describe("getMyRoles", () => {
     expect(r!.capabilities).toContain("manage_team");
   });
 
-  // A super admin who ALSO holds a real org-scoped row (e.g. admin of their
-  // home org) keeps that org's id via resolvedRow — see the "resolvedRow
-  // first" comment in roles.ts — while still getting every capability via the
-  // isSuperAdmin short-circuit in capabilitiesFor, not via resolvedRow's role.
-  // Uses loadGetMyRolesWithOrgContext (not the shared loadGetMyRoles) so the
-  // org-context fallback resolves to a DIFFERENT org than the real row —
-  // "org-E" vs "org-FROM-CONTEXT" — making the precedence actually testable.
-  it("keeps the org id from a super admin's real row while still granting every capability", async () => {
+  // A super admin can select any org despite also holding a row in another.
+  // Previously the switcher showed the selection while Events and Payments
+  // remained pinned to the real row's org, exposing the wrong tenant's data.
+  it("uses a super admin's selected org instead of their other org role", async () => {
     const getMyRoles = await loadGetMyRolesWithOrgContext([
       { role: "super_admin", org_id: "" },
-      { role: "editor", org_id: "org-E" },
+      { role: "admin", org_id: "org-E" },
     ]);
     const r = await getMyRoles();
-    expect(r!.orgId).toBe("org-E");
-    expect(r!.orgId).not.toBe("org-FROM-CONTEXT");
+    expect(r!.orgId).toBe("org-FROM-CONTEXT");
+    expect(r!.orgId).not.toBe("org-E");
     expect(r!.capabilities).toContain("manage_platform");
     expect(r!.capabilities).toContain("manage_team");
   });
