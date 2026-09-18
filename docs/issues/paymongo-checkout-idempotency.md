@@ -17,6 +17,6 @@ Severity: **high** for release readiness. The observed bug does not prove that a
 - If a PayMongo payment has a bound `provider_ref`, reuse its saved checkout URL.
 - If the create outcome is uncertain and no provider session is bound, fail closed. Do not issue another checkout-create POST automatically.
 - Keep the reservation pending and show an operator-reconciliation error. Do not release the slot until the provider confirms no capture and all possible sessions are closed.
-- Notify platform staff when the expiry worker finds an unbound session; the new trigger is tested locally and awaits staging deployment. A documented manual resolution path remains necessary before launch. Ask PayMongo to reconcile the observed test-account idempotency behavior with its documented contract.
+- Notify platform staff when the expiry worker finds an unbound session. The trigger is deployed to staging and passed a rollback-only test there: two attempts produced one notification while registration and payment stayed pending. Actual worker-to-notification delivery and a documented manual resolution path remain necessary before launch. Ask PayMongo to reconcile the observed test-account idempotency behavior with its documented contract.
 
-Focused tests must cover both the unbound refusal and bound-session reuse. An integrated staging expiry test should use a known expired provider session to verify the scheduled worker closes the local reservation without minting a ticket.
+Focused local tests cover both the unbound refusal and bound-session reuse. The scheduled staging worker closed a known expired provider session without minting a ticket. Authenticated staging refusal and a controlled late or duplicate paid capture remain unverified.
