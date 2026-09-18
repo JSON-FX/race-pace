@@ -44,7 +44,7 @@ export type FeeTerms = {
  * A LINE-FOR-LINE PORT of `computeFee` in `supabase/functions/_shared/fee.ts`
  * (and identical to `feeOn` in apps/web/lib/commission-terms.ts, which ports it
  * for the organizer side). It must stay one: in pass-on mode this decides the
- * "Race Pace service fee" line the runner is shown, and `computeFee` decides the
+ * platform-fee line labeled "Taxes and fees" that the runner is shown, and `computeFee` decides the
  * one they are charged.
  *
  * ALL THREE TERMS MATTER. Reading only `fee_mode` and assuming a percentage

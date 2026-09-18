@@ -7,7 +7,7 @@ describe("checkoutErrorMessage", () => {
   });
 
   it("points an already-paid runner at their ticket", () => {
-    expect(checkoutErrorMessage("not_pending")).toBe("You've already paid for this registration. Check My Races for your ticket.");
+    expect(checkoutErrorMessage("not_pending")).toBe("This registration can no longer be paid. Check My Races for its status.");
   });
 
   it("covers every error code the edge functions return", () => {
@@ -21,7 +21,8 @@ describe("checkoutErrorMessage", () => {
       "sold_out", "not_pending", "waiver_required", "invalid_custom_data",
       "invalid_input", "unauthorized", "category_not_found",
       "registration_not_found", "registration_failed", "server_error",
-      "registration_closed", "already_registered", "org_suspended",
+      "registration_closed", "already_registered", "org_suspended", "event_waiver_unavailable",
+      "checkout_reconciliation_required",
     ]) {
       expect(checkoutErrorMessage(code)).not.toBe("");
       expect(checkoutErrorMessage(code)).not.toContain("_");
@@ -31,6 +32,18 @@ describe("checkoutErrorMessage", () => {
 
   it("explains a cancelled/closed event can't be registered for", () => {
     expect(checkoutErrorMessage("registration_closed")).toBe("Registration for this race is no longer open.");
+  });
+
+  it("explains when an organizer waiver has not been published", () => {
+    expect(checkoutErrorMessage("event_waiver_unavailable")).toBe(
+      "Registration is unavailable until the organizer publishes an event waiver.",
+    );
+  });
+
+  it("does not invite another checkout while an unbound PayMongo session is under review", () => {
+    expect(checkoutErrorMessage("checkout_reconciliation_required")).toBe(
+      "We need to check this payment with PayMongo before you try again. Your slot remains held. Contact Race Pace support with your registration reference.",
+    );
   });
 
   it("points a duplicate registration at My Races as the fallback (RegisterWizard prefers routing to /pay/<id> when it has one)", () => {

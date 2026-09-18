@@ -34,6 +34,7 @@ export async function openPayoutStatementAction(eventId: string): Promise<Payout
     // index rather than with a read-then-write.
     if (e.code === "23505") return { ok: false, error: "This event already has an open statement." };
     if (e.code === "42501") return { ok: false, error: "Only super admins can open a payout statement." };
+    if (e.message?.includes("group_reconciliation_required")) return { ok: false, error: "Reconcile unknown processing fees, pending refunds, and payment discrepancies before opening this payout statement." };
     if (e.message?.includes("event_not_found")) return { ok: false, error: "Event not found." };
     return { ok: false, error: "Couldn't open the statement. Please try again." };
   }
@@ -52,6 +53,7 @@ export async function markPayoutPaidAction(
   statementId: string,
   reference: string,
   note: string,
+  revision: number,
 ): Promise<PayoutActionResult> {
   const trimmedRef = reference.trim();
   // The reference is the only durable link between this row and the actual
@@ -63,6 +65,7 @@ export async function markPayoutPaidAction(
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("payout_mark_paid", {
     p_statement_id: statementId,
+    p_expected_revision: revision,
     p_reference: trimmedRef,
     p_note: note.trim() || null,
   });
@@ -75,9 +78,22 @@ export async function markPayoutPaidAction(
 
   // The RPC returns a word rather than throwing, so these are states, not
   // failures — surface them instead of reporting a success that didn't happen.
+  if (data === "stale" || data === "review_required") return { ok: false, error: "This statement changed. Close this dialog, refresh the statement, and review the new amount before recording a transfer." };
+  if (data === "event_unfinished") return { ok: false, error: "This event has not finished. Wait until it is complete before recording a payout." };
+  if (data === "unreconciled") return { ok: false, error: "Reconcile unknown processing fees, pending refunds, and payment discrepancies before recording this payout." };
+  if (data === "reference_required") return { ok: false, error: "Enter the transfer reference." };
   if (data === "already") return { ok: false, error: "This statement was already settled." };
   if (data === "not_found") return { ok: false, error: "Statement not found." };
 
+  revalidatePath("/payouts");
+  return { ok: true };
+}
+
+export async function refreshPayoutStatementAction(statementId: string): Promise<PayoutActionResult> {
+  const db = await createClient();
+  const { data, error } = await db.rpc("payout_refresh_statement", { p_statement_id: statementId });
+  if (!error && data === "unreconciled") return { ok: false, error: "Reconcile unknown processing fees, pending refunds, and payment discrepancies before refreshing this payout statement." };
+  if (error || data !== "refreshed") return { ok: false, error: "Could not refresh this open statement." };
   revalidatePath("/payouts");
   return { ok: true };
 }

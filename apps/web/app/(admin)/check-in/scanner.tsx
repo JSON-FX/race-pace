@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import { isTicketTokenShape, splitRoster, type RosterRow } from "@/lib/checkin";
 import { cn } from "@/lib/utils";
 import { Roster, hhmm } from "./roster";
+import { CheckInHistory } from "./history";
 
 /** How a check-in was entered. Recorded client-side for this session only —
  *  `checkins` has no source column, so a row that was already in when the
@@ -30,6 +31,10 @@ const DEDUPE_MS = 2500;
  *  tampered QR — so it must NOT be described as a scanner problem. */
 function messageFor(code: string): { title: string; detail: string } {
   switch (code) {
+    case "wrong_event":
+      return { title: "Ticket belongs to another event", detail: "No check-in was recorded. Select the correct event before scanning again." };
+    case "check_in_disabled":
+      return { title: "Check-in not required", detail: "This organizer disabled check-in for this event. No attendance was recorded." };
     case "not_paid":
       return { title: "Blocked — payment not complete", detail: "This registration isn't paid, so the server refuses the check-in. Take payment first, then scan again." };
     case "invalid_ticket":
@@ -77,6 +82,7 @@ export type CheckInStationProps = {
 export function CheckInStation({ eventId, eventName, initialRows }: CheckInStationProps) {
   const supabase = useMemo(() => createClient(), []);
   const [rows, setRows] = useState<RosterRow[]>(initialRows);
+  const [historyRevision, setHistoryRevision] = useState(0);
   const [result, setResult] = useState<ScanResult | null>(null);
   const [busy, setBusy] = useState<Set<string>>(new Set());
   const [sources, setSources] = useState<Record<string, string>>({});
@@ -89,10 +95,14 @@ export function CheckInStation({ eventId, eventName, initialRows }: CheckInStati
     setRows(initialRows);
     setResult(null);
     setSources({});
+    setBusy(new Set());
+    lastScanRef.current = { token: "", at: 0 };
   }, [initialRows, eventId]);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const eventRef = useRef(eventId);
+  eventRef.current = eventId;
   const rowsRef = useRef(rows);
   rowsRef.current = rows;
   const lastScanRef = useRef<{ token: string; at: number }>({ token: "", at: 0 });
@@ -135,9 +145,11 @@ export function CheckInStation({ eventId, eventName, initialRows }: CheckInStati
       if (known) markBusy(known.registration_id, true);
 
       const { data, error } = await supabase.functions.invoke("check-in", {
-        body: { ticket_token: token },
+        body: { ticket_token: token, event_id: eventId },
       });
 
+      // An in-flight scan from the previous station must not alter this one.
+      if (eventRef.current !== eventId) return;
       if (known) markBusy(known.registration_id, false);
 
       if (error) {
@@ -149,6 +161,7 @@ export function CheckInStation({ eventId, eventName, initialRows }: CheckInStati
           const body = (await ctx.json().catch(() => null)) as { error?: string } | null;
           code = body?.error ?? code;
         }
+        if (eventRef.current !== eventId) return;
         setResult({ kind: "error", ...messageFor(code) });
         return;
       }
@@ -178,6 +191,7 @@ export function CheckInStation({ eventId, eventName, initialRows }: CheckInStati
         return;
       }
 
+      setHistoryRevision(n => n + 1);
       const at = new Date().toISOString();
       setRows((prev) => prev.map((r) => (r.registration_id === id ? { ...r, checked_in_at: at } : r)));
       setSources((prev) => ({ ...prev, [id]: source }));
@@ -185,16 +199,15 @@ export function CheckInStation({ eventId, eventName, initialRows }: CheckInStati
         kind: "ok",
         registrationId: id,
         runner: row?.runner ?? "Checked in",
-        // A token that verifies but isn't on THIS roster is a real race-day
-        // failure mode at a multi-race venue: the runner is genuinely checked
-        // in, just to a different event. Say so rather than showing a plain tick.
+        // A runner can register after this roster loaded. The server has
+        // verified the selected event; flag the stale roster for a refresh.
         offRoster: !row,
         detail: row
           ? `${row.category || "—"}${row.bib ? ` · Bib ${row.bib}` : ""} · checked in ${hhmm(at)}`
-          : `Not on ${eventName}'s roster — this ticket belongs to another event.`,
+          : `Checked in to ${eventName}. Refresh the roster to see this runner.`,
       });
     },
-    [supabase, eventName],
+    [supabase, eventName, eventId],
   );
 
   // The camera loop closes over submitScan; keep the latest one in a ref so
@@ -224,6 +237,7 @@ export function CheckInStation({ eventId, eventName, initialRows }: CheckInStati
         return;
       }
 
+      setHistoryRevision(n => n + 1);
       setRows((prev) =>
         prev.map((r) => (r.registration_id === row.registration_id ? { ...r, checked_in_at: null } : r)),
       );
@@ -516,6 +530,7 @@ export function CheckInStation({ eventId, eventName, initialRows }: CheckInStati
         onCheckIn={checkIn}
         onUndo={undo}
       />
+      <CheckInHistory eventId={eventId} revision={historyRevision} />
     </>
   );
 }

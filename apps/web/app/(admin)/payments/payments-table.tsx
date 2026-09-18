@@ -21,6 +21,7 @@ const STATUS_FILTER: FilterDef = {
     { value: "paid", label: "Paid" },
     { value: "pending", label: "Pending" },
     { value: "refunded", label: "Refunded" },
+    { value: "partially_refunded", label: "Partially refunded" },
     { value: "failed", label: "Failed" },
   ],
 };
@@ -50,12 +51,17 @@ export function PaymentsTable({ rows, total, page, per, sort, activeFilters, q, 
           <PhotoAvatar
             url={row.original.avatar_url}
             className="size-[30px]"
-            fallbackClassName={cn("text-[11.5px] font-bold", avatarTint(row.original.registration_id).bg, avatarTint(row.original.registration_id).fg)}
+            fallbackClassName={cn("text-[11.5px] font-bold", avatarTint(row.original.payment_id).bg, avatarTint(row.original.payment_id).fg)}
             fallback={initials(row.original.full_name)}
           />
           <div className="min-w-0">
             <div className="truncate font-semibold">{row.original.full_name ?? "—"}</div>
             <div className="truncate text-xs text-muted-foreground">{row.original.event_name ?? "—"}</div>
+            {row.original.booking_order_id && (
+              <div className="text-xs text-muted-foreground" title={row.original.booking_order_id}>
+                Order {row.original.booking_order_id} · {row.original.participant_count} participants
+              </div>
+            )}
           </div>
         </div>
       ),
@@ -67,7 +73,7 @@ export function PaymentsTable({ rows, total, page, per, sort, activeFilters, q, 
     {
       accessorKey: "method",
       header: "Method",
-      cell: ({ row }) => <MethodBadge method={row.original.method} />,
+      cell: ({ row }) => <MethodBadge method={row.original.method} status={row.original.status} />,
     },
     {
       accessorKey: "amount",
@@ -82,7 +88,7 @@ export function PaymentsTable({ rows, total, page, per, sort, activeFilters, q, 
     {
       accessorKey: "net_to_org",
       header: "Net",
-      cell: ({ row }) => <span className="tabular font-semibold">{peso(row.original.net_to_org)}</span>,
+      cell: ({ row }) => <span className="tabular font-semibold">{row.original.net_to_org == null ? "Awaiting reconciliation" : peso(row.original.net_to_org)}</span>,
     },
     { accessorKey: "status", header: "Status", cell: ({ row }) => <PaymentStatusBadge status={row.original.status} /> },
     {

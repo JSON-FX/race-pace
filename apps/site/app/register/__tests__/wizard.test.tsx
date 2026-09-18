@@ -91,11 +91,11 @@ describe("RegisterWizard", () => {
   it("reuses the persisted idempotency key after a remount", async () => {
     const { unmount } = renderWizard();
     await userEvent.type(screen.getByLabelText(/Bib name/), "JUAN");
-    const keyBefore = JSON.parse(sessionStorage.getItem("rp:draft:c1")!).idempotencyKey;
+    const keyBefore = JSON.parse(sessionStorage.getItem("rp:draft:u1:c1")!).idempotencyKey;
     unmount();
 
     renderWizard();
-    const keyAfter = JSON.parse(sessionStorage.getItem("rp:draft:c1")!).idempotencyKey;
+    const keyAfter = JSON.parse(sessionStorage.getItem("rp:draft:u1:c1")!).idempotencyKey;
     expect(keyAfter).toBe(keyBefore);
   });
 

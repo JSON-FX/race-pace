@@ -33,9 +33,9 @@ export function deadlineNotice(registrationClosesAt: string | null): string | nu
   return `Registration closes ${when}`;
 }
 
-export type KitEditResult = "ok" | "locked" | "not_editable" | "no_change" | "error";
+export type KitEditResult = "collected" | "ok" | "locked" | "not_editable" | "no_change" | "error";
 
-const KNOWN_RESULTS: readonly KitEditResult[] = ["ok", "locked", "not_editable", "no_change", "error"];
+const KNOWN_RESULTS: readonly KitEditResult[] = ["collected", "ok", "locked", "not_editable", "no_change", "error"];
 
 /** The RPC is the authority — identity comes from auth.uid() inside it, and it decides
  *  whether the edit is allowed. The client's clock only decided what to render, so a
@@ -61,6 +61,8 @@ export function kitEditMessage(result: KitEditResult): string | null {
     case "ok":
     case "no_change":
       return null;
+    case "collected":
+      return "Your kit has already been collected. Contact the organiser to correct the release first.";
     case "locked":
       return "Shirt sizes are closed for this race. Contact the organiser to change yours.";
     case "not_editable":

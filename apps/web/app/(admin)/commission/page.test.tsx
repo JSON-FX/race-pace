@@ -185,3 +185,13 @@ describe("CommissionPage — the three-party surfaces", () => {
     expect(screen.getByText(/5 paid entries · charged, before refunds/)).toBeInTheDocument();
   });
 });
+
+it("labels unknown organizer and unpaid amounts as incomplete", async () => {
+  getMyRoles.mockResolvedValue(roles({ isSuperAdmin: true, capabilities: ["manage_platform"] }));
+  getCommissionOverview.mockResolvedValue({ ...emptyOverview,
+    totals: { ...emptyOverview.totals, net_to_org: null, unpaid_out_cents: null },
+  });
+  render(await CommissionPage());
+  expect(screen.getByText("Incomplete")).toBeInTheDocument();
+  expect(screen.getByText("Unpaid amount incomplete; reconcile processing fees")).toBeInTheDocument();
+});

@@ -11,6 +11,28 @@ function timingSafeEqual(a: string, b: string): boolean {
   for (let i = 0; i < a.length; i++) out |= a.charCodeAt(i) ^ b.charCodeAt(i);
   return out === 0;
 }
+export interface RefundWebhookResource {
+  id: string;
+  attributes: { status: string; [key: string]: unknown };
+  [key: string]: unknown;
+}
+
+// Observed in PayMongo test mode: payment.refund.updated carries a refund;
+// payment.refunded carries the payment and its refunds array. Never use pay_…
+// as the parked refund ID. Keep the old synthetic alias for recorded fixtures.
+export function refundResourcesFromEvent(type: string | undefined, resource: unknown): RefundWebhookResource[] | null {
+  if (!["payment.refund.updated", "payment.refunded", "refund.updated"].includes(type ?? "")) return null;
+  const r = resource as { attributes?: { refunds?: unknown } } | null;
+  const candidates = type === "payment.refunded"
+    ? (Array.isArray(r?.attributes?.refunds) ? r.attributes.refunds : [])
+    : [resource];
+  return candidates.filter((value): value is RefundWebhookResource => {
+    const item = value as RefundWebhookResource | null;
+    return typeof item?.id === "string" && item.id.startsWith("ref_") &&
+      typeof item.attributes?.status === "string";
+  });
+}
+
 export async function verifyWebhookSignature(
   rawBody: string, header: string | null, secret: string, maxAgeSec = 300,
 ): Promise<boolean> {

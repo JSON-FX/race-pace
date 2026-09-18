@@ -57,7 +57,7 @@ async function fixture(tag: string, count: number) {
     }).select().single()).data!;
     cleanups.push(() => s.from("organizations").delete().eq("id", org.id));
     const ev = (await s.from("events").insert({
-      org_id: org.id, name: "PayoutV2 Race", status: "draft",
+      org_id: org.id, name: "PayoutV2 Race", status: "completed",
     }).select().single()).data!;
     const cat = (await s.from("categories").insert({
       org_id: org.id, event_id: ev.id, code: "40k", label: "40K",
@@ -134,6 +134,33 @@ async function stmt(s: SupabaseClient, id: string) {
 }
 
 describe("payout_open_statement v2", () => {
+  it("holds an outward payout until its event finishes, even through the RPC", async () => {
+    const f = await fixture("pv2live", 1);
+    try {
+      const admin = await signedInAs(f.adminEmail);
+      const { error: eventError } = await f.s.from("events").update({
+        status: "open", event_date: "2099-12-31",
+      }).eq("id", f.ev.id);
+      expect(eventError).toBeNull();
+      const id = await openStatement(admin, f.ev.id);
+      const args = { p_statement_id: id, p_expected_revision: 0, p_reference: "QA-HELD", p_note: null };
+
+      expect((await admin.rpc("payout_mark_paid", args)).data).toBe("event_unfinished");
+      const { data: held } = await f.s.from("payout_statements")
+        .select("status").eq("id", id).single();
+      expect(held?.status).toBe("open");
+      const { data: payment } = await f.s.from("payments")
+        .select("payout_statement_id").eq("registration_id", f.regIds[0]).single();
+      expect(payment?.payout_statement_id).toBeNull();
+
+      const { error: completeError } = await f.s.from("events").update({ status: "completed" }).eq("id", f.ev.id);
+      expect(completeError).toBeNull();
+      expect((await admin.rpc("payout_mark_paid", args)).data).toBe("paid");
+    } finally {
+      await f.cleanup();
+    }
+  });
+
   it("sums net_to_org and breaks the total down into gross, commission and processing", async () => {
     const f = await fixture("pv2a", 3);
     try {
@@ -164,7 +191,7 @@ describe("payout_open_statement v2", () => {
       const admin = await signedInAs(f.adminEmail);
       const first = await openStatement(admin, f.ev.id);
       const marked = await admin.rpc("payout_mark_paid", {
-        p_statement_id: first, p_reference: "ref-1", p_note: null,
+        p_statement_id: first, p_expected_revision: 0, p_reference: "ref-1", p_note: null,
       });
       expect(marked.data).toBe("paid");
 
@@ -239,7 +266,7 @@ describe("payout_open_statement v2", () => {
       const first = await openStatement(admin, f.ev.id);
       expect((await stmt(f.s, first)).net_owed_cents).toBe(191000);
       expect((await admin.rpc("payout_mark_paid", {
-        p_statement_id: first, p_reference: "ref-1", p_note: null,
+        p_statement_id: first, p_expected_revision: 0, p_reference: "ref-1", p_note: null,
       })).data).toBe("paid");
 
       // THEN the runner cancels under a flat_fee policy: ₱1,610 goes back to them out
@@ -269,7 +296,7 @@ describe("payout_open_statement v2", () => {
       // ONCE ONLY. Settling the recovery stamps payout_clawback_id, which is the same
       // gate the full-refund path uses, so a third statement finds nothing left.
       expect((await admin.rpc("payout_mark_paid", {
-        p_statement_id: secondId, p_reference: "rec-1", p_note: null,
+        p_statement_id: secondId, p_expected_revision: 0, p_reference: "rec-1", p_note: null,
       })).data).toBe("paid");
 
       const third = await stmt(f.s, await openStatement(admin, f.ev.id));
@@ -300,7 +327,7 @@ describe("payout_open_statement v2", () => {
 
       // 3. Settle it. The organizer receives ₱300. The ₱1,610 was never theirs to hold.
       expect((await admin.rpc("payout_mark_paid", {
-        p_statement_id: a, p_reference: "ref-1", p_note: null,
+        p_statement_id: a, p_expected_revision: 0, p_reference: "ref-1", p_note: null,
       })).data).toBe("paid");
 
       // 4. NO NEW REFUND HAS OCCURRED. Statement B must recover nothing.
@@ -337,7 +364,7 @@ describe("payout_open_statement v2", () => {
         net_owed_cents: 30000, refunds_in_period_cents: 161000, refunds_cents: 0,
       });
       expect((await admin.rpc("payout_mark_paid", {
-        p_statement_id: first, p_reference: "ref-1", p_note: null,
+        p_statement_id: first, p_expected_revision: 0, p_reference: "ref-1", p_note: null,
       })).data).toBe("paid");
 
       // THE MECHANISM, asserted on the columns. The earn UPDATE sets BOTH stamps on a row
@@ -427,7 +454,7 @@ describe("payout_unreconciled_count", () => {
       expect((await admin.rpc("payout_unreconciled_count", { p_event_id: f.ev.id })).data).toBe(1);
 
       const id = await openStatement(admin, f.ev.id);
-      await admin.rpc("payout_mark_paid", { p_statement_id: id, p_reference: "ref", p_note: null });
+      await admin.rpc("payout_mark_paid", { p_statement_id: id, p_expected_revision: 0, p_reference: "ref", p_note: null });
 
       // The warning is about money NOT yet transferred. Once it is out the door the
       // estimate is water under the bridge — Task 10's drift view is what looks back.
@@ -495,4 +522,95 @@ describe("payout_unreconciled_count", () => {
       await f.cleanup();
     }
   });
+});
+
+// Regression: an open statement must not settle its old amount after a refund.
+it("refuses a stale payout after refund between opening and settlement", async () => {
+  const f = await fixture("refund-window", 2);
+  try {
+    const admin = await signedInAs(f.adminEmail);
+    const id = await openStatement(admin, f.ev.id);
+    const refund = await f.s.rpc("refund_registration_tx", {
+      p_registration_id: f.regIds[0], p_refunded_by: null, p_note: "QA open-statement window",
+      p_provider_refund: {}, p_refunded_amount: 191000, p_retained_net: 0,
+    });
+    expect(refund.error).toBeNull();
+    expect(refund.data).toBe("refunded");
+    const paid = await admin.rpc("payout_mark_paid", { p_statement_id: id, p_expected_revision: 0, p_reference: "QA-STALE-WINDOW", p_note: "simulated" });
+    const stored = await stmt(f.s, id);
+    console.info("refund-window evidence", { result: paid.data, storedNet: stored.net_owed_cents, currentNet: 191000 });
+    expect(paid.data).toBe("stale");
+    expect(stored.net_owed_cents).toBe(382000);
+  } finally { await f.cleanup(); }
+});
+
+it.each(["new entry", "processor correction", "partial refund"])("requires refresh after %s and rejects the old reviewed revision", async (change) => {
+  const f = await fixture(`stale-${change.replaceAll(' ', '-')}`, 1);
+  try {
+    const admin = await signedInAs(f.adminEmail);
+    const id = await openStatement(admin, f.ev.id);
+    if (change === "new entry") await f.addEntry();
+    if (change === "processor correction") {
+      const update = await f.s.from("payments").update({ processor_fee_cents: 4000, net_to_org: 190000 })
+        .eq("registration_id", f.regIds[0]);
+      expect(update.error).toBeNull();
+    }
+    if (change === "partial refund") {
+      const refund = await f.s.rpc("refund_registration_tx", { p_registration_id: f.regIds[0], p_refunded_by: null,
+        p_note: null, p_provider_refund: {}, p_refunded_amount: 161000, p_retained_net: 30000 });
+      expect(refund.error).toBeNull();
+    }
+    const args = { p_statement_id: id, p_reference: "QA", p_note: null, p_expected_revision: 0 };
+    expect((await admin.rpc("payout_mark_paid", args)).data).toBe("stale");
+    expect((await admin.rpc("payout_refresh_statement", { p_statement_id: id })).data).toBe("refreshed");
+    const expected = change === "new entry" ? 382000 : change === "processor correction" ? 190000 : 30000;
+    expect((await stmt(f.s, id)).net_owed_cents).toBe(expected);
+    expect((await admin.rpc("payout_mark_paid", args)).data).toBe("stale");
+    const results = await Promise.all([0, 1].map(() => admin.rpc("payout_mark_paid", { ...args, p_expected_revision: 1 })));
+    expect(results.map(r => r.data).sort()).toEqual(["already", "paid"]);
+    expect((await admin.rpc("payout_refresh_statement", { p_statement_id: id })).data).toBe("already");
+    expect((await stmt(f.s, await openStatement(admin, f.ev.id))).net_owed_cents).toBe(0);
+  } finally { await f.cleanup(); }
+});
+
+it("legacy clients cannot settle without a reviewed revision", async () => {
+  const f = await fixture("legacy-review", 1);
+  try {
+    const admin = await signedInAs(f.adminEmail);
+    const id = await openStatement(admin, f.ev.id);
+    expect((await admin.rpc("payout_mark_paid", { p_statement_id: id, p_reference: "QA", p_note: null })).data).toBe("review_required");
+  } finally { await f.cleanup(); }
+});
+
+it("serializes a simultaneous refund and settlement without losing the refund", async () => {
+  const f = await fixture("refund-race", 1);
+  try {
+    const admin = await signedInAs(f.adminEmail);
+    const id = await openStatement(admin, f.ev.id);
+    const [refund, settled] = await Promise.all([
+      f.s.rpc("refund_registration_tx", { p_registration_id: f.regIds[0], p_refunded_by: null,
+        p_note: null, p_provider_refund: {}, p_refunded_amount: 191000, p_retained_net: 0 }),
+      admin.rpc("payout_mark_paid", { p_statement_id: id, p_reference: "QA-RACE", p_note: null, p_expected_revision: 0 }),
+    ]);
+    expect(refund.error).toBeNull(); expect(settled.error).toBeNull();
+    if (settled.data === "paid") {
+      expect((await stmt(f.s, await openStatement(admin, f.ev.id))).net_owed_cents).toBe(-191000);
+    } else {
+      expect(settled.data).toBe("stale");
+      expect((await admin.rpc("payout_refresh_statement", { p_statement_id: id })).data).toBe("refreshed");
+      expect((await stmt(f.s, id)).net_owed_cents).toBe(0);
+    }
+  } finally { await f.cleanup(); }
+});
+
+it("refuses organization admins at refresh and revision-aware settlement boundaries", async () => {
+  const f = await fixture("refresh-auth", 1);
+  let uid: string | undefined;
+  try {
+    const admin = await signedInAs(f.adminEmail);
+    const id = await openStatement(admin, f.ev.id);
+    const member = await staff(f.s, "refresh-denied", "admin", f.org.id); uid = member.uid;
+    expect((await member.client.rpc("payout_refresh_statement", { p_statement_id: id })).error?.code).toBe("42501");
+    expect((await member.client.rpc("payout_mark_paid", { p_statement_id: id, p_reference: "QA", p_note: null, p_expected_revision: 0 })).error?.code).toBe("42501");
+  } finally { await f.cleanup(); if (uid) await f.s.auth.admin.deleteUser(uid); }
 });

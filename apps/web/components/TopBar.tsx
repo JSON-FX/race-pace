@@ -10,8 +10,9 @@ import type { OrgContext } from "@/lib/org-context";
 
 const TITLES: Record<string, string> = {
   "/dashboard": "Dashboard", "/events": "Events", "/registrations": "Registrations",
-  "/payments": "Payments", "/check-in": "Race-day check-in", "/settings": "Settings",
+  "/race-kits": "Race kits", "/payments": "Payments", "/check-in": "Race-day check-in", "/settings": "Settings",
   "/organizations": "Organizations", "/commission": "Commission", "/payouts": "Payout statements",
+  "/checkout-reviews": "Checkout reviews",
 };
 
 export function TopBar({

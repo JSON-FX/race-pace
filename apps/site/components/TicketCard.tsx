@@ -18,8 +18,9 @@ export function TicketCard({
   eventDate,
   reference,
   runnerName,
-  bibName,
+  teamName,
   distanceKm,
+  checkInRequired = true,
 }: {
   token: string;
   eventName: string;
@@ -27,8 +28,9 @@ export function TicketCard({
   eventDate: string | null;
   reference: string;
   runnerName: string | null;
-  bibName: string | null;
+  teamName: string | null;
   distanceKm: number | null;
+  checkInRequired?: boolean;
 }) {
   return (
     <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
@@ -65,13 +67,13 @@ export function TicketCard({
           <QRCodeSVG value={token} size={180} level="Q" marginSize={4} />
         </div>
         <p className="mt-4 font-mono text-[15px] font-semibold tracking-[2px] text-foreground">{reference}</p>
-        <p className="mt-1 text-center text-[13px] text-muted-foreground">Show this QR at check-in</p>
+        <p className="mt-1 text-center text-[13px] text-muted-foreground">{checkInRequired ? "Show this QR at check-in" : "Check-in not required. Keep this QR as your race ticket and for any kit release."}</p>
       </div>
 
       {/* Runner stub */}
       <dl className="grid grid-cols-2 gap-px border-t border-border bg-border">
         <Cell label="Runner" value={runnerName || "—"} />
-        <Cell label="Bib" value={bibName || reference} />
+        <Cell label="Team name" value={teamName || "—"} />
         <Cell label="Category" value={categoryLabel} />
         <Cell label="Distance" value={distanceKm ? `${distanceKm} KM` : "—"} />
       </dl>

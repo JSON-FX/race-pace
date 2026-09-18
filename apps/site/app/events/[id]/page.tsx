@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { formatDateRange } from "@race-pace/shared";
@@ -68,6 +69,7 @@ export default async function EventPage({ params }: Params) {
           myEntry={myEntry}
           registrationClosesAt={event.registration_closes_at}
         />
+        {event.waiver_version_id && !closed && categories.length > 0 ? <div className="mx-auto max-w-5xl px-6 pb-8"><h2 className="font-semibold">Register another participant</h2><p className="mt-2">Choose a distance to book using a managed Race Passport.</p><div className="mt-3 flex flex-wrap gap-4">{categories.map(category => <Link className="underline" key={category.id} href={`/register/${category.id}`}>{category.label}</Link>)}</div></div> : null}
       </main>
     </>
   );

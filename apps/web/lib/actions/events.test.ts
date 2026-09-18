@@ -33,7 +33,7 @@ vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ from }) }
 import { reconcileChildren } from "@/lib/reconcile-children";
 import { saveEventAction, cancelEventAction, rescheduleEventAction, type EventDraft, type CategoryDraft } from "./events";
 
-function roles(overrides: Partial<{ isAdmin: boolean; isSuperAdmin: boolean; orgId: string | null }> = {}) {
+function roles(overrides: Partial<{ isAdmin: boolean; isOrgAdmin: boolean; isSuperAdmin: boolean; orgId: string | null }> = {}) {
   return { role: "admin", isSuperAdmin: false, isAdmin: true, isOrgAdmin: true, orgId: "a1", ...overrides };
 }
 
@@ -41,6 +41,7 @@ function baseEvent(overrides: Partial<EventDraft> = {}): EventDraft {
   return {
     org_id: "a1", name: "Apo Sky Ultra", city_psgc_code: null, region_name: null, province_name: null, city_name: null, venue: null,
     event_date: null, end_date: null, flag_off: null, status: "draft", discipline: "trail",
+    check_in_required: true,
     registration_closes_at: null, kit_edit_closes_at: null,
     elevation_gain_m: null, cutoff_hours: null, start_lat: null, start_lng: null, finish_lat: null, finish_lng: null,
     route: null, description: null, hero_image_url: null, gallery: [], schedule: [], inclusions: [],
@@ -97,6 +98,22 @@ describe("saveEventAction", () => {
     expect(from).not.toHaveBeenCalled();
   });
 
+  it("refuses an editor's forged check-in override on an existing event", async () => {
+    getMyRoles.mockResolvedValue(roles({ isOrgAdmin: false }));
+    from.mockReturnValueOnce(chain({ data: { status: "open", check_in_required: false }, error: null }));
+    const result = await saveEventAction({}, savePayload({ id: "e1", status: "open", check_in_required: true }));
+    expect(result.error).toMatch(/Only organization admins/);
+    expect(from).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses an editor's forged check-in override on a new event", async () => {
+    getMyRoles.mockResolvedValue(roles({ isOrgAdmin: false }));
+    from.mockReturnValueOnce(chain({ data: { check_in_required_default: false }, error: null }));
+    const result = await saveEventAction({}, savePayload({ check_in_required: true }));
+    expect(result.error).toMatch(/Only organization admins/);
+    expect(from).toHaveBeenCalledTimes(1);
+  });
+
   it("blocks an invalid draft (missing name) before any write", async () => {
     getMyRoles.mockResolvedValue(roles({}));
     const res = await saveEventAction({}, savePayload({ name: "" }));
@@ -132,6 +149,22 @@ describe("saveEventAction", () => {
     expect(res.error).toBeUndefined();
     expect(revalidatePath).toHaveBeenCalledWith("/events");
     expect(revalidatePath).toHaveBeenCalledWith("/events/e9/edit");
+  });
+
+  it("explains why an event cannot open before its organizer waiver is assigned", async () => {
+    getMyRoles.mockResolvedValue(roles());
+    from.mockReturnValueOnce(chain({ data: null, error: { message: "event_waiver_required_for_publishing" } }));
+    const res = await saveEventAction({}, savePayload({ status: "open" }));
+    expect(res.error).toMatch(/Publish an organizer waiver/);
+  });
+
+  it("explains a blocked draft-to-open update without exposing database details", async () => {
+    getMyRoles.mockResolvedValue(roles());
+    from.mockReturnValueOnce(chain({ data: { status: "draft", check_in_required: true }, error: null }))
+      .mockReturnValueOnce(chain({ data: null, error: { message: "event_waiver_required_for_publishing" } }));
+    const res = await saveEventAction({}, savePayload({ id: "e1", status: "open" }));
+    expect(res.error).toMatch(/Publish an organizer waiver/);
+    expect(res.error).not.toContain("event_waiver_required_for_publishing");
   });
 
   // EVENT_COLS is a hand-maintained object builder (not a type-checked

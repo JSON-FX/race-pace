@@ -35,9 +35,8 @@ export class CheckoutError extends Error {
 
 export async function startCheckout(input: RegistrationInput): Promise<CheckoutResult> {
   const supabase = createClient();
-  // The registration id isn't known yet, so the return URL carries no rid here;
-  // /pay/callback falls back to the rid the pay page stored. The per-method
-  // session created in createMethodCheckout does include it.
+  // The registration id isn't known to the browser yet. The checkout function
+  // adds it to the provider return URL after inserting the reservation.
   const origin = process.env.NEXT_PUBLIC_SITE_URL ?? window.location.origin;
   const body = { ...input, return_url: `${origin}/pay/callback` };
   const { data, error } = await supabase.functions.invoke("registrations-checkout", { body });
@@ -141,22 +140,32 @@ export type RegistrationRow = {
   id: string; status: string; total_amount: number; ticket_token: string | null; org_id: string;
   /** The race this entry is for — needed to link back to its event page. */
   event_id: string;
+  bookingOrderId?: string | null;
   /** When an unpaid entry stops holding this runner's one-per-event slot.
    *  Null once paid — a paid entry has no hold to run out. */
   expiresAt: string | null;
   eventName: string; categoryLabel: string; categoryDistance: number | null; checkoutUrl: string | null;
   eventStatus: string | null; eventDate: string | null; originalDate: string | null; statusNote: string | null;
+  eventCheckInRequired?: boolean;
   /** Null means "no deadline" — see lib/eventStatus.ts. */
   eventRegistrationClosesAt: string | null;
   /** Null means "no cutoff" — see lib/kit.ts. */
   kitEditClosesAt: string | null;
   shirtSize: string | null;
+  identitySnapshot?: Record<string, unknown> | null;
+  participantUserId?: string | null;
+  bookedByUserId?: string | null;
   orgName: string | null; eventHeroUrl: string | null; basePrice: number | null; inclusions: string[] | null;
   /** Which side of the fees this org's runners are on. `absorb`: the runner pays
    *  the sticker price and the processing cost comes out of the organizer's
    *  share, so it is none of the runner's business. `pass_on`: the runner is
    *  charged a grossed-up total and must therefore see every line of it. */
   feeMode: "absorb" | "pass_on";
+  /** The fee terms frozen when this checkout was created. */
+  checkoutPlatformFee: number | null;
+  checkoutProviderManagedFee: boolean;
+  refundPolicy?: string | null;
+  refundFeeCents?: number | null;
   /** Whether the platform still has this organization switched on. Read on the
    *  SAME embed as the fee terms, and readable to a registrant even while the
    *  org is suspended thanks to `orgs_read_active`'s registrant branch
@@ -181,7 +190,7 @@ export type RegistrationRow = {
 // type level, and `a + b` is `string` to TypeScript, which erases every column
 // type on the result.
 const REG_SELECT =
-  "id,status,total_amount,ticket_token,org_id,event_id,expires_at,custom_data,organizations(name,is_active,fee_mode,commission_type,commission_rate,commission_flat_cents),events(name,status,event_date,original_date,status_note,hero_image_url,inclusions,registration_closes_at,kit_edit_closes_at),categories(label,distance_km,base_price),payments(checkout_url,created_at,method,amount,platform_fee,net_to_org,provider,provider_ref,status)";
+  "id,user_id,booked_by_user_id,booking_order_id,status,total_amount,ticket_token,org_id,event_id,expires_at,custom_data,organizations(name,is_active,fee_mode,commission_type,commission_rate,commission_flat_cents,refund_policy,refund_fee_cents),events(name,status,event_date,original_date,status_note,hero_image_url,inclusions,registration_closes_at,kit_edit_closes_at,check_in_required),categories(label,distance_km,base_price),payments(checkout_url,created_at,method,amount,platform_fee,net_to_org,provider,provider_ref,status,checkout_fee_mode,checkout_platform_fee,checkout_provider_managed_fee)";
 
 export function mapReg(r: any): RegistrationRow {
   const payment = Array.isArray(r.payments) ? r.payments[0] : r.payments;
@@ -193,12 +202,17 @@ export function mapReg(r: any): RegistrationRow {
   const org = Array.isArray(r.organizations) ? r.organizations[0] : r.organizations;
   return {
     id: r.id, status: r.status, total_amount: r.total_amount,
+    bookingOrderId: r.booking_order_id ?? null,
     ticket_token: r.ticket_token ?? null, org_id: r.org_id, event_id: r.event_id,
+    participantUserId: r.user_id ?? null,
+    bookedByUserId: r.booked_by_user_id ?? null,
     expiresAt: r.expires_at ?? null,
     eventName: r.events?.name ?? "Event",
     categoryLabel: r.categories?.label ?? "",
     categoryDistance: r.categories?.distance_km ?? null,
     orgName: org?.name ?? null,
+    refundPolicy: org?.refund_policy ?? null,
+    refundFeeCents: org?.refund_fee_cents ?? null,
     eventHeroUrl: r.events?.hero_image_url ?? null,
     basePrice: r.categories?.base_price ?? null,
     inclusions: r.events?.inclusions ?? null,
@@ -206,7 +220,9 @@ export function mapReg(r: any): RegistrationRow {
     // the sticker price, never an unpriced screen. It is also the column's own
     // default, so the only rows that reach `pass_on` are ones a super admin
     // deliberately moved there.
-    feeMode: (org?.fee_mode ?? "absorb") as "absorb" | "pass_on",
+    feeMode: (payment?.checkout_fee_mode ?? org?.fee_mode ?? "absorb") as "absorb" | "pass_on",
+    checkoutPlatformFee: payment?.checkout_platform_fee ?? null,
+    checkoutProviderManagedFee: payment?.checkout_provider_managed_fee === true,
     // `?? true` — the PERMISSIVE default, and safe only because it is paired
     // with something that is not. A missing embed must not strand a runner
     // whose org is perfectly fine, and the org row is the one thing RLS could
@@ -225,8 +241,10 @@ export function mapReg(r: any): RegistrationRow {
     },
     checkoutUrl: payment?.checkout_url ?? null,
     eventStatus: r.events?.status ?? null,
+    eventCheckInRequired: r.events?.check_in_required !== false,
     eventRegistrationClosesAt: r.events?.registration_closes_at ?? null,
     kitEditClosesAt: r.events?.kit_edit_closes_at ?? null,
+    identitySnapshot: r.custom_data ?? null,
     shirtSize: (r.custom_data as Record<string, unknown> | null)?.shirt_size as string ?? null,
     eventDate: r.events?.event_date ?? null,
     originalDate: r.events?.original_date ?? null,
@@ -345,11 +363,15 @@ export function useProcessorRate(method: string, opts?: { enabled?: boolean }) {
   });
 }
 
-/** RLS `registrations_read_own` restricts rows to the signed-in user. */
+/** Bookers and staff can read other entries through RLS. Career totals must
+ * only include races where the signed-in account is the participant. */
 export async function fetchMyRegistrations(): Promise<RegistrationRow[]> {
   const supabase = createClient();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError) throw authError;
+  if (!user) return [];
   const { data, error } = await supabase
-    .from("registrations").select(REG_SELECT).order("created_at", { ascending: false });
+    .from("registrations").select(REG_SELECT).eq("user_id", user.id).order("created_at", { ascending: false });
   if (error) throw error;
   return (data ?? []).map(mapReg);
 }

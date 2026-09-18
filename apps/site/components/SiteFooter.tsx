@@ -65,7 +65,7 @@ export function SiteFooter() {
               className="h-[70px] w-auto"
             />
             <p className="mt-4 max-w-[30ch] text-[13px] leading-relaxed text-muted-foreground">
-              Trail and ultra-trail racing across Mindanao. Enter, pay, and carry your bib on your phone.
+              Trail and ultra-trail racing across Mindanao. Enter, pay, and carry your race pass on your phone.
             </p>
 
             <p className="mt-6 font-eyebrow text-[10px] font-bold uppercase tracking-[2px] text-muted-foreground">

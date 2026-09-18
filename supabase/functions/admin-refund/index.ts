@@ -34,9 +34,14 @@ Deno.serve(async (req) => {
     if (!canAdmin) return json({ error: "forbidden" }, 403);
 
     const note = typeof body.note === "string" ? body.note : null;
-    const r = await refundRegistration(registrationId, userId, note);
+    if (body.expected_amount !== undefined && (!Number.isSafeInteger(body.expected_amount) || body.expected_amount < 0)) {
+      return json({ error: "invalid_expected_amount" }, 400);
+    }
+    const r = await refundRegistration(registrationId, userId, note, {
+      preview: body.preview === true, expectedAmount: body.expected_amount,
+    });
     if (!r.ok) return json({ error: r.error }, r.status);
-    return json({ ok: true, registration_id: r.registration_id, already: r.already, pending: r.pending });
+    return json(r);
   } catch (e) {
     return json({ error: "server_error" }, 500);
   }

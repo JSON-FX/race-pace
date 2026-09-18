@@ -69,11 +69,14 @@ export function customDataSchema(fields: FormField[]) {
 
 /** Full registration payload sent to the checkout Edge Function. */
 export const registrationInputSchema = z.object({
+  participant_passport_id: z.string().uuid().optional(),
   event_id: z.string().uuid(),
   category_id: z.string().uuid(),
   addon_ids: z.array(z.string().uuid()).default([]),
   custom_data: z.record(z.unknown()).default({}),
   waiver_accepted: z.boolean(),
+  waiver_version_id: z.string().uuid().optional(),
+  waiver_acceptance_method: z.enum(["signed_in_self", "participant_on_helper_device"]).optional(),
   idempotency_key: z.string().min(8),
 });
 export type RegistrationInput = z.infer<typeof registrationInputSchema>;
@@ -184,3 +187,21 @@ export function fieldEditPolicy(key: string): FieldEditPolicy {
 }
 export * from "./route";
 export * from "./photo";
+
+/** Event identity survives optional profile saving and later profile edits. */
+export function registrationIdentity(
+  snapshot: Record<string, unknown> | null | undefined,
+  profile?: { full_name?: string | null; bib_name?: string | null } | null,
+): { full_name: string | null; bib_name: string | null } {
+  const text = (value: unknown) => typeof value === "string" ? value.trim() || null : null;
+  return {
+    full_name: text(snapshot?.full_name) ?? text(profile?.full_name),
+    bib_name: text(snapshot?.bib_name) ?? text(profile?.bib_name),
+  };
+}
+
+export * from "./passport";
+
+export * from "./groupRegistration";
+
+export { isPublicLaunchClosed, isStagingEnvironment } from "./launchGate";

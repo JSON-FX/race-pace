@@ -25,6 +25,7 @@ export type PayoutStatementStatus = "open" | "paid";
 export type PayoutState = "ready" | "held" | "paid" | "owed_back";
 
 export type PayoutStatementRow = {
+  revision?: number;
   id: string;
   event_id: string;
   org_id: string;
@@ -170,12 +171,13 @@ export function payoutRowState(row: {
 // `statementResidual` has to be selected or the residual is computed from
 // undefined and reads as a defect that isn't there.
 const STATEMENT_SELECT =
-  "id,event_id,org_id,gross_cents,commission_cents,processing_cents," +
+  "id,revision,event_id,org_id,gross_cents,commission_cents,processing_cents," +
   "refunds_in_period_cents,refunds_cents,net_owed_cents," +
   "status,reference,note,opened_at,paid_at," +
   "events(name,event_date,end_date,status),organizations(name)";
 
 type StatementJoinRow = {
+  revision?: number;
   id: string;
   event_id: string;
   org_id: string;
@@ -214,6 +216,7 @@ export async function listPayoutStatements(): Promise<PayoutStatementRow[]> {
 
   const now = new Date();
   return ((data ?? []) as unknown as StatementJoinRow[]).map((r) => ({
+    revision: r.revision,
     id: r.id,
     event_id: r.event_id,
     org_id: r.org_id,
@@ -241,6 +244,7 @@ export async function listPayoutStatements(): Promise<PayoutStatementRow[]> {
 }
 
 export type OpenableEvent = {
+  revision?: number;
   id: string;
   name: string;
   org_name: string;
@@ -280,7 +284,8 @@ export async function listOpenableEvents(limit = 200): Promise<OpenableEvent[]> 
   const now = new Date();
 
   type EventJoinRow = {
-    id: string;
+    revision?: number;
+  id: string;
     name: string;
     event_date: string | null;
     end_date: string | null;

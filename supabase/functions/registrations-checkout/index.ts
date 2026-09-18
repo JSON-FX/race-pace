@@ -1,8 +1,9 @@
 import { serviceClient } from "../_shared/supabase.ts";
 import { getPaymentProvider } from "../_shared/payments.ts";
-import { customDataSchema, formFieldSchema, isProfileKey, registrationInputSchema } from "../_shared/validation.ts";
+import { customDataSchema, formFieldSchema, isProfileKey, registrationInputSchema, passportSchema } from "../_shared/validation.ts";
 import { preflight, corsHeaders } from "../_shared/cors.ts";
 import { isRegistrationClosed } from "../_shared/eventStatus.ts";
+import { computeFee, type FeeTerms } from "../_shared/fee.ts";
 
 Deno.serve(async (req) => {
   const pre = preflight(req);
@@ -18,6 +19,12 @@ Deno.serve(async (req) => {
     const raw = await req.json();
     // The app passes its deep-link so PayMongo's hosted checkout can redirect back.
     const returnUrl = typeof raw?.return_url === "string" && raw.return_url ? raw.return_url : "racepace://pay-callback";
+    let registrationReturnUrl: URL;
+    try {
+      registrationReturnUrl = new URL(returnUrl);
+    } catch {
+      return json({ error: "invalid_return_url" }, 400);
+    }
     // Logged because this value is computed on the device by Linking.createURL() from the
     // Metro dev-server host — a stale host here sends the post-payment redirect to an
     // unreachable IP, and it is otherwise never persisted anywhere.
@@ -25,6 +32,9 @@ Deno.serve(async (req) => {
     const parsed = registrationInputSchema.safeParse(raw);
     if (!parsed.success) return json({ error: "invalid_input", details: parsed.error.flatten() }, 400);
     const input = parsed.data;
+    // Group rows use this internal namespace. A replay through legacy upsert
+    // must never revive an expired group line or create its own provider charge.
+    if (input.idempotency_key.startsWith("group:")) return json({ error: "group_checkout_not_available" }, 409);
     if (!input.waiver_accepted) return json({ error: "waiver_required" }, 400);
 
     const db = serviceClient();
@@ -47,17 +57,38 @@ Deno.serve(async (req) => {
     // platform has switched off.
     const { data: event } = await db
       .from("events")
-      .select("status, registration_closes_at, organizations(is_active)")
+      .select("status, waiver_version_id, registration_closes_at, organizations(is_active,fee_mode,commission_type,commission_rate,commission_flat_cents)")
       .eq("id", category.event_id)
       .single();
     if (!event) return json({ error: "category_not_found" }, 404);
-    if (isRegistrationClosed(event.status, event.registration_closes_at)) {
+    if (!["open", "almost_full"].includes(event.status) || isRegistrationClosed(event.status, event.registration_closes_at)) {
       return json({ error: "registration_closed" }, 409);
     }
-    const org = event.organizations as unknown as { is_active: boolean } | null;
+    // Older open events can still lack an organizer waiver. Never sell another
+    // slot for them, even when the request also omits a version (null === null).
+    if (!event.waiver_version_id) return json({ error: "event_waiver_unavailable" }, 409);
+    if ((event.waiver_version_id ?? null) !== (input.waiver_version_id ?? null)) {
+      return json({ error: "waiver_version_changed" }, 409);
+    }
+    const org = event.organizations as unknown as (FeeTerms & { is_active: boolean; fee_mode: "absorb" | "pass_on" }) | null;
     if (!org?.is_active) return json({ error: "org_suspended" }, 409);
 
     if (category.slots_taken >= category.slots_total) return json({ error: "sold_out" }, 409);
+
+    // Read the authenticated runner's saved identity. Client custom_data cannot
+    // make an incomplete Passport complete or substitute another participant.
+    const { data: passport, error: passportError } = await db.from("runner_passports")
+      .select("id,claimed_user_id,first_name,last_name,team_name,date_of_birth,gender,contact_number,emergency_contact_name,emergency_contact_number,emergency_contact_relationship,shirt_size,blood_type,participant_email,shipping_barangay_code,shipping_zip_code,shipping_address_line")
+      .eq(input.participant_passport_id ? "id" : "claimed_user_id", input.participant_passport_id ?? userId).maybeSingle();
+    if (passportError) return json({ error: "passport_unavailable" }, 503);
+    if (!passport) return json({ error: "participant_not_accessible" }, 403);
+    const assisted = passport.claimed_user_id !== userId;
+    if (assisted) {
+      const { data: manager } = await db.from("passport_managers").select("passport_id").eq("passport_id", passport.id).eq("user_id", userId).maybeSingle();
+      if (passport.claimed_user_id || !manager) return json({ error: "participant_not_accessible" }, 403);
+      if (!userRes.user.email_confirmed_at) return json({ error: "booking_email_unverified" }, 403);
+      if (!event.waiver_version_id || input.waiver_acceptance_method !== "participant_on_helper_device") return json({ error: "participant_acceptance_required" }, 422);
+    }
 
     // One live entry per event. The partial unique index
     // registrations_one_live_per_event is the real enforcement -- this read
@@ -69,9 +100,9 @@ Deno.serve(async (req) => {
     const liveEntryQuery = () =>
       db
         .from("registrations")
-        .select("id,status,expires_at,payments(checkout_url)")
+        .select("id,user_id,booked_by_user_id,status,expires_at,payments(provider,checkout_url)")
         .eq("event_id", input.event_id)
-        .eq("user_id", userId)
+        .eq("participant_passport_id", passport.id)
         .in("status", ["pending", "paid"])
         .maybeSingle();
 
@@ -84,14 +115,24 @@ Deno.serve(async (req) => {
     // which point the 23505 handler would find that same stale row and
     // wrongly report already_registered. Expiring it for real removes the
     // collision instead of relocating it.
-    const isLapsedPending = (row: { status: string; expires_at: string | null }) =>
-      row.status === "pending" && !!row.expires_at && Date.parse(row.expires_at) <= Date.now();
+    const isLapsedPending = (row: { status: string; expires_at: string | null; payments: unknown }) => {
+      const payment = Array.isArray(row.payments) ? row.payments[0] : row.payments;
+      // A PayMongo reservation stays live until its provider session is closed.
+      // The worker handles an unbound or uncertain session too.
+      return row.status === "pending" && !!row.expires_at && Date.parse(row.expires_at) <= Date.now() &&
+        (payment as { provider?: string } | null)?.provider !== "paymongo";
+    };
 
     const expireLapsedRow = (id: string) =>
       db.from("registrations").update({ status: "expired", expires_at: null }).eq("id", id);
 
-    const alreadyRegisteredResponse = (row: { id: string; status: string; payments: unknown }) => {
+    const alreadyRegisteredResponse = (row: { id: string; user_id: string | null; booked_by_user_id: string | null; status: string; expires_at: string | null; payments: unknown }) => {
+      if (row.user_id !== userId && row.booked_by_user_id !== userId) return json({ error: "participant_already_registered" }, 409);
       const pay = Array.isArray(row.payments) ? row.payments[0] : row.payments;
+      if (row.status === "pending" && row.expires_at && Date.parse(row.expires_at) <= Date.now() &&
+          (pay as { provider?: string } | null)?.provider === "paymongo") {
+        return json({ error: "checkout_expiring", registration_id: row.id }, 409);
+      }
       return json(
         {
           error: "already_registered",
@@ -105,6 +146,25 @@ Deno.serve(async (req) => {
 
     const { data: existing, error: existingErr } = await liveEntryQuery();
     if (existingErr) return json({ error: "registration_failed", details: existingErr.message }, 500);
+
+    if (existing && !isLapsedPending(existing)) return alreadyRegisteredResponse(existing);
+
+    const identity = passportSchema(new Date().toISOString().slice(0, 10)).safeParse(passport);
+    if (!identity.success) return json({ error: "passport_incomplete", details: {
+      invalid_fields: [...new Set(identity.error.issues.map((issue) => String(issue.path[0] ?? "passport")))],
+    } }, 422);
+    input.custom_data = {
+      ...input.custom_data,
+      first_name: identity.data.first_name, last_name: identity.data.last_name,
+      full_name: `${identity.data.first_name} ${identity.data.last_name}`,
+      team_name: identity.data.team_name ?? null,
+      date_of_birth: identity.data.date_of_birth, gender: identity.data.gender,
+      contact_number: identity.data.contact_number,
+      emergency_contact_name: identity.data.emergency_contact_name,
+      emergency_contact_number: identity.data.emergency_contact_number,
+      emergency_contact_relationship: identity.data.emergency_contact_relationship,
+      emergency_contact: `${identity.data.emergency_contact_name} — ${identity.data.emergency_contact_number}`,
+    };
 
     if (existing) {
       if (isLapsedPending(existing)) {
@@ -134,7 +194,7 @@ Deno.serve(async (req) => {
     // client enforces this too; this guards direct/replayed API calls (e.g. race-day blood_type).
     const cdObj = (input.custom_data ?? {}) as Record<string, unknown>;
     const missingRequired = (fieldRows ?? [])
-      .filter((f) => isProfileKey(f.key) && f.required)
+      .filter((f) => isProfileKey(f.key) && f.required && f.key !== "bib_name")
       .map((f) => f.key)
       .filter((k) => { const v = cdObj[k]; return v === undefined || v === null || (typeof v === "string" && v.trim() === ""); });
     if (missingRequired.length) return json({ error: "invalid_custom_data", details: { missing_required: missingRequired } }, 400);
@@ -147,15 +207,20 @@ Deno.serve(async (req) => {
     const insertRegistration = () =>
       db.from("registrations").upsert({
         org_id: category.org_id, event_id: input.event_id, category_id: input.category_id,
-        user_id: userId, status: "pending", total_amount: total,
+        user_id: passport.claimed_user_id, booked_by_user_id: userId, participant_passport_id: passport.id,
+        waiver_acceptance_method: assisted ? "participant_on_helper_device" : "signed_in_self", status: "pending", total_amount: total,
+        waiver_version_id: input.waiver_version_id ?? null,
         custom_data: input.custom_data, waiver_accepted_at: new Date().toISOString(),
         idempotency_key: input.idempotency_key,
-      }, { onConflict: "user_id,idempotency_key" }).select().single();
+      }, { onConflict: "booked_by_user_id,participant_passport_id,idempotency_key" }).select().single();
 
     const isLiveGateViolation = (err: { code?: string; message?: string | null } | null) =>
       err?.code === "23505" && (err.message ?? "").includes("registrations_one_live_per_event");
 
     let { data: reg, error: regErr } = await insertRegistration();
+
+    if (regErr?.message?.includes("category_capacity_exhausted")) return json({ error: "sold_out" }, 409);
+    if (regErr?.message?.includes("waiver_version_changed")) return json({ error: "waiver_version_changed" }, 409);
 
     if ((regErr || !reg) && isLiveGateViolation(regErr)) {
       // 23505 on registrations_one_live_per_event: a concurrent checkout won
@@ -171,6 +236,7 @@ Deno.serve(async (req) => {
       if (winner && isLapsedPending(winner)) {
         await expireLapsedRow(winner.id);
         const retry = await insertRegistration();
+        if (retry.error?.message?.includes("category_capacity_exhausted")) return json({ error: "sold_out" }, 409);
         if (!retry.error && retry.data) {
           reg = retry.data;
           regErr = null;
@@ -201,25 +267,54 @@ Deno.serve(async (req) => {
     }
 
     const provider = getPaymentProvider();
-    await db.from("payments").upsert(
-      { org_id: category.org_id, registration_id: reg.id, amount: total, status: "pending", provider: provider.name },
-      { onConflict: "registration_id" },
-    );
-
-    // Itemize the hosted checkout: entry fee + a grouped add-ons line, so PayMongo's summary
-    // shows why the total is what it is (mirrors the app's pay-screen breakdown).
+    // PayMongo v2 adds its own method-specific fee after the runner selects a
+    // method. This is the pre-processing subtotal, never an app-estimated fee.
+    const providerManagedFee = provider.name === "paymongo" && org.fee_mode === "pass_on";
+    const frozenPlatformFee = computeFee(total, org);
+    const checkoutSubtotal = total + (providerManagedFee ? frozenPlatformFee : 0);
+    // Build and freeze the provider request before the external POST for audit.
+    // A sandbox probe on 2026-09-18 found that repeating checkout creation with
+    // the same PayMongo idempotency key minted a different session. An uncertain
+    // create must remain pending for provider reconciliation, not auto-retry.
     const lineItems = [{ name: category.label, amount: category.base_price }];
     if (addonTotal > 0) lineItems.push({ name: "Add-ons", amount: addonTotal });
-    // Prefill PayMongo's "Customer Information" with the runner's name + email (phone left to PayMongo).
+    if (providerManagedFee && frozenPlatformFee > 0) lineItems.push({ name: "Taxes and fees", amount: frozenPlatformFee });
     const { data: profile } = await db.from("profiles").select("full_name,bib_name").eq("id", userId).maybeSingle();
     const billing = { name: ((profile?.full_name ?? profile?.bib_name ?? "") as string).trim() || undefined, email: userRes.user.email || undefined };
-    const checkout = await provider.createCheckout({
-      registrationId: reg.id, amount: total, description: category.label, returnUrl, lineItems, billing,
+    registrationReturnUrl.searchParams.set("rid", reg.id);
+    const checkoutInput = {
+      registrationId: reg.id, amount: checkoutSubtotal, description: category.label,
+      returnUrl: registrationReturnUrl.toString(), lineItems, billing,
+      passOnFees: providerManagedFee,
+      metadata: providerManagedFee ? { fee_mode: "pass_on", platform_fee_cents: String(frozenPlatformFee) } : undefined,
+    };
+    // One inserted payment row owns external checkout creation. A concurrent
+    // replay must not create a second chargeable PayMongo session for this slot.
+    // It also must not upsert a captured row back to pending.
+    const { error: paymentInsertError } = await db.from("payments").insert({
+      org_id: category.org_id, registration_id: reg.id,
+      amount: checkoutSubtotal, status: "pending", provider: provider.name,
+      checkout_fee_mode: org.fee_mode,
+      checkout_platform_fee: frozenPlatformFee,
+      checkout_provider_managed_fee: providerManagedFee,
+      checkout_request: checkoutInput,
     });
-    await db.from("payments").update({
+    if (paymentInsertError?.code === "23505") {
+      // The pay page can reuse a bound checkout, or report that an uncertain
+      // create needs reconciliation. It must not mint another PayMongo session.
+      return json({ error: "already_registered", registration_id: reg.id, status: "pending", checkout_url: null }, 409);
+    }
+    if (paymentInsertError) return json({ error: "payment_setup_failed" }, 500);
+
+    const checkout = await provider.createCheckout(checkoutInput);
+    const { error: paymentUpdateError } = await db.from("payments").update({
       provider_ref: checkout.providerRef,
       checkout_url: checkout.checkoutUrl,
+      checkout_fee_mode: org.fee_mode,
+      checkout_platform_fee: frozenPlatformFee,
+      checkout_provider_managed_fee: providerManagedFee,
     }).eq("registration_id", reg.id);
+    if (paymentUpdateError) return json({ error: "payment_setup_failed" }, 500);
 
     return json({ registration_id: reg.id, checkout_url: checkout.checkoutUrl });
   } catch (e) {

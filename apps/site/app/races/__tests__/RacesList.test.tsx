@@ -74,6 +74,7 @@ function reg(overrides: Partial<RegistrationRow> = {}): RegistrationRow {
     orgName: "Race Pace", eventHeroUrl: null, basePrice: 150000,
     inclusions: [], feeMode: "absorb", orgIsActive: true,
     feeTerms: { commission_type: "percent", commission_rate: 0.03, commission_flat_cents: 0 },
+    checkoutPlatformFee: null, checkoutProviderManagedFee: false,
     payment: null,
     ...overrides,
   };
@@ -94,7 +95,7 @@ beforeEach(() => {
 });
 
 describe("RacesList — a pending row whose hold has lapsed", () => {
-  it("does not offer Complete payment, and points at re-entering instead", () => {
+  it("moves a lapsed hold to Inactive and points at re-entering instead", async () => {
     // The row is still literally status: "pending" — the sweep hasn't run
     // yet — so this pins that the CTA is derived from expires_at, not status.
     const past = new Date(Date.now() - 2 * 60_000).toISOString();
@@ -103,6 +104,8 @@ describe("RacesList — a pending row whose hold has lapsed", () => {
       isLoading: false,
     });
     renderList();
+    expect(screen.getByRole("tab", { name: "Upcoming · 0" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("tab", { name: "Inactive · 1" }));
 
     expect(screen.queryByRole("link", { name: "Complete payment" })).not.toBeInTheDocument();
     expect(screen.getByText(/Payment window closed/)).toBeInTheDocument();
@@ -125,6 +128,36 @@ describe("RacesList — a pending row whose hold has lapsed", () => {
     expect(screen.getByRole("link", { name: "Complete payment" })).toHaveAttribute("href", "/pay/live1");
     expect(screen.queryByText(/Payment window closed/)).not.toBeInTheDocument();
   });
+
+  it("resumes the parent group order and hides individual discard", () => {
+    useMyRegistrationsMock.mockReturnValue({
+      data: [reg({ id: "group-line", bookingOrderId: "group-order", expiresAt: new Date(Date.now() + 60 * 60_000).toISOString() })],
+      isLoading: false,
+    });
+    renderList();
+    expect(screen.getByRole("link", { name: "Complete payment" })).toHaveAttribute("href", "/group/order/group-order");
+    expect(screen.queryByRole("button", { name: "Discard" })).not.toBeInTheDocument();
+  });
+});
+
+it("keeps refunded entries out of Upcoming while preserving their history", async () => {
+  useMyRegistrationsMock.mockReturnValue({
+    data: [
+      reg({ id: "paid-future", status: "paid" }),
+      reg({ id: "refunded-future", status: "refunded", eventName: "Refunded race" }),
+      reg({ id: "paid-past", status: "paid", eventDate: "2020-01-01", eventName: "Past race" }),
+    ],
+    isLoading: false,
+  });
+  renderList();
+
+  expect(screen.getByRole("tab", { name: "Upcoming · 1" })).toBeInTheDocument();
+  expect(screen.queryByText("Refunded race")).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("tab", { name: "Inactive · 1" }));
+  expect(screen.getByText("Refunded race")).toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: "View ticket" })).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("tab", { name: "Finished · 1" }));
+  expect(screen.getByText("Past race")).toBeInTheDocument();
 });
 
 describe("RacesList — discard confirmation dialog", () => {

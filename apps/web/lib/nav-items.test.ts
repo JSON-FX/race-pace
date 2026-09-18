@@ -40,7 +40,7 @@ describe("visibleSuperItems", () => {
 
   it("lists the platform destinations with manage_platform", () => {
     expect(paths(visibleSuperItems(who(["manage_platform"]))))
-      .toEqual(["/organizations", "/commission", "/payouts"]);
+      .toEqual(["/organizations", "/commission", "/payouts", "/checkout-reviews"]);
   });
 });
 
@@ -52,4 +52,9 @@ describe("mobile nav", () => {
   it("gives a marshal no More groups, since nothing else is reachable", () => {
     expect(moreMobileItems(who(["check_in"]))).toEqual([]);
   });
+});
+
+it("shows kit crew only race kits in navigation and the phone bar", () => {
+  expect(paths(visibleOrgItems(who(["release_kits"])))).toEqual(["/race-kits"]);
+  expect(paths(primaryMobileItems(who(["release_kits"])))).toEqual(["/race-kits"]);
 });

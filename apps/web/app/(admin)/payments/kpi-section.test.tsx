@@ -21,7 +21,7 @@ describe("PaymentsKpiSection", () => {
       expect.objectContaining({ filters: expect.objectContaining({ status: "all", method: "all" }) }),
     );
 
-    expect(screen.getByText("Gross")).toBeInTheDocument();
+    expect(screen.getByText("Retained gross")).toBeInTheDocument();
     expect(screen.getByText("₱6,000")).toBeInTheDocument();
     expect(screen.getByText("Platform fees")).toBeInTheDocument();
     expect(screen.getByText("₱300")).toBeInTheDocument();
@@ -44,4 +44,11 @@ describe("PaymentsKpiSection", () => {
 
     expect(screen.getAllByText("₱0").length).toBe(4);
   });
+});
+
+it("labels an unreconciled net explicitly", async () => {
+  getPaymentAggregates.mockResolvedValue({ grossCents: 10000, feeCents: 200, netCents: null, refundedCents: 0 });
+  const params = parseTableParams({}, { sort: [], filters: {} });
+  render(await PaymentsKpiSection({ orgId: "org-1", params }));
+  expect(screen.getByText("Awaiting reconciliation")).toBeInTheDocument();
 });

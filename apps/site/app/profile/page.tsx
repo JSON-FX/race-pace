@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
@@ -23,8 +24,9 @@ export default async function ProfilePage() {
           Race Passport
         </h1>
 
+        <Link className="mt-4 inline-block underline" href="/bookings">Bookings I manage</Link>
         <div className="mt-8">
-          <ProfileForm userId={user.id} />
+          <ProfileForm userId={user.id} email={user.email} />
         </div>
       </main>
     </>

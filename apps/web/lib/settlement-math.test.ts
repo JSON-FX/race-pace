@@ -63,7 +63,7 @@ describe("settlementTotals", () => {
     const t = settlementTotals([legacy]);
     expect(t.refunds).toBe(191000);
     expect(t.net).toBe(0);
-    expect(t.gross - t.commission - t.processing - t.refunds).toBe(t.net);
+    expect(t.gross - t.commission - t.processing! - t.refunds).toBe(t.net);
   });
 
   it("reads a partial refund from refunded_amount, where net_to_org is the retention", () => {
@@ -75,7 +75,7 @@ describe("settlementTotals", () => {
     })]);
     expect(t.refunds).toBe(91000);
     expect(t.net).toBe(100000);
-    expect(t.gross - t.commission - t.processing - t.refunds).toBe(t.net);
+    expect(t.gross - t.commission - t.processing! - t.refunds).toBe(t.net);
   });
 
   /**
@@ -96,7 +96,7 @@ describe("settlementTotals", () => {
     expect(t).toEqual({
       gross: 1000000, commission: 30000, processing: 12000, refunds: 473000, net: 485000,
     });
-    expect(t.gross - t.commission - t.processing - t.refunds).toBe(t.net);
+    expect(t.gross - t.commission - t.processing! - t.refunds).toBe(t.net);
   });
 
   /**
@@ -128,13 +128,23 @@ describe("toSettlementRow", () => {
     registration_id: "reg-1", amount: 200000, platform_fee: 6000,
     processor_fee_cents: 3000, processor_fee_source: "actual", net_to_org: 191000,
     status: "paid", refunded_amount: 0, method: "gcash",
-    created_at: "2026-08-01T02:00:00Z",
+    created_at: "2026-08-01T01:00:00Z",
+    paid_at: "2026-08-01T02:00:00Z",
     registrations: { user_id: "u-1", categories: { label: "40K" } },
     ...over,
   });
   const names = new Map<string, RunnerName>([
     ["u-1", { full_name: "Ana Reyes", bib_name: "ANA" }],
   ]);
+
+  it("leaves unknown capture dates blank instead of substituting checkout creation", () => {
+    expect(toSettlementRow(pay({ paid_at: null }), names).paid_at).toBeNull();
+  });
+
+  it("preserves the recorded refund timestamp and rejects malformed values", () => {
+    expect(toSettlementRow(pay({ raw: { refunded_at: "2026-08-02T10:00:00+08:00" } }), names).refunded_at).toBe("2026-08-02T02:00:00.000Z");
+    expect(toSettlementRow(pay({ raw: { refunded_at: "invalid" } }), names).refunded_at).toBeNull();
+  });
 
   it("maps a paid entry to exactly the figures the summary sums", () => {
     expect(toSettlementRow(pay(), names)).toEqual({
@@ -406,5 +416,19 @@ describe("unreconciledCount", () => {
 
   it("reports a missing payload as unknown", () => {
     expect(unreconciledCount({ data: null, error: null })).toBeNull();
+  });
+});
+
+
+describe("group allocation settlement", () => {
+  it("keeps unknown processor fees and net unknown in aggregate totals", () => {
+    expect(settlementTotals([row(), row({ processing_fee: null, net_to_org: null })])).toEqual({
+      gross: 400000, commission: 12000, processing: null, refunds: 0, net: null,
+    });
+  });
+  it("retains group commission while returning the participant net", () => {
+    expect(settlementTotals([row({ status: "partially_refunded", refunded_amount: 191000, net_to_org: 0 })])).toEqual({
+      gross: 200000, commission: 6000, processing: 3000, refunds: 191000, net: 0,
+    });
   });
 });

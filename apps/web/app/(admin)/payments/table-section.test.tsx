@@ -20,7 +20,7 @@ beforeEach(() => {
 
 const rows: PaymentRow[] = [
   {
-    registration_id: "r1", event_id: "ev-1", event_name: "Kitanglad Skyline Ultra", user_id: "u1",
+    payment_id: "payment-1", booking_order_id: null, participant_count: 1, refunded_amount: 0, processor_fee_cents: 0, processor_fee_source: "none", paid_at: null, registration_id: "r1", event_id: "ev-1", event_name: "Kitanglad Skyline Ultra", user_id: "u1",
     full_name: "Maria Josefa Santos", avatar_url: null, amount: 285000, platform_fee: 14250, net_to_org: 270750,
     method: "gcash", status: "paid", created_at: "2026-08-03T09:14:00Z",
   },

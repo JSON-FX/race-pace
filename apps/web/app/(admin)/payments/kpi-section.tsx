@@ -10,7 +10,9 @@ import type { TableParams } from "@/lib/table-params";
  *  mockup's tab A content view is the Registrations page, not Payments, so
  *  there is no `.kpi` delta markup to match here.
  *
- *  Same org + same filters as the table. Gross/fee/net come straight off
+ *  Same org + same filters as the table. The gross RPC value is net of refunds,
+ *  so its label says retained gross; each table row still shows its original
+ *  captured amount. Fee/net come straight off
  *  admin_payments_v's own columns — see getPaymentAggregates' doc comment for
  *  why net is never recomputed as amount - fee here. */
 export async function PaymentsKpiSection({ orgId, params }: {
@@ -21,9 +23,9 @@ export async function PaymentsKpiSection({ orgId, params }: {
 
   return (
     <KpiRow>
-      <KpiCard icon={Wallet} label="Gross" value={peso(aggregates.grossCents)} />
+      <KpiCard icon={Wallet} label="Retained gross" value={peso(aggregates.grossCents)} />
       <KpiCard icon={Percent} label="Platform fees" value={peso(aggregates.feeCents)} />
-      <KpiCard icon={Landmark} label="Net to org" value={peso(aggregates.netCents)} />
+      <KpiCard icon={Landmark} label="Net to org" value={aggregates.netCents == null ? "Awaiting reconciliation" : peso(aggregates.netCents)} />
       <KpiCard icon={Undo2} label="Refunded" value={peso(aggregates.refundedCents)} />
     </KpiRow>
   );

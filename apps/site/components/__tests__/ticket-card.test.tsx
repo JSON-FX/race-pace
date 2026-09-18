@@ -9,7 +9,7 @@ const props = {
   eventDate: "2026-11-14",
   reference: "A1B2C3D4",
   runnerName: "Juan Dela Cruz",
-  bibName: "JUAN",
+  teamName: "Mountain Crew",
   distanceKm: 100,
 };
 
@@ -26,22 +26,26 @@ describe("TicketCard", () => {
     expect(container.querySelector("svg")).toBeInTheDocument();
   });
 
+  it("explains when organizer check-in is optional without hiding the QR", () => {
+    const { container } = render(<TicketCard {...props} checkInRequired={false} />);
+    expect(screen.getByText("Check-in not required. Keep this QR as your race ticket and for any kit release.")).toBeInTheDocument();
+    expect(screen.queryByText("Show this QR at check-in")).not.toBeInTheDocument();
+    expect(container.querySelector("svg")).toBeInTheDocument();
+  });
+
   it("shows the reference code and runner details", () => {
     render(<TicketCard {...props} />);
     expect(screen.getByText("A1B2C3D4")).toBeInTheDocument();
     expect(screen.getByText("Juan Dela Cruz")).toBeInTheDocument();
-    expect(screen.getByText("JUAN")).toBeInTheDocument();
+    expect(screen.getByText("Mountain Crew")).toBeInTheDocument();
   });
 
-  it("falls back to the reference when there is no bib name", () => {
-    render(<TicketCard {...props} bibName={null} />);
-    // Scoped to the Bib cell specifically — the reference code already
-    // renders once under the QR regardless of bibName, so a document-wide
-    // getAllByText(...).length >= 1 would pass even if the fallback were
-    // broken. Assert on the Bib cell's own value.
-    const bibCell = screen.getByText("Bib").closest("div");
-    expect(bibCell).not.toBeNull();
-    expect(within(bibCell as HTMLElement).getByText("A1B2C3D4")).toBeInTheDocument();
+  it("shows an empty team name without calling the reference a bib", () => {
+    render(<TicketCard {...props} teamName={null} />);
+    const teamCell = screen.getByText("Team name").closest("div");
+    expect(teamCell).not.toBeNull();
+    expect(within(teamCell as HTMLElement).getByText("—")).toBeInTheDocument();
+    expect(screen.queryByText("Bib")).not.toBeInTheDocument();
   });
 
   it("renders without a distance", () => {

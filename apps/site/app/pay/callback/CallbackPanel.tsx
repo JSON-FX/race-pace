@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 export function CallbackPanel() {
   const router = useRouter();
   const params = useSearchParams();
-  const [rid, setRid] = useState<string | null>(null);
+  const [rid, setRid] = useState<string | null | undefined>(() => params.get("rid") || undefined);
   const [timedOut, setTimedOut] = useState(false);
   const cancelled = params.get("status") === "cancel";
 
@@ -18,7 +18,8 @@ export function CallbackPanel() {
   // missing — the runner has already paid at that point and must not be stranded.
   useEffect(() => {
     const fromQuery = params.get("rid");
-    setRid(fromQuery ?? sessionStorage.getItem("rp:paying"));
+    if (fromQuery) { setRid(fromQuery); return; }
+    try { setRid(sessionStorage.getItem("rp:paying")); } catch { setRid(null); }
   }, [params]);
 
   const reg = useRegistration(rid ?? "", { poll: !!rid && !cancelled });
@@ -45,9 +46,11 @@ export function CallbackPanel() {
     }
   }, [reg.data?.status, rid, router]);
 
+  if (rid === undefined) return <Panel title="Confirming your payment…" body="Locating your registration…">{null}</Panel>;
+
   if (cancelled && rid) {
     return (
-      <Panel title="Payment cancelled" body="No payment was taken. Your slot is still held — you can try again.">
+      <Panel title="Payment not completed" body="No payment has been confirmed for this registration. Your slot is still held — you can try again.">
         <Button asChild className="h-auto rounded-pill px-8 py-4 text-[16px] font-semibold">
           <Link href={`/pay/${rid}`}>Back to payment</Link>
         </Button>

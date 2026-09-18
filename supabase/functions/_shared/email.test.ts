@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { renderTicketEmail } from "./email";
 
 const input = {
@@ -36,6 +36,13 @@ describe("renderTicketEmail", () => {
     expect(html).toContain("2,500.00");
   });
 
+  it("keeps each ticket fact on its own line in the plain-text alternative", () => {
+    const { text } = renderTicketEmail(input);
+    expect(text).toContain("Event: Apo Sky Ultra 2026\nCategory: 100K\nDate · venue: 14 November 2026 · Kapatagan Base Camp\nTotal paid: ₱2,500.00");
+    expect(text).toContain(`View your ticket: ${input.ticketUrl}`);
+    expect(text).not.toContain("EventApo");
+  });
+
   it("renders without a date or venue", () => {
     const { html } = renderTicketEmail({ ...input, eventDate: null, venue: null });
     expect(html).toContain("Apo Sky Ultra 2026");
@@ -48,4 +55,31 @@ describe("renderTicketEmail", () => {
     expect(html).not.toContain("<script>");
     expect(html).toContain("&lt;script&gt;");
   });
+});
+
+it("shows and escapes the participant name for helper bookings", () => {
+ const {html}=renderTicketEmail({...input,participantName:"Guest <Runner>"});
+ expect(html).toContain("Guest &lt;Runner&gt;");
+ expect(html).not.toContain("Guest <Runner>");
+});
+
+it("brands tickets and respects organizers without check-in", () => {
+  const { html } = renderTicketEmail(input);
+  expect(html).toContain('alt="" role="presentation"');
+  expect(html).toContain('https://www.racepace.com.ph/topnav-logo.png');
+  expect(html).toContain('max-width:600px;background:#fff;border:1px solid #dce4df');
+  expect(html).toContain('See you at the starting line.');
+  expect(html).toContain('check-in where required');
+  expect(html).not.toContain('Show this QR at check-in.');
+});
+
+it("uses the public staging logo and banner for staging ticket emails", () => {
+  vi.stubGlobal("Deno", { env: { get: (name: string) => name === "EMAIL_ENVIRONMENT" ? "staging" : undefined } });
+  try {
+    const { html } = renderTicketEmail(input);
+    expect(html).toContain("TEST — STAGING");
+    expect(html).toContain("pepbmqomiailnnvvwupz.supabase.co/storage/v1/object/public/email-branding/topnav-logo.png");
+  } finally {
+    vi.unstubAllGlobals();
+  }
 });

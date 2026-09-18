@@ -18,9 +18,20 @@ const jetbrainsMono = JetBrains_Mono({ subsets: ["latin"], weight: ["400", "500"
 export const metadata: Metadata = {
   title: { default: "Race Pace", template: "%s · Race Pace" },
   description: "Trail and ultra-trail races in Mindanao, Philippines.",
+  icons: {
+    icon: [{ url: "/favicon.png", type: "image/png", sizes: "256x256" }],
+    apple: [{ url: "/favicon.png", type: "image/png", sizes: "256x256" }],
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  if ((process.env.VERCEL_TARGET_ENV ?? process.env.VERCEL_ENV) === "production") {
+    return (
+      <html lang="en" className={`${archivo.variable} ${archivoNarrow.variable} ${jetbrainsMono.variable}`}>
+        <body style={{ margin: 0 }}>{children}</body>
+      </html>
+    );
+  }
   return (
     <html lang="en" className={`${archivo.variable} ${archivoNarrow.variable} ${jetbrainsMono.variable}`}>
       {/* min-h-dvh + flex so the footer sits at the BOTTOM of a short page

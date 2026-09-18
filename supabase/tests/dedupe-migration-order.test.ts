@@ -85,21 +85,17 @@ describe("dedupe_live_registrations migration ORDER (not just the function body)
 
   it("applies the paid-wins-then-earliest fix BEFORE the one-time cleanup ever calls the function", () => {
     const files = migrationFiles();
-    const fixers = files.filter((f) => FIXED_ORDER_PATTERN.test(f.sql));
     const invokers = files.filter((f) => INVOKE_PATTERN.test(f.sql));
-
     for (const invoker of invokers) {
-      for (const fixer of fixers) {
-        expect(
-          fixer.name < invoker.name,
-          `${fixer.name} (the paid-wins fix) must sort BEFORE ${invoker.name} (the one-time ` +
-            "cleanup's invocation) by filename, so the corrected function body is what's " +
-            "actually installed the moment the cleanup runs. If this fails, someone has " +
-            "renamed/reordered a migration so the invocation runs against the pre-fix body " +
-            "again — see this file's header for exactly why that silently expires a paid " +
-            "registration and releases its slot.",
-        ).toBe(true);
-      }
+      // Later replacements are valid: this test protects the function installed
+      // at cleanup time, not every future definition of its ordering clause.
+      const definitions = files.filter(f => f.name < invoker.name &&
+        /create(?:\s+or\s+replace)?\s+function\s+public\.dedupe_live_registrations\s*\(/i.test(f.sql));
+      const installed = definitions.at(-1);
+      expect(installed, `No dedupe definition precedes ${invoker.name}`).toBeDefined();
+      expect(FIXED_ORDER_PATTERN.test(installed!.sql),
+        `${installed!.name} must preserve paid-wins ordering before ${invoker.name} invokes cleanup`,
+      ).toBe(true);
     }
   });
 

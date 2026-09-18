@@ -16,18 +16,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { peso } from "@/lib/format";
 import type { OpenableEvent } from "@/lib/queries/payouts";
-import { openPayoutStatementAction, markPayoutPaidAction } from "@/lib/actions/payouts";
+import { openPayoutStatementAction, markPayoutPaidAction, refreshPayoutStatementAction } from "@/lib/actions/payouts";
 
 /**
  * Cut a new statement for an event.
  *
- * Opening is manual by design (§8) — there is no automatic gate on event
- * completion — so unfinished events stay in the picker rather than being
- * filtered out. What guards the early case is a confirmation, not a
- * prohibition: an event still taking registrations has a growing net figure,
- * so an operator who cuts it now will owe a second, top-up statement later.
- * That is legitimate (a stage race that wants an interim transfer) but it
- * should be a decision, not a slip.
+ * Staff may open a statement for review before an event finishes. The database
+ * still blocks recording an outward payout until completion. A live event can
+ * gain more payments, so staff must refresh the statement before settlement.
  */
 export function OpenStatementControl({ events }: { events: OpenableEvent[] }) {
   const [eventId, setEventId] = useState<string>("");
@@ -52,7 +48,7 @@ export function OpenStatementControl({ events }: { events: OpenableEvent[] }) {
   function submit() {
     if (!selected) return;
     // Finished events go straight through; unfinished ones stop for a
-    // confirmation that names the consequence.
+    // confirmation that explains the review-only state.
     if (selected.event_finished) void open(selected.id);
     else setConfirming(true);
   }
@@ -96,10 +92,9 @@ export function OpenStatementControl({ events }: { events: OpenableEvent[] }) {
               {selected?.name} hasn&apos;t finished yet
             </AlertDialogTitle>
             <AlertDialogDescription className="text-[13px] text-muted-foreground">
-              It is still taking registrations, so the amount owed will keep growing after this
-              statement is cut. Settling it now pays only what has come in so far — you&apos;ll
-              need a second, top-up statement for the rest. Nothing is double-paid either way:
-              each payment is stamped with the statement that settled it.
+              It is still taking registrations, so the amount owed may change after this
+              statement is opened. You can review it now, but recording a payout stays locked
+              until the event finishes. Refresh the statement before settling it.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -130,7 +125,7 @@ export function OpenStatementControl({ events }: { events: OpenableEvent[] }) {
  * never rendered.
  */
 export function SettleStatementButton({ statement }: {
-  statement: { id: string; event_name: string; org_name: string; net_owed_cents: number };
+  statement: { revision?: number; id: string; event_name: string; org_name: string; net_owed_cents: number };
 }) {
   const [open, setOpen] = useState(false);
   const [reference, setReference] = useState("");
@@ -145,7 +140,7 @@ export function SettleStatementButton({ statement }: {
   async function submit() {
     setBusy(true);
     setError(null);
-    const res = await markPayoutPaidAction(statement.id, reference, note);
+    const res = await markPayoutPaidAction(statement.id, reference, note, statement.revision ?? -1);
     setBusy(false);
     if (!res.ok) {
       setError(res.error ?? "Couldn't record the settlement.");
@@ -164,7 +159,7 @@ export function SettleStatementButton({ statement }: {
         size="sm"
         variant={recovery ? "outline" : "default"}
         className="rounded-pill"
-        onClick={() => setOpen(true)}
+        onClick={() => { setError(null); setReference(""); setNote(""); setOpen(true); }}
       >
         {verb}
       </Button>
@@ -222,4 +217,17 @@ export function SettleStatementButton({ statement }: {
       </Dialog>
     </>
   );
+}
+
+export function RefreshStatementButton({ id }: { id: string }) {
+  const [busy, setBusy] = useState(false);
+  return <Button variant="outline" size="sm" disabled={busy} onClick={async () => {
+    setBusy(true);
+    try {
+      const result = await refreshPayoutStatementAction(id);
+      if (result.ok) toast.success("Statement refreshed. Review the new amount before recording a transfer.");
+      else toast.error(result.error);
+    } catch { toast.error("Could not refresh the statement."); }
+    finally { setBusy(false); }
+  }}>{busy ? "Refreshing…" : "Refresh statement"}</Button>;
 }

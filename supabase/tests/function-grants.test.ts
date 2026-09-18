@@ -33,16 +33,32 @@ const AUTH_PREDICATES = [
 // breaks. Nothing else in `public` should be authenticated-executable without a deliberate edit
 // to this list.
 const AUTHENTICATED_ALLOWLIST = new Set([
+  // Safe financial projection filters each private allocation by owning org.
+  "admin_group_financial_lines",
+  // Creates only the caller's managed Passport; ownership and collision tests cover this grant.
+  "passport_create_managed",
+  "organizer_publish_waiver",
+  "event_select_waiver",
   "admin_cancel_registration",
   "admin_registration_emails",
   "admin_org_signups_daily",
   "admin_payment_aggregates",
   "admin_registration_aggregates",
   "checkin_events",
+  // Organizer-only setting predicate and station mode read both enforce
+  // caller scope internally; neither exposes private rows to another org.
+  "checkin_setting_admin",
+  "checkin_event_required",
+  "checkin_history",
+  "auth_can_release_kits",
+  "kit_release_events",
+  "kit_release_roster",
   "checkin_roster",
   "checkin_undo",
   "payout_mark_paid",
   "payout_open_statement",
+  "payout_refresh_statement",
+  "platform_unbound_checkout_reviews",
   // 20260811095000_payout_open_statement_v2.sql. Deliberate addition, and it honours the
   // contract above rather than bending it: the function raises 42501 for any caller who is
   // neither a super admin NOR an editor/admin of the event's own org. That is deliberately
@@ -53,6 +69,9 @@ const AUTHENTICATED_ALLOWLIST = new Set([
   // admin, roleless runner) and the org-staff pass are asserted in
   // payout-statements-v2.test.ts, so this entry is not taken on trust.
   "payout_unreconciled_count",
+  // Used only by the runner DELETE policy. The definer bypasses the payments
+  // SELECT policy that otherwise loops back into registrations RLS.
+  "registration_payment_clear_for_delete",
   "update_registration_fields_tx",
   ...AUTH_PREDICATES,
 ]);
@@ -238,4 +257,28 @@ describe("function grants — service-role-only RPCs reject anon", () => {
     expect(r.error).not.toBeNull();
     expect(r.error!.code).toBe("42501");
   });
+
+  it("slot release is service-only and unauthorized callers cannot change capacity", async () => {
+    const { s, uid, email, org, cat } = await fixture("slot_grants", "pending");
+    try {
+      const setup = await s.from("categories").update({ slots_taken: 2 }).eq("id", cat.id);
+      expect(setup.error).toBeNull();
+      const runner = await signedIn(email);
+      for (const client of [anon(), runner]) {
+        const denied = await client.rpc("decrement_slot", { p_category_id: cat.id });
+        expect(denied.error?.code).toBe("42501");
+      }
+      const unchanged = await s.from("categories").select("slots_taken").eq("id", cat.id).single();
+      expect(unchanged.error).toBeNull();
+      expect(unchanged.data?.slots_taken).toBe(2);
+      const released = await s.rpc("decrement_slot", { p_category_id: cat.id });
+      expect(released.error).toBeNull();
+      const after = await s.from("categories").select("slots_taken").eq("id", cat.id).single();
+      expect(after.error).toBeNull();
+      expect(after.data?.slots_taken).toBe(1);
+    } finally {
+      await cleanup(s, org.id, uid);
+    }
+  });
+
 });

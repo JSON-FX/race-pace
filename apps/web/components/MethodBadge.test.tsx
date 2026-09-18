@@ -115,3 +115,8 @@ describe("MethodBadge", () => {
     expect(screen.getByText("Not yet paid")).toBeInTheDocument();
   });
 });
+
+
+it.each(["paid", "refunded", "partially_refunded"])("does not call a %s payment unpaid when its method is missing", (status) => {
+  expect(methodPresentation(null, status)).toEqual({ kind: "unknown", label: "Not recorded", marks: [] });
+});

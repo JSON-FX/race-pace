@@ -76,7 +76,8 @@ export const getMyRoles = cache(async (): Promise<MyRoles | null> => {
   const resolvedRow =
     rows.find((r) => r.role === "admin")
     ?? rows.find((r) => r.role === "editor")
-    ?? rows.find((r) => r.role === "marshal");
+    ?? rows.find((r) => r.role === "marshal")
+    ?? rows.find((r) => r.role === "claiming");
 
   // A super admin legitimately has no org-scoped admin/editor row. Rather than
   // leaving orgId null — which sends every org-scoped page to <NoOrgScope /> —

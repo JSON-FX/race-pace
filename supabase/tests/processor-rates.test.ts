@@ -32,7 +32,9 @@ describe("processor_rates", () => {
     // Quoted ex-VAT x 1.12. 3.125% -> 3.50%, ₱13.39 -> ₱15.00.
     expect(byKey.get("card:local")).toMatchObject({ percent_bps: 350, fixed_cents: 1500 });
     expect(byKey.get("card:international")).toMatchObject({ percent_bps: 450, fixed_cents: 1500 });
-    expect(byKey.get("gcash:local")).toMatchObject({ percent_bps: 150, fixed_cents: 0 });
+    // The original 1.50% GCash card underpredicted all four staging captures.
+    // Pass-on must use the corrected VAT-inclusive 2.50% rate.
+    expect(byKey.get("gcash:local")).toMatchObject({ percent_bps: 250, fixed_cents: 0 });
     expect(byKey.get("paymaya:local")).toMatchObject({ percent_bps: 150, fixed_cents: 0 });
   });
 
@@ -76,74 +78,31 @@ describe("processor_rates", () => {
 
   it("returns the rate in force at a given time, not today's", async () => {
     const s = svc();
-    const stamp = `rate-${Date.now()}`;
-    /**
-     * `qrph`, NOT `gcash`. The method here is load-bearing, and it used to be
-     * gcash — which made this test a cross-file hazard.
-     *
-     * `processor_rates` is shared, seeded, global state. For the length of this
-     * test the seeded row for whichever method it names is closed and a 200 bps
-     * successor is open in its place. Any test in ANY file that reads the
-     * current rate for that method inside the window gets 200 and computes its
-     * expectations from it — while `confirm.ts`, which resolves the rate AT THE
-     * PAYMENT'S TIMESTAMP, correctly still gets 150. The failure is a money
-     * assertion in a completely unrelated file:
-     *
-     *   backend.test.ts > checkout -> webhook -> paid …
-     *   AssertionError: expected 3600 to be 4800
-     *
-     * (`4800` is 240000 x 200bps; the stored `3600` is the right answer.)
-     * backend.test.ts reads GCASH_RATE once in beforeAll (line 52) and
-     * currentRate() per test (line 741), so it is exposed for its whole run.
-     *
-     * That race was always latent; it fired roughly one run in three once the
-     * drift tests below changed this file's schedule. Rather than move the
-     * window around and hope, the fix is to stop touching data anybody else
-     * reads: `qrph` is seeded at the same 150/0 and appears in no other test,
-     * no edge function and no app — payment-session's METHOD_MAP cannot even
-     * offer it. Nothing this test proves depends on which method it uses.
-     *
-     * If you need to add a rate-card mutation test, use an unreachable seeded
-     * method (`qrph`, `dob`, `billease`) for the same reason.
-     */
-    const method = "qrph";
-    const cut = "2026-09-01T00:00:00Z";
-    await s.from("processor_rates").update({ effective_to: cut })
-      .eq("provider", "paymongo").eq("method", method).eq("scope", "local").is("effective_to", null);
-    // No `!` here: the whole point of the fix below is that this can legitimately be
-    // null (an insert that violates processor_rates_one_current), so the type must say so.
-    const inserted = (await s.from("processor_rates").insert({
-      provider: "paymongo", method, scope: "local",
-      percent_bps: 200, fixed_cents: 0, effective_from: cut, note: stamp,
-    }).select().single()).data;
+    const provider = `rate-test-${crypto.randomUUID()}`;
+    // Seed effective_from is the migration run time, not a fixed historical date.
+    // Own both intervals so this test survives resets and never changes shared rates.
     try {
-      const before = await s.rpc("processor_rate_at", {
-        p_provider: "paymongo", p_method: method, p_scope: "local",
-        p_at: "2026-08-15T00:00:00Z",
-      });
-      expect(before.data![0]).toMatchObject({ percent_bps: 150 });
-
-      const after = await s.rpc("processor_rate_at", {
-        p_provider: "paymongo", p_method: method, p_scope: "local",
-        p_at: "2026-09-15T00:00:00Z",
-      });
-      expect(after.data![0]).toMatchObject({ percent_bps: 200 });
-    } finally {
-      // Independent statements, not two steps of one cleanup. If the insert above ever
-      // failed (data: null — e.g. the update on line 29/30 matched zero rows, so this insert
-      // collides with processor_rates_one_current), a `finally` written as
-      // `.eq("id", inserted.id)` unconditionally would throw on the null access — and
-      // because that throw happens INSIDE `finally`, it skips whatever statement follows it.
-      // The one that must never be skipped is the reopen below: it's what un-does this
-      // test's own `effective_to: cut` update on the seeded row, and skipping it leaves that
-      // row permanently closed for every other test/suite sharing this database. Guarding
-      // the delete — and running the reopen unconditionally after it, not nested inside its
-      // success — keeps the reopen reachable even when the insert never produced a row.
-      if (inserted) {
-        await s.from("processor_rates").delete().eq("id", inserted.id);
+      const inserted = await s.from("processor_rates").insert([
+        { provider, method: "qrph", scope: "local", percent_bps: 150, fixed_cents: 0,
+          effective_from: "2026-08-01T00:00:00Z", effective_to: "2026-09-01T00:00:00Z" },
+        { provider, method: "qrph", scope: "local", percent_bps: 200, fixed_cents: 0,
+          effective_from: "2026-09-01T00:00:00Z" },
+      ]);
+      expect(inserted.error).toBeNull();
+      for (const [at, expected] of [
+        ["2026-08-15T00:00:00Z", 150],
+        ["2026-09-01T00:00:00Z", 200],
+        ["2026-09-15T00:00:00Z", 200],
+      ] as const) {
+        const result = await s.rpc("processor_rate_at", {
+          p_provider: provider, p_method: "qrph", p_scope: "local", p_at: at,
+        });
+        expect(result.error).toBeNull();
+        expect(result.data?.[0]).toMatchObject({ percent_bps: expected });
       }
-      await s.from("processor_rates").update({ effective_to: null })
-        .eq("provider", "paymongo").eq("method", method).eq("scope", "local").eq("effective_to", cut);
+    } finally {
+      const removed = await s.from("processor_rates").delete().eq("provider", provider);
+      expect(removed.error).toBeNull();
     }
   });
 
@@ -292,8 +251,9 @@ describe("processor_rate_drift_v", () => {
   it("flags a method whose actual fees consistently exceed the rate card", async () => {
     const f = await fixture(`drift-${Date.now()}`);
     try {
-      // 14 card payments that each cost 3.80% + ₱15 while the card says 3.50%.
-      await f.bill(Array.from({ length: 14 }, () => ({
+      // Fill the complete 20-payment window so saved browser QA payments cannot
+      // dilute the disagreement ratio. Each costs 3.80% + ₱15, versus 3.50%.
+      await f.bill(Array.from({ length: 20 }, () => ({
         method: "card", amount: 200000,
         actual: 9100,    // 3.8% of ₱2,000 + ₱15
         predicted: 8500, // 3.5% + ₱15
@@ -301,12 +261,12 @@ describe("processor_rate_drift_v", () => {
 
       const data = await f.row("card");
 
-      expect(data!.sample_size).toBeGreaterThanOrEqual(14);
+      expect(data!.sample_size).toBe(20);
       expect(data!.card_bps).toBe(350);
       expect(data!.median_implied_bps).toBe(380);
       expect(data!.drifting).toBe(true);
-      // 14 x ₱6.00 under-collected.
-      expect(data!.delta_cents).toBe(8400);
+      // 20 x ₱6.00 under-collected.
+      expect(data!.delta_cents).toBe(12000);
     } finally {
       await f.cleanup();
     }

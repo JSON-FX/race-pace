@@ -3,9 +3,14 @@ import { render, screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { TeamTable } from "./team-table";
 import type { TeamMember } from "@/lib/queries/team";
-import { tableParamsMockReturn, resetTableParamsSpies } from "@/lib/test-utils/mock-table-params";
+import {
+  tableParamsMockReturn,
+  resetTableParamsSpies,
+} from "@/lib/test-utils/mock-table-params";
 
-vi.mock("@/lib/use-table-params", () => ({ useTableParams: () => tableParamsMockReturn }));
+vi.mock("@/lib/use-table-params", () => ({
+  useTableParams: () => tableParamsMockReturn,
+}));
 
 // Typed explicitly as the real actions' return shape (see
 // lib/actions/team.ts's changeRoleAction/removeMemberAction:
@@ -16,10 +21,20 @@ vi.mock("@/lib/use-table-params", () => ({ useTableParams: () => tableParamsMock
 // fails to typecheck (TS2353) — the mock and the real action must agree on
 // shape for the test to mean anything.
 const { changeRoleAction, removeMemberAction } = vi.hoisted(() => ({
-  changeRoleAction: vi.fn<() => Promise<{ ok: boolean; error?: string }>>(() => Promise.resolve({ ok: true })),
-  removeMemberAction: vi.fn<() => Promise<{ ok: boolean; error?: string }>>(() => Promise.resolve({ ok: true })),
+  changeRoleAction: vi.fn<() => Promise<{ ok: boolean; error?: string }>>(() =>
+    Promise.resolve({ ok: true }),
+  ),
+  removeMemberAction: vi.fn<() => Promise<{ ok: boolean; error?: string }>>(
+    () => Promise.resolve({ ok: true }),
+  ),
 }));
-vi.mock("@/lib/actions/team", () => ({ changeRoleAction, removeMemberAction }));
+vi.mock("@/lib/actions/team", () => ({
+  changeRoleAction,
+  removeMemberAction,
+  resendMemberAction: vi
+    .fn()
+    .mockResolvedValue({ success: "Sign-in email sent." }),
+}));
 
 beforeEach(() => {
   resetTableParamsSpies();
@@ -28,11 +43,34 @@ beforeEach(() => {
 });
 
 const rows: TeamMember[] = [
-  { user_id: "u1", email: "admin@racepace.test", full_name: "Ada Admin", avatar_url: null, role: "admin", created_at: "2026-07-01T00:00:00Z" },
-  { user_id: "u2", email: "marshal@racepace.test", full_name: null, avatar_url: null, role: "marshal", created_at: "2026-07-20T00:00:00Z" },
+  {
+    user_id: "u1",
+    email: "admin@racepace.test",
+    full_name: "Ada Admin",
+    avatar_url: null,
+    role: "admin",
+    created_at: "2026-07-01T00:00:00Z",
+  },
+  {
+    user_id: "u2",
+    email: "marshal@racepace.test",
+    full_name: null,
+    avatar_url: null,
+    role: "marshal",
+    created_at: "2026-07-20T00:00:00Z",
+  },
 ];
 
-const props = { rows, total: 2, page: 1, per: 25, sort: [], activeFilters: {}, q: "", orgId: "a1" };
+const props = {
+  rows,
+  total: 2,
+  page: 1,
+  per: 25,
+  sort: [],
+  activeFilters: {},
+  q: "",
+  orgId: "a1",
+};
 
 describe("TeamTable", () => {
   it("lists members with their roles in the right columns", () => {
@@ -43,7 +81,9 @@ describe("TeamTable", () => {
     const adaRow = rowsEls[1];
     const cells = within(adaRow).getAllByRole("cell");
     expect(within(cells[0]).getByText("Ada Admin")).toBeInTheDocument();
-    expect(within(cells[0]).getByText("admin@racepace.test")).toBeInTheDocument();
+    expect(
+      within(cells[0]).getByText("admin@racepace.test"),
+    ).toBeInTheDocument();
   });
 
   // TeamTable is only ever rendered for a caller TeamPage has already
@@ -54,8 +94,12 @@ describe("TeamTable", () => {
   // depending on a prop that no longer exists.
   it("always renders a live role picker for every row", () => {
     render(<TeamTable {...props} />);
-    expect(screen.getByLabelText("Change role for Ada Admin")).toBeInTheDocument();
-    expect(screen.getByLabelText(/change role for marshal@racepace.test/i)).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Change role for Ada Admin"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText(/change role for marshal@racepace.test/i),
+    ).toBeInTheDocument();
   });
 
   // Regression guard for the assignable-role list: if ASSIGNABLE_ROLES in
@@ -73,26 +117,32 @@ describe("TeamTable", () => {
     expect(screen.getByRole("option", { name: "Marshal" })).toBeInTheDocument();
   });
 
-  // Regression guard: when a role is removed from ASSIGNABLE_ROLES but a
-  // member still holds it (e.g., "claiming" during race-kit development),
-  // the picker must show the current role so the admin can see what they
-  // hold and change it to something that grants access. If the fallback
-  // logic is missing, the trigger renders blank.
-  it("shows the label for a role no longer assignable (e.g., phased-out roles)", async () => {
+  // Stored claiming roles must use the friendly label in the team picker.
+  it("shows the Race Kit label for claiming staff", async () => {
     const user = userEvent.setup();
     const claimingMember: TeamMember = {
-      user_id: "u3", email: "kit@racepace.test", full_name: "Kit Claimer",
-      avatar_url: null, role: "claiming", created_at: "2026-08-01T00:00:00Z",
+      user_id: "u3",
+      email: "kit@racepace.test",
+      full_name: "Kit Claimer",
+      avatar_url: null,
+      role: "claiming",
+      created_at: "2026-08-01T00:00:00Z",
     };
-    render(<TeamTable {...props} rows={[...props.rows, claimingMember]} total={3} />);
+    render(
+      <TeamTable {...props} rows={[...props.rows, claimingMember]} total={3} />,
+    );
     const rowsEls = screen.getAllByRole("row");
     const claimingRow = rowsEls[3]; // Third data row
-    const trigger = within(claimingRow).getByRole("combobox");
-    // The trigger should show "Race Kit" even though "claiming" is not assignable.
+    const trigger = within(claimingRow).getByRole("combobox", {
+      name: /Change role/,
+    });
+    // The trigger should use the friendly Race Kit label.
     expect(trigger).toHaveTextContent("Race Kit");
     await user.click(trigger);
     // Opening the picker should still show the current role.
-    expect(screen.getByRole("option", { name: "Race Kit" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "Race Kit" }),
+    ).toBeInTheDocument();
   });
 
   // Regression guard: the org-members edge function can reject a role
@@ -102,7 +152,10 @@ describe("TeamTable", () => {
   // keep showing the rejected role instead of reverting to what the server
   // actually persisted.
   it("reverts the role picker to the previous value when the server rejects the change", async () => {
-    changeRoleAction.mockResolvedValueOnce({ ok: false, error: "An organization must keep at least one admin." });
+    changeRoleAction.mockResolvedValueOnce({
+      ok: false,
+      error: "An organization must keep at least one admin.",
+    });
     const user = userEvent.setup();
     render(<TeamTable {...props} />);
     const rowsEls = screen.getAllByRole("row");
@@ -112,7 +165,14 @@ describe("TeamTable", () => {
     await user.click(trigger);
     await user.click(screen.getByRole("option", { name: "Marshal" }));
 
-    await waitFor(() => expect(changeRoleAction).toHaveBeenCalledWith("u1", "a1", "marshal"));
+    await waitFor(() =>
+      expect(changeRoleAction).toHaveBeenCalledWith(
+        "u1",
+        "a1",
+        "marshal",
+        null,
+      ),
+    );
     await waitFor(() => expect(trigger).toHaveTextContent("Admin"));
   });
 
@@ -125,30 +185,69 @@ describe("TeamTable", () => {
     await user.click(screen.getByLabelText("Remove marshal@racepace.test"));
     expect(screen.getByRole("alertdialog")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Remove member" }));
-    await waitFor(() => expect(removeMemberAction).toHaveBeenCalledWith("u2", "a1"));
+    await waitFor(() =>
+      expect(removeMemberAction).toHaveBeenCalledWith("u2", "a1"),
+    );
   });
 
   // The edge function refuses to remove an org's last admin (409) — that
   // error must reach the admin, not fail silently, and the dialog must
   // stay open so they actually see it.
   it("surfaces the server's error and keeps the dialog open when removal is rejected", async () => {
-    removeMemberAction.mockResolvedValueOnce({ ok: false, error: "An organization must keep at least one admin." });
+    removeMemberAction.mockResolvedValueOnce({
+      ok: false,
+      error: "An organization must keep at least one admin.",
+    });
     const user = userEvent.setup();
     render(<TeamTable {...props} />);
     await user.click(screen.getByLabelText("Remove Ada Admin"));
     await user.click(screen.getByRole("button", { name: "Remove member" }));
-    expect(await screen.findByText("An organization must keep at least one admin.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("An organization must keep at least one admin."),
+    ).toBeInTheDocument();
     expect(screen.getByRole("alertdialog")).toBeInTheDocument();
   });
 
   it("clears the removal error when the dialog is cancelled", async () => {
-    removeMemberAction.mockResolvedValueOnce({ ok: false, error: "Couldn't remove the member." });
+    removeMemberAction.mockResolvedValueOnce({
+      ok: false,
+      error: "Couldn't remove the member.",
+    });
     const user = userEvent.setup();
     render(<TeamTable {...props} />);
     await user.click(screen.getByLabelText("Remove Ada Admin"));
     await user.click(screen.getByRole("button", { name: "Remove member" }));
-    expect(await screen.findByText("Couldn't remove the member.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Couldn't remove the member."),
+    ).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Cancel" }));
-    expect(screen.queryByText("Couldn't remove the member.")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Couldn't remove the member."),
+    ).not.toBeInTheDocument();
   });
+});
+
+it("restores the event restriction when the server rejects an edit", async () => {
+  const user = userEvent.setup();
+  changeRoleAction.mockResolvedValueOnce({
+    ok: false,
+    error: "Choose an event in this organization.",
+  });
+  render(
+    <TeamTable
+      {...props}
+      rows={[{ ...rows[1], event_scope: "a" }]}
+      total={1}
+      events={[
+        { id: "a", name: "Assigned" },
+        { id: "b", name: "Other" },
+      ]}
+    />,
+  );
+  const picker = screen.getByLabelText(
+    "Event access for marshal@racepace.test",
+  );
+  await user.selectOptions(picker, "b");
+  await waitFor(() => expect(picker).toHaveValue("a"));
+  expect(changeRoleAction).toHaveBeenCalledWith("u2", "a1", "marshal", "b");
 });

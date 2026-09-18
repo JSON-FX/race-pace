@@ -3,6 +3,8 @@ import { getMyRoles, requireOrgId } from "@/lib/queries/roles";
 import { hasCapability } from "@/lib/capabilities";
 import { getOrg } from "@/lib/queries/org";
 import { NoOrgScope } from "@/components/no-org-scope";
+import { WaiverForm } from "./waiver-form";
+import { getWaiverVersions, getEventWaiverSettings } from "@/lib/queries/waivers";
 import { SettingsForm } from "./settings-form";
 
 export default async function SettingsPage() {
@@ -28,7 +30,7 @@ export default async function SettingsPage() {
     );
   }
 
-  const org = await getOrg(orgId);
+  const [org, waivers, eventWaivers] = await Promise.all([getOrg(orgId), getWaiverVersions(orgId), getEventWaiverSettings(orgId)]);
 
   return (
     <div className="px-4 pb-10 pt-6 md:px-[30px]">
@@ -37,6 +39,7 @@ export default async function SettingsPage() {
         <p className="mt-0.5 text-[13px] text-muted-foreground">Your organization&apos;s profile and branding.</p>
       </div>
       <SettingsForm org={org} canEdit={roles!.isOrgAdmin} />
+      <WaiverForm orgId={orgId} versions={waivers} events={eventWaivers} canEdit={roles!.isOrgAdmin} />
     </div>
   );
 }

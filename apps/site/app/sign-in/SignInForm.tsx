@@ -24,7 +24,7 @@ export function SignInForm() {
   const next = safeNextPath(params.get("next"));
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(params.get("error") ? "That sign-in or confirmation link is invalid or expired. Please sign in or request a new link." : null);
   const [busy, setBusy] = useState(false);
 
   async function onSubmit(e: React.FormEvent) {
@@ -95,6 +95,7 @@ export function SignInForm() {
           {busy ? "Signing in…" : "Sign in"}
         </Button>
       </form>
+      <Link href="/forgot-password" className="mt-4 block text-sm text-primary underline">Forgot password?</Link>
 
       <p className="mt-6 text-center text-[13.5px] text-muted-foreground">
         New here?{" "}

@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isValidRoute, type FieldType, type EventDiscipline, type RoutePoint } from "@race-pace/shared";
+import type { FeeTerms } from "./payment";
 
 /** One row of the race-morning schedule (`events.schedule`, jsonb array). */
 export type ScheduleItem = { time: string; label: string };
@@ -8,12 +9,16 @@ export type EventRow = {
   id: string; org_id: string; name: string; place: string | null; region: string | null;
   event_date: string | null; end_date: string | null; elevation_gain_m: number | null;
   cutoff_hours: number | null; flag_off?: string | null;
+  waiver_version_id?: string | null;
   status: string; hero_image_url: string | null; description: string | null;
   gallery: string[]; original_date: string | null; status_note: string | null;
   city_psgc_code: string | null; region_name: string | null; province_name: string | null;
   city_name: string | null; venue: string | null; inclusions?: string[] | null;
   joined_count: number; distances: number[];
+  refundPolicy?: string | null; refundFeeCents?: number | null;
   org_name?: string; org_color?: string | null; org_logo_url?: string | null;
+  feeMode?: "absorb" | "pass_on";
+  commissionTerms?: FeeTerms | null;
   // NOT NULL in the DB (default 'trail' / '[]') — optional here only so the
   // handful of test fixtures built before this task keep type-checking.
   // Real rows always carry both; treat a missing value the same as the DB
@@ -60,7 +65,7 @@ export type FormFieldRow = {
 // the pay page here needs it). Don't assume field-for-field parity; check
 // apps/mobile/lib/events.ts directly if reconciling the two.
 const EVENT_COLS =
-  "id,org_id,name,place,region,event_date,end_date,elevation_gain_m,cutoff_hours,flag_off,status,hero_image_url,description,gallery,original_date,status_note,city_psgc_code,region_name,province_name,city_name,venue,inclusions,discipline,schedule,start_lat,start_lng,finish_lat,finish_lng,route,registration_closes_at,categories(slots_taken,distance_km)";
+  "id,org_id,waiver_version_id,name,place,region,event_date,end_date,elevation_gain_m,cutoff_hours,flag_off,status,hero_image_url,description,gallery,original_date,status_note,city_psgc_code,region_name,province_name,city_name,venue,inclusions,discipline,schedule,start_lat,start_lng,finish_lat,finish_lng,route,registration_closes_at,categories(slots_taken,distance_km)";
 const CAT_COLS =
   "id,event_id,org_id,code,label,distance_km,base_price,slots_total,slots_taken,elevation_gain_m,cutoff_hours,blurb";
 
@@ -88,9 +93,17 @@ export function mapEvent(r: any): EventRow {
     finish_lat: num(r.finish_lat), finish_lng: num(r.finish_lng),
     joined_count: categories.reduce((sum, c) => sum + c.slots_taken, 0),
     distances: categories.map((c) => c.distance_km).filter((d): d is number => d != null),
+    refundPolicy: r.organizations?.refund_policy ?? null,
+    refundFeeCents: r.organizations?.refund_fee_cents ?? null,
     org_name: r.organizations?.name,
     org_color: r.organizations?.brand_color,
     org_logo_url: r.organizations?.logo_url,
+    feeMode: r.organizations?.fee_mode,
+    commissionTerms: r.organizations ? {
+      commission_type: r.organizations.commission_type,
+      commission_rate: r.organizations.commission_rate == null ? null : Number(r.organizations.commission_rate),
+      commission_flat_cents: r.organizations.commission_flat_cents,
+    } : null,
   };
 }
 
@@ -98,7 +111,7 @@ export function mapEvent(r: any): EventRow {
 export async function fetchMarketplaceEvents(db: SupabaseClient): Promise<EventRow[]> {
   const { data, error } = await db
     .from("events")
-    .select(`${EVENT_COLS},organizations(name,brand_color,logo_url)`)
+    .select(`${EVENT_COLS},organizations(name,brand_color,logo_url,refund_policy,refund_fee_cents,fee_mode,commission_type,commission_rate,commission_flat_cents)`)
     .order("event_date");
   if (error) throw error;
   return (data ?? []).map(mapEvent);
@@ -107,7 +120,7 @@ export async function fetchMarketplaceEvents(db: SupabaseClient): Promise<EventR
 export async function fetchEvent(db: SupabaseClient, eventId: string): Promise<EventRow | null> {
   const { data, error } = await db
     .from("events")
-    .select(`${EVENT_COLS},organizations(name,brand_color,logo_url)`)
+    .select(`${EVENT_COLS},organizations(name,brand_color,logo_url,refund_policy,refund_fee_cents,fee_mode,commission_type,commission_rate,commission_flat_cents)`)
     .eq("id", eventId)
     .maybeSingle();
   if (error) throw error;

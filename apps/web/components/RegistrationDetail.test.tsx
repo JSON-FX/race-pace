@@ -25,22 +25,20 @@ vi.mock("@/lib/supabase/client", () => ({
 
 const refundRegistrationAction = vi.fn((..._args: unknown[]) => Promise.resolve({ ok: true }));
 vi.mock("@/lib/actions/registrations", () => ({
+  previewRefundAction: async () => ({ ok: true, refund_amount: 95500, total_paid: 100000, retained_fees: 4500 }),
   refundRegistrationAction: (...a: unknown[]) => refundRegistrationAction(...a),
 }));
 
 const paidRow: RegistrationRow = {
   id: "r1", user_id: "u1", category_id: "c4", category_label: "10K",
   full_name: "Ana Cruz", bib_name: "ANA", avatar_url: null, email: "ana@example.com",
-  total_amount: 100000, payment_status: "paid", payment_method: "gcash", registration_status: "paid",
-  created_at: "2026-07-01T00:00:00Z", custom_data: { blood_type: "O", first_ultra: true },
+  total_amount: 100000, payment_amount: 100000, refunded_amount: 0, payment_status: "paid", payment_method: "gcash", registration_status: "paid",
+  created_at: "2026-07-01T00:00:00Z", custom_data: { blood_type: "O", first_ultra: true, team_name: "Ridge Crew" },
   addons: [{ name: "Singlet", price: 60000 }],
 };
 const pendingRow: RegistrationRow = { ...paidRow, payment_status: "pending", payment_method: null, registration_status: "pending" };
 
-/** The refund button's label carries the amount, so every lookup has to be a
- *  prefix match — an exact "Refund" would silently stop matching the moment
- *  the amount changes. */
-const refundButton = () => screen.getByRole("button", { name: /^Refund ₱/ });
+const refundButton = () => screen.getByRole("button", { name: "Review refund" });
 
 beforeEach(() => {
   refundRegistrationAction.mockClear();
@@ -51,6 +49,8 @@ describe("RegistrationDetail", () => {
     const { rerender } = render(<RegistrationDetail row={pendingRow} onClose={vi.fn()} onRefunded={vi.fn()} />);
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByText("Ana Cruz")).toBeInTheDocument();
+    expect(screen.getByText("Team: Ridge Crew")).toBeInTheDocument();
+    expect(screen.queryByText("ANA")).not.toBeInTheDocument();
     expect(screen.getByText("10K")).toBeInTheDocument();
     expect(refundButton()).toBeDisabled();
 
@@ -66,6 +66,10 @@ describe("RegistrationDetail", () => {
 
     rerender(<RegistrationDetail row={{ ...paidRow, payment_status: "refunded" }} onClose={vi.fn()} onRefunded={vi.fn()} />);
     expect(screen.getByText(/already refunded/i)).toBeInTheDocument();
+
+    rerender(<RegistrationDetail row={{ ...paidRow, payment_status: "partially_refunded", refunded_amount: 7450 }} onClose={vi.fn()} onRefunded={vi.fn()} />);
+    expect(screen.getByText(/ticket and slot remain active/i)).toBeInTheDocument();
+    expect(screen.queryByText(/no payment is recorded/i)).not.toBeInTheDocument();
   });
 
   it("labels the money band by payment status, not by colour alone", () => {
@@ -110,12 +114,12 @@ describe("RegistrationDetail", () => {
   // registrations-addons.test.ts), so by the time a row reaches this
   // component, "read failed" and "genuinely no add-ons" are the same shape,
   // `addons: []`. This test now covers that shape at the render layer.
-  it("omits the breakdown entirely when the row carries no add-ons", () => {
+  it("shows the entry base when the row carries no add-ons", () => {
     render(<RegistrationDetail row={{ ...paidRow, addons: [] }} onClose={vi.fn()} onRefunded={vi.fn()} />);
 
     // Never guess: without add-ons, the entry fee is unknowable, so no line
     // may claim to be it.
-    expect(screen.queryByText("10K entry")).not.toBeInTheDocument();
+    expect(screen.getByText("10K entry")).toBeInTheDocument();
     expect(screen.getAllByText("₱1,000").length).toBeGreaterThan(0);
   });
 
@@ -142,9 +146,21 @@ describe("RegistrationDetail", () => {
     render(<RegistrationDetail row={paidRow} onClose={vi.fn()} onRefunded={onRefunded} />);
 
     await user.click(refundButton());                                            // opens RefundModal
+    await waitFor(() => expect(screen.getByRole("button", { name: "Confirm refund" })).toBeEnabled());
     await user.click(screen.getByRole("button", { name: "Confirm refund" }));     // executes
 
-    await waitFor(() => expect(refundRegistrationAction).toHaveBeenCalledWith("r1", undefined));
+    await waitFor(() => expect(refundRegistrationAction).toHaveBeenCalledWith("r1", undefined, 95500));
     await waitFor(() => expect(onRefunded).toHaveBeenCalled());
   });
 });
+
+ it("separates captured gross from entry and checkout fees", () => {
+  render(<RegistrationDetail row={{ ...paidRow, payment_amount: 106599, addons: [] }} onClose={vi.fn()} onRefunded={vi.fn()} />);
+  expect(screen.getByText("₱1,065.99")).toBeInTheDocument();
+  expect(screen.getByText("₱65.99")).toBeInTheDocument();
+  expect(screen.getByText("Fees charged at checkout")).toBeInTheDocument();
+ });
+ it("does not describe entry base as paid when the ledger amount is missing", () => {
+  render(<RegistrationDetail row={{ ...paidRow, payment_amount: null }} onClose={vi.fn()} onRefunded={vi.fn()} />);
+  expect(screen.getByText("Unavailable")).toBeInTheDocument();
+ });

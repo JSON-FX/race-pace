@@ -134,8 +134,7 @@ describe("describeRefund", () => {
       "Gets back the ₱2,000.00 entry less Race Pace's commission, the processor's fee, and the ₱300.00 " +
       "the organizer retains in full — no commission is struck on a retention. " +
       "Race Pace keeps its ₱60.00 commission and the processor keeps its fee; neither comes back on a refund. " +
-      "No payment of theirs records a processor fee — either none has been processed yet, or they predate " +
-      "the three-party ledger and Race Pace absorbed the processing — so the exact figures cannot be shown here.",
+      "Processing fees are unavailable or awaiting confirmation, so the exact refund figures cannot be shown here.",
     );
     // Never a fabricated zero, and never a refund total it cannot compute.
     expect(s).not.toContain("₱0.00");
@@ -147,8 +146,7 @@ describe("describeRefund", () => {
       "Gets back the ₱2,000.00 entry less Race Pace's commission and the processor's fee — the whole of " +
       "what the organizer would have been paid. " +
       "Race Pace keeps its ₱60.00 commission and the processor keeps its fee; neither comes back on a refund. " +
-      "No payment of theirs records a processor fee — either none has been processed yet, or they predate " +
-      "the three-party ledger and Race Pace absorbed the processing — so the exact figures cannot be shown here.",
+      "Processing fees are unavailable or awaiting confirmation, so the exact refund figures cannot be shown here.",
     );
   });
 

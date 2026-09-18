@@ -1,5 +1,6 @@
 "use client";
 
+import { registrationIdentity } from "@race-pace/shared";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Printer } from "lucide-react";
@@ -19,18 +20,49 @@ export function TicketPanel({ registrationId, userId }: { registrationId: string
     getProfile(userId).then((p) => p && setProfile(p));
   }, [userId]);
 
+  const identity = registrationIdentity(
+    reg.data?.identitySnapshot,
+    reg.data?.participantUserId === userId ? profile : null,
+  );
+  const managed = reg.data?.bookedByUserId === userId && reg.data?.participantUserId !== userId;
+  const historyUrl = managed ? "/bookings" : "/races";
+  const historyLabel = managed ? "Bookings I manage" : "My Races";
   const reference = registrationId.slice(0, 8).toUpperCase();
+  const teamName = typeof reg.data?.identitySnapshot?.team_name === "string"
+    ? reg.data.identitySnapshot.team_name.trim() || null
+    : null;
 
   if (reg.isLoading) return <p className="py-20 text-center text-muted-foreground">Loading…</p>;
   if (!reg.data) return <p className="py-20 text-center text-muted-foreground">We couldn&apos;t find that registration.</p>;
 
-  if (!reg.data.ticket_token) {
+  // Refunds retain historical tokens. Admission still requires a paid registration,
+  // matching check-in's authoritative status guard.
+  if (reg.data.status !== "paid" || !reg.data.ticket_token) {
+    const pending = reg.data.status === "pending";
+    const paid = reg.data.status === "paid";
+    const inactive = {
+      refunded: ["Registration refunded", "Your refund has been completed. This race pass is no longer valid."],
+      cancelled: ["Registration cancelled", "This registration has been cancelled. There is no active race pass."],
+      expired: ["Registration expired", "This registration has expired. There is no active race pass."],
+    }[reg.data.status];
+    const [title, message] = pending
+      ? ["No ticket yet", "Complete payment to get your race pass."]
+      : paid
+        ? ["Your ticket is being prepared", "Your registration is paid. Refresh to check for your ticket. If it remains unavailable, contact the organizer."]
+        : inactive ?? ["Ticket unavailable", "This registration does not have an active race pass."];
     return (
       <div className="mx-auto w-full max-w-md px-6 py-20 text-center">
-        <h1 className="text-[24px] font-semibold text-foreground">No ticket yet</h1>
-        <p className="mt-3 text-[15px] text-muted-foreground">Complete payment to get your race pass.</p>
-        <Button asChild className="mt-8 h-auto rounded-pill px-8 py-4 text-[16px] font-semibold">
-          <Link href={`/pay/${registrationId}`}>Complete payment</Link>
+        <h1 className="text-[24px] font-semibold text-foreground">{title}</h1>
+        <p className="mt-3 text-[15px] text-muted-foreground">{message}</p>
+        {pending ? (
+          <Button asChild className="mt-8 h-auto rounded-pill px-8 py-4 text-[16px] font-semibold">
+            <Link href={reg.data.bookingOrderId ? `/group/order/${reg.data.bookingOrderId}` : `/pay/${registrationId}`}>Complete payment</Link>
+          </Button>
+        ) : paid ? (
+          <Button onClick={() => reg.refetch()} className="mt-8 rounded-pill">Refresh ticket</Button>
+        ) : null}
+        <Button asChild variant="outline" className="mt-4 rounded-pill">
+          <Link href={historyUrl}>Back to {historyLabel}</Link>
         </Button>
       </div>
     );
@@ -50,12 +82,14 @@ export function TicketPanel({ registrationId, userId }: { registrationId: string
         categoryLabel={reg.data.categoryLabel}
         eventDate={reg.data.eventDate}
         reference={reference}
-        runnerName={profile?.full_name ?? null}
-        bibName={profile?.bib_name ?? null}
+        runnerName={identity.full_name}
+        teamName={teamName}
         distanceKm={reg.data.categoryDistance}
+        checkInRequired={reg.data.eventCheckInRequired}
       />
 
       <RaceKitCard
+        registrationId={registrationId}
         shirtSize={reg.data.shirtSize}
         kitEditClosesAt={reg.data.kitEditClosesAt}
         onChange={() => setEditingSize(true)}
@@ -82,10 +116,10 @@ export function TicketPanel({ registrationId, userId }: { registrationId: string
           <Printer size={17} /> Save as PDF / Print
         </Button>
         <p className="text-center text-[13px] text-muted-foreground">
-          We&apos;ve also emailed this ticket to you. Save it offline — trailheads rarely have signal.
+          Save your ticket as a PDF or print it before race day. You can also find it in {historyLabel}.
         </p>
         <Button asChild variant="outline" className="h-auto rounded-pill py-4 text-[15px] font-semibold">
-          <Link href="/races">Back to My Races</Link>
+          <Link href={historyUrl}>Back to {historyLabel}</Link>
         </Button>
       </div>
     </div>

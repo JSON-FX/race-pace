@@ -24,15 +24,17 @@ function searchPattern(q: string): string | null {
 // — see admin_registrations_v's header comment
 // (supabase/migrations/20260809150000_admin_registrations_v_registration_status.sql)
 // for why. Filter routing below reflects that split.
-export type PaymentStatus = "pending" | "paid" | "failed" | "refunded";
+export type PaymentStatus = "pending" | "paid" | "failed" | "refunded" | "partially_refunded";
 
 // The registration's own lifecycle state, distinct from PaymentStatus above.
 // 'expired'/'cancelled' can ONLY appear here, never on payment_status.
 export type RegistrationStatus = "pending" | "paid" | "refunded" | "cancelled" | "expired";
 
 export type RegistrationRow = {
+  booking_order_id?: string | null;
+  payment_id?: string | null;
   id: string;
-  user_id: string;
+  user_id: string | null;
   category_id: string;
   category_label: string | null;
   full_name: string | null;
@@ -49,6 +51,8 @@ export type RegistrationRow = {
    *  posture as getRegistrationAggregates) or genuinely has no email. */
   email: string | null;
   total_amount: number;
+  payment_amount?: number | null;
+  refunded_amount?: number | null;
   payment_status: PaymentStatus | null;
   payment_method: string | null;
   /** registrations.status, added in
@@ -64,7 +68,7 @@ export type RegistrationRow = {
 };
 
 const SELECT =
-  "id,user_id,category_id,category_label,full_name,bib_name,avatar_url,total_amount,payment_status,payment_method,registration_status,custom_data,created_at";
+  "id,booking_order_id,payment_id,user_id,category_id,category_label,full_name,bib_name,avatar_url,total_amount,payment_amount,refunded_amount,payment_status,payment_method,registration_status,custom_data,created_at";
 
 /** The email side-lookup from `listEventRegistrations`, split out so a
  *  caller paging through MANY batches (the CSV export route) can fetch it
@@ -78,8 +82,8 @@ const SELECT =
  *  many rows the caller ultimately needs. Degrades to an empty map (not a
  *  thrown error) on failure — a broken secondary lookup must not take down
  *  the table's real content (names, amounts, status). */
-export async function getEventRegistrationEmails(eventId: string): Promise<Map<string, string | null>> {
-  const supabase = await createClient();
+export async function getEventRegistrationEmails(eventId: string, db?: Awaited<ReturnType<typeof createClient>>): Promise<Map<string, string | null>> {
+  const supabase = db ?? await createClient();
   const { data: emails, error } = await supabase.rpc("admin_registration_emails", { p_event_id: eventId });
   if (error) {
     console.error("admin_registration_emails failed", error);
@@ -128,6 +132,7 @@ export async function listEventRegistrations(
   eventId: string,
   params: TableParams,
   opts: {
+    db?: Awaited<ReturnType<typeof createClient>>;
     /** Default true (the page's behaviour). The export route passes false
      *  and merges emails itself from a SINGLE `getEventRegistrationEmails`
      *  call made once per request — see that route's comment for why: this
@@ -147,7 +152,7 @@ export async function listEventRegistrations(
   } = {},
 ): Promise<{ rows: RegistrationRow[]; total: number }> {
   const { includeEmails = true, includeCount = true, includeAddons = true } = opts;
-  const supabase = await createClient();
+  const supabase = opts.db ?? await createClient();
   const from = (params.page - 1) * params.per;
 
   let req = supabase

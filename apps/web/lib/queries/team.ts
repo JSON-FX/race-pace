@@ -13,6 +13,7 @@ export type TeamMember = {
   avatar_url: string | null;
   role: string;
   created_at: string;
+  event_scope?: string | null;
   // No invite/confirmation status field here (deliberately, not an
   // oversight): supabase/functions/org-members/index.ts's "list" handler
   // (around line 72) already calls `db.auth.admin.getUserById(r.user_id)`
@@ -31,16 +32,28 @@ export type TeamMember = {
 
 // avatar_url is optional: a deployed org-members function that predates the
 // change forwarding it should mean monograms, not a type lie.
-type RawMember = { user_id: string; email: string | null; full_name: string | null; avatar_url?: string | null; role: string; created_at: string };
+type RawMember = {
+  user_id: string;
+  email: string | null;
+  full_name: string | null;
+  avatar_url?: string | null;
+  role: string;
+  event_scope?: string | null;
+  created_at: string;
+};
 
 /** Mirrors the old useOrgMembers()'s error mapping verbatim (lib/team.ts). */
 function errorMessage(error: unknown): string {
   const status = (error as { context?: { status?: number } }).context?.status;
-  return status === 403 ? "You don't have permission to manage this team."
-    : status === 409 ? "An organization must keep at least one admin."
-    : status === 502 ? "Couldn't send the invite — try again."
-    : status === 400 ? "That role can't be assigned."
-    : "Something went wrong. Please try again.";
+  return status === 403
+    ? "You don't have permission to manage this team."
+    : status === 409
+      ? "An organization must keep at least one admin."
+      : status === 502
+        ? "Couldn't send the invite — try again."
+        : status === 400
+          ? "That role can't be assigned."
+          : "Something went wrong. Please try again.";
 }
 
 /**
@@ -71,7 +84,9 @@ export async function listTeam(
   const term = params.q.trim().toLowerCase();
   if (term) {
     filtered = filtered.filter(
-      (m) => (m.full_name ?? "").toLowerCase().includes(term) || (m.email ?? "").toLowerCase().includes(term),
+      (m) =>
+        (m.full_name ?? "").toLowerCase().includes(term) ||
+        (m.email ?? "").toLowerCase().includes(term),
     );
   }
 
@@ -87,7 +102,32 @@ export async function listTeam(
   const from = (params.page - 1) * params.per;
   // Normalise the optional avatar_url to null so the table doesn't have to know
   // whether the deployed edge function forwards it yet.
-  const rows = sorted.slice(from, from + params.per).map((m) => ({ ...m, avatar_url: m.avatar_url ?? null }));
+  const rows = sorted
+    .slice(from, from + params.per)
+    .map((m) => ({
+      ...m,
+      avatar_url: m.avatar_url ?? null,
+      event_scope: m.event_scope ?? null,
+    }));
 
   return { rows, total };
+}
+
+export type TeamEvent = { id: string; name: string };
+export async function listTeamEvents(orgId: string): Promise<TeamEvent[]> {
+  const db = await createClient();
+  const events: TeamEvent[] = [];
+  for (let offset = 0; ; offset += 1000) {
+    const { data, error } = await db
+      .from("events")
+      .select("id,name")
+      .eq("org_id", orgId)
+      .order("name")
+      .order("id")
+      .range(offset, offset + 999);
+    if (error) throw error;
+    events.push(...data);
+    if (data.length < 1000) break;
+  }
+  return events;
 }

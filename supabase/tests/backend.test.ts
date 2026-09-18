@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { createClient } from "@supabase/supabase-js";
-import { createHmac } from "node:crypto";
+import { Client } from "pg";
+import { localWebhookSigner } from "../../test/webhook";
 import { loadEnv } from "../../test/env";
 import { seededIds } from "../../test/seeded";
 import { computeFee, type FeeTerms } from "../functions/_shared/fee.ts";
@@ -13,6 +14,12 @@ import {
 const { url, anonKey, serviceKey } = loadEnv();
 const anon = () => createClient(url, anonKey, { auth: { persistSession: false } });
 const service = () => createClient(url, serviceKey, { auth: { persistSession: false } });
+async function removeLocalCapture(registrationId: string) {
+  const db = new Client({ connectionString: loadEnv().dbUrl });
+  await db.connect();
+  try { await db.query("delete from public.single_payment_captures where registration_id=$1", [registrationId]); }
+  finally { await db.end(); }
+}
 
 // Resolved from the seed rather than restated — see test/seeded.ts. Declared
 // once here for the whole file: the checkout suite above and the refund suite
@@ -25,11 +32,11 @@ const service = () => createClient(url, serviceKey, { auth: { persistSession: fa
 // and the rate card's REAL current row, never a restated literal — a repeat of
 // exactly the drift that broke this file (the org went from a hardcoded 10% to
 // the seed's actual 6%; a ₱3,800 category was asserted as if it were ₱1,000).
-let RWP_RF: string, APO_RF: string, E1_RF: string, C4_RF: string;
+let RWP_RF: string, APO_RF: string, E1_RF: string, C4_RF: string, WAIVER_RF: string;
 let ORG_A_TERMS: FeeTerms;
 let GCASH_RATE: ProcessorRate;
 beforeAll(async () => {
-  ({ ORG_A: RWP_RF, ORG_B: APO_RF, EVENT_A: E1_RF, CATEGORY_A: C4_RF } = await seededIds());
+  ({ ORG_A: RWP_RF, ORG_B: APO_RF, EVENT_A: E1_RF, CATEGORY_A: C4_RF, WAIVER_A: WAIVER_RF } = await seededIds());
 
   const svc = service();
   const org = await svc.from("organizations")
@@ -52,18 +59,19 @@ beforeAll(async () => {
   GCASH_RATE = rate.data;
 });
 
-const WEBHOOK_SECRET = "whsec_test_localdev"; // must match supabase/functions/.env
-function signHeader(rawBody: string): string {
-  const t = Math.floor(Date.now() / 1000).toString();
-  const sig = createHmac("sha256", WEBHOOK_SECRET).update(`${t}.${rawBody}`).digest("hex");
-  return `t=${t},te=${sig}`;
-}
+const signHeader = localWebhookSigner(url);
 function postWebhook(payload: unknown, header?: string) {
   const raw = JSON.stringify(payload);
   return fetch(`${FN}/payments-webhook`, { method: "POST", headers: { "content-type": "application/json", "Paymongo-Signature": header ?? signHeader(raw) }, body: raw });
 }
 const paidEvent = (registrationId: string) => ({ data: { attributes: { type: "checkout_session.payment.paid", data: { attributes: { metadata: { registration_id: registrationId }, payments: [{ attributes: { source: { type: "gcash" } } }] } } } } });
-const refundEvent = (refundId: string, status: string) => ({ data: { attributes: { type: "refund.updated", data: { id: refundId, attributes: { status } } } } });
+const refundEvent = (refundId: string, status: string, amount: number, type = "payment.refund.updated") => {
+  const refund = { id: refundId, type: "refund", attributes: { status, amount } };
+  const resource = type === "payment.refunded"
+    ? { id: "pay_test", type: "payment", attributes: { status: "paid", refunds: [refund] } }
+    : refund;
+  return { data: { attributes: { type, data: resource } } };
+};
 // A webhook fixture whose payment looks like a real CAPTURED PayMongo payment —
 // status "paid" plus amount/fee/net_amount — so reportedProcessorFee() (confirm.ts)
 // finds a figure it is entitled to trust. paidEvent() above deliberately carries
@@ -71,9 +79,9 @@ const refundEvent = (refundId: string, status: string) => ({ data: { attributes:
 const paidEventWithFee = (
   registrationId: string, method: string, amount: number, fee: number, netAmount: number,
 ) => ({
-  data: { attributes: { type: "checkout_session.payment.paid", data: { attributes: {
+  data: { attributes: { type: "checkout_session.payment.paid", data: { id: "cs_mocksession", attributes: {
     metadata: { registration_id: registrationId },
-    payments: [{ attributes: { status: "paid", source: { type: method }, amount, fee, net_amount: netAmount } }],
+    payments: [{ id: `pay_${registrationId.replaceAll("-", "")}`, attributes: { status: "paid", source: { type: method }, currency: "PHP", livemode: false, amount, fee, net_amount: netAmount } }],
   } } } },
 });
 
@@ -91,7 +99,7 @@ describe("organizations RLS", () => {
       const inactive = await svc.from("organizations").insert({ name: "Hidden Org", slug: "hidden-org", is_active: false }).select().single();
       cleanups.push(() => svc.from("organizations").delete().eq("id", inactive.data!.id));
 
-      const { data } = await anon().from("organizations").select("slug");
+      const { data } = await anon().from("organizations").select("slug").in("slug", ["active-org", "hidden-org"]);
       const slugs = (data ?? []).map((o) => o.slug);
       expect(slugs).toContain("active-org");
       expect(slugs).not.toContain("hidden-org");
@@ -113,7 +121,7 @@ describe("events catalog RLS", () => {
       await svc.from("events").insert({ org_id: org.data!.id, name: "Draft Race", status: "draft" });
       await svc.from("events").insert({ org_id: org.data!.id, name: "Open Race", status: "open" });
 
-      const { data } = await anon().from("events").select("name");
+      const { data } = await anon().from("events").select("name").in("name", ["Open Race", "Draft Race"]);
       const names = (data ?? []).map((e) => e.name);
       expect(names).toContain("Open Race");
       expect(names).not.toContain("Draft Race");
@@ -126,8 +134,17 @@ describe("events catalog RLS", () => {
 async function makeUser(email: string) {
   const svc = service();
   const created = await svc.auth.admin.createUser({ email, password: "password123", email_confirm: true });
+  if (created.error || !created.data.user) throw created.error ?? new Error("Could not create test user");
+  const id = created.data.user.id;
+  const passport = await svc.from("runner_passports").update({
+    first_name: "Test", last_name: "Runner", date_of_birth: "1990-01-01", gender: "Male",
+    contact_number: "09170000001", emergency_contact_name: "QA Contact",
+    emergency_contact_number: "09170000002", emergency_contact_relationship: "Friend",
+  }).eq("claimed_user_id", id).select("id").single();
+  if (passport.error || !passport.data) throw passport.error ?? new Error("Could not complete test passport");
   const signedIn = await anon().auth.signInWithPassword({ email, password: "password123" });
-  return { id: created.data.user!.id, token: signedIn.data.session!.access_token };
+  if (signedIn.error || !signedIn.data.session) throw signedIn.error ?? new Error("Could not sign in test user");
+  return { id, token: signedIn.data.session.access_token };
 }
 
 describe("registrations RLS", () => {
@@ -207,7 +224,7 @@ describe("registrations-checkout", () => {
   // shirt_size) on a fresh org/event/category that IS open — mirroring the
   // "registrations RLS" / "events catalog RLS" fixtures above rather than depending on
   // the global seed for behavior the global seed no longer provides on an open event.
-  let fx: { eventId: string; categoryId: string; addonId: string; addonPrice: number; basePrice: number };
+  let fx: { eventId: string; categoryId: string; addonId: string; addonPrice: number; basePrice: number; waiverId: string };
   let fixtureOrgId: string;
 
   beforeAll(async () => {
@@ -215,7 +232,8 @@ describe("registrations-checkout", () => {
     const stamp = `checkout-fx-${Date.now()}`;
     const org = (await svc.from("organizations").insert({ name: "Checkout Fixture Org", slug: stamp }).select().single()).data!;
     fixtureOrgId = org.id;
-    const ev = (await svc.from("events").insert({ org_id: org.id, name: "Checkout Fixture Race", status: "open" }).select().single()).data!;
+    const waiver = (await svc.from("organizer_waiver_versions").insert({ org_id: org.id, title: "Checkout fixture waiver", body: "Synthetic checkout fixture acceptance." }).select("id").single()).data!;
+    const ev = (await svc.from("events").insert({ org_id: org.id, name: "Checkout Fixture Race", status: "open", waiver_version_id: waiver.id }).select().single()).data!;
     const cat = (await svc.from("categories").insert({
       org_id: org.id, event_id: ev.id, code: "fx", label: "Fixture Category",
       base_price: 170000, slots_total: 50,
@@ -231,7 +249,7 @@ describe("registrations-checkout", () => {
 
     fx = {
       eventId: ev.id, categoryId: cat.id,
-      addonId: addon.id, addonPrice: addon.price, basePrice: cat.base_price,
+      addonId: addon.id, addonPrice: addon.price, basePrice: cat.base_price, waiverId: waiver.id,
     };
   });
   afterAll(async () => {
@@ -251,6 +269,7 @@ describe("registrations-checkout", () => {
         addon_ids: [fx.addonId],
         custom_data: { blood_type: "O", shirt_size: "M" },
         waiver_accepted: true,
+        waiver_version_id: fx.waiverId,
         idempotency_key: `idem-${Date.now()}`,
       }),
     });
@@ -278,6 +297,7 @@ describe("registrations-checkout", () => {
         category_id: fx.categoryId,
         custom_data: { running_club: 12345 }, // fixture field `running_club` is a text field — number fails z.string()
         waiver_accepted: true,
+        waiver_version_id: fx.waiverId,
         idempotency_key: `idem-bad-${Date.now()}`,
       }),
     });
@@ -300,6 +320,7 @@ describe("registrations-checkout", () => {
         category_id: fx.categoryId,
         custom_data: { blood_type: "O+", shirt_size: "XS", running_club: "Trailblazers" },
         waiver_accepted: true,
+        waiver_version_id: fx.waiverId,
         idempotency_key: `idem-passport-${Date.now()}`,
       }),
     });
@@ -330,6 +351,7 @@ describe("registrations-checkout", () => {
         category_id: fx.categoryId,
         custom_data: { shirt_size: "M" }, // omits required blood_type
         waiver_accepted: true,
+        waiver_version_id: fx.waiverId,
         idempotency_key: `idem-missing-${Date.now()}`,
       }),
     });
@@ -353,6 +375,7 @@ describe("payment confirmation (fake) e2e", () => {
         category_id: C4_RF,
         custom_data: { blood_type: "A", shirt_size: "L" },
         waiver_accepted: true,
+        waiver_version_id: WAIVER_RF,
         idempotency_key: `idem-e2e-${Date.now()}`,
       }),
     }).then((r) => r.json());
@@ -420,12 +443,126 @@ describe("processor fee source — actual vs predicted (e2e)", () => {
         category_id: C4_RF,
         custom_data: { blood_type: "A", shirt_size: "L" },
         waiver_accepted: true,
+        waiver_version_id: WAIVER_RF,
         idempotency_key: `idem-${emailPrefix}-${Date.now()}`,
       }),
     }).then((r) => r.json());
     const reg = await svc.from("registrations").select("total_amount").eq("id", checkout.registration_id).single();
     return { svc, user, rid: checkout.registration_id as string, amount: reg.data!.total_amount as number };
   }
+
+  it("reuses one absorb-mode PayMongo session across repeated payment taps", async () => {
+    const { svc, user, rid } = await checkoutOnSeed("e2eonesession");
+    const url = "https://checkout.paymongo.com/one-session";
+    try {
+      const setup = await svc.from("payments").update({
+        provider: "paymongo", provider_ref: "cs_one_session", checkout_url: url,
+        checkout_fee_mode: "absorb", checkout_platform_fee: 300,
+      }).eq("registration_id", rid);
+      expect(setup.error).toBeNull();
+      for (const method of ["gcash", "card"]) {
+        const response = await fetch(`${FN}/payment-session`, {
+          method: "POST", headers: { "content-type": "application/json", Authorization: `Bearer ${user.token}` },
+          body: JSON.stringify({ registration_id: rid, method }),
+        });
+        expect(response.status).toBe(200);
+        expect(await response.json()).toEqual({ checkout_url: url });
+      }
+      const payment = await svc.from("payments").select("provider_ref,checkout_url").eq("registration_id", rid).single();
+      expect(payment.data).toMatchObject({ provider_ref: "cs_one_session", checkout_url: url });
+    } finally {
+      await svc.from("registrations").delete().eq("id", rid);
+      await svc.auth.admin.deleteUser(user.id);
+    }
+  });
+
+  it("requires PayMongo's actual fee and frozen pass-on net before issuing a ticket", async () => {
+    const { svc, user, rid, amount } = await checkoutOnSeed("e2epasson");
+    const frozenPlatformFee = 717;
+    const actualFee = 277;
+    const subtotal = amount + frozenPlatformFee;
+    try {
+      const setup = await svc.from("payments").update({
+        provider: "paymongo", provider_ref: "cs_mocksession", amount: subtotal,
+        checkout_fee_mode: "pass_on", checkout_platform_fee: frozenPlatformFee,
+        checkout_provider_managed_fee: true,
+      }).eq("registration_id", rid);
+      expect(setup.error).toBeNull();
+
+      expect((await postWebhook(paidEvent(rid))).status).toBe(503);
+      const before = await svc.from("registrations").select("status,ticket_token").eq("id", rid).single();
+      expect(before.data?.status).toBe("pending");
+      expect(before.data?.ticket_token).toBeNull();
+
+      expect((await postWebhook(paidEventWithFee(rid, "gcash", subtotal + actualFee, actualFee, subtotal))).status).toBe(200);
+      const pay = await svc.from("payments").select("amount,processor_fee_cents,processor_fee_source,platform_fee,net_to_org,status")
+        .eq("registration_id", rid).single();
+      expect(pay.data).toMatchObject({
+        amount: subtotal + actualFee, processor_fee_cents: actualFee,
+        processor_fee_source: "actual", platform_fee: frozenPlatformFee,
+        net_to_org: amount, status: "paid",
+      });
+      expect((await postWebhook(paidEventWithFee(rid, "gcash", subtotal + actualFee, actualFee, subtotal))).status).toBe(200);
+    } finally {
+      await removeLocalCapture(rid);
+      await svc.from("registrations").delete().eq("id", rid);
+      await svc.auth.admin.deleteUser(user.id);
+    }
+  });
+
+  it("holds payout when a signed capture has a mismatched provider fee", async () => {
+    const { svc, user, rid, amount } = await checkoutOnSeed("e2efeeconflict");
+    const frozenPlatformFee = 717;
+    const actualFee = 277;
+    const subtotal = amount + frozenPlatformFee;
+    try {
+      const setup = await svc.from("payments").update({
+        provider: "paymongo", provider_ref: "cs_mocksession", amount: subtotal,
+        checkout_fee_mode: "pass_on", checkout_platform_fee: frozenPlatformFee,
+        checkout_provider_managed_fee: true,
+      }).eq("registration_id", rid);
+      expect(setup.error).toBeNull();
+      const response = await postWebhook(paidEventWithFee(rid, "gcash", subtotal + actualFee, actualFee, subtotal - 1));
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({ review_required: true });
+      const capture = await svc.from("single_payment_captures").select("state,reason").eq("registration_id", rid).single();
+      expect(capture.data).toMatchObject({ state: "reconciliation_required", reason: "fee_integrity" });
+      const registration = await svc.from("registrations").select("status,ticket_token").eq("id", rid).single();
+      expect(registration.data).toMatchObject({ status: "pending", ticket_token: null });
+    } finally {
+      await removeLocalCapture(rid);
+      await svc.from("registrations").delete().eq("id", rid);
+      await svc.auth.admin.deleteUser(user.id);
+    }
+  });
+
+  it("does not confirm an absorb-mode capture above the advertised price", async () => {
+    const { svc, user, rid, amount } = await checkoutOnSeed("e2eabsorbprice");
+    try {
+      const setup = await svc.from("payments").update({
+        provider: "paymongo", provider_ref: "cs_mocksession", amount,
+        checkout_fee_mode: "absorb", checkout_platform_fee: computeFee(amount, ORG_A_TERMS),
+        checkout_provider_managed_fee: false,
+      }).eq("registration_id", rid);
+      expect(setup.error).toBeNull();
+
+      const extra = 100;
+      const actualFee = 250;
+      const hook = await postWebhook(paidEventWithFee(rid, "gcash", amount + extra, actualFee, amount + extra - actualFee));
+      expect(hook.status).toBe(200);
+      expect(await hook.json()).toMatchObject({ review_required: true });
+      const capture = await svc.from("single_payment_captures").select("state,reason").eq("registration_id", rid).single();
+      expect(capture.data).toMatchObject({ state: "reconciliation_required", reason: "fixed_price_mismatch" });
+      const reg = await svc.from("registrations").select("status,ticket_token").eq("id", rid).single();
+      expect(reg.data).toMatchObject({ status: "pending", ticket_token: null });
+      const pay = await svc.from("payments").select("status,amount").eq("registration_id", rid).single();
+      expect(pay.data).toMatchObject({ status: "pending", amount });
+    } finally {
+      await removeLocalCapture(rid);
+      await svc.from("registrations").delete().eq("id", rid);
+      await svc.auth.admin.deleteUser(user.id);
+    }
+  });
 
   it("a captured payment whose amount - fee = net_amount is trusted as 'actual', not the rate-card prediction", async () => {
     const { svc, user, rid, amount } = await checkoutOnSeed("e2ea");
@@ -520,14 +657,17 @@ describe("fake-checkout sandbox page", () => {
         category_id: C4_RF,
         custom_data: { blood_type: "A", shirt_size: "L" },
         waiver_accepted: true,
+        waiver_version_id: WAIVER_RF,
         idempotency_key: `idem-fc-${Date.now()}`,
       }),
     }).then((r) => r.json());
 
-    const ret = "racepace://pay-callback";
-    const res = await fetch(
-      `${FN}/fake-checkout?rid=${checkout.registration_id}&return=${encodeURIComponent(ret)}&action=pay`,
-    );
+    // Follow the provider's actual handoff: constructing this URL in the test
+    // hid the missing return parameter that broke the browser checkout.
+    const checkoutUrl = new URL(checkout.checkout_url);
+    expect(checkoutUrl.searchParams.get("return")).toBeTruthy();
+    checkoutUrl.searchParams.set("action", "pay");
+    const res = await fetch(checkoutUrl);
     expect(res.status).toBe(200);
     const html = await res.text();
     expect(html).toContain("Payment complete");
@@ -558,7 +698,7 @@ async function paidRegistration(runnerToken: string) {
   const checkout = await fetch(`${FN}/registrations-checkout`, {
     method: "POST",
     headers: { "content-type": "application/json", Authorization: `Bearer ${runnerToken}` },
-    body: JSON.stringify({ event_id: E1_RF, category_id: C4_RF, custom_data: { blood_type: "A", shirt_size: "L" }, waiver_accepted: true, idempotency_key: `idem-rf-${Date.now()}` }),
+    body: JSON.stringify({ event_id: E1_RF, category_id: C4_RF, custom_data: { blood_type: "A", shirt_size: "L" }, waiver_accepted: true, waiver_version_id: WAIVER_RF, idempotency_key: `idem-rf-${Date.now()}` }),
   }).then((r) => r.json());
   await fetch(`${FN}/fake-checkout?rid=${checkout.registration_id}&return=${encodeURIComponent("racepace://cb")}&action=pay`);
   return checkout.registration_id as string;
@@ -610,6 +750,28 @@ describe("admin-refund", () => {
     for (const u of [admin, other, runner]) await svc.auth.admin.deleteUser(u.id);
   });
 
+  it("claims one refund for concurrent admin submissions", async () => {
+    const svc = service();
+    const admin = await makeUser(`rf_parallel_admin_${Date.now()}@test.dev`);
+    const runner = await makeUser(`rf_parallel_runner_${Date.now()}@test.dev`);
+    await svc.from("user_roles").insert({ user_id: admin.id, role: "admin", org_id: RWP_RF });
+    const rid = await paidRegistration(runner.token);
+    try {
+      const responses = await Promise.all(Array.from({ length: 4 }, () => refundCall(admin.token, rid)));
+      expect(responses.map(r => r.status)).toEqual([200, 200, 200, 200]);
+      const requests = await svc.from("refund_requests").select("id,status").eq("registration_id", rid);
+      expect(requests.error).toBeNull();
+      expect(requests.data).toHaveLength(1);
+      expect(requests.data![0].status).toBe("succeeded");
+      const audit = await svc.from("registration_audit").select("id").eq("registration_id", rid).eq("action", "refunded");
+      expect(audit.data).toHaveLength(1);
+    } finally {
+      await svc.from("registrations").delete().eq("id", rid);
+      await svc.from("user_roles").delete().eq("user_id", admin.id);
+      for (const user of [admin, runner]) await svc.auth.admin.deleteUser(user.id);
+    }
+  });
+
   it("refuses to refund a pending (not paid) registration with 409", async () => {
     const svc = service();
     const admin = await makeUser(`rf_pend_${Date.now()}@test.dev`);
@@ -619,7 +781,7 @@ describe("admin-refund", () => {
     const checkout = await fetch(`${FN}/registrations-checkout`, {
       method: "POST",
       headers: { "content-type": "application/json", Authorization: `Bearer ${runner.token}` },
-      body: JSON.stringify({ event_id: E1_RF, category_id: C4_RF, custom_data: { blood_type: "A", shirt_size: "L" }, waiver_accepted: true, idempotency_key: `idem-pend-${Date.now()}` }),
+      body: JSON.stringify({ event_id: E1_RF, category_id: C4_RF, custom_data: { blood_type: "A", shirt_size: "L" }, waiver_accepted: true, waiver_version_id: WAIVER_RF, idempotency_key: `idem-pend-${Date.now()}` }),
     }).then((r) => r.json());
     expect((await refundCall(admin.token, checkout.registration_id)).status).toBe(409);
 
@@ -647,6 +809,30 @@ describe("admin-refund", () => {
   });
 });
 
+// Signed callback tests need a paid fixture even when real PayMongo is configured.
+// Seed only a fake pending payment, then exercise the real signed confirmation.
+// The separate fake-checkout suite owns testing its browser handoff.
+async function webhookPaidRegistration(userId: string) {
+  const svc = service();
+  const category = await svc.from("categories").select("base_price").eq("id", C4_RF).single();
+  if (category.error) throw category.error;
+  const reg = await svc.from("registrations").insert({
+    org_id: RWP_RF, event_id: E1_RF, category_id: C4_RF,
+    user_id: userId, total_amount: category.data.base_price, status: "pending", waiver_version_id: WAIVER_RF,
+  }).select("id").single();
+  if (reg.error) throw reg.error;
+  const payment = await svc.from("payments").insert({
+    org_id: RWP_RF, registration_id: reg.data.id,
+    provider: "fake", amount: category.data.base_price, status: "pending",
+  });
+  if (payment.error) throw payment.error;
+  const confirmed = await postWebhook(paidEvent(reg.data.id));
+  expect(confirmed.status).toBe(200);
+  const paid = await svc.from("registrations").select("status").eq("id", reg.data.id).single();
+  expect(paid.data?.status).toBe("paid");
+  return reg.data.id;
+}
+
 describe("payments-webhook signed", () => {
   it("rejects a bad signature with 401", async () => {
     const res = await postWebhook(paidEvent("00000000-0000-0000-0000-0000000000ff"), "t=123,te=deadbeef");
@@ -664,18 +850,18 @@ describe("payments-webhook signed", () => {
     expect(res.status).toBe(200);
   });
 
-  it("reconciles refund.updated=succeeded on a pending refund -> refunded + slot released", async () => {
+  it.each(["payment.refund.updated", "payment.refunded"])("reconciles %s succeeded on a pending refund -> refunded + slot released", async (eventType) => {
     const svc = service();
     const runner = await makeUser(`wh_rf_${Date.now()}@test.dev`);
-    const rid = await paidRegistration(runner.token);
+    const rid = await webhookPaidRegistration(runner.id);
     const before = (await svc.from("categories").select("slots_taken").eq("id", C4_RF).single()).data!.slots_taken;
 
     // simulate a parked (pending) refund like refund.ts writes
     const refId = `ref_test_${Date.now()}`;
-    const pay = (await svc.from("payments").select("raw").eq("registration_id", rid).single()).data!;
-    await svc.from("payments").update({ raw: { ...(pay.raw ?? {}), refund: { status: "pending", id: refId, refunded_by: runner.id, note: null } } }).eq("registration_id", rid);
+    const pay = (await svc.from("payments").select("raw,net_to_org").eq("registration_id", rid).single()).data!;
+    await svc.from("payments").update({ raw: { ...(pay.raw ?? {}), refund: { status: "pending", id: refId, refunded_by: runner.id, note: null, refunded_amount: pay.net_to_org, retained_net: 0 } } }).eq("registration_id", rid);
 
-    const res = await postWebhook(refundEvent(refId, "succeeded"));
+    const res = await postWebhook(refundEvent(refId, "succeeded", pay.net_to_org, eventType));
     expect(res.status).toBe(200);
     expect((await svc.from("registrations").select("status").eq("id", rid).single()).data!.status).toBe("refunded");
     expect((await svc.from("payments").select("status").eq("registration_id", rid).single()).data!.status).toBe("refunded");
@@ -685,18 +871,18 @@ describe("payments-webhook signed", () => {
     await svc.auth.admin.deleteUser(runner.id);
   });
 
-  it("marks refund.updated=failed as failed and leaves the registration paid", async () => {
+  it("marks payment.refund.updated=failed as failed and leaves the registration paid", async () => {
     const svc = service();
     const runner = await makeUser(`wh_rff_${Date.now()}@test.dev`);
-    const rid = await paidRegistration(runner.token);
+    const rid = await webhookPaidRegistration(runner.id);
     const refId = `ref_fail_${Date.now()}`;
-    const pay = (await svc.from("payments").select("raw").eq("registration_id", rid).single()).data!;
-    await svc.from("payments").update({ raw: { ...(pay.raw ?? {}), refund: { status: "pending", id: refId, refunded_by: runner.id, note: null } } }).eq("registration_id", rid);
+    const pay = (await svc.from("payments").select("raw,net_to_org").eq("registration_id", rid).single()).data!;
+    await svc.from("payments").update({ raw: { ...(pay.raw ?? {}), refund: { status: "pending", id: refId, refunded_by: runner.id, note: null, refunded_amount: pay.net_to_org, retained_net: 0 } } }).eq("registration_id", rid);
 
-    const res = await postWebhook(refundEvent(refId, "failed"));
+    const res = await postWebhook(refundEvent(refId, "failed", pay.net_to_org));
     expect(res.status).toBe(200);
     expect((await svc.from("registrations").select("status").eq("id", rid).single()).data!.status).toBe("paid");
-    const after = (await svc.from("payments").select("raw").eq("registration_id", rid).single()).data!;
+    const after = (await svc.from("payments").select("raw,net_to_org").eq("registration_id", rid).single()).data!;
     expect((after.raw as any).refund.status).toBe("failed");
 
     await svc.from("registrations").delete().eq("id", rid);

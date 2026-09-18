@@ -13,19 +13,18 @@ export type Capability =
   | "manage_platform" // Organizations, Commission, Payouts — every org's data
   | "manage_team"     // Team — org membership; admin-only within an org
   | "manage_org"      // Dashboard, Events, Registrations, Payments, Settings
+  | "release_kits"
   | "check_in";       // the check-in station
 
 const BY_ROLE: Record<string, Capability[]> = {
-  admin: ["manage_team", "manage_org", "check_in"],
-  editor: ["manage_org", "check_in"],
+  admin: ["manage_team", "manage_org", "check_in", "release_kits"],
+  editor: ["manage_org", "check_in", "release_kits"],
   marshal: ["check_in"],
-  // `claiming` ("Race Kit") is assignable in the team UI but has no authorization
-  // consumer anywhere yet. It gets `release_kits` when the race-kit spec lands;
-  // until then it must grant nothing rather than inherit a neighbour's set.
-  claiming: [],
+  // Kit crew can operate the release station, without registration/payment access.
+  claiming: ["release_kits"],
 };
 
-const ALL: Capability[] = ["manage_platform", "manage_team", "manage_org", "check_in"];
+const ALL: Capability[] = ["manage_platform", "manage_team", "manage_org", "check_in", "release_kits"];
 
 /** `role` is the caller's role IN THE RESOLVED ORG — not any role they hold
  *  anywhere. See roles.ts: orgId, isOrgAdmin and this must all describe the

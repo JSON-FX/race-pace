@@ -42,8 +42,14 @@ pnpm exec supabase db reset                        # migrations + seed.sql
 pnpm exec supabase status -o env > .env.local      # test/env.ts reads this
 pnpm test                                          # or: pnpm exec vitest run supabase/tests/fee.test.ts
 
-# Docker dev stack (Traefik at racepace.lan / admin.racepace.lan)
-docker compose up
+# Docker dev stack (Traefik at racepace.lan / admin.racepace.lan).
+# Needs the shared `traefik` container and the external `dev-net` network already up.
+# Three untracked files must exist first — see "Docker" under Conventions that bite:
+#   ./.env                 SUPABASE_INTERNAL_URL=          (blank ⇒ hosted Supabase)
+#   apps/site/.env.local   copy of apps/site/.env.example      + real anon key
+#   apps/web/.env.local    copy of apps/web/.env.local.example + real anon key
+docker compose up -d
+docker compose logs -f site web    # first boot runs pnpm install; ~2 min to "Ready in"
 ```
 
 `pnpm lint` at the root is a **no-op** — no app defines a `lint` script and there is no ESLint
@@ -100,7 +106,9 @@ amount server-side; never send a client-computed total to a provider.
 `@supabase/ssr` with three clients — `lib/supabase/client.ts` (browser),
 `server.ts` (Server Components / Route Handlers, `cookies()` is async so it must be awaited),
 and `middleware.ts` (refreshes the session on every request). Server-side clients prefer
-`SUPABASE_INTERNAL_URL` when set; that variable exists **only** for the Docker dev stack.
+`SUPABASE_INTERNAL_URL` when set; that variable exists **only** for the Docker dev stack — and
+it is deliberately set to the EMPTY string there so the containers reach hosted Supabase
+instead of a local one (see "Conventions that bite").
 
 Use `getUser()` to gate authorization — `getSession()` only decodes the cookie. Route
 protection lives as pure functions in `lib/routes.ts` (`isProtectedPath`, `safeNextPath`) so
@@ -125,8 +133,27 @@ it is testable without a Next runtime; `middleware.ts` just calls them.
   the allowed image hosts. Missing on the first Vercel build → every Supabase-hosted image 400s
   in production while local dev looks fine, and adding it later needs a **redeploy**. Never set
   `SUPABASE_INTERNAL_URL` on Vercel.
-- **Docker:** don't run `pnpm build` on the host (it writes through the bind mount into the
-  container's live `.next`), and don't let services share a `node_modules` volume.
+- **Docker: the compose project name is the DIRECTORY name.** Re-cloning the repo to a new path
+  therefore starts a SECOND stack while the old one keeps running — its services are
+  `restart: unless-stopped` and its Traefik labels still claim `racepace.lan` and
+  `admin.racepace.lan`. That is what killed both hosts after a re-clone from
+  `development/trail-ultra` to `development/race-pace`: the old containers still owned every
+  route while serving a bind mount whose source directory had been deleted. `docker compose
+  down` in the NEW directory cannot see them — it only knows its own project. Check
+  `docker ps` and `docker rm -f` the strays by name before `docker compose up`.
+- **The Docker stack points at HOSTED Supabase, and `./.env` is the switch.**
+  `docker-compose.yml` defaults `SUPABASE_INTERNAL_URL` to the local stack via
+  `${SUPABASE_INTERNAL_URL-...}`, and `-` (not `:-`) substitutes only when the variable is
+  UNSET — so an empty `SUPABASE_INTERNAL_URL=` in `./.env` wins, and `server.ts`'s
+  `SUPABASE_INTERNAL_URL || NEXT_PUBLIC_SUPABASE_URL` falls through to the cloud URL. Pointing
+  the `.env.local` files at hosted Supabase is **not enough on its own**: server-side calls
+  still go to `host.docker.internal` with a cloud anon key, which PostgREST rejects as
+  PGRST301 "None of the keys was able to decode the JWT". Delete the line to go back to local.
+  Fetch the key with `supabase projects api-keys --project-ref whaqarofxdlzxrelbcrq -o env`.
+  Note the hosted project holds almost no data — it was wiped to a bare super admin — so an
+  empty race list there is correct, not a broken connection.
+- **Docker, the rest:** don't run `pnpm build` on the host (it writes through the bind mount
+  into the container's live `.next`), and don't let services share a `node_modules` volume.
 - **Test discovery is a glob, and it differs per app.** Both Next apps only run
   `{app,lib,components}/**/*.test.{ts,tsx}` — a file outside it silently never runs. `apps/site`
   puts tests in `__tests__/` directories; `apps/web` colocates them next to the code.

@@ -14,7 +14,7 @@ vi.mock("@/lib/supabase/server", () => ({
   createClient: async () => ({ from: () => ({ update: updateMock }) }),
 }));
 
-import { updateOrgBrandingAction, updateOrgNameAction } from "./settings";
+import { updateOrgBrandingAction, updateOrgNameAction, updateOrgCheckInDefaultAction } from "./settings";
 
 function roles(overrides: Partial<{ isOrgAdmin: boolean; orgId: string | null }>) {
   return { role: "admin", isSuperAdmin: false, isAdmin: true, isOrgAdmin: true, orgId: "a1", ...overrides };
@@ -134,5 +134,31 @@ describe("updateOrgNameAction", () => {
     const res = await updateOrgNameAction({}, formData({ orgId: "a1", name: "Renamed Org" }));
     expect(res.error).toBeTruthy();
     expect(res.success).toBeUndefined();
+  });
+});
+
+describe("updateOrgCheckInDefaultAction", () => {
+  function formData(orgId: string, enabled: boolean) {
+    const fd = new FormData();
+    fd.set("orgId", orgId);
+    fd.append("checkInRequired", "false");
+    if (enabled) fd.append("checkInRequired", "true");
+    return fd;
+  }
+
+  it("saves a disabled default without changing existing events", async () => {
+    getMyRoles.mockResolvedValue(roles({}));
+    const result = await updateOrgCheckInDefaultAction({}, formData("a1", false));
+    expect(result.success).toMatch(/new events/);
+    expect(updateMock).toHaveBeenCalledWith({ check_in_required_default: false });
+    expect(revalidatePath).toHaveBeenCalledWith("/events/new");
+  });
+
+  it("refuses editors and foreign organizations before a write", async () => {
+    getMyRoles.mockResolvedValue(roles({ isOrgAdmin: false }));
+    expect((await updateOrgCheckInDefaultAction({}, formData("a1", true))).error).toBeTruthy();
+    getMyRoles.mockResolvedValue(roles({ orgId: "other" }));
+    expect((await updateOrgCheckInDefaultAction({}, formData("a1", true))).error).toBeTruthy();
+    expect(updateMock).not.toHaveBeenCalled();
   });
 });

@@ -63,6 +63,10 @@ export function EventPageBody({
     (a, c) => (c.distance_km != null && (!a || (a.distance_km ?? 0) < c.distance_km) ? c : a),
     null,
   );
+  const gain = event.elevation_gain_m ?? longest?.elevation_gain_m;
+  const cutoff = longest?.cutoff_hours ?? event.cutoff_hours;
+  const showGain = trail && gain != null;
+  const showCutoff = trail && cutoff != null && cutoff > 0;
   const slotsLeft = categories.reduce((n, c) => n + Math.max(0, c.slots_total - c.slots_taken), 0);
   const tone = { dark: trail };
 
@@ -71,7 +75,7 @@ export function EventPageBody({
   // DistanceRow does — and, same as DistanceRow, that takes priority over
   // `closed`. A completed/cancelled event can still owe a runner a look at
   // the entry they already hold; "See race details" would bury it.
-  const topHref = myEntry ? (myEntry.status === "paid" ? "/races" : `/pay/${myEntry.id}`) : "#distances";
+  const topHref = myEntry ? (myEntry.status === "paid" ? "/races" : myEntry.bookingOrderId ? `/group/order/${myEntry.bookingOrderId}` : `/pay/${myEntry.id}`) : "#distances";
   const topLabel = myEntry
     ? myEntry.status === "paid"
       ? "View your entry"
@@ -139,10 +143,10 @@ export function EventPageBody({
           <Reveal delay={0.18}>
             <dl className="mt-10 grid grid-cols-2 gap-px overflow-hidden rounded-lg bg-white/15 sm:grid-cols-4">
               <Stat
-                label={trail ? "Vertical gain" : "Longest"}
+                label={showGain ? "Vertical gain" : "Longest"}
                 value={
-                  trail && event.elevation_gain_m ? (
-                    <><CountUp value={event.elevation_gain_m} /><Unit>m</Unit></>
+                  showGain ? (
+                    <><CountUp value={gain} /><Unit>m</Unit></>
                   ) : longest?.distance_km != null ? (
                     <><CountUp value={longest.distance_km} /><Unit>km</Unit></>
                   ) : (
@@ -157,10 +161,10 @@ export function EventPageBody({
                 dark={trail}
               />
               <Stat
-                label={trail ? "Cut-off" : "Flag off"}
+                label={showCutoff ? "Cut-off" : "Flag off"}
                 value={
-                  trail && longest?.cutoff_hours ? (
-                    <><CountUp value={longest.cutoff_hours} /><Unit>h</Unit></>
+                  showCutoff ? (
+                    <><CountUp value={cutoff} /><Unit>h</Unit></>
                   ) : event.flag_off ? (
                     <span className="text-[clamp(1.3rem,3vw,2rem)]">{event.flag_off}</span>
                   ) : (
@@ -425,7 +429,7 @@ function DistanceRow({
               // mode; StatusBadge.tsx's bg-*-tint/text-* is the established
               // pairing).
               <Link
-                href={myEntry.status === "paid" ? "/races" : `/pay/${myEntry.id}`}
+                href={myEntry.status === "paid" ? "/races" : myEntry.bookingOrderId ? `/group/order/${myEntry.bookingOrderId}` : `/pay/${myEntry.id}`}
                 aria-label={
                   myEntry.status === "paid"
                     ? `You're in — view entry — ${category.label}`
@@ -450,7 +454,7 @@ function DistanceRow({
               // competes with the runner's actual entry above or a live
               // "Join" pill on another card.
               <Link
-                href={myEntry.status === "paid" ? "/races" : `/pay/${myEntry.id}`}
+                href={myEntry.status === "paid" ? "/races" : myEntry.bookingOrderId ? `/group/order/${myEntry.bookingOrderId}` : `/pay/${myEntry.id}`}
                 aria-label={
                   myEntry.status === "paid"
                     ? `${category.label} — you're registered on another distance`

@@ -5,13 +5,17 @@ import userEvent from "@testing-library/user-event";
 const { inviteMemberAction } = vi.hoisted(() => ({
   inviteMemberAction: vi.fn(),
 }));
-vi.mock("@/lib/actions/team", () => ({ inviteMemberAction: (...a: unknown[]) => inviteMemberAction(...a) }));
+vi.mock("@/lib/actions/team", () => ({
+  inviteMemberAction: (...a: unknown[]) => inviteMemberAction(...a),
+}));
 
 import { InviteMemberForm } from "./InviteMemberForm";
 
 describe("InviteMemberForm", () => {
   it("submits an invite with the entered email, org id, and selected role", async () => {
-    inviteMemberAction.mockResolvedValue({ success: "Invite sent to crew@x.com." });
+    inviteMemberAction.mockResolvedValue({
+      success: "Invite sent to crew@x.com.",
+    });
     const user = userEvent.setup();
     render(<InviteMemberForm orgId="a1" />);
 
@@ -26,18 +30,24 @@ describe("InviteMemberForm", () => {
     expect(formData.get("email")).toBe("crew@x.com");
     expect(formData.get("role")).toBe("marshal");
 
-    expect(await screen.findByText("Invite sent to crew@x.com.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Invite sent to crew@x.com."),
+    ).toBeInTheDocument();
   });
 
   it("shows an error when the invite fails", async () => {
-    inviteMemberAction.mockResolvedValue({ error: "That role can't be assigned." });
+    inviteMemberAction.mockResolvedValue({
+      error: "That role can't be assigned.",
+    });
     const user = userEvent.setup();
     render(<InviteMemberForm orgId="a1" />);
 
     await user.type(screen.getByLabelText("Invite email"), "x@x.com");
     await user.click(screen.getByRole("button", { name: /invite/i }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("can't be assigned");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "can't be assigned",
+    );
   });
 
   // Regression guard: ASSIGNABLE_ROLES/ROLE_LABELS drift would silently remove
@@ -50,4 +60,25 @@ describe("InviteMemberForm", () => {
     expect(screen.getByRole("option", { name: "Editor" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "Marshal" })).toBeInTheDocument();
   });
+});
+
+it("submits a selected event restriction for kit staff", async () => {
+  inviteMemberAction.mockResolvedValue({ success: "Saved" });
+  const user = userEvent.setup();
+  render(
+    <InviteMemberForm
+      orgId="a1"
+      events={[{ id: "event-a", name: "Trail A" }]}
+    />,
+  );
+  await user.type(screen.getByLabelText("Invite email"), "crew@example.com");
+  await user.click(screen.getByLabelText("Role"));
+  await user.click(screen.getByRole("option", { name: "Race Kit" }));
+  await user.selectOptions(screen.getByLabelText("Event access"), "event-a");
+  await user.click(screen.getByRole("button", { name: "Invite" }));
+  await waitFor(() =>
+    expect(inviteMemberAction.mock.lastCall?.[1].get("eventScope")).toBe(
+      "event-a",
+    ),
+  );
 });

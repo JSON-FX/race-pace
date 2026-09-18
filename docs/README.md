@@ -16,6 +16,21 @@ ultra-trail event platform (Mindanao, Philippines).
 
 **Status:** Draft v0.5 · 2026-07-20
 
+## Web and admin readiness — September 2026
+
+**Primary progress table:** [Launch progress](./operations/launch-progress.md). Update affected rows after each setup, implementation or verification step; show the next task and outstanding blockers.
+
+Active verification ledger: [end-to-end checklist](./plans/2026-09-15-web-admin-e2e-checklist.md). Local refund ownership and durable callback reconciliation are implemented under [this plan](./plans/2026-09-16-durable-refund-requests.md). Staff invitation redirects, event restrictions and SMTP resend are implemented locally under [this plan](./plans/2026-09-16-staff-invitation-fixes.md). Hosted rollout and production readiness remain pending. The historical roadmap below records earlier checkpoints.
+
+Fixed-price pilot payment work: [PayMongo fee contract](./specs/paymongo-provider-fees.md), [implementation plan](./plans/2026-09-18-paymongo-provider-fees.md), and [review findings](../.claude/code-reviews/2026-09-18-fixed-price-paymongo.md). Staging code and price disclosure are deployed; a fresh sandbox capture, session expiry, and durable reconciliation remain before production.
+
+Unbound PayMongo checkout review: [implementation plan](./plans/2026-09-18-unbound-paymongo-review.md). The fail-closed payment endpoint and platform alert are deployed to staging. A safe operator review queue and provider-backed resolution are planned; the payment launch gate remains open.
+
+## Production purchasing
+
+- [Services, subscriptions and domain checklist](./operations/production-services-checklist.md) — required accounts, optional upgrades, budget and activation order for web/admin production.
+- [Hosted setup checkpoint](./operations/2026-09-17-hosted-setup.md) — purchased domain, staging database preparation, Resend DNS, connector status, and remaining deployment work.
+
 ## Roadmap
 
 **Planning artifacts** — all done: PRD (`00-product-overview.md`), visual flows (`race-pace-flows.html`), [ADR-0001 · tech stack](./adr/0001-cross-platform-tech-stack.md), [ADR-0002 · repo structure](./adr/0002-repository-structure.md), [01 · iOS MVP spec](./01-mobile-ios-mvp.md).
@@ -41,3 +56,66 @@ ultra-trail event platform (Mindanao, Philippines).
 - [ ] **Plan 15 · Settings + Dashboard** — org settings, KPIs/charts
 - [ ] **Plan 16 · super_admin** — org provisioning, commission, payout statements
 - [x] **Organization management** — [spec](./specs/2026-08-18-org-management-design.md) — rename · manage admins · suspend · delete from the Organizations page. Hard delete is money-guarded and runs as one `delete_organization_tx` RPC — not for FK-ordering reasons (a plain `delete from organizations` was tested and does not abort) but because the money guard and the deletes must be one atomic unit, and the RPC returns the counts the console consumes. `orgs_read_active` is widened so a suspended org stays visible to its own admins and the platform operator; suspended orgs leave the storefront and `registrations-checkout` refuses them. Also fixes the provisioning invite link — `site_url` was still `localhost:3000`, and neither app had a route that could consume a magic link — and defaults the create dialog to 3%. (backend 379/394, web 725/725, site 318/318 green — the 15 backend failures are pre-existing and unrelated to this branch: 14 are `payments-webhook` 401s from its signature check, since there is no local `supabase/functions/.env` holding the webhook secret, and 1 is `processor-rates.test.ts` asserting against a hardcoded `2026-08-15` date now in the past; deploy to hosted and end-to-end verification against `whaqarofxdlzxrelbcrq` still pending)
+
+- 2026-09-16 readiness update: pending-refund browser recovery verified with a controlled local fixture. [Selected-event check-in guard](issues/issue-checkin-selected-event.md) fixed and validated locally. Race-kit release and durable check-in undo audit remain open in the [web/admin checklist](plans/2026-09-15-web-admin-e2e-checklist.md).
+- 2026-09-16: [durable check-in audit](specs/checkin-audit.md) implemented and browser-verified locally. [Race-day operations plan](plans/2026-09-16-race-day-operations.md) tracks the remaining kit policy decision and implementation.
+- 2026-09-16: [race-kit release](specs/race-kit-release.md) implemented and verified locally with runner-only collection, refund blocking, admin reversal history, scoped staff and CSV. Supersedes the earlier kit-policy blocker. Browser download acceptance, staff invitations and hosted rollout remain in the [readiness checklist](plans/2026-09-15-web-admin-e2e-checklist.md).
+- 2026-09-16: [staff invitation validation](issues/2026-09-16-staff-invitation-readiness.md) found pilot blockers: operational staff land on Team, event scope cannot be assigned in Team, and existing-user invite feedback overstates email delivery. Real Mailtrap acceptance and immediate access removal passed locally; fixes and full admin-form retest remain pending.
+
+### 2026-09-16: email authentication completion
+
+Runner confirmation now waits for email and resumes the intended route. Web and admin have password recovery screens. See [spec](specs/email-auth-completion.md) and [plan](plans/2026-09-16-email-auth-completion.md). Local Mailpit confirmation and both browser password reset/sign-in journeys are verified. Hosted recovery redirect allowlist remains a deployment task.
+
+## Planned registration revisions
+
+- [Assisted registration and Passport revisions](./plans/2026-09-16-assisted-registration-passport-revisions.md) — implementation started locally: Passport identity/access foundation, self/managed editor and structured shipping addresses. Self-checkout completeness and canonical identity snapshots are enforced locally. Organizer waiver publishing, event selection and self-registration acceptance evidence are implemented locally. Basic assisted checkout, separate helper bookings and guest notification routing are available locally. Full payment/scanning verification, privacy controls, optional check-in and release validation remain pending.
+
+
+### 2026-09-16 non-member payment walkthrough
+
+Local PayMongo TEST payment, helper ticket email, guest kit release and repeat QR check-in were exercised. Callback, managed-ticket navigation, email total/name and helper kit-status access were corrected. Financial reporting still needs reconciliation: provider test fee differs from checkout estimate, and admin registration detail/history label base entry as paid gross. See the [revision plan](plans/2026-09-16-assisted-registration-passport-revisions.md). Status remains PARTIAL; no hosted deployment.
+
+
+### Planned: group registration checkout
+
+User-requested scope added to the [revision implementation plan](plans/2026-09-16-assisted-registration-passport-revisions.md): select multiple own/managed Passports, pay once, and issue a separate named QR per participant. Includes atomic slot holds, per-person waivers/kits, refund allocations and report/payout reconciliation. Internal reservation slices are now implemented locally; the public group flow remains disabled.
+
+
+### 2026-09-17 group checkout architecture
+
+Same-category group checkout confirmed by the user. [Architecture baseline](specs/group-checkout-architecture.md) defines one shared payment with separate participant registrations, atomic slot holds, fee allocations and order-aware refunds. Internal reservation work is implemented locally; combined payments, refunds and the public UI remain pending.
+
+
+### 2026-09-17 group foundation implemented locally
+
+[Internal schema and capacity guard](plans/2026-09-17-group-order-foundation.md) now support scoped order links and shared pending-slot accounting. Concurrency, rollback and access tests passed. Group checkout remains disabled pending payment/refund integration. The atomic reservation API is tracked below.
+
+
+### 2026-09-17 atomic group reservations implemented locally
+
+[Reservation API plan](plans/2026-09-17-group-reservation-api.md): a verified booker can reserve one to ten same-category Passports atomically, including guests-only groups. Saved identity, individual kit choices, organizer waiver evidence and add-on prices are validated and frozen. Replays keep the same IDs and hold expiry; capacity shares the legacy registration lock. The endpoint defaults to disabled. No combined payment or group QR delivery yet. See the [implementation report](../.claude/reports/2026-09-17-group-reservation-api-report.md) for validation.
+
+
+### 2026-09-17 group payment preparation implemented locally
+
+[Combined pricing and durable attempts](plans/2026-09-17-group-payment-preparation.md) now freeze per-participant commission, one shared processor fee, predicted allocations and the effective rate card. Retries reuse the same attempt; concurrent or unknown attempts prevent a second live quote. Zero-commission pilots and free entries are supported. Provider dispatch/capture, actual fee allocation, separate QR generation, refunds/reporting and grouped UI remain pending. The new endpoint defaults to disabled. [Validation report](../.claude/reports/2026-09-17-group-payment-preparation-report.md).
+
+
+### 2026-09-17 internal group payment dispatch and confirmation
+
+[Group capture slice](plans/2026-09-17-group-payment-capture.md) implements frozen PayMongo session dispatch, one-attempt retries, authoritative capture verification, atomic participant ticket generation, actual fee allocations and a delivery outbox. Late/extra/mismatched captures are retained for reconciliation. Local tests use mocked provider transport; no sandbox/browser group payment has been verified. Public flags remain off. Free fulfillment, refunds, recovery/expiry/delivery workers, reports/payouts and grouped UI remain activation gates. [Validation report](../.claude/reports/2026-09-17-group-payment-capture-report.md).
+
+
+### 2026-09-17 internal group refunds
+
+[Group refund plan](plans/2026-09-17-group-refunds.md) now has local backend support for selected-ticket and remaining-order refunds against one shared capture. Durable requests preserve fee policy, serialize uncertain outcomes, and revoke only successfully refunded tickets. Separate refund allocations preserve original payment history for the next reports/payout slice. The admin endpoint defaults to disabled. No live PayMongo refund or browser group flow verified. [Validation report](../.claude/reports/2026-09-17-group-refunds-report.md).
+
+
+### 2026-09-17 group reports and payout accounting
+
+[Financial reporting plan](plans/2026-09-17-group-financial-reporting.md) implemented locally: fulfilled group captures appear once in payments, participant allocations feed registrations/settlement/commission, and CSV carries shared references. Unknown actual fees/net remain explicit. Group refunds are netted before settlement or recovered once after settlement; snapshots reject stale payouts. Backend587 and web853 tests passed, with typecheck and in-app browser Payments/Commission smoke. Group checkout remains disabled pending recovery, delivery, reconciliation, free fulfillment, grouped UI and sandbox acceptance. [Report and limitations](../.claude/reports/2026-09-17-group-financial-reporting-report.md).
+
+
+### 2026-09-17 group ticket-email delivery worker
+
+[Delivery plan](plans/2026-09-17-group-ticket-delivery.md) implemented locally: protected worker, leased outbox claims, failed-send backoff, stale completion guards and one booker email containing named active participant tickets. Refunded tickets are omitted. Original booking total appears once. Backend593 tests and Deno checks passed. Runtime flag and scheduler remain off; transport verification and group browser flow are pending. [Report](../.claude/reports/2026-09-17-group-ticket-delivery-report.md).

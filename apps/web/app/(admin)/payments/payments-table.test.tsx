@@ -13,7 +13,7 @@ beforeEach(() => {
 
 const rows: PaymentRow[] = [
   {
-    registration_id: "r1", event_id: "e1", event_name: "Dahilayan Sky Ultra",
+    payment_id: "payment-1", booking_order_id: null, participant_count: 1, refunded_amount: 0, processor_fee_cents: 0, processor_fee_source: "none", paid_at: null, registration_id: "r1", event_id: "e1", event_name: "Dahilayan Sky Ultra",
     user_id: "u1", full_name: "Maria Josefa Santos", avatar_url: null,
     amount: 285000, platform_fee: 14250, net_to_org: 270750,
     method: "gcash", status: "paid", created_at: "2026-08-03T09:14:00Z",
@@ -94,7 +94,7 @@ describe("PaymentsTable", () => {
 
   it("shows the brand mark and label for a paid row, and \"Not yet paid\" for an unpaid one", () => {
     const unpaid: PaymentRow = {
-      ...rows[0], registration_id: "r2", full_name: "Dana Lim",
+      ...rows[0], payment_id: "payment-1", booking_order_id: null, participant_count: 1, refunded_amount: 0, processor_fee_cents: 0, processor_fee_source: "none", paid_at: null, registration_id: "r2", full_name: "Dana Lim",
       method: null, status: "pending",
     };
     render(<PaymentsTable {...props} rows={[rows[0], unpaid]} total={2} />);
@@ -107,4 +107,22 @@ describe("PaymentsTable", () => {
     expect(unpaidMethodCell).toHaveTextContent("Not yet paid");
     expect(unpaidMethodCell.querySelector("img")).toBeNull();
   });
+});
+
+
+it("renders partial refunds with a readable label and an unrecorded method", () => {
+  render(<PaymentsTable {...props} rows={[{ ...rows[0]!, status: "partially_refunded", method: null, refunded_amount: 10000 }]} />);
+  expect(screen.getByText("Partially refunded")).toBeInTheDocument();
+  expect(screen.getByText("Not recorded")).toBeInTheDocument();
+  expect(screen.queryByText("Not yet paid")).not.toBeInTheDocument();
+});
+
+it("shows a group order and participant count without inventing a registration or zero net", () => {
+  render(<PaymentsTable {...props} rows={[{
+    ...rows[0], registration_id: null, booking_order_id: "order-1",
+    participant_count: 3, net_to_org: null,
+  }]} />);
+  expect(screen.getByText("Order order-1 · 3 participants")).toBeInTheDocument();
+  expect(screen.getByText("Awaiting reconciliation")).toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: /order/i })).not.toBeInTheDocument();
 });

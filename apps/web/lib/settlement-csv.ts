@@ -8,8 +8,8 @@ export type SettlementRow = {
   /** All amounts are CENTAVOS in, PESOS out — see `peso` below. */
   gross_paid: number;
   rp_commission: number;
-  processing_fee: number;
-  net_to_org: number;
+  processing_fee: number | null;
+  net_to_org: number | null;
   status: string;
   refunded_amount: number;
   refunded_at: string | null;
@@ -18,7 +18,7 @@ export type SettlementRow = {
 const HEADER = [
   "registration_id", "runner_name", "category", "paid_at", "method",
   "gross_paid", "rp_commission", "processing_fee", "net_to_org",
-  "status", "refunded_amount", "refunded_at",
+  "status", "refunded_amount", "refunded_at", "ledger_net_to_org",
 ] as const;
 
 /**
@@ -43,8 +43,8 @@ function cell(value: string): string {
 
 /** Centavos to a plain decimal string. Never a currency symbol or thousands
  *  separator — both make the column text rather than a number on import. */
-function peso(cents: number): string {
-  return (cents / 100).toFixed(2);
+function peso(cents: number | null): string {
+  return cents === null ? "unknown" : (cents / 100).toFixed(2);
 }
 
 /**
@@ -66,10 +66,13 @@ export function settlementCsv(rows: SettlementRow[]): string {
       peso(r.gross_paid),
       peso(r.rp_commission),
       peso(r.processing_fee),
-      peso(r.net_to_org),
+      // Full refunds retain the original ledger net for clawback accounting.
+      // The payable column must agree with the settlement page instead.
+      peso(r.status === "refunded" ? 0 : r.net_to_org),
       cell(r.status),
       peso(r.refunded_amount),
       cell(r.refunded_at ?? ""),
+      peso(r.net_to_org),
     ].join(","));
   }
   return lines.join("\n");

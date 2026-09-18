@@ -35,6 +35,15 @@ insert into organizations (
    'Road racing across Bukidnon — from river-flat 5Ks to the Malaybalay full marathon.',
    'fixed', 0.06, 7500, 'flat_fee', 30000);
 
+-- Synthetic organizer documents keep local checkout fixtures on the published-waiver path.
+insert into organizer_waiver_versions (id, org_id, title, body) values
+  ('00000000-0000-0000-0000-00000000b001','00000000-0000-0000-0000-00000000a001','Muspo QA waiver','Synthetic local test waiver for Muspo events.'),
+  ('00000000-0000-0000-0000-00000000b002','00000000-0000-0000-0000-00000000a002','RunWithPoint QA waiver','Synthetic local test waiver for RunWithPoint events.');
+
+-- The multi-row seed predates the publish gate. Mark only this seed session as
+-- trusted while it inserts events, then attach each org's published version.
+select set_config('request.jwt.claim.role', 'service_role', false);
+
 insert into events (
   id, org_id, name, discipline, status, event_date, end_date, original_date, status_note,
   elevation_gain_m, cutoff_hours, flag_off, venue,
@@ -80,6 +89,12 @@ insert into events (
    110,4,'05:00:00','Libona Municipal Plaza','101311000','Northern Mindanao','Bukidnon','Libona','https://whaqarofxdlzxrelbcrq.supabase.co/storage/v1/object/public/event-images/00000000-0000-0000-0000-00000000a002/dd88eb9c-5b37-4459-8a5f-d51902ea0a14.jpg'),
   ('00000000-0000-0000-0000-000000020007','00000000-0000-0000-0000-00000000a002','Kibawe Barangay Run','fun_run','open',current_date + 178,null,current_date + 80,'Moved from 25 October after the LGU rescheduled the barangay assembly. Same route.',
    50,3,'05:30:00','Kibawe Town Plaza','101308000','Northern Mindanao','Bukidnon','Kibawe','https://whaqarofxdlzxrelbcrq.supabase.co/storage/v1/object/public/event-images/00000000-0000-0000-0000-00000000a002/c03900f7-26d5-4522-8b10-54c20520d96e.jpg');
+
+update events set waiver_version_id = case org_id
+  when '00000000-0000-0000-0000-00000000a001' then '00000000-0000-0000-0000-00000000b001'::uuid
+  else '00000000-0000-0000-0000-00000000b002'::uuid end
+where status in ('open', 'almost_full');
+select set_config('request.jwt.claim.role', '', false);
 
 insert into categories (
   id, org_id, event_id, code, label, distance_km, base_price, slots_total, slots_taken,

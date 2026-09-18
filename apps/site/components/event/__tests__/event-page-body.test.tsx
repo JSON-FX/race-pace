@@ -218,6 +218,17 @@ describe("EventPageBody — page-level CTAs (hero + closing band)", () => {
 });
 
 describe("EventPageBody — discipline branch", () => {
+  it("labels fallback metrics accurately when gain and cut-off are not set", () => {
+    renderBody(
+      { elevation_gain_m: null, cutoff_hours: null, flag_off: "05:00:00" },
+      [cat({ distance_km: 5, elevation_gain_m: null, cutoff_hours: null })],
+    );
+    expect(screen.getByText("Longest").nextElementSibling).toHaveTextContent("km");
+    expect(screen.getAllByText("Flag off")[0].nextElementSibling).toHaveTextContent("05:00:00");
+    expect(screen.queryByText("Vertical gain")).not.toBeInTheDocument();
+    expect(screen.queryByText("Cut-off")).not.toBeInTheDocument();
+  });
+
   it("leads with vertical gain on a trail event", () => {
     renderBody({ discipline: "trail" });
     expect(screen.getByText("Vertical gain")).toBeInTheDocument();

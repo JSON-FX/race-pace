@@ -35,7 +35,7 @@ export const PHOTO_ASPECT: Record<PhotoKind, number> = { avatar: 1, cover: 2 };
 
 /** Attach framing to a photo URL. A full-frame photo gets no fragment at all. */
 export function withFraming(url: string, framing: Framing): string {
-  const bare = url.split("#")[0];
+  const bare = url.split("#")[0] ?? "";
   const r = (n: number) => Math.round(n * 100) / 100;
   if (framing.width >= 100 && framing.height >= 100) return bare;
   return `${bare}#c=${r(framing.x)},${r(framing.y)},${r(framing.width)},${r(framing.height)}`;
@@ -46,13 +46,16 @@ export function withFraming(url: string, framing: Framing): string {
  *  falls back to the full frame rather than throwing. */
 export function parsePhotoUrl(stored: string | null | undefined): { src: string; framing: Framing } | null {
   if (!stored) return null;
-  const [src, hash = ""] = stored.split("#");
+  const [src = "", hash = ""] = stored.split("#");
   if (!src) return null;
 
   const match = /^c=(-?[\d.]+),(-?[\d.]+),([\d.]+),([\d.]+)$/.exec(hash);
   if (!match) return { src, framing: FULL_FRAME };
 
-  const [x, y, width, height] = match.slice(1, 5).map(Number);
+  const x = Number(match[1]);
+  const y = Number(match[2]);
+  const width = Number(match[3]);
+  const height = Number(match[4]);
   if ([x, y, width, height].some((n) => !Number.isFinite(n)) || width <= 0 || height <= 0) {
     return { src, framing: FULL_FRAME };
   }

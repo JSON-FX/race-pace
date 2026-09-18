@@ -15,12 +15,10 @@ import { PayPanel } from "../PayPanel";
 // does not redirect on a lapsed hold; see its comment for why a redirect
 // there would have bounced the runner to /events/<id> with no explanation.
 const useRegistrationMock = vi.fn();
-const useProcessorRateMock = vi.fn();
 const createMethodCheckoutMock = vi.fn();
 
 vi.mock("@/lib/registration", () => ({
   useRegistration: (...args: unknown[]) => useRegistrationMock(...args),
-  useProcessorRate: (...args: unknown[]) => useProcessorRateMock(...args),
   createMethodCheckout: (...args: unknown[]) => createMethodCheckoutMock(...args),
 }));
 
@@ -34,15 +32,6 @@ Object.defineProperty(window, "location", {
   writable: true,
 });
 
-/** The seeded rate card, VAT-inclusive, keyed by the SITE's method key — the
- *  translation to PayMongo's own names lives in RATE_METHOD and is tested there.
- *  Same figures as supabase/migrations/20260811091000_processor_rates.sql. */
-const RATES: Record<string, { percent_bps: number; fixed_cents: number }> = {
-  card: { percent_bps: 350, fixed_cents: 1500 },
-  gcash: { percent_bps: 150, fixed_cents: 0 },
-  maya: { percent_bps: 150, fixed_cents: 0 },
-};
-
 function row(overrides: Partial<RegistrationRow> = {}): RegistrationRow {
   return {
     id: "r1", status: "pending", total_amount: 150000, ticket_token: null,
@@ -53,14 +42,12 @@ function row(overrides: Partial<RegistrationRow> = {}): RegistrationRow {
     orgName: "Race Pace", eventHeroUrl: null, basePrice: 150000,
     inclusions: [], feeMode: "absorb", orgIsActive: true,
     feeTerms: { commission_type: "percent", commission_rate: 0.03, commission_flat_cents: 0 },
+    checkoutPlatformFee: null, checkoutProviderManagedFee: false,
     payment: null,
     ...overrides,
   };
 }
 
-/** Renders the panel with `useRegistration` returning `row(overrides)` and the
- *  rate card answering from RATES for whichever method is selected — i.e. the
- *  rate MOVES with the method, which is the whole point of the breakdown. */
 function renderWithRegistration(overrides: Partial<RegistrationRow> = {}) {
   useRegistrationMock.mockReturnValue({ isLoading: false, data: row(overrides) });
   return render(<PayPanel registrationId="r1" />);
@@ -68,8 +55,6 @@ function renderWithRegistration(overrides: Partial<RegistrationRow> = {}) {
 
 beforeEach(() => {
   useRegistrationMock.mockReset();
-  useProcessorRateMock.mockReset();
-  useProcessorRateMock.mockImplementation((method: string) => ({ data: RATES[method] ?? null }));
   createMethodCheckoutMock.mockReset().mockResolvedValue({ url: null, code: null });
   assign.mockReset();
 });
@@ -128,21 +113,37 @@ describe("PayPanel — a suspended organizer", () => {
     expect(await screen.findByText(/isn't taking registrations right now/i)).toBeInTheDocument();
   });
 
-  it("still falls back to the stored session when the scoped call merely fails", async () => {
-    // The fallback exists for a transport failure and must survive this fix —
-    // narrowing it to nothing would strand every runner whose scoped call
-    // timed out.
+  it("does not open a stored link when PayMongo checkout creation needs reconciliation", async () => {
     const user = userEvent.setup();
     useRegistrationMock.mockReturnValue({
       isLoading: false,
-      data: row({ checkoutUrl: "https://checkout.paymongo.com/stored" }),
+      data: row({ checkoutUrl: "https://checkout.paymongo.com/stale-link" }),
+    });
+    createMethodCheckoutMock.mockResolvedValue({ url: null, code: "checkout_reconciliation_required" });
+
+    render(<PayPanel registrationId="r1" />);
+    await user.click(screen.getByRole("button", { name: /^Pay ₱/ }));
+
+    expect(assign).not.toHaveBeenCalled();
+    expect(await screen.findByText(/check this payment with PayMongo/i)).toBeInTheDocument();
+    expect(screen.getByText(/Your slot remains held/i)).toBeInTheDocument();
+  });
+
+  it("can still use the local fake checkout after a transport failure", async () => {
+    const user = userEvent.setup();
+    useRegistrationMock.mockReturnValue({
+      isLoading: false,
+      data: row({ checkoutUrl: "http://localhost/fake-checkout", payment: {
+        createdAt: null, method: null, amount: null, platformFee: null, netToOrg: null,
+        provider: "fake", providerRef: null, status: "pending",
+      } }),
     });
     createMethodCheckoutMock.mockResolvedValue({ url: null, code: null });
 
     render(<PayPanel registrationId="r1" />);
     await user.click(screen.getByRole("button", { name: /^Pay ₱/ }));
 
-    expect(assign).toHaveBeenCalledWith("https://checkout.paymongo.com/stored");
+    expect(assign).toHaveBeenCalledWith("http://localhost/fake-checkout");
   });
 });
 
@@ -172,8 +173,8 @@ describe("PayPanel — a lapsed pending hold", () => {
 // Fix round: a registration also reaches status 'expired' when the organizer
 // closes/cancels/completes the event early (events_close_expires_pending),
 // which can fire well within 24h while the stored checkout_url is still
-// genuinely chargeable — unlike the lapsed-hold case, where the PayMongo
-// session itself has gone stale by the time 24h has passed. `eventClosed`
+// genuinely chargeable — PayMongo does not automatically expire a session.
+// `eventClosed`
 // (above) catches the common case since the event flips status in the same
 // transaction, but not an organizer reopening the event afterward: eventStatus
 // goes back to something registerable while this specific registration stays
@@ -201,153 +202,87 @@ describe("PayPanel — a registration expired by the organizer", () => {
   });
 });
 
-// An org is on `absorb` or `pass_on`. In absorb the runner pays the sticker
-// price and the processing cost comes out of the organizer's share — showing
-// them a fee they are not paying would be noise about somebody else's money. In
-// pass_on the runner is charged a grossed-up total, so every line has to be
-// visible, because every line changes what they pay.
-//
-// The lines are computed HERE, in the client, off the method already in state.
-// Passing them down from the server page would freeze the processing line at
-// whatever method was current when the page rendered, and the one thing this
-// breakdown must do is move when the runner switches method.
-//
-// DISPLAY ONLY. payment-session recomputes the authoritative charge server-side.
-describe("PayPanel — the fee breakdown", () => {
-  const PASS_ON = { total_amount: 200000, basePrice: 200000, feeMode: "pass_on" } as const;
+// The provider calculates the method-specific fee on its own checkout page.
+// Race Pace only displays the commission frozen when the reservation was made.
+describe("PayPanel — provider-managed fees", () => {
+  const PASS_ON = {
+    total_amount: 200000, basePrice: 200000, feeMode: "pass_on",
+    checkoutPlatformFee: 6000, checkoutProviderManagedFee: true,
+    payment: { provider: "paymongo" },
+  } as unknown as Partial<RegistrationRow>;
 
-  it("shows only the total in absorb mode — the runner pays no fees", () => {
-    renderWithRegistration({ total_amount: 200000, basePrice: 200000, feeMode: "absorb" });
-
+  it("keeps absorb mode at the sticker price", () => {
+    renderWithRegistration({ total_amount: 200000, basePrice: 200000, checkoutPlatformFee: 6000 });
     expect(screen.getByRole("button", { name: "Pay ₱2,000.00" })).toBeInTheDocument();
-    expect(screen.queryByText(/service fee/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/payment processing/i)).not.toBeInTheDocument();
-    expect(screen.queryByText("Total to pay")).not.toBeInTheDocument();
-    // The panel absorb mode already had, unchanged: entry fee, and a booking
-    // fee that really is free to this runner.
-    expect(screen.getByText("Free")).toBeInTheDocument();
+    expect(screen.queryByText("Taxes and fees")).not.toBeInTheDocument();
+    expect(screen.getByText(/₱60.00 in Taxes and fees is included in this price/)).toBeInTheDocument();
+    expect(screen.getByText(/Neither fee increases your total/)).toBeInTheDocument();
   });
 
-  it("does not even ask the rate card in absorb mode", () => {
-    renderWithRegistration({ total_amount: 200000, basePrice: 200000, feeMode: "absorb" });
-    expect(useProcessorRateMock).toHaveBeenCalledWith("gcash", { enabled: false });
-  });
-
-  it("itemises every line in pass-on mode, because each one changes the total", () => {
-    renderWithRegistration(PASS_ON);
-
-    // ₱2,000 base, RP 3% = ₱60, GCash 1.5% grossed up = ₱31.38. Each fee line
-    // is rendered with a leading "+", like the add-ons line it sits under:
-    // these are amounts ADDED to the entry fee, not a restatement of it.
-    expect(screen.getByText(/Race Pace service fee/i)).toBeInTheDocument();
-    expect(screen.getByText("+₱60.00")).toBeInTheDocument();
-    expect(screen.getByText(/Payment processing/i)).toBeInTheDocument();
-    expect(screen.getByText("+₱31.38")).toBeInTheDocument();
-    expect(screen.getByText("Total to pay")).toBeInTheDocument();
-    // The entry fee the organizer priced is still stated, unsurcharged.
-    expect(screen.getByText("₱2,000.00")).toBeInTheDocument();
-    // Twice: the ticket stub's "Total due" and the breakdown's own total. Both
-    // must be the grossed-up figure — a stub still reading ₱2,000.00 over an
-    // itemised ₱2,091.38 is the exact confusion this screen exists to remove.
-    expect(screen.getAllByText("₱2,091.38")).toHaveLength(2);
-    // And the number on the button is the number that will be charged. GCash is
-    // the default method.
-    expect(screen.getByRole("button", { name: "Pay ₱2,091.38" })).toBeInTheDocument();
-  });
-
-  it("updates the processing line when the runner switches to card", async () => {
-    const user = userEvent.setup();
-    renderWithRegistration(PASS_ON);
-
-    await user.click(screen.getByRole("button", { name: "Card" }));
-
-    // Card is 3.5% + ₱15, so the processing line and the total both move.
-    expect(screen.getByText("+₱90.26")).toBeInTheDocument();
-    expect(screen.getAllByText("₱2,150.26")).toHaveLength(2);
-    expect(screen.getByRole("button", { name: "Pay ₱2,150.26" })).toBeInTheDocument();
-    // The commission is struck on the BASE the organizer priced, not on the
-    // grossed-up total, so it does NOT move with the method. Striking it on the
-    // total would compound the two fees against each other.
-    expect(screen.getByText("+₱60.00")).toBeInTheDocument();
-    expect(screen.getByText("₱2,000.00")).toBeInTheDocument();
-    expect(screen.queryByText("+₱31.38")).not.toBeInTheDocument();
-  });
-
-  // THE REASON THE PANEL CARRIES ALL THREE COMMISSION COLUMNS. With only
-  // fee_mode, a fixed-terms org would fall down feeOn's percent branch and its
-  // 10% default: ₱200.00 of "service fee" on a ₱2,000 entry whose real terms are
-  // ₱75 flat — a surcharge the runner would actually be shown and asked to pay.
-  it("quotes a fixed-commission org its flat fee, not the percent default", () => {
-    renderWithRegistration({
-      ...PASS_ON,
-      feeTerms: { commission_type: "fixed", commission_rate: null, commission_flat_cents: 7500 },
+  it("keeps PayMongo absorb checkout at one hosted session and never reopens a stored URL after a failed check", async () => {
+    renderWithRegistration({ total_amount: 10000, basePrice: 10000,
+      checkoutUrl: "https://checkout.paymongo.com/stored",
+      payment: { createdAt: null, method: null, amount: 10000, platformFee: null,
+        netToOrg: null, provider: "paymongo", providerRef: "cs_saved", status: "pending" },
     });
-
-    expect(screen.getByText("+₱75.00")).toBeInTheDocument();
-    // What the percent branch's 10% default would have quoted on a ₱2,000 entry.
-    expect(screen.queryByText("+₱200.00")).not.toBeInTheDocument();
-    expect(screen.getAllByText("₱2,106.60")).toHaveLength(2);
+    expect(screen.getByText(/The total stays ₱100.00/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "GCash" })).not.toBeInTheDocument();
+    createMethodCheckoutMock.mockResolvedValue({ url: null, code: null });
+    await userEvent.setup().click(screen.getByRole("button", { name: "Pay ₱100.00" }));
+    expect(assign).not.toHaveBeenCalled();
   });
 
-  // THE DEGRADED PATH, WHICH IS NOT AN EXOTIC ONE. The rate query is gated on
-  // feeMode, so it cannot start until the registration resolves: every pass-on
-  // page load renders once with no rate, as does every first switch to a method
-  // whose rate is not cached, and a failed read stays this way. Quoting the
-  // sticker price here would put a number nobody will be charged on a live Pay
-  // button — the very deception this screen exists to remove — and it would not
-  // even be self-correcting, because this screen filters the rate card on
-  // `offered` while the server's processor_rate_at does not.
-  //
-  // So: no amount anywhere, and an explicit "Shown at checkout". The button
-  // stays enabled — payment-session may well be able to price the charge, and
-  // PayMongo's hosted page itemises the total before the runner confirms.
-  it("prints no amount at all while the rate card has not answered", () => {
-    useProcessorRateMock.mockReturnValue({ data: undefined });
+  it("shows the frozen platform fee and defers exact processing to PayMongo", async () => {
     renderWithRegistration(PASS_ON);
-
-    expect(screen.queryByText(/Payment processing/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Race Pace service fee/i)).not.toBeInTheDocument();
-    // The sticker price must NOT appear as a total: not on the button, and not
-    // on the ticket stub, which shows a dash instead.
+    expect(screen.getByText("Taxes and fees")).toBeInTheDocument();
+    expect(screen.getByText("+₱60.00")).toBeInTheDocument();
+    expect(screen.getByText("Calculated by PayMongo")).toBeInTheDocument();
+    expect(screen.getByText("Shown on PayMongo")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Continue to checkout" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Card" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^Pay ₱/ })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Pay" })).toBeInTheDocument();
-    expect(screen.getByText("—")).toBeInTheDocument();
-    expect(screen.getByText("Shown at checkout")).toBeInTheDocument();
-    // The entry fee is still known and still stated — it is the TOTAL that is
-    // not. Exactly once: the stub is showing a dash, not this figure.
-    expect(screen.getAllByText("₱2,000.00")).toHaveLength(1);
-    // And no "Booking fee — Free" either: this runner IS being charged fees,
-    // so the absorb-mode row would be a claim that is about to be contradicted.
-    expect(screen.queryByText("Free")).not.toBeInTheDocument();
+    createMethodCheckoutMock.mockResolvedValue({ url: "https://checkout.paymongo.com/v2", code: null });
+    await userEvent.setup().click(screen.getByRole("button", { name: "Continue to checkout" }));
+    expect(assign).toHaveBeenCalledWith("https://checkout.paymongo.com/v2");
   });
 
-  it("prints no amount between methods either, when the new rate is not cached", async () => {
-    const user = userEvent.setup();
-    // GCash priced, card not yet — the state a first switch to card passes
-    // through before its query resolves.
-    useProcessorRateMock.mockImplementation((m: string) => ({ data: m === "gcash" ? RATES.gcash : undefined }));
-    renderWithRegistration(PASS_ON);
-    expect(screen.getByRole("button", { name: "Pay ₱2,091.38" })).toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: "Card" }));
-
-    // NOT ₱2,000.00 flashing between ₱2,091.38 and ₱2,150.26 — a fast tapper
-    // could press that.
-    expect(screen.getByRole("button", { name: "Pay" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /^Pay ₱/ })).not.toBeInTheDocument();
+  it("blocks older pass-on reservations with locally calculated sessions", () => {
+    renderWithRegistration({ ...PASS_ON, checkoutProviderManagedFee: false });
+    expect(screen.getByText("Checkout needs updating")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Continue to checkout" })).not.toBeInTheDocument();
   });
 
-  // A pass-on org whose entry is free has nothing to gross up: a ₱0 charge costs
-  // the processor nothing, so every line is zero and the panel must not print a
-  // ₱15 card fixed fee against a ₱0 entry. Nor a "Total to pay ₱0.00" under an
-  // "Entry fee ₱0.00" — the same number twice — nor the paragraph explaining
-  // fees that this runner is not being charged.
-  it("adds nothing to a free entry, and explains nothing either", () => {
-    renderWithRegistration({ total_amount: 0, basePrice: 0, feeMode: "pass_on" });
+  it("never falls back to a stale provider URL after a failed server check", async () => {
+    renderWithRegistration({ ...PASS_ON, checkoutUrl: "https://checkout.paymongo.com/stale" });
+    createMethodCheckoutMock.mockResolvedValue({ url: null, code: "not_pending" });
+    await userEvent.setup().click(screen.getByRole("button", { name: "Continue to checkout" }));
+    expect(assign).not.toHaveBeenCalled();
+  });
+});
 
-    expect(screen.getByRole("button", { name: "Pay ₱0.00" })).toBeInTheDocument();
-    expect(screen.queryByText(/Payment processing/i)).not.toBeInTheDocument();
-    expect(screen.queryByText("Total to pay")).not.toBeInTheDocument();
-    expect(screen.queryByText(/passes the service and payment-processing costs/i)).not.toBeInTheDocument();
+// A stored checkout session is historical data, not permission to pay again.
+describe("PayPanel — registration payment eligibility", () => {
+  it.each(["refunded", "cancelled", "unknown"])("hides checkout for %s bookmarks", (status) => {
+    renderWithRegistration({ status, checkoutUrl: "https://checkout.paymongo.com/stored" });
+    expect(screen.queryByRole("button", { name: /^Pay/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Back to My Races" })).toHaveAttribute("href", "/races");
+    expect(createMethodCheckoutMock).not.toHaveBeenCalled();
+  });
+
+  it("sends paid registrations to their ticket even if the event later closes", () => {
+    renderWithRegistration({ status: "paid", eventStatus: "closed", checkoutUrl: "https://checkout.paymongo.com/stored" });
+    expect(screen.queryByRole("button", { name: /^Pay/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "View ticket" })).toHaveAttribute("href", "/ticket/r1");
+  });
+
+  it.each(["not_pending", "hold_expired", "event_closed", "unknown_refusal"])("never routes around server refusal %s", async (code) => {
+    renderWithRegistration({ checkoutUrl: "https://checkout.paymongo.com/stored" });
+    createMethodCheckoutMock.mockResolvedValue({ url: null, code });
+    await userEvent.setup().click(screen.getByRole("button", { name: /^Pay ₱/ }));
+    expect(assign).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: /^Pay ₱/ })).not.toBeDisabled();
+    if (code === "not_pending") {
+      expect(screen.getByText("This registration can no longer be paid. Check My Races for its status.")).toBeInTheDocument();
+    }
   });
 });

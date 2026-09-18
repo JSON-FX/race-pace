@@ -1,3 +1,4 @@
+import { createClient } from "@/lib/supabase/server";
 import { parseTableParams, searchParamsToRecord, type TableParams } from "@/lib/table-params";
 import { getMyRoles, requireOrgId } from "@/lib/queries/roles";
 import { listOrgPayments } from "@/lib/queries/payments";
@@ -21,13 +22,25 @@ const HEADER = [
   "Runner",
   "Amount (PHP)",
   "Platform Fee (PHP)",
-  "Net to Org (PHP)",
+  "Processing Fee (PHP)",
+  "Processing Fee Source",
+  "Stored Ledger Net to Org (PHP)",
   "Method",
   "Status",
-  "Date (UTC)",
+  "Checkout Created At (UTC)",
+  "Payment Confirmed At (UTC)",
+  "Refunded Amount (PHP)",
+  "Retained Gross (PHP)",
+  "Current Platform Fees (PHP)",
+  "Current Net to Org (PHP)",
+  "Payment ID",
+  "Booking Order ID",
+  "Participant Count",
 ];
 
 function toRow(r: Awaited<ReturnType<typeof listOrgPayments>>["rows"][number]): string {
+  const earning = r.status === "paid" || r.status === "partially_refunded";
+  const refunded = r.status === "refunded" || r.status === "partially_refunded";
   return csvRow([
     csvField(r.registration_id),
     csvField(r.event_name),
@@ -38,11 +51,21 @@ function toRow(r: Awaited<ReturnType<typeof listOrgPayments>>["rows"][number]): 
     // even though these columns have no non-negative constraint.
     centavosToDecimal(r.amount),
     centavosToDecimal(r.platform_fee),
-    centavosToDecimal(r.net_to_org),
+    r.processor_fee_cents == null ? "" : centavosToDecimal(r.processor_fee_cents),
+    csvField(r.processor_fee_source),
+    r.net_to_org == null ? "" : centavosToDecimal(r.net_to_org),
     csvField(r.method),
     csvField(r.status),
     // ISO 8601 — see the same choice in the Registrations export's toRow.
     new Date(r.created_at).toISOString(),
+    r.paid_at ? new Date(r.paid_at).toISOString() : "",
+    centavosToDecimal(refunded ? r.refunded_amount : 0),
+    centavosToDecimal(earning ? r.amount - r.refunded_amount : 0),
+    centavosToDecimal(earning ? r.platform_fee : 0),
+    !earning ? "0.00" : r.net_to_org == null ? "" : centavosToDecimal(r.net_to_org),
+    csvField(r.payment_id),
+    csvField(r.booking_order_id),
+    String(r.participant_count),
   ]);
 }
 
@@ -82,6 +105,9 @@ export async function GET(request: Request) {
   let page = 1;
   let total = 0;
 
+  // Capture cookies while GET still owns the request context. Deferred pulls
+  // must reuse this caller-scoped client, never create another one.
+  const db = await createClient();
   const stream = new ReadableStream<Uint8Array>({
     async pull(controller) {
       try {
@@ -105,6 +131,7 @@ export async function GET(request: Request) {
         const batchParams: TableParams = { ...params, page, per: BATCH };
         const { rows, total: batchTotal } = await listOrgPayments(orgId, batchParams, {
           includeCount: page === 1,
+          db,
         });
         if (page === 1) total = batchTotal;
 

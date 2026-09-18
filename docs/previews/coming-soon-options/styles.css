@@ -1,0 +1,122 @@
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=Archivo+Narrow:wght@600;700&display=swap');
+:root { --ink: #0f2a20; --green: #159a55; --muted: #53675b; --paper: #ffffff; }
+* { box-sizing: border-box; }
+body { margin: 0; font-family: Archivo, Arial, sans-serif; color: var(--ink); }
+.concept { display: none; position: relative; min-height: 100dvh; overflow: hidden; }
+body[data-concept="horizon"] .horizon, body[data-concept="route"] .route, body[data-concept="ascent"] .ascent { display: flex; flex-direction: column; }
+a { color: inherit; }
+a:focus-visible { outline: 3px solid var(--green); outline-offset: 5px; }
+.switcher { position: fixed; z-index: 50; top: 16px; right: 16px; display: flex; gap: 2px; padding: 4px; background: #fff; box-shadow: 0 6px 25px #0f2a2024; border: 1px solid #d7e4db; font: 700 12px/1.2 Archivo, Arial, sans-serif; }
+.switcher a { min-height: 39px; display: grid; place-items: center; padding: 9px 14px; text-decoration: none; }
+.switcher a[aria-current="page"] { background: var(--ink); color: white; }
+body[data-preview="true"] .switcher { display: none; }
+.brand-header { position: relative; z-index: 2; display: flex; align-items: center; justify-content: space-between; padding: 31px clamp(28px,5.1vw,82px); }
+.brand { display: flex; align-items: center; gap: 12px; color: var(--ink); font-size: 23px; font-weight: 900; letter-spacing: -.06em; white-space: nowrap; }
+.brand img { display: block; width: 70px; height: auto; object-fit: contain; }
+.header-note, .eyebrow, .horizon-footer, .route-footer, .ascent-footer { font: 700 11px/1.5 'Archivo Narrow',Archivo,sans-serif; letter-spacing: .18em; }
+.header-note { margin-right: 220px; }
+.eyebrow { display: flex; align-items: center; gap: 13px; margin: 0 0 30px; color: #117742; }
+.green-line { display: inline-block; flex: none; width: 33px; height: 2px; background: var(--green); }
+.support { max-width: 475px; font-size: clamp(18px,1.45vw,22px); line-height: 1.53; font-weight: 500; letter-spacing: -.025em; }
+.availability { max-width: 435px; color: var(--muted); font-size: 15px; line-height: 1.65; }
+.text-link { display: inline-flex; gap: 14px; align-items: center; min-height: 44px; margin-top: 16px; font-size: 15px; font-weight: 800; text-underline-offset: 5px; text-decoration-thickness: 1px; }
+.text-link span { color: var(--green); font-size: 20px; text-decoration: none; }
+.parallax { transform: translate3d(var(--shift-x,0px), var(--shift-y,0px), 0); transition: transform 380ms cubic-bezier(.2,.8,.2,1); will-change: transform; }
+
+/* 01. A white editorial page with an original illustrated landscape, not event photography. */
+.horizon { background: #fdfefc; }
+.horizon-scene { position: absolute; z-index: 0; inset: 0; overflow: hidden; pointer-events: none; }
+.horizon-mountain { position: absolute; inset: 0; background: url('./illustrated-mountains.png') center bottom / cover no-repeat; }
+.horizon-scene .parallax { transform: translate3d(var(--shift-x,0px), var(--shift-y,0px), 0) scale(1.07); }
+.horizon-body { position: relative; z-index: 1; flex: 1; width: min(100% - 10.2vw, 1440px); margin: auto; display: flex; align-items: flex-start; padding-top: clamp(70px,10vh,140px); }
+.horizon-copy { width: 100%; min-width: 0; max-width: 810px; }
+.horizon .eyebrow { margin-bottom: 28px; color: var(--green); font: 800 24px/1.2 Archivo,Arial,sans-serif; letter-spacing: .08em; }
+.horizon h1 { margin: 0 0 20px; font-size: clamp(70px,7.1vw,114px); line-height: .98; letter-spacing: -.076em; font-weight: 800; }
+.horizon h1 em { color: var(--green); font-style: normal; }
+.horizon .support { margin: 0 0 13px; max-width: 540px; }
+.horizon .availability { margin: 0; }
+.horizon-contact { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-top: 20px; font-size: 15px; font-weight: 700; }
+.horizon-contact a { display: inline-grid; place-items: center; min-height: 44px; padding: 0 20px; border-radius: 999px; background: var(--ink); color: white; font-size: 14px; font-weight: 800; text-decoration: none; transition: background-color 180ms ease, transform 180ms ease; }
+.horizon-contact a:hover { background: #117742; transform: translateY(-2px); }
+.horizon-contact a:active { transform: translateY(0); }
+.horizon-footer { position: relative; z-index: 1; min-height: 66px; display: flex; justify-content: space-between; align-items: center; padding: 16px clamp(28px,5.1vw,82px); background: var(--ink); color: white; }
+
+/* 02. A spare navigation motif with a vector route and contour lines. */
+.route { background: #fff; }
+.route-grid { position: absolute; inset: 0; pointer-events: none; background-image: linear-gradient(#0f2a200c 1px,transparent 1px), linear-gradient(90deg,#0f2a200c 1px,transparent 1px); background-size: 86px 86px; mask-image: linear-gradient(90deg,transparent 0%,#000 60%); }
+.route-header { border-bottom: 1px solid #dfebe3; }
+.route-stage { position: relative; z-index: 1; width: min(100% - 10.2vw,1440px); margin: auto; flex: 1; min-height: 650px; display: grid; grid-template-columns: 54% 46%; align-items: center; }
+.route-copy { padding: 55px 0 80px; }
+.route h1 { max-width: 800px; margin: 0 0 28px; font-size: clamp(68px,7vw,112px); line-height: .99; letter-spacing: -.077em; font-weight: 800; }
+.route h1 span { color: var(--green); }
+.route .support { margin: 0 0 20px; }
+.route .availability { margin: 0; }
+.route-art { position: relative; width: min(100%,670px); justify-self: end; }
+.route-art svg { display: block; width: 100%; height: auto; }
+.route-mountain { fill: none; stroke-linejoin: round; stroke-linecap: round; }
+.route-mountain.far { stroke: #d4ebdc; stroke-width: 11; }
+.route-mountain.near { stroke: #a6d8b7; stroke-width: 16; }
+.route-terrain { fill: none; stroke: #b8d8c3; stroke-width: 1.5; }
+.route-path { fill: none; stroke: var(--green); stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 1 0; }
+.route-origin { fill: white; stroke: var(--green); stroke-width: 4; }
+.route-end { fill: var(--green); stroke: white; stroke-width: 4; }
+.route-caption { position: absolute; right: 4%; bottom: 4%; font: 700 11px 'Archivo Narrow',Archivo,sans-serif; letter-spacing: .16em; color: #577d64; }
+.route-footer { min-height: 66px; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid #dfebe3; padding: 16px clamp(28px,5.1vw,82px); color: #577d64; }
+
+/* 03. A clear product message against a sculptural, vector mountain silhouette. */
+.ascent { background: #f8fbf8; }
+.ascent-header { border-bottom: 1px solid #d7e7db; }
+.ascent-stage { position: relative; width: min(100% - 10.2vw,1440px); margin: auto; min-height: 680px; flex: 1; display: grid; grid-template-columns: 53% 47%; align-items: center; }
+.ascent-copy { position: relative; z-index: 2; padding: 55px 0 85px; }
+.ascent h1 { margin: 0 0 26px; font-size: clamp(74px,7vw,112px); line-height: .98; letter-spacing: -.082em; font-weight: 800; }
+.ascent h1 em { color: var(--green); font-style: normal; }
+.ascent .support { margin: 0; }
+.ascent-rule { width: 54px; height: 3px; background: var(--green); margin: 33px 0 21px; }
+.ascent .availability { margin: 0; }
+.ascent-art { align-self: stretch; display: flex; align-items: end; position: relative; margin-right: -6vw; min-height: 670px; }
+.ascent-art svg { display: block; width: 100%; height: 100%; object-fit: cover; }
+.ascent-art-label { position: absolute; right: 7%; bottom: 35px; color: white; font: 700 11px 'Archivo Narrow',Archivo,sans-serif; letter-spacing: .2em; }
+.ascent-footer { min-height: 66px; display: flex; align-items: center; justify-content: space-between; padding: 16px clamp(28px,5.1vw,82px); background: var(--ink); color: #d4f2dc; }
+
+@media (max-width: 1000px) {
+  .header-note { margin-right: 180px; }
+  .route-stage,.ascent-stage { grid-template-columns: 1fr 1fr; }
+  .route h1,.ascent h1 { font-size: clamp(58px,7vw,88px); }
+}
+@media (max-width: 720px) {
+  body:not([data-preview="true"]) .concept { padding-bottom: 72px; }
+  .switcher { top: auto; right: 8px; bottom: 8px; left: 8px; justify-content: space-around; }
+  .switcher a { flex: 1; text-align: center; font-size: 11px; padding: 10px 4px; }
+  .brand-header { padding: 20px 24px; min-height: 83px; }
+  .brand { font-size: 20px; gap: 7px; }
+  .brand img { width: 59px; }
+  .header-note { display: none; }
+  .eyebrow { font-size: 10px; margin-bottom: 24px; }
+  .support { font-size: 18px; }
+  .availability { font-size: 14px; }
+  .horizon { min-height: max(100dvh,780px); }
+  .horizon-mountain { background-size: auto 75%; background-position: 58% bottom; -webkit-mask-image: linear-gradient(to bottom,transparent 22%,#000 77%); mask-image: linear-gradient(to bottom,transparent 22%,#000 77%); }
+  .horizon-body { box-sizing: border-box; width: 100%; margin: 0; padding: 66px 24px 0; }
+  .horizon .eyebrow { font-size: 18px; margin-bottom: 20px; }
+  .horizon h1 { font-size: clamp(55px,12.7vw,82px); }
+  .horizon .support { max-width: 360px; }
+  .horizon-footer,.route-footer,.ascent-footer { min-height: 57px; padding: 12px 24px; font-size: 9px; }
+  .route-stage { display: flex; flex-direction: column; align-items: stretch; min-height: 0; width: calc(100% - 48px); }
+  .route-copy { padding: 68px 0 0; }
+  .route h1 { font-size: clamp(54px,12.1vw,80px); margin-bottom: 22px; }
+  .route-art { align-self: center; margin-top: 2px; margin-bottom: 20px; width: min(100%,440px); }
+  .route-caption { font-size: 9px; }
+  .ascent-stage { display: flex; flex-direction: column; align-items: stretch; min-height: 0; width: calc(100% - 48px); }
+  .ascent-copy { padding: 68px 0 18px; }
+  .ascent h1 { font-size: clamp(57px,12.8vw,88px); }
+  .ascent-art { width: calc(100% + 48px); margin: 0 -24px; min-height: 340px; height: 340px; }
+  .ascent-art-label { bottom: 15px; right: 24px; font-size: 9px; }
+}
+@media (max-width: 420px) {
+  .horizon-body { padding-top: 56px; }
+  .horizon .availability { max-width: 330px; }
+  .horizon-footer,.route-footer,.ascent-footer { gap: 18px; }
+  .route-art { margin-top: -10px; }
+}
+@media (prefers-reduced-motion: reduce) { .parallax { transition: none; will-change: auto; } }
+@media (hover: none), (prefers-reduced-motion: reduce) { .horizon-scene .parallax { transition: none; will-change: auto; } }

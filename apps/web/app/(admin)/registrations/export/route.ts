@@ -1,6 +1,8 @@
+import { createClient } from "@/lib/supabase/server";
 import { parseTableParams, searchParamsToRecord, type TableParams } from "@/lib/table-params";
 import { getMyRoles, requireOrgId } from "@/lib/queries/roles";
 import { listEventRegistrations, listOrgEventOptions, getEventRegistrationEmails } from "@/lib/queries/registrations";
+import { registrationTeamName } from "@/lib/registration-team";
 import { csvField, csvRow, centavosToDecimal } from "@/lib/csv";
 
 export const dynamic = "force-dynamic";
@@ -27,11 +29,15 @@ const HEADER = [
   "Runner",
   "Email",
   "Category",
-  "Bib",
+  "Team Name",
   "Registered At (UTC)",
-  "Amount (PHP)",
+  "Base Amount (PHP)",
   "Payment Status",
   "Payment Method",
+  "Captured Gross (PHP)",
+  "Refunded (PHP)",
+  "Payment ID",
+  "Booking Order ID",
 ];
 
 function toRow(
@@ -43,7 +49,7 @@ function toRow(
     csvField(r.full_name),
     csvField(emailById.get(r.id) ?? null),
     csvField(r.category_label),
-    csvField(r.bib_name),
+    csvField(registrationTeamName(r.custom_data)),
     // ISO 8601, unambiguous — not the table's `MMM D, HH:mm` (see fmtDateTime
     // in @/lib/format), which is fine for a narrow on-screen date column but
     // ambiguous once it leaves the app (no year, no explicit timezone) and
@@ -52,6 +58,11 @@ function toRow(
     centavosToDecimal(r.total_amount),
     csvField(r.payment_status),
     csvField(r.payment_method),
+    ["paid", "refunded", "partially_refunded"].includes(r.payment_status ?? "") && r.payment_amount != null
+      ? centavosToDecimal(r.payment_amount) : "",
+    r.refunded_amount != null ? centavosToDecimal(r.refunded_amount) : "",
+    csvField(r.payment_id),
+    csvField(r.booking_order_id),
   ]);
 }
 
@@ -105,6 +116,9 @@ export async function GET(request: Request) {
   let total = 0;
   let emailById = new Map<string, string | null>();
 
+  // Capture cookies while GET still owns the request context. Deferred pulls
+  // must reuse this caller-scoped client, never create another one.
+  const db = await createClient();
   const stream = new ReadableStream<Uint8Array>({
     // A batch loop that ran entirely inside `start()` (the first version of
     // this route) enqueues every batch as fast as the DB returns it,
@@ -130,7 +144,7 @@ export async function GET(request: Request) {
           // Fetched ONCE per request, not once per batch — see
           // getEventRegistrationEmails' doc comment (@/lib/queries/
           // registrations) for the O(n²) cost this replaces.
-          emailById = await getEventRegistrationEmails(eventId);
+          emailById = await getEventRegistrationEmails(eventId, db);
           phase = "rows";
           return;
         }
@@ -147,6 +161,7 @@ export async function GET(request: Request) {
         const { rows, total: batchTotal } = await listEventRegistrations(eventId!, batchParams, {
           includeEmails: false,
           includeCount: page === 1,
+          db,
           includeAddons: false,
         });
         if (page === 1) total = batchTotal;

@@ -116,3 +116,13 @@ describe("homePathFor", () => {
     expect(homePathFor([])).toBe("/no-access");
   });
 });
+
+it("lands kit crew on their release station", () => {
+  expect(homePathFor(["release_kits"])).toBe("/race-kits");
+});
+
+it("leaves password recovery entry points accessible without a session", () => {
+  expect(isProtectedPath("/forgot-password")).toBe(false);
+  expect(isProtectedPath("/auth/recovery")).toBe(false);
+  expect(isProtectedPath("/auth/recovery-other")).toBe(true);
+});

@@ -76,10 +76,13 @@ const UNKNOWN_METHOD = "paymongo";
 
 /** The single mapping from a raw `payments.method` value to what the cell
  *  should show. Pure — no DOM, no React. */
-export function methodPresentation(method: string | null | undefined): MethodPresentation {
+export function methodPresentation(method: string | null | undefined, status?: string): MethodPresentation {
   const key = (method ?? "").trim().toLowerCase();
   // A pending or failed payment has no method. A blank cell reads as a
   // rendering bug; "Not yet paid" states the actual fact.
+  if (!key && status && !["pending", "failed"].includes(status)) {
+    return { kind: "unknown", label: "Not recorded", marks: [] };
+  }
   if (!key) return { kind: "unpaid", label: "Not yet paid", marks: [] };
   if (key === UNKNOWN_METHOD) return { kind: "unknown", label: "Unknown", marks: [] };
   const known = KNOWN[key];
@@ -145,8 +148,8 @@ function Mark({ mark, height }: { mark: MarkKey; height: number }) {
 }
 
 /** The Method cell: brand mark(s) plus the label. */
-export function MethodBadge({ method, height = 18 }: { method: string | null | undefined; height?: number }) {
-  const { kind, label, marks } = methodPresentation(method);
+export function MethodBadge({ method, status, height = 18 }: { method: string | null | undefined; status?: string; height?: number }) {
+  const { kind, label, marks } = methodPresentation(method, status);
   return (
     <span className="flex items-center gap-1.5">
       {marks.map((mark) => (

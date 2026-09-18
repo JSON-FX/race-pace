@@ -1,5 +1,6 @@
+import { canAccessBooking } from "../_shared/bookingAccess.ts";
 import { serviceClient } from "../_shared/supabase.ts";
-import { confirmPayment } from "../_shared/confirm.ts";
+import { confirmPayment, reportedPaidCaptures } from "../_shared/confirm.ts";
 import { paymongoConfigured, pmGetCheckoutSession, pmMethodFromSession } from "../_shared/paymongo.ts";
 import { preflight, corsHeaders } from "../_shared/cors.ts";
 
@@ -29,14 +30,15 @@ Deno.serve(async (req) => {
 
     const { data: reg } = await db
       .from("registrations")
-      .select("id,status,user_id")
+      .select("id,status,user_id,booked_by_user_id")
       .eq("id", registrationId)
       .single();
-    if (!reg || reg.user_id !== userId) return json({ error: "not_found" }, 404);
-    if (reg.status === "paid") return json({ status: "paid", already: true });
+    if (!reg || !canAccessBooking(userId, reg)) return json({ error: "not_found" }, 404);
+    const alreadyPaid = reg.status === "paid";
+    const paidResponse = () => json({ status: "paid", already: true });
 
     // Without PayMongo configured there's nothing to re-fetch; report current status.
-    if (!paymongoConfigured()) return json({ status: reg.status });
+    if (!paymongoConfigured()) return alreadyPaid ? paidResponse() : json({ status: reg.status });
 
     const { data: pay } = await db
       .from("payments")
@@ -44,10 +46,22 @@ Deno.serve(async (req) => {
       .eq("registration_id", registrationId)
       .single();
     const ref = pay?.provider_ref;
-    if (!ref || !ref.startsWith("cs_")) return json({ status: reg.status });
+    if (!ref || !ref.startsWith("cs_")) return alreadyPaid ? paidResponse() : json({ status: reg.status });
 
-    const session = await pmGetCheckoutSession(ref);
-    if (!session.paid) return json({ status: "pending" });
+    let session: Awaited<ReturnType<typeof pmGetCheckoutSession>>;
+    try {
+      session = await pmGetCheckoutSession(ref);
+    } catch (error) {
+      // PayMongo may no longer serve a completed checkout. The local paid
+      // ledger still owns the ticket; a failed provider read cannot undo it.
+      if (!alreadyPaid) throw error;
+      console.error("[payment-verify] paid checkout could not be rechecked", { registrationId, error: String(error) });
+      return paidResponse();
+    }
+    if (!session.paid) return alreadyPaid ? paidResponse() : json({ status: reg.status });
+    // An already-settled session can outlive its detailed payment resources.
+    // Only re-run confirmation when the GET contains paid captures to inspect.
+    if (alreadyPaid && reportedPaidCaptures(session.raw).length === 0) return paidResponse();
 
     // The instrument the runner used, not the provider. This previously passed
     // the literal "paymongo", so the admin Payments method column was useless for
@@ -70,7 +84,7 @@ Deno.serve(async (req) => {
       session: session.raw,
     });
     if (!r.ok) return json({ error: r.error }, r.status);
-    return json({ status: "paid", registration_id: r.registration_id });
+    return json({ status: "paid", registration_id: r.registration_id, ...(alreadyPaid ? { already: true } : {}) });
   } catch (e) {
     return json({ error: "server_error", details: String(e) }, 500);
   }

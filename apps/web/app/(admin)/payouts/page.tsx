@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/table";
 import { peso, fmtDate, initials } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { OpenStatementControl, SettleStatementButton } from "./statement-actions";
+import { OpenStatementControl, SettleStatementButton, RefreshStatementButton } from "./statement-actions";
 
 /** U+2212 MINUS SIGN, not a hyphen. It is the same width as a digit, so a
  *  column of `tabular-nums` figures stays aligned whether or not a row's
@@ -224,20 +224,20 @@ export default async function PayoutsPage() {
 
                     <TableCell className="py-2.5 text-right">
                       {state === "ready" || state === "owed_back" ? (
-                        <SettleStatementButton statement={row} />
+                        <div className="flex gap-2 justify-end"><RefreshStatementButton id={row.id} /><SettleStatementButton statement={row} /></div>
                       ) : state === "held" ? (
-                        // Disabled rather than absent, with the reason already
-                        // spelled out in the Status cell beside it. `title`
-                        // repeats it for anyone who hovers wondering why.
+                        <div className="flex gap-2 justify-end">
+                        <RefreshStatementButton id={row.id} />
                         <Button
                           size="sm"
                           variant="outline"
                           className="rounded-pill"
                           disabled
-                          title="This event is still taking registrations — paying now means paying again later."
+                          title="This event has not finished. Refresh the statement after it ends, then record the payout."
                         >
                           Locked
                         </Button>
+                        </div>
                       ) : (
                         <span className="text-[11px] text-muted-foreground">
                           {row.reference ? `ref ${row.reference}` : "settled"}

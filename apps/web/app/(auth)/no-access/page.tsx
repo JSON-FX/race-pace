@@ -3,6 +3,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/server";
 import { signOutAction } from "@/lib/actions/auth";
+import Link from "next/link";
+import { getMyRoles } from "@/lib/queries/roles";
+import { homePathFor } from "@/lib/routes";
 
 /**
  * Where an authenticated account with no organization role lands.
@@ -23,6 +26,9 @@ export default async function NoAccessPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   const email = user?.email ?? null;
+  const roles = await getMyRoles();
+  const home = homePathFor(roles?.capabilities ?? []);
+  const hasOtherAccess = home !== "/no-access";
 
   return (
     <main className="grid min-h-dvh place-items-center bg-muted p-6">
@@ -34,10 +40,12 @@ export default async function NoAccessPage() {
 
           <div>
             <h1 className="text-[17px] font-bold tracking-[-0.02em]">
-              This account isn&apos;t registered
+              {hasOtherAccess ? "This page isn't available to your role" : "This account isn't registered"}
             </h1>
             <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
-              {email ? (
+              {hasOtherAccess ? (
+                <>You are signed in{email ? ` as ${email}` : ""}. Your staff role does not allow access to this page.</>
+              ) : email ? (
                 <>
                   <span className="font-semibold text-foreground">{email}</span> isn&apos;t
                   registered to any organization, and isn&apos;t a platform admin. Sign-in worked —
@@ -51,16 +59,13 @@ export default async function NoAccessPage() {
               )}
             </p>
             <p className="mt-2.5 text-[12.5px] leading-relaxed text-muted-foreground">
-              Ask your organization admin to invite{" "}
+              {hasOtherAccess ? <>Return to your workspace, or ask your organization admin about the access you need.</> : <>Ask your organization admin to invite{" "}
               {email ? "this exact address" : "your email address"}, then sign in again. Access is
-              matched on the email, so an invite sent to a different address won&apos;t apply here.
+              matched on the email, so an invite sent to a different address won&apos;t apply here.</>}
             </p>
           </div>
 
-          {/* Signing out is the ONLY useful action from here. Without it a
-              Google user is stuck: /login now redirects an authenticated caller
-              straight back to this page, so the session has to be cleared before
-              a different account can be tried. */}
+          {hasOtherAccess && <Button asChild className="w-full"><Link href={home}>Return to your workspace</Link></Button>}
           <form action={signOutAction}>
             <Button type="submit" variant="outline" className="w-full">
               Sign out and try another account

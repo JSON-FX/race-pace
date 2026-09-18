@@ -13,7 +13,11 @@ export function validateRename(name: string): string | null {
   return null;
 }
 
-export type SettledCounts = { paid: number; refunded: number; partially_refunded: number };
+export type SettledCounts = {
+  paid: number;
+  refunded: number;
+  partially_refunded: number;
+};
 
 /** Money moved, so the ledger cannot be erased. Suspend is the answer for a
  *  live organization; there is no override. */
@@ -24,7 +28,9 @@ export function isDeleteBlocked(c: SettledCounts): boolean {
 /** The two buckets an organization owns files in. Objects are keyed
  *  <bucket>/<org_id>/<uuid>.<ext> — see 20260721110000_event_images_storage.sql
  *  and 20260724130000_org_images.sql. */
-export function orgStoragePrefixes(orgId: string): { bucket: string; prefix: string }[] {
+export function orgStoragePrefixes(
+  orgId: string,
+): { bucket: string; prefix: string }[] {
   return [
     { bucket: "event-images", prefix: orgId },
     { bucket: "org-images", prefix: orgId },
@@ -49,8 +55,10 @@ export function mapDeleteRpcError(
 ): { code: string; status: number } {
   if (err?.code === "P0001") return { code: "org_has_payments", status: 409 };
   if (err?.code === "P0002") return { code: "not_found", status: 404 };
-  if (err?.message?.includes("org_has_payments")) return { code: "org_has_payments", status: 409 };
-  if (err?.message?.includes("org_not_found")) return { code: "not_found", status: 404 };
+  if (err?.message?.includes("org_has_payments"))
+    return { code: "org_has_payments", status: 409 };
+  if (err?.message?.includes("org_not_found"))
+    return { code: "not_found", status: 404 };
   return { code: "server_error", status: 500 };
 }
 
@@ -81,15 +89,15 @@ export function adminInviteRedirect(adminAppUrl: string): string | null {
   const base = adminConfirmRedirect(adminAppUrl);
   // No query string on purpose: an allow-list entry has to match this URL,
   // and how a given Supabase version treats query params in that match is
-  // not something to bet an invite on. The page defaults to /team.
+  // not something to bet an invite on. The completion route chooses the current role’s home.
   return base ? `${base}/finish` : null;
 }
 
 /** Builds the manual invite link org-provision hands back to the super admin
  *  who just created an organization — the same destination an SMTP-emailed
  *  invite lands on once SMTP is configured (Task 7 design). `type=magiclink`
- *  because the account already exists by the time this runs; `/team` is
- *  where an invited admin with a role but no profile yet is useful.
+ *  because the account already exists by the time this runs. The destination
+ *  is resolved from the accepted session’s current capabilities.
  *
  *  The RAW action_link from generateLink is deliberately never used here: it
  *  routes through Supabase's /auth/v1/verify, which redirects to `next` with
@@ -100,8 +108,11 @@ export function adminInviteRedirect(adminAppUrl: string): string | null {
  *  Returns null when either input is missing — no admin URL configured, or
  *  generateLink didn't return a token — so the best-effort caller can fall
  *  back to `invite_link: null` rather than construct a broken link. */
-export function buildInviteLink(adminAppUrl: string, hashedToken: string | null): string | null {
+export function buildInviteLink(
+  adminAppUrl: string,
+  hashedToken: string | null,
+): string | null {
   const redirect = adminConfirmRedirect(adminAppUrl);
   if (!redirect || !hashedToken) return null;
-  return `${redirect}?token_hash=${hashedToken}&type=magiclink&next=%2Fteam`;
+  return `${redirect}?token_hash=${hashedToken}&type=magiclink`;
 }

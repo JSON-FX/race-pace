@@ -1,13 +1,14 @@
-import { paymongoConfigured, pmCreateCheckoutSession, pmGetCheckoutSession, pmPaymentIdFromSession, pmCreateRefund } from "./paymongo.ts";
+import { paymongoConfigured, pmCreateCheckoutSession, pmGetCheckoutSession, pmPaymentIdFromSession, pmCreateRefund, pmGetRefund } from "./paymongo.ts";
 
-export interface CheckoutInput { registrationId: string; amount: number; description: string; returnUrl: string; methods?: string[]; lineItems?: { name: string; amount: number }[]; billing?: { name?: string; email?: string; phone?: string } }
+export interface CheckoutInput { registrationId: string; amount: number; description: string; returnUrl: string; methods?: string[]; lineItems?: { name: string; amount: number }[]; billing?: { name?: string; email?: string; phone?: string }; passOnFees?: boolean; metadata?: Record<string, string> }
 export interface CheckoutResult { checkoutUrl: string; providerRef: string }
-export interface RefundInput { providerRef: string; amount: number; reason?: string }
+export interface RefundInput { providerRef: string; providerPaymentId?: string; amount: number; reason?: string; requestId: string; registrationId: string }
 export interface RefundResult { providerRefundId: string; status: "pending" | "succeeded" | "failed"; raw: unknown }
 export interface PaymentProvider {
   readonly name: string;
   createCheckout(input: CheckoutInput): Promise<CheckoutResult>;
   refund(input: RefundInput): Promise<RefundResult>;
+  getRefund(providerRefundId: string): Promise<RefundResult>;
 }
 
 /** Dev/local provider — no real PayMongo. Serves a hosted sandbox checkout page.
@@ -18,13 +19,18 @@ export class FakePaymentProvider implements PaymentProvider {
   constructor(private functionsUrl: string) {}
   async createCheckout(input: CheckoutInput): Promise<CheckoutResult> {
     return {
-      checkoutUrl: `${this.functionsUrl}/fake-checkout?rid=${input.registrationId}`,
+      checkoutUrl: `${this.functionsUrl}/fake-checkout?rid=${encodeURIComponent(input.registrationId)}&return=${encodeURIComponent(input.returnUrl)}`,
       providerRef: `fake_${input.registrationId}`,
     };
   }
   async refund(input: RefundInput): Promise<RefundResult> {
     // No real provider — the DB transition is the whole story for fake/seed/local rows.
     return { providerRefundId: `fake_refund_${input.providerRef}`, status: "succeeded", raw: { fake: true } };
+  }
+  async getRefund(providerRefundId: string): Promise<RefundResult> {
+    // A parked fake refund has no external source of truth. Tests must deliver
+    // its explicit terminal event instead of treating a status check as success.
+    return { providerRefundId, status: "pending", raw: { fake: true } };
   }
 }
 
@@ -42,17 +48,31 @@ export class PayMongoProvider implements PaymentProvider {
       description: input.description,
       successUrl: withStatus(input.returnUrl, "paid"),
       cancelUrl: withStatus(input.returnUrl, "cancel"),
-      metadata: { registration_id: input.registrationId },
+      metadata: { registration_id: input.registrationId, ...input.metadata },
       billing: input.billing,
+      passOnFees: input.passOnFees,
+      idempotencyKey: `checkout:${input.registrationId}`,
     });
+    if (!session.id?.startsWith("cs_") ||
+        !session.checkoutUrl?.startsWith("https://checkout.paymongo.com/")) {
+      throw new Error("paymongo_checkout_response_invalid");
+    }
     return { checkoutUrl: session.checkoutUrl, providerRef: session.id };
   }
   async refund(input: RefundInput): Promise<RefundResult> {
-    // provider_ref is the checkout session id; resolve the pay_… id, then refund it.
-    const session = await pmGetCheckoutSession(input.providerRef);
-    const paymentId = pmPaymentIdFromSession(session);
+    // New captures persist their paid pay_ ID before fulfillment. Prefer that
+    // immutable evidence so a later unavailable checkout-session GET cannot
+    // strand a valid refund. Historical payments still use the session lookup.
+    if (input.providerPaymentId && !/^pay_[A-Za-z0-9_-]+$/.test(input.providerPaymentId)) {
+      throw new Error("paymongo_refund_payment_id_invalid");
+    }
+    const paymentId = input.providerPaymentId ?? pmPaymentIdFromSession(await pmGetCheckoutSession(input.providerRef));
     if (!paymentId) throw new Error("paymongo_refund_no_payment");
-    const r = await pmCreateRefund({ paymentId, amount: input.amount, reason: input.reason });
+    const r = await pmCreateRefund({ paymentId, amount: input.amount, reason: input.reason, requestId: input.requestId, registrationId: input.registrationId });
+    return { providerRefundId: r.id, status: r.status, raw: r.raw };
+  }
+  async getRefund(providerRefundId: string): Promise<RefundResult> {
+    const r = await pmGetRefund(providerRefundId);
     return { providerRefundId: r.id, status: r.status, raw: r.raw };
   }
 }

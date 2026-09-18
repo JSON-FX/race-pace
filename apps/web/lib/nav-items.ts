@@ -18,7 +18,7 @@
  */
 import {
   LayoutDashboard, CalendarDays, ClipboardList, CreditCard,
-  QrCode, Users, Settings as SettingsIcon, Building2, Percent, Banknote, type LucideIcon,
+  QrCode, PackageCheck, Users, Settings as SettingsIcon, Building2, Percent, Banknote, ShieldAlert, type LucideIcon,
 } from "lucide-react";
 import type { MyRoles } from "@/lib/queries/roles";
 import { hasCapability, type Capability } from "@/lib/capabilities";
@@ -39,6 +39,7 @@ export const ORG_ITEMS: NavItem[] = [
   { to: "/events", label: "Events", icon: CalendarDays, countKey: "events", requires: "manage_org" },
   { to: "/registrations", label: "Registrations", icon: ClipboardList, countKey: "registrations", requires: "manage_org" },
   { to: "/payments", label: "Payments", icon: CreditCard, requires: "manage_org" },
+  { to: "/race-kits", label: "Race kits", icon: PackageCheck, requires: "release_kits" },
   { to: "/check-in", label: "Check-in", icon: QrCode, requires: "check_in" },
   { to: "/team", label: "Team", icon: Users, requires: "manage_team" },
   { to: "/settings", label: "Settings", icon: SettingsIcon, requires: "manage_org" },
@@ -48,6 +49,7 @@ export const SUPER_ITEMS: NavItem[] = [
   { to: "/organizations", label: "Organizations", icon: Building2, requires: "manage_platform" },
   { to: "/commission", label: "Commission", icon: Percent, requires: "manage_platform" },
   { to: "/payouts", label: "Payouts", icon: Banknote, requires: "manage_platform" },
+  { to: "/checkout-reviews", label: "Checkout reviews", icon: ShieldAlert, requires: "manage_platform" },
 ];
 
 /** Org-scoped nav, filtered by capability. Replaces the hand-written
@@ -80,6 +82,7 @@ const BOTTOM_BAR_PATHS = ["/dashboard", "/events", "/registrations", "/check-in"
 /** Bottom-bar destinations, gated exactly as the sidebar gates them. */
 export function primaryMobileItems(roles: MyRoles): NavItem[] {
   const visible = visibleOrgItems(roles);
+  if (visible.length === 1 && visible[0].to === "/race-kits") return visible;
   return BOTTOM_BAR_PATHS.map((p) => visible.find((it) => it.to === p)).filter(
     (it): it is NavItem => it !== undefined,
   );

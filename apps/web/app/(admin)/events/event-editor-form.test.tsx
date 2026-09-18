@@ -45,7 +45,7 @@ function editorData(overrides: Partial<EditorData["event"]> = {}): EditorData {
       city_psgc_code: null, region_name: null, province_name: null, city_name: null, venue: null,
       event_date: null, end_date: null, flag_off: null, status: "open",
       registration_closes_at: null, kit_edit_closes_at: null,
-      discipline: "trail", elevation_gain_m: null, cutoff_hours: null, start_lat: null, start_lng: null,
+      discipline: "trail", check_in_required: true, elevation_gain_m: null, cutoff_hours: null, start_lat: null, start_lng: null,
       finish_lat: null, finish_lng: null, route: null, description: null, hero_image_url: null,
       gallery: [], schedule: [], inclusions: [],
       ...overrides,
@@ -73,6 +73,48 @@ it("blocks save on an empty name, then saves a valid new event", async () => {
   await waitFor(() => expect(mockSaveEventAction).toHaveBeenCalled());
   expect(lastSavedEvent()).toMatchObject({ name: "Apo Sky Ultra", org_id: "a1", status: "draft" });
   await waitFor(() => expect(mockPush).toHaveBeenCalledWith("/events"));
+});
+
+it("inherits the organization check-in default and lets an admin change it", async () => {
+  render(<EventEditorForm initial={null} orgId="a1" checkInDefault={false} canEditCheckIn />);
+  const toggle = screen.getByRole("checkbox", { name: "Require event check-in" });
+  expect(toggle).not.toBeChecked();
+  fireEvent.click(toggle);
+  fireEvent.change(screen.getByLabelText("Event name"), { target: { value: "No scans race" } });
+  fireEvent.click(screen.getByText("Save event"));
+  await waitFor(() => expect(mockSaveEventAction).toHaveBeenCalled());
+  expect(lastSavedEvent().check_in_required).toBe(true);
+});
+
+it("shows the event mode read-only to editors", () => {
+  render(<EventEditorForm initial={editorData({ check_in_required: false })} orgId="a1" canEditCheckIn={false} />);
+  expect(screen.getByRole("checkbox", { name: "Require event check-in" })).toBeDisabled();
+});
+
+it("warns before disabling an existing event and honors cancellation", async () => {
+  const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+  try {
+    render(<EventEditorForm initial={editorData()} orgId="a1" />);
+    fireEvent.click(screen.getByRole("checkbox", { name: "Require event check-in" }));
+    fireEvent.click(screen.getByText("Save event"));
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining("Existing check-in records remain"));
+    expect(mockSaveEventAction).not.toHaveBeenCalled();
+  } finally {
+    confirm.mockRestore();
+  }
+});
+
+it("saves a disabled check-in mode after the organizer confirms", async () => {
+  const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+  try {
+    render(<EventEditorForm initial={editorData()} orgId="a1" />);
+    fireEvent.click(screen.getByRole("checkbox", { name: "Require event check-in" }));
+    fireEvent.click(screen.getByText("Save event"));
+    await waitFor(() => expect(mockSaveEventAction).toHaveBeenCalled());
+    expect(lastSavedEvent().check_in_required).toBe(false);
+  } finally {
+    confirm.mockRestore();
+  }
 });
 
 it("allows saving a cancelled event instead of dead-ending on the status validator", async () => {

@@ -6,6 +6,12 @@ export interface TicketPayload {
   iat: number; // issued-at (unix seconds)
 }
 
+/** A missing key must never silently mint or accept tickets with a public fallback. */
+export function requireTicketSigningSecret(value: string | undefined): string {
+  if (!value?.trim()) throw new Error("ticket_signing_not_configured");
+  return value;
+}
+
 function b64url(bytes: Uint8Array): string {
   return btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }

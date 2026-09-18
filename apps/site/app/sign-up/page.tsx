@@ -28,17 +28,29 @@ function SignUpForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [confirmationRequired, setConfirmationRequired] = useState(false);
   const [busy, setBusy] = useState(false);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError(null);
-    const { error } = await signUpWithPassword(email, password);
+    const { error, confirmationRequired } = await signUpWithPassword(email, password, next);
     setBusy(false);
     if (error) setError(error);
-    else router.replace(next);
+    else if (confirmationRequired) setConfirmationRequired(true);
+    else { router.replace(next); router.refresh(); }
   }
+
+  if (confirmationRequired) return (
+    <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-4 px-6">
+      <h1 className="text-3xl font-semibold">Check your email</h1>
+      <p role="status">If this address can be registered, we sent a confirmation link to {email.trim()}. Open it in this browser to finish signing up.</p>
+      <p className="text-muted-foreground">Check your spam folder too. If you already have an account, sign in or reset your password.</p>
+      <Link className="text-primary underline" href={`/sign-in?next=${encodeURIComponent(next)}`}>Back to sign in</Link>
+      <Link className="text-primary underline" href="/forgot-password">Reset password</Link>
+    </main>
+  );
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-6 py-12">

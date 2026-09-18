@@ -1,192 +1,122 @@
-# Deploying Race Pace to Vercel
+# Deploying Race Pace: web and admin
 
-Two Next.js apps in one pnpm monorepo, both on the same hosted Supabase project
-(`whaqarofxdlzxrelbcrq`):
+Two Vercel projects share hosted Supabase project whaqarofxdlzxrelbcrq.
+This guide covers release preparation; it is not evidence that a deployment is current.
 
-| App | Path | Audience |
-| --- | --- | --- |
-| **Admin console** | `apps/web` | race directors, marshals, platform staff |
-| **Runner site** | `apps/site` | public — browse, register, pay |
+## Verified project layout (2026-09-16)
 
-They are **two separate Vercel projects from the same repo**, distinguished by
-Root Directory. Do not try to serve both from one project.
+| Surface | Vercel project | Root Directory | Public production URL |
+| --- | --- | --- | --- |
+| Admin | race-pace-web | apps/web | https://race-pace-admin.vercel.app |
+| Runner | race-pace-site | apps/site | https://race-pace-site.vercel.app |
 
----
+Both use Next.js and Node 24.x. The repository declares pnpm 9.7.0.
+Keep workspace files outside the root directory available to the build: both apps import packages/shared.
 
-## Before you start
+Both production projects were deployed and promoted from commit ed8273f on 2026-09-16.
+Admin: dpl_GcEQ8Vkk41VdrH3bLUyhNMk4Dsgb. Runner: dpl_57xNx7fQ3iAX3fZWC7T2EEmF7HGb.
+See docs/reports/2026-09-16-hosted-deployment.md for verification and remaining pilot blockers.
+Recheck these facts before the next release.
 
-- The repo is `git@github.com:JSON-FX/race-pace.git`, and `main` is current.
-- Node **20+**, pnpm **9.7.0** (declared in the root `package.json`).
-- Have `apps/web/.env.local` open — you'll copy two values from it.
+## Vercel environment
 
----
+Both projects require NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY for Production and Preview.
+Use the hosted project's URL and anon/publishable key. Do not copy a local Docker key from .env.local.
+The runner also requires NEXT_PUBLIC_SITE_URL=https://race-pace-site.vercel.app.
 
-## Step 1 — Create the admin project
+Never set SUPABASE_INTERNAL_URL on Vercel. It is only a local Docker override.
+NEXT_PUBLIC_SUPABASE_URL is used by next.config.ts at build time for image hosts.
+Changing a public variable requires a new build, not just an environment edit.
 
-In Vercel: **Add New → Project → Import** `JSON-FX/race-pace`.
+The 2026-09-16 inventory confirmed required variable names and no SUPABASE_INTERNAL_URL.
+Values are marked Sensitive and were masked when retrieved. Their correctness remains unverified.
+Never print credential values in review artifacts.
 
-| Setting | Value |
+## Supabase Auth
+
+Set Site URL to the public runner URL. Explicit production redirect destinations include:
+
+- https://race-pace-site.vercel.app/auth/callback
+- https://race-pace-site.vercel.app/auth/recovery
+- https://race-pace-admin.vercel.app/auth/callback
+- https://race-pace-admin.vercel.app/auth/recovery
+- https://race-pace-admin.vercel.app/auth/confirm
+- https://race-pace-admin.vercel.app/auth/confirm/finish
+
+Add the corresponding exact URLs for approved preview origins. Avoid allowing every unrelated vercel.app tenant.
+Local .lan URLs belong to local testing; supabase/config.toml does not update hosted Auth settings automatically.
+
+Verify Google provider configuration rather than assuming it is enabled.
+Its provider callback is https://whaqarofxdlzxrelbcrq.supabase.co/auth/v1/callback.
+
+Hosted Auth needs a working SMTP provider and verified sender for confirmation, recovery and staff invitations.
+Local Mailpit proves local delivery only. Ticket email uses a separate Edge Function transport.
+
+## Edge Function configuration
+
+Review the hosted values for:
+
+| Setting | Purpose |
 | --- | --- |
-| Project Name | `race-pace-admin` |
-| Framework Preset | Next.js |
-| **Root Directory** | `apps/web` |
-| Build / Install / Output | leave as detected |
+| SITE_ORIGINS | Exact runner/admin and approved preview origins for browser calls |
+| PUBLIC_SITE_URL | Public runner URL used by ticket links |
+| ADMIN_APP_URL | Admin URL used by organization and staff invitations |
+| PUBLIC_FUNCTIONS_URL | Hosted project functions URL used by ticket resources |
+| TICKET_EMAIL_SECRET | Internal authorization between confirmation and ticket delivery |
+| PAYMONGO_SECRET_KEY | Deliberately selected test/live provider mode |
+| PAYMONGO_WEBHOOK_SECRET | Signing secret matching the configured provider webhook |
+| EMAIL_PROVIDER | Hosted ticket-email transport; local Mailpit is not hosted delivery |
+| RESEND_API_KEY / EMAIL_FROM | Required by the default Resend ticket transport |
 
-When you set Root Directory, Vercel shows **"Include files outside of the root
-directory"** — leave it **ON**. Both apps import `@race-pace/shared`, which is a
-source-only TypeScript workspace package; with that off, the build cannot see it
-and fails at install.
+Keep API and signing secrets out of both Next public environments and version control.
+Match webhook events to the implemented paid/refund handlers. Preserve the per-function JWT settings in supabase/config.toml.
+A local fake-provider test is not evidence of hosted provider callbacks, email delivery or a bank transfer.
 
-### Environment variables — set these BEFORE the first deploy
+## Database and functions
 
-Add to **Production, Preview and Development**:
+Do not assume the hosted database is current. Local had 98 applied migrations on 2026-09-16.
+After maintenance ended, all nine pending migrations were applied. Hosted now also has 98 versions.
+All 13 Edge Functions were redeployed, including kit-release. No hosted reset or reseed was performed.
 
-| Name | Value |
-| --- | --- |
-| `NEXT_PUBLIC_SUPABASE_URL` | `https://whaqarofxdlzxrelbcrq.supabase.co` |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | copy from `apps/web/.env.local` |
+After service recovery, compare hosted migration history with the repository and local history.
+Review every unapplied migration; never edit an already-applied migration to force parity.
+Do not reset or reseed the hosted database as a release step.
 
-> **This is the one that bites.** `next.config.ts` reads
-> `NEXT_PUBLIC_SUPABASE_URL` **at build time** to build the allowed image hosts.
-> If it is missing on the first build, no Supabase pattern is emitted and *every
-> org logo, event hero and runner avatar 400s in production* — while local dev
-> keeps working, so nothing looks wrong until you load the deployed site.
-> Adding the variable afterwards is not enough; it needs a **redeploy**.
+Deploy the required migrations and changed Edge Functions in a reviewed, compatible order before relying on their new behavior.
+Changes to shared Edge modules require redeploying their consuming functions.
+For this repository, pass --import-map supabase/functions/deno.json when deploying with --use-api.
+The server bundler did not resolve bare imports without that explicit argument.
+The prior guide's claim of eight migrations and six functions was obsolete.
 
-**Do NOT set `SUPABASE_INTERNAL_URL`.** It exists only for the Docker dev stack,
-where server components fetch from inside the container. On Vercel it would
-override the public URL with an unreachable host and every server-side query
-would fail.
+## Release sequence
 
-Deploy. Note the URL, e.g. `race-pace-admin.vercel.app`.
+1. Finish the remaining local readiness checklist and review the complete intended diff.
+2. Commit/publish the reviewed release revision through the agreed delivery workflow.
+3. Verify hosted schema, Auth, SMTP, function secrets, webhook setup and operational schedules.
+4. Apply reviewed backend changes and build both Vercel apps for the intended environment.
+5. Test the exact preview revision end to end before production promotion.
+6. Verify production aliases point to the approved builds and repeat the critical smoke checks.
 
----
+No CI pipeline currently substitutes for local typechecks, tests and isolated builds.
+Do not run a host Next build into the Docker dev stack's live bind-mounted .next directory.
 
-## Step 2 — Create the runner-site project
+## Smoke checks
 
-Same repo, **Add New → Project → Import** again.
+- Runner discovery, images, signup confirmation, sign-in and password recovery.
+- Organizer creation/invitation, tenant isolation and scoped staff access.
+- Registration fields, capacity and duplicate handling.
+- Provider test checkout, signed callback, ticket and email delivery.
+- Refund/retry behavior, commission terms and report/CSV reconciliation.
+- Kit release, check-in and operational exports.
+- Completed-event payout recording, recovery direction and one-time accounting.
 
-| Setting | Value |
-| --- | --- |
-| Project Name | `race-pace-site` |
-| **Root Directory** | `apps/site` |
+Use clearly marked sample records. Record any provider or bank steps that were simulated.
+A READY Vercel build or an HTTP200 login page alone is not production readiness.
 
-### Environment variables
+### Group ticket delivery worker (disabled until group rollout)
 
-| Name | Value |
-| --- | --- |
-| `NEXT_PUBLIC_SUPABASE_URL` | `https://whaqarofxdlzxrelbcrq.supabase.co` |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | same key as the admin |
-| `NEXT_PUBLIC_SITE_URL` | the site's own URL, e.g. `https://race-pace-site.vercel.app` |
+Deploy `group-ticket-delivery` as a Supabase Edge Function. Its gateway JWT check is disabled intentionally; the handler requires the existing `TICKET_EMAIL_SECRET` bearer secret and `GROUP_TICKET_DELIVERY_ENABLED=true`. Configure `PUBLIC_SITE_URL`, `PUBLIC_FUNCTIONS_URL` and the existing email transport. Never expose the bearer secret to either Next app's public environment.
 
-Same two warnings apply: set them before the first build, and never set
-`SUPABASE_INTERNAL_URL`.
+After rollout approval, invoke it server-to-server with POST from the deployment's scheduler. Each invocation claims at most one pending order; choose cadence/concurrency for expected volume and monitor returned failures. No scheduler is activated by this migration. Local validation used mocked email only; verify with Mailpit and the selected production transport before activation.
 
-`NEXT_PUBLIC_SITE_URL` is a chicken-and-egg: you don't know the URL until the
-project exists. Deploy once, copy the assigned domain, set the variable, then
-**redeploy**.
-
----
-
-## Step 3 — Supabase configuration (required, or sign-in breaks)
-
-Nothing below is optional. Each item fails in a way that looks like an app bug.
-
-### 3a. Auth → URL Configuration
-
-**Site URL:** the runner site's URL — that is where a password-reset or
-confirmation email should land a runner.
-
-**Redirect URLs** — add every one of these:
-
-```
-https://race-pace-admin.vercel.app/auth/callback
-https://race-pace-site.vercel.app/auth/callback
-https://*.vercel.app/auth/callback
-https://admin.racepace.lan/auth/callback
-https://racepace.lan/auth/callback
-```
-
-Supabase matches `redirectTo` against this list **as a whole string**. A missing
-entry does not error — it silently falls back to the Site URL, so an admin
-signing in with Google lands on the public runner homepage with nothing in any
-log. The `*.vercel.app` wildcard covers preview deployments, which otherwise get
-a new hostname per branch and would each need adding by hand.
-
-Keep the `.lan` entries so local development keeps working.
-
-### 3b. Google provider
-
-Already enabled. In **Google Cloud Console → Credentials → your OAuth client**,
-confirm the Authorized redirect URI is:
-
-```
-https://whaqarofxdlzxrelbcrq.supabase.co/auth/v1/callback
-```
-
-That is Supabase's callback, not your app's, and it does not change when you add
-Vercel domains.
-
-### 3c. Edge Function secrets
-
-The functions enforce a CORS allow-list. Without your Vercel origins in it, the
-browser blocks registration and payment calls with a CORS error that reads like
-the API is down.
-
-```bash
-npx supabase@2.109.1 secrets set \
-  SITE_ORIGINS="https://race-pace-site.vercel.app,https://race-pace-admin.vercel.app,*.vercel.app,https://racepace.lan,https://admin.racepace.lan" \
-  PUBLIC_SITE_URL="https://race-pace-site.vercel.app"
-```
-
-`SITE_ORIGINS` supports `*.vercel.app` for previews (subdomains only — never the
-apex, and never a lookalike like `evil-vercel.app`). `PUBLIC_SITE_URL` is the
-base for ticket-email links; if it is wrong, tickets email people a dead link.
-
----
-
-## Step 4 — Verify, in this order
-
-Each check isolates one layer, so a failure tells you where to look.
-
-**Runner site**
-
-1. Home loads and event hero images render → if images 404/400, `NEXT_PUBLIC_SUPABASE_URL` was missing at build time (Step 1). Redeploy.
-2. `/events` lists the 20 seeded events → Supabase reachable.
-3. Open an event, start a registration → Edge Functions + CORS (Step 3c).
-
-**Admin console**
-
-4. `/login` shows the branded card with the logo and the Google button.
-5. Sign in with `admin@racepace.test` → lands on `/events`.
-6. Google sign-in with an account that has no org role → **"This account isn't registered"**. That is the correct outcome, and it proves the whole OAuth round-trip works: the code was exchanged, a session was created, and the authorization gate ran.
-7. Check `/dashboard`, `/check-in`, `/organizations`, `/commission`, `/payouts` all render.
-
-**Camera note:** check-in's camera fallback needs a secure context.
-`*.vercel.app` is HTTPS, so it works.
-
----
-
-## Traps, collected
-
-| Symptom | Cause |
-| --- | --- |
-| Images 400 in production, fine locally | `NEXT_PUBLIC_SUPABASE_URL` missing on the **first** build. Redeploy after adding. |
-| Every server query fails | `SUPABASE_INTERNAL_URL` set on Vercel. Remove it. |
-| Build fails on `@race-pace/shared` | "Include files outside root directory" is off. |
-| Google sign-in lands on the runner homepage | Redirect URL not in Supabase's allow-list. |
-| Registration/payment fails with CORS | Vercel origin missing from `SITE_ORIGINS`. |
-| Ticket emails link somewhere dead | `PUBLIC_SITE_URL` still pointing at localhost. |
-
----
-
-## Custom domains (later)
-
-When you move off `*.vercel.app`, each new domain must be added to **both** the
-Supabase Redirect URLs and `SITE_ORIGINS`. Adding it in Vercel alone is not
-enough — that is the same silent failure as Step 3a.
-
-## Database
-
-Already migrated and current: 8 migrations applied to `whaqarofxdlzxrelbcrq`,
-6 Edge Functions deployed. Nothing to do here for a first deploy.
+Delivery retries use a five-minute lease and exponential backoff capped at one hour. A worker that loses its lease cannot mark a newer attempt complete. SMTP is at-least-once: a crash after acceptance but before completion may cause duplicate email. Tickets and payment confirmation are not recreated. All-refunded bookings close without sending; partially refunded bookings contain only currently paid tickets. A later refund can invalidate a QR already emailed, so staff must always verify current ticket state.

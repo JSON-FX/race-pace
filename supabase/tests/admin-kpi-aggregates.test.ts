@@ -17,9 +17,9 @@ async function makeUser(email: string) {
 // deliberately takes the SECOND seeded event so its aggregate assertions are not
 // polluted by rows other suites write against the first one; CATEGORY_A2 must
 // pair with EVENT_A2 or the registration insert breaks the event/category link.
-let RWP: string, EVT: string, C4: string;
+let RWP: string, EVT: string, C4: string, WAIVER: string;
 beforeAll(async () => {
-  ({ ORG_A: RWP, EVENT_A2: EVT, CATEGORY_A2: C4 } = await seededIds());
+  ({ ORG_A: RWP, EVENT_A2: EVT, CATEGORY_A2: C4, WAIVER_A2: WAIVER } = await seededIds());
 });
 // NOTE: existing tests in this directory (admin-registrations.test.ts,
 // admin-list-views.test.ts) reference event e1 / category c4, but the
@@ -51,7 +51,7 @@ describe("admin_registration_aggregates — '*' in the search box (IMPORTANT 1)"
     const runner = await makeUser(`kpi_star_run_${Date.now()}@test.dev`);
     await svc.from("profiles").insert({ id: runner.id, full_name: "Dahilayan Sky Runner" });
     const reg = await svc.from("registrations")
-      .insert({ org_id: RWP, event_id: EVT, category_id: C4, user_id: runner.id, status: "paid", total_amount: 100000 })
+      .insert({ org_id: RWP, event_id: EVT, category_id: C4, user_id: runner.id, status: "paid", total_amount: 100000, waiver_version_id: WAIVER })
       .select().single();
     expect(reg.error).toBeNull();
 
@@ -110,7 +110,7 @@ describe("admin_payment_aggregates — paid-only gross/fee/net (IMPORTANT 2)", (
       const runner = await makeUser(`kpi_paid_${userSuffix}_${Date.now()}@test.dev`);
       await svc.from("profiles").insert({ id: runner.id, full_name: `Payer ${userSuffix} ${stamp}` });
       const reg = await svc.from("registrations")
-        .insert({ org_id: RWP, event_id: EVT, category_id: C4, user_id: runner.id, status: "paid", total_amount: amount })
+        .insert({ org_id: RWP, event_id: EVT, category_id: C4, user_id: runner.id, status: "paid", total_amount: amount, waiver_version_id: WAIVER })
         .select().single();
       const pay = await svc.from("payments")
         .insert({
@@ -175,5 +175,57 @@ describe("admin_payment_aggregates — paid-only gross/fee/net (IMPORTANT 2)", (
     expect(row.refunded_cents).toBe(refundedRow.pay.refunded_amount);
     expect(row.refunded_cents).toBe(114000);
     expect(refundedRow.pay.amount).toBe(120000); // the charge, deliberately NOT the answer
+  });
+});
+
+describe("registration partial refunds", () => {
+  it.each([100000, 106599])("includes the charged amount %i rather than base price in retained revenue", async (amount) => {
+    const svc = service();
+    const stamp = `partialkpi${Date.now()}`;
+    const admin = await makeUser(`${stamp}_admin@test.dev`);
+    const runner = await makeUser(`${stamp}_runner@test.dev`);
+    let registrationId: string | undefined;
+    try {
+      expect((await svc.from("user_roles").insert({ user_id: admin.id, role: "admin", org_id: RWP })).error).toBeNull();
+      expect((await svc.from("profiles").upsert({ id: runner.id, full_name: stamp })).error).toBeNull();
+      const reg = await svc.from("registrations").insert({
+        org_id: RWP, event_id: EVT, category_id: C4, user_id: runner.id,
+        status: "paid", total_amount: 100000, waiver_version_id: WAIVER,
+      }).select("id").single();
+      expect(reg.error).toBeNull();
+      registrationId = reg.data!.id;
+      expect((await svc.from("payments").insert({
+        org_id: RWP, registration_id: registrationId, amount,
+        platform_fee: 3000, processor_fee_cents: 1500, net_to_org: amount - 44500,
+        refunded_amount: 40000, status: "partially_refunded", method: "gcash",
+      })).error).toBeNull();
+      const client = authed(admin.token);
+      for (const status of ["all", "partially_refunded"]) {
+        const result = await client.rpc("admin_registration_aggregates", {
+          p_event_id: EVT, p_status: status, p_category_id: C4, p_q: `%${stamp}%`,
+        });
+        expect(result.error).toBeNull();
+        expect(result.data[0]).toMatchObject({
+          total: 1, paid: 1, gross_cents: amount - 40000, refund_count: 1, refunded_cents: 40000,
+        });
+      }
+      const excluded = await client.rpc("admin_registration_aggregates", {
+        p_event_id: EVT, p_status: "paid", p_q: `%${stamp}%`,
+      });
+      expect(excluded.error).toBeNull();
+      expect(excluded.data[0]).toMatchObject({ total: 0, paid: 0, gross_cents: 0, refunded_cents: 0 });
+      const payment = await client.rpc("admin_payment_aggregates", {
+        p_org_id: RWP, p_event_id: EVT, p_q: `%${stamp}%`,
+      });
+      expect(payment.error).toBeNull();
+      expect(payment.data[0]).toMatchObject({ gross_cents: amount - 40000, refunded_cents: 40000 });
+    } finally {
+      if (registrationId) {
+        await svc.from("payments").delete().eq("registration_id", registrationId);
+        await svc.from("registrations").delete().eq("id", registrationId);
+      }
+      await svc.auth.admin.deleteUser(runner.id);
+      await svc.auth.admin.deleteUser(admin.id);
+    }
   });
 });

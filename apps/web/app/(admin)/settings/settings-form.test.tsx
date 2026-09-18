@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { SettingsForm } from "./settings-form";
 import type { OrgBranding } from "@/lib/queries/org";
 
@@ -26,13 +26,15 @@ vi.mock("@/lib/org-upload", () => ({
 
 const updateOrgBrandingAction = vi.fn(async () => Promise.resolve({ ok: true }));
 const updateOrgNameAction = vi.fn(async () => Promise.resolve({ success: "Organization name updated." }));
+const updateOrgCheckInDefaultAction = vi.fn(async (_prev: unknown, _formData: FormData) => Promise.resolve({ success: "Default check-in setting updated." }));
 vi.mock("@/lib/actions/settings", () => ({
   updateOrgBrandingAction: (...args: unknown[]) =>
     updateOrgBrandingAction(...(args as Parameters<typeof updateOrgBrandingAction>)),
   updateOrgNameAction: (...args: unknown[]) => updateOrgNameAction(...(args as Parameters<typeof updateOrgNameAction>)),
+  updateOrgCheckInDefaultAction: (...args: unknown[]) => updateOrgCheckInDefaultAction(...(args as Parameters<typeof updateOrgCheckInDefaultAction>)),
 }));
 
-const org: OrgBranding = { id: "a1", name: "Muspo", logo_url: null, banner_url: null };
+const org: OrgBranding = { id: "a1", name: "Muspo", logo_url: null, banner_url: null, check_in_required_default: true };
 
 beforeEach(() => {
   (URL as unknown as { createObjectURL: (b: unknown) => string }).createObjectURL = () => "blob:mock";
@@ -41,6 +43,7 @@ beforeEach(() => {
   uploadOrgImage.mockClear();
   updateOrgBrandingAction.mockClear();
   updateOrgNameAction.mockClear();
+  updateOrgCheckInDefaultAction.mockClear();
 });
 
 describe("SettingsForm", () => {
@@ -56,7 +59,7 @@ describe("SettingsForm", () => {
     const file = new File([new Uint8Array([1])], "a.png", { type: "image/png" });
     fireEvent.change(screen.getByLabelText("Choose Avatar"), { target: { files: [file] } });
     expect(await screen.findByRole("dialog", { name: "Crop Avatar" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /save/i }));
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Crop Avatar" })).getByRole("button", { name: "Save" }));
     await waitFor(() => expect(uploadOrgImage).toHaveBeenCalledWith("a1", expect.anything(), "avatar"));
     await waitFor(() =>
       expect(updateOrgBrandingAction).toHaveBeenCalledWith("a1", { logo_url: "https://cdn/org-images/a1/avatar-x.png" }),
@@ -67,7 +70,7 @@ describe("SettingsForm", () => {
   it("submits the org name to updateOrgNameAction", async () => {
     render(<SettingsForm org={org} canEdit />);
     fireEvent.change(screen.getByLabelText("Organization name"), { target: { value: "Renamed Org" } });
-    fireEvent.click(screen.getByRole("button", { name: /save/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(updateOrgNameAction).toHaveBeenCalled());
   });
 
@@ -76,6 +79,16 @@ describe("SettingsForm", () => {
     expect(screen.queryByText("Choose Avatar")).not.toBeInTheDocument();
     expect(screen.getByText(/only organization admins can update branding/i)).toBeInTheDocument();
     expect(screen.getByLabelText("Organization name")).toBeDisabled();
-    expect(screen.getByRole("button", { name: /save/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Save default" })).toBeDisabled();
+  });
+
+  it("submits a false default when the organizer unchecks event check-in", async () => {
+    render(<SettingsForm org={org} canEdit />);
+    fireEvent.click(screen.getByRole("checkbox", { name: "Require event check-in by default" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save default" }));
+    await waitFor(() => expect(updateOrgCheckInDefaultAction).toHaveBeenCalled());
+    const submitted = updateOrgCheckInDefaultAction.mock.calls.at(-1)?.[1] as FormData;
+    expect(submitted.getAll("checkInRequired")).toEqual(["false"]);
   });
 });

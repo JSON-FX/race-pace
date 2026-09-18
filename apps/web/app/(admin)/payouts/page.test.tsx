@@ -138,3 +138,12 @@ describe("the payout breakdown reads left to right", () => {
     expect(screen.getByText(/Dumalinao Trail 40 \(₱125 unexplained\)/)).toBeInTheDocument();
   });
 });
+
+it("lets staff refresh held totals while keeping settlement locked", async () => {
+ getMyRoles.mockResolvedValue(superAdmin());
+ listPayoutStatements.mockResolvedValue([{...READY,event_finished:false,event_status:"open"}]);
+ render(await PayoutsPage());
+ expect(screen.getByRole("button",{name:"Refresh statement"})).toBeEnabled();
+ expect(screen.getByRole("button",{name:"Locked"})).toBeDisabled();
+ expect(screen.queryByRole("button",{name:"Mark paid"})).not.toBeInTheDocument();
+});

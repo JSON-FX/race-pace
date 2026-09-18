@@ -109,8 +109,8 @@ port = 54524
 # Uncomment to expose additional ports for testing user applications that send emails.
 # smtp_port = 54325
 # pop3_port = 54326
-# admin_email = "admin@email.com"
-# sender_name = "Admin"
+admin_email = "qa@racepace.test"
+sender_name = "Race Pace Local QA"
 
 [storage]
 enabled = true
@@ -162,11 +162,19 @@ enabled = true
 # explicit redirectTo from org-provision instead. Every host that may be
 # redirected to has to be listed — including the Docker dev stack, or the invite
 # flow works on Vercel and breaks locally.
-site_url = "https://race-pace-site.vercel.app"
+# This file controls the local CLI stack. Hosted Auth keeps its Vercel URL
+# in the dashboard; using that URL here sends local confirmation links away.
+site_url = "https://racepace.lan"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
 additional_redirect_urls = [
+  "https://racepace.lan/auth/recovery",
+  "https://admin.racepace.lan/auth/recovery",
+  "http://localhost:3000/auth/recovery",
+  "http://localhost:3001/auth/recovery",
+  "https://race-pace-site.vercel.app/auth/recovery",
+  "https://race-pace-admin.vercel.app/auth/recovery",
   "https://race-pace-admin.vercel.app/auth/confirm",
   "https://race-pace-admin.vercel.app/auth/confirm/finish",
   "https://race-pace-admin.vercel.app/auth/callback",
@@ -215,7 +223,8 @@ password_requirements = ""
 
 [auth.rate_limit]
 # Number of emails that can be sent per hour. Requires auth.email.smtp to be enabled.
-email_sent = 2
+# Local QA covers runner confirmation plus multiple organizer invitations.
+email_sent = 20
 # Number of SMS messages that can be sent per hour. Requires auth.sms to be enabled.
 sms_sent = 30
 # Number of anonymous sign-ins that can be made per hour per IP address. Requires enable_anonymous_sign_ins = true.
@@ -242,7 +251,7 @@ enable_signup = true
 # addresses. If disabled, only the new email is required to confirm.
 double_confirm_changes = true
 # If enabled, users need to confirm their email address before signing in.
-enable_confirmations = false
+enable_confirmations = true
 # If enabled, users will need to reauthenticate or have logged in recently to change their password.
 secure_password_change = false
 # Controls the minimum amount of time that must pass before sending another signup confirmation or password reset email.
@@ -252,15 +261,8 @@ otp_length = 6
 # Number of seconds before the email OTP expires (defaults to 1 hour).
 otp_expiry = 3600
 
-# Use a production-ready SMTP server
-# [auth.email.smtp]
-# enabled = true
-# host = "smtp.sendgrid.net"
-# port = 587
-# user = "apikey"
-# pass = "env(SENDGRID_API_KEY)"
-# admin_email = "admin@email.com"
-# sender_name = "Admin"
+# Local Auth uses the bundled Mailpit capture server from [local_smtp].
+# Do not enable an external SMTP provider for routine local tests.
 
 # Uncomment to customize email template
 # [auth.email.template.invite]
@@ -446,3 +448,9 @@ enabled = true
 # declarative_schema_path = "./database"
 # JSON string passed through to pg-delta SQL formatting.
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":80,\"commaStyle\":\"trailing\"}"
+
+[functions.group-ticket-delivery]
+verify_jwt = false
+
+[functions.expire-paymongo-checkouts]
+verify_jwt = false

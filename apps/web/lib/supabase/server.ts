@@ -17,6 +17,11 @@ export async function createClient() {
     process.env.SUPABASE_INTERNAL_URL || process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      // The internal Docker hostname changes Supabase's default cookie name.
+      // Match the browser endpoint so server-side auth reads the same session.
+      cookieOptions: {
+        name: `sb-${new URL(process.env.NEXT_PUBLIC_SUPABASE_URL!).hostname.split(".")[0]}-auth-token`,
+      },
       cookies: {
         getAll() {
           return cookieStore.getAll();

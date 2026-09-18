@@ -1,7 +1,16 @@
 const MESSAGES: Record<string, string> = {
+  assisted_registration_not_enabled: "Registration for another participant is not available yet.",
+  passport_incomplete: "Complete your Race Passport before registering.",
+  passport_unavailable: "We could not check your Race Passport. Please try again.",
   sold_out: "This distance just sold out. Try another distance for this race.",
   registration_closed: "Registration for this race is no longer open.",
-  not_pending: "You've already paid for this registration. Check My Races for your ticket.",
+  not_pending: "This registration can no longer be paid. Check My Races for its status.",
+  waiver_version_changed: "The organizer updated the waiver. Reload this page and review the new version before registering.",
+  event_waiver_unavailable: "Registration is unavailable until the organizer publishes an event waiver.",
+  participant_already_registered: "This participant already has an entry. Contact the person who made that booking.",
+  participant_not_accessible: "This participant Passport is not available to your account.",
+  participant_acceptance_required: "Assisted registration requires an organizer waiver and the participant’s personal acceptance.",
+  booking_email_unverified: "Confirm your account email before booking for another participant.",
   waiver_required: "Please accept the event waiver before registering.",
   invalid_custom_data: "Some answers need fixing. Check the highlighted fields.",
   invalid_input: "Some details are missing or invalid. Check the form and try again.",
@@ -10,6 +19,8 @@ const MESSAGES: Record<string, string> = {
   registration_not_found: "We couldn't find that registration.",
   registration_failed: "We couldn't save your registration. Please try again.",
   server_error: "Something went wrong on our end. Please try again.",
+  checkout_reconciliation_required:
+    "We need to check this payment with PayMongo before you try again. Your slot remains held. Contact Race Pace support with your registration reference.",
   // registrations-checkout:58 and payment-session both answer 409
   // { error: "org_suspended" } when the platform has switched an organizer
   // off. Deliberately carries NO "try again" — the condition is permanent

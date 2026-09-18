@@ -1,7 +1,9 @@
 import { confirmPayment } from "../_shared/confirm.ts";
 import { serviceClient } from "../_shared/supabase.ts";
-import { verifyWebhookSignature } from "../_shared/paymongo-webhook.ts";
+import { refundResourcesFromEvent, verifyWebhookSignature } from "../_shared/paymongo-webhook.ts";
 import { pmMethodFromAttributes } from "../_shared/paymongo.ts";
+import { applyGroupRefundWebhook } from "../_shared/groupRefund.ts";
+import { verifyGroupPayment } from "../_shared/groupPaymentService.ts";
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -9,7 +11,7 @@ function json(body: unknown, status = 200): Response {
 
 // PayMongo webhook. Verifies the signature, then routes:
 //   checkout_session.payment.paid -> confirmPayment (authoritative; idempotent)
-//   refund.updated (succeeded/failed) -> reconcile the async refund parked in payments.raw
+//   payment.refund.updated / payment.refunded (succeeded/failed) -> persist and reconcile the durable refund request
 Deno.serve(async (req) => {
   try {
     const raw = await req.text();
@@ -24,6 +26,20 @@ Deno.serve(async (req) => {
     const db = serviceClient();
 
     if (type === "checkout_session.payment.paid" || type === "payment.paid") {
+      const attemptId = resource?.attributes?.metadata?.payment_attempt_id;
+      if (attemptId) {
+        if (Deno.env.get("GROUP_PAYMENTS_ENABLED") !== "true") return json({ error: "group_checkout_not_available" }, 503);
+        if (typeof attemptId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(attemptId)) {
+          return json({ error: "invalid_group_attempt" }, 400);
+        }
+        // Re-fetch the stored session. Metadata routes the notification; it
+        // does not replace verification of the bound provider capture.
+        const verified = await verifyGroupPayment(attemptId);
+        // A paid notification can precede the provider GET becoming consistent.
+        // Acknowledge only a durable capture outcome, not an unpaid snapshot.
+        if (verified.status === "pending") return json({ error: "group_capture_not_visible" }, 503);
+        return json(verified);
+      }
       const rid = resource?.attributes?.metadata?.registration_id as string | undefined;
       if (!rid) return json({ ok: true, ignored: "no_registration_id" });
       // Shared with payment-verify so both confirm paths record the same
@@ -32,43 +48,29 @@ Deno.serve(async (req) => {
       // [0] then reports the method the runner abandoned.
       const method = pmMethodFromAttributes(resource?.attributes);
       const r = await confirmPayment(rid, method, { source: "webhook", event: evt });
-      if (!r.ok) return json({ error: r.error }, r.status); // surface failures so PayMongo retries
+      if (!r.ok && r.error === "capture_review_required") {
+        // The signed capture is durably recorded and blocks payout. A retry
+        // cannot fix an extra charge or amount mismatch; alert staff instead.
+        return json({ ok: true, review_required: true });
+      }
+      if (!r.ok) return json({ error: r.error }, r.status); // transient failures can retry
       return json({ ok: true, registration_id: r.registration_id });
     }
 
-    if (type === "refund.updated") {
-      const refundId = resource?.id as string | undefined;
-      const status = resource?.attributes?.status as string | undefined;
-      if (!refundId) return json({ ok: true, ignored: "no_refund_id" });
-      const { data: pay } = await db.from("payments").select("registration_id,raw").filter("raw->refund->>id", "eq", refundId).maybeSingle();
-      if (!pay) return json({ ok: true, ignored: "unknown_refund" });
-      // deno-lint-ignore no-explicit-any
-      const parked = (pay.raw as any)?.refund ?? {};
-      if (status === "succeeded") {
-        // The retained split was computed and parked when the refund was
-        // REQUESTED (_shared/refund.ts), not now: the org's policy may have
-        // changed since, and the provider has already moved the parked amount.
-        // Passing null here would settle a flat-fee refund as a full one and
-        // hand back money both parties had agreed to keep.
-        const { error: rpcErr } = await db.rpc("refund_registration_tx", {
-          p_registration_id: pay.registration_id,
-          p_refunded_by: parked.refunded_by ?? null,
-          p_note: parked.note ?? null,
-          p_provider_refund: resource,
-          p_refunded_amount: parked.refunded_amount ?? null,
-          p_retained_net: parked.retained_net ?? 0,
-        });
-        if (rpcErr) {
-          console.error("[webhook] refund_registration_tx failed", rpcErr);
-          return json({ error: "refund_reconcile_failed" }, 500); // surface so PayMongo retries
-        }
-      } else if (status === "failed") {
-        const raw2 = { ...((pay.raw as Record<string, unknown>) ?? {}), refund: { ...parked, status: "failed" } };
-        const { error: upErr } = await db.from("payments").update({ raw: raw2 }).eq("registration_id", pay.registration_id);
-        if (upErr) {
-          console.error("[webhook] refund flag update failed", upErr);
-          return json({ error: "refund_flag_failed" }, 500);
-        }
+    const refunds = refundResourcesFromEvent(type, resource);
+    if (refunds !== null) {
+      if (!refunds.length) return json({ error: "invalid_refund_resource" }, 400);
+      for (const refundResource of refunds) {
+        if (await applyGroupRefundWebhook(refundResource)) continue;
+        // Commit the signed resource before acknowledgment. An early callback
+        // remains available even when the provider response has not bound its ID.
+        const stored = await db.rpc("refund_event_store", { p_resource: refundResource });
+        if (stored.error || stored.data !== "stored") return json({ error: "refund_event_write_failed" }, 500);
+        const applied = await db.rpc("refund_request_apply_event", { p_provider_refund_id: refundResource.id });
+        if (applied.data === "review_required") return json({ error: "refund_review_required" }, 500);
+        if (applied.error || applied.data === "invalid") return json({ error: "refund_reconcile_failed" }, 500);
+        // Unmatched is safe to acknowledge only because the inbox write above
+        // committed. Binding or an authenticated refund check consumes it later.
       }
       return json({ ok: true });
     }
