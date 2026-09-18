@@ -1,15 +1,15 @@
 import { canAccessBooking } from "../_shared/bookingAccess.ts";
 import { serviceClient } from "../_shared/supabase.ts";
-import { getPaymentProviderByName, type CheckoutInput } from "../_shared/payments.ts";
+import { getPaymentProviderByName } from "../_shared/payments.ts";
 import { preflight, corsHeaders } from "../_shared/cors.ts";
 import { isRegistrationClosed } from "../_shared/eventStatus.ts";
 import { computeFee, type FeeTerms } from "../_shared/fee.ts";
 import { passOnBreakdown, type ProcessorRate } from "../_shared/processorFee.ts";
 
-// The register flow creates an all-methods checkout at registration time (before the runner picks
-// how to pay). When they choose a method on the pay screen and tap Pay, this recreates the PayMongo
-// checkout scoped to just that method, so the hosted page opens straight to it. Maya is "paymaya"
-// in PayMongo; unknown keys are rejected.
+// Registration creates the PayMongo checkout before the runner chooses a method.
+// Reuse that bound session on the pay screen; creating another can leave two
+// chargeable links. The fake local provider still creates a method-scoped link.
+// Maya is "paymaya" in PayMongo; unknown keys are rejected.
 const METHOD_MAP: Record<string, string> = { card: "card", gcash: "gcash", maya: "paymaya" };
 
 Deno.serve(async (req) => {
@@ -149,7 +149,7 @@ Deno.serve(async (req) => {
     if (!org?.is_active) return json({ error: "org_suspended" }, 409);
 
     const { data: payment } = await db.from("payments")
-      .select("provider,provider_ref,checkout_url,checkout_fee_mode,checkout_platform_fee,checkout_provider_managed_fee,checkout_request,amount,status,created_at")
+      .select("provider,provider_ref,checkout_url,checkout_fee_mode,checkout_platform_fee,checkout_provider_managed_fee,checkout_request")
       .eq("registration_id", reg.id).single();
     if (!payment) return json({ error: "payment_setup_unavailable" }, 503);
     const feeMode = payment?.checkout_fee_mode ?? org.fee_mode;
@@ -161,34 +161,15 @@ Deno.serve(async (req) => {
         return json({ error: "provider_fee_session_required" }, 409);
       }
       if (!payment.provider_ref && !payment.checkout_url) {
-        // The first create may have reached PayMongo while the Edge response
-        // or DB update was lost. Retry only the saved server-built request.
-        // PayMongo keeps idempotency results for 24 hours; stop short of that
-        // window so recovery cannot mint an untracked second session.
-        const frozen = payment.checkout_request as CheckoutInput | null;
-        const ageMs = Date.now() - Date.parse(payment.created_at);
-        if (payment.status !== "pending" || !frozen || frozen.registrationId !== reg.id ||
-            frozen.amount !== payment.amount || frozen.passOnFees !== payment.checkout_provider_managed_fee ||
-            typeof frozen.returnUrl !== "string" || !Array.isArray(frozen.lineItems) ||
-            !frozen.lineItems.every((item) => typeof item.name === "string" && Number.isSafeInteger(item.amount) && item.amount > 0) ||
-            frozen.lineItems.reduce((sum, item) => sum + item.amount, 0) !== frozen.amount ||
-            !Number.isFinite(ageMs) || ageMs < 0 || ageMs >= 23 * 60 * 60 * 1000) {
-          return json({ error: "provider_fee_session_unavailable" }, 503);
-        }
-        const checkout = await getPaymentProviderByName("paymongo").createCheckout(frozen);
-        const { data: bound, error: bindError } = await db.from("payments").update({
-          provider_ref: checkout.providerRef, checkout_url: checkout.checkoutUrl,
-        }).eq("registration_id", reg.id).eq("status", "pending").is("provider_ref", null)
-          .select("provider_ref,checkout_url").maybeSingle();
-        if (bindError) return json({ error: "payment_setup_failed" }, 500);
-        if (bound) return json({ checkout_url: bound.checkout_url });
-        // A concurrent retry may have bound the same idempotent session.
-        const { data: winner } = await db.from("payments").select("provider_ref,checkout_url")
-          .eq("registration_id", reg.id).maybeSingle();
-        if (winner?.provider_ref === checkout.providerRef && winner.checkout_url === checkout.checkoutUrl) {
-          return json({ checkout_url: checkout.checkoutUrl });
-        }
-        return json({ error: "provider_fee_session_unavailable" }, 503);
+        // A sandbox probe returned DIFFERENT cs_ IDs for identical checkout
+        // POSTs with the same Idempotency-Key. If the first create reached
+        // PayMongo but its response or DB bind was lost, retrying the frozen
+        // request can mint a second chargeable session. Keep the reservation
+        // held for provider reconciliation instead of sending another POST.
+        console.error("[payment-session] unbound PayMongo checkout requires review", {
+          registrationId: reg.id, frozenRequest: !!payment.checkout_request,
+        });
+        return json({ error: "checkout_reconciliation_required" }, 503);
       }
       if (!payment.provider_ref?.startsWith("cs_") ||
           !payment.checkout_url?.startsWith("https://checkout.paymongo.com/")) {

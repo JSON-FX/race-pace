@@ -113,6 +113,22 @@ describe("PayPanel — a suspended organizer", () => {
     expect(await screen.findByText(/isn't taking registrations right now/i)).toBeInTheDocument();
   });
 
+  it("does not open a stored link when PayMongo checkout creation needs reconciliation", async () => {
+    const user = userEvent.setup();
+    useRegistrationMock.mockReturnValue({
+      isLoading: false,
+      data: row({ checkoutUrl: "https://checkout.paymongo.com/stale-link" }),
+    });
+    createMethodCheckoutMock.mockResolvedValue({ url: null, code: "checkout_reconciliation_required" });
+
+    render(<PayPanel registrationId="r1" />);
+    await user.click(screen.getByRole("button", { name: /^Pay ₱/ }));
+
+    expect(assign).not.toHaveBeenCalled();
+    expect(await screen.findByText(/check this payment with PayMongo/i)).toBeInTheDocument();
+    expect(screen.getByText(/Your slot remains held/i)).toBeInTheDocument();
+  });
+
   it("can still use the local fake checkout after a transport failure", async () => {
     const user = userEvent.setup();
     useRegistrationMock.mockReturnValue({

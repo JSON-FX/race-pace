@@ -269,9 +269,10 @@ Deno.serve(async (req) => {
     const providerManagedFee = provider.name === "paymongo" && org.fee_mode === "pass_on";
     const frozenPlatformFee = computeFee(total, org);
     const checkoutSubtotal = total + (providerManagedFee ? frozenPlatformFee : 0);
-    // Build and freeze the provider request before the external POST. If the
-    // POST succeeds but its response is lost, payment-session can retry the
-    // identical body with the same PayMongo idempotency key.
+    // Build and freeze the provider request before the external POST for audit.
+    // A sandbox probe on 2026-09-18 found that repeating checkout creation with
+    // the same PayMongo idempotency key minted a different session. An uncertain
+    // create must remain pending for provider reconciliation, not auto-retry.
     const lineItems = [{ name: category.label, amount: category.base_price }];
     if (addonTotal > 0) lineItems.push({ name: "Add-ons", amount: addonTotal });
     if (providerManagedFee && frozenPlatformFee > 0) lineItems.push({ name: "Taxes and fees", amount: frozenPlatformFee });
@@ -296,9 +297,8 @@ Deno.serve(async (req) => {
       checkout_request: checkoutInput,
     });
     if (paymentInsertError?.code === "23505") {
-      // The pay page can retry the winner's frozen provider request if its
-      // creator lost the network response. Use the same recoverable contract
-      // as the pre-check above so the runner reaches that page.
+      // The pay page can reuse a bound checkout, or report that an uncertain
+      // create needs reconciliation. It must not mint another PayMongo session.
       return json({ error: "already_registered", registration_id: reg.id, status: "pending", checkout_url: null }, 409);
     }
     if (paymentInsertError) return json({ error: "payment_setup_failed" }, 500);

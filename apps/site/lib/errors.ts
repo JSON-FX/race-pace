@@ -18,6 +18,8 @@ const MESSAGES: Record<string, string> = {
   registration_not_found: "We couldn't find that registration.",
   registration_failed: "We couldn't save your registration. Please try again.",
   server_error: "Something went wrong on our end. Please try again.",
+  checkout_reconciliation_required:
+    "We need to check this payment with PayMongo before you try again. Your slot remains held. Contact Race Pace support with your registration reference.",
   // registrations-checkout:58 and payment-session both answer 409
   // { error: "org_suspended" } when the platform has switched an organizer
   // off. Deliberately carries NO "try again" — the condition is permanent
