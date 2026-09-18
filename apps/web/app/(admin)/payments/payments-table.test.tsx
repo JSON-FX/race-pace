@@ -115,6 +115,17 @@ it("renders partial refunds with a readable label and an unrecorded method", () 
   expect(screen.getByText("Partially refunded")).toBeInTheDocument();
   expect(screen.getByText("Not recorded")).toBeInTheDocument();
   expect(screen.queryByText("Not yet paid")).not.toBeInTheDocument();
+  expect(within(screen.getAllByRole("row")[1]!).getAllByRole("cell")[4]).toHaveTextContent("₱2,707.50");
+});
+
+it("shows zero current net on a full refund while retaining the stored ledger amount", () => {
+  render(<PaymentsTable {...props} rows={[{
+    ...rows[0]!, status: "refunded", refunded_amount: 270750,
+  }]} />);
+  const dataRow = screen.getAllByRole("row")[1]!;
+  expect(within(dataRow).getAllByRole("cell")[4]).toHaveTextContent("₱0");
+  expect(within(dataRow).getAllByRole("cell")[5]).toHaveTextContent("Refunded");
+  expect(within(screen.getAllByRole("columnheader")[4]!).queryByRole("button")).not.toBeInTheDocument();
 });
 
 it("shows a group order and participant count without inventing a registration or zero net", () => {
