@@ -13,7 +13,7 @@ it("reports captured gross and audits it without changing entry base", async () 
   await db.query("alter table public.registrations disable trigger z_registration_record_waiver");
   await db.query("insert into auth.users(id,email) values($1,$2)",[helper,`${helper}@example.com`]);
   await db.query("insert into organizations(id,name,slug) values($1,'Reporting QA',$2)",[org,org]);
-  await db.query("insert into events(id,org_id,name,status,event_date) values($1,$2,'Reporting QA','open',current_date+1)",[event,org]);
+  await db.query("insert into events(id,org_id,name,status,event_date) values($1,$2,'Reporting QA','draft',current_date+1)",[event,org]);
   await db.query("insert into categories(id,org_id,event_id,code,label,base_price,slots_total) values($1,$2,$3,'Q','QA',100000,10)",[category,org,event]);
   await db.query("insert into runner_passports(id,created_by_user_id,first_name,last_name) values($1,$2,'Guest','Runner')",[passport,helper]);
   await db.query("insert into registrations(id,org_id,event_id,category_id,user_id,participant_passport_id,booked_by_user_id,status,total_amount,idempotency_key,custom_data) values($1,$2,$3,$4,null,$5,$6,'pending',100000,$7,'{\"full_name\":\"Guest Runner\"}')",[reg,org,event,category,passport,helper,randomUUID()]);

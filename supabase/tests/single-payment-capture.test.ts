@@ -18,7 +18,7 @@ async function fixture() {
     [user, `capture-${user}@example.com`],
   );
   await db.query("insert into public.organizations(id,name,slug) values($1,'Capture QA',$2)", [org, `capture-${org}`]);
-  await db.query("insert into public.events(id,org_id,name,status) values($1,$2,'Capture QA','open')", [event, org]);
+  await db.query("insert into public.events(id,org_id,name,status) values($1,$2,'Capture QA','draft')", [event, org]);
   await db.query("insert into public.categories(id,org_id,event_id,code,label,base_price,slots_total) values($1,$2,$3,'QA','QA',10000,10)", [category, org, event]);
   await db.query(
     "insert into public.registrations(id,org_id,event_id,category_id,user_id,status,total_amount) values($1,$2,$3,$4,$5,'pending',10000)",

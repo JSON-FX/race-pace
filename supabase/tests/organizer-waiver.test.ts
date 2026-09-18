@@ -64,6 +64,21 @@ it("denies publishing through an editor-only database role", async () => {
  }
 });
 
+it("requires a published same-organization waiver before an admin opens a new event", async () => {
+ const blocked = await admin.from("events").insert({ org_id: org, name: "Unwaived race", status: "open" });
+ expect(blocked.error?.message).toContain("event_waiver_required_for_publishing");
+ const draft = await admin.from("events").insert({ org_id: org, name: "Draft race", status: "draft" }).select("id").single();
+ expect(draft.error).toBeNull();
+ const noWaiver = await admin.from("events").update({ status: "open" }).eq("id", draft.data!.id);
+ expect(noWaiver.error?.message).toContain("event_waiver_required_for_publishing");
+ const almostFull = await admin.from("events").update({ status: "almost_full" }).eq("id", draft.data!.id);
+ expect(almostFull.error?.message).toContain("event_waiver_required_for_publishing");
+ const published = randomUUID();
+ expect((await admin.rpc("organizer_publish_waiver", { p_org_id: org, p_version_id: published, p_title: "Open race waiver", p_body: body })).error).toBeNull();
+ expect((await admin.rpc("event_select_waiver", { p_event_id: draft.data!.id, p_version_id: published })).error).toBeNull();
+ expect((await admin.from("events").update({ status: "open" }).eq("id", draft.data!.id)).error).toBeNull();
+});
+
 it("binds an event to its own waiver and preserves canonical acceptance after replacement", async () => {
  const ev = await service.from("events").insert({ org_id: org, name: "Waiver event", status: "open" }).select().single();
  expect(ev.error).toBeNull();

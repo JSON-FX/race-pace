@@ -12,7 +12,7 @@ it("records confirmation time once and retains it through replay and refund", as
   let rid: string | undefined;
   let occupied = false;
   try {
-    const reg = await db.from("registrations").insert({ org_id: ids.ORG_A, event_id: ids.EVENT_A, category_id: ids.CATEGORY_A, user_id: user.user!.id, status: "pending", total_amount: 100000 }).select("id").single();
+    const reg = await db.from("registrations").insert({ org_id: ids.ORG_A, event_id: ids.EVENT_A, category_id: ids.CATEGORY_A, user_id: user.user!.id, status: "pending", total_amount: 100000, waiver_version_id: ids.WAIVER_A }).select("id").single();
     expect(reg.error).toBeNull(); rid = reg.data!.id;
     expect((await db.from("payments").insert({ org_id: ids.ORG_A, registration_id: rid, amount: 100000, platform_fee: 3000, net_to_org: 95500, status: "pending", created_at: "2020-01-01T00:00:00Z" })).error).toBeNull();
     const args = { p_registration_id: rid, p_method: "gcash", p_fee: 3000, p_net: 95500, p_token: "test-token", p_raw: {}, p_processor_fee: 1500, p_processor_fee_predicted: 1500, p_processor_fee_source: "predicted" };

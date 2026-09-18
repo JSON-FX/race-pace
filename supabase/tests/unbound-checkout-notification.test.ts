@@ -19,7 +19,7 @@ it("alerts platform staff once when an expired hold has no bound PayMongo sessio
     );
     await db.query("insert into public.user_roles(user_id,role) values($1,'super_admin')", [user]);
     await db.query("insert into public.organizations(id,name,slug) values($1,'Unbound QA',$2)", [org, `unbound-${org}`]);
-    await db.query("insert into public.events(id,org_id,name,status) values($1,$2,'Unbound QA','open')", [event, org]);
+    await db.query("insert into public.events(id,org_id,name,status) values($1,$2,'Unbound QA','draft')", [event, org]);
     await db.query("insert into public.categories(id,org_id,event_id,code,label,base_price,slots_total) values($1,$2,$3,'QA','QA',10000,1)", [category, org, event]);
     await db.query(
       "insert into public.registrations(id,org_id,event_id,category_id,user_id,status,total_amount,expires_at) " +

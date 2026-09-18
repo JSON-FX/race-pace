@@ -25,9 +25,13 @@ function bounce(returnUrl: string, status: string): Response {
 
 // DEV ONLY. Stands in for a PayMongo-hosted checkout page while PayMongo is not wired.
 Deno.serve(async (req) => {
-  // Real-money safety: this sandbox confirms payments without a real charge — never
-  // reachable where PayMongo is configured (hosted). Local dev (no key) still works.
-  if (paymongoConfigured()) return page("<h2>Not available</h2>", 404);
+  // The local CLI injects this internal URL; hosted functions also carry a
+  // deployment ID. A missing PayMongo key must never turn this public,
+  // no-charge endpoint into a service-role payment confirmer in production.
+  if (Deno.env.get("DENO_DEPLOYMENT_ID") ||
+      Deno.env.get("SUPABASE_URL") !== "http://kong:8000" || paymongoConfigured()) {
+    return page("<h2>Not available</h2>", 404);
+  }
 
   const u = new URL(req.url);
   const rid = u.searchParams.get("rid") ?? "";

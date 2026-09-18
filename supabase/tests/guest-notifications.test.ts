@@ -6,7 +6,7 @@ import { loadEnv } from "../../test/env";
 it("routes two guest bookings to their helper without collapsing reminders", async () => {
  const db = new Client({ connectionString: loadEnv().dbUrl });
  await db.connect();
- const helper=randomUUID(), org=randomUUID(), event=randomUUID(), category=randomUUID();
+ const helper=randomUUID(), org=randomUUID(), event=randomUUID(), category=randomUUID(), waiver=randomUUID();
  const registrations=[randomUUID(),randomUUID()];
  try {
   await db.query("begin");
@@ -17,7 +17,9 @@ it("routes two guest bookings to their helper without collapsing reminders", asy
   await db.query("alter table public.registrations disable trigger z_registration_record_waiver");
   await db.query("insert into auth.users(id,email) values($1,$2)", [helper,`${helper}@example.com`]);
   await db.query("insert into public.organizations(id,name,slug) values($1,'Guest messages',$2)", [org,org]);
-  await db.query("insert into public.events(id,org_id,name,status,event_date) values($1,$2,'Guest messages','open',current_date+1)", [event,org]);
+  await db.query("insert into public.organizer_waiver_versions(id,org_id,title,body) values($1,$2,'Guest QA waiver','Synthetic guest notification test.')", [waiver,org]);
+  await db.query("select set_config('request.jwt.claim.role','service_role',true)");
+  await db.query("insert into public.events(id,org_id,name,status,event_date,waiver_version_id) values($1,$2,'Guest messages','open',current_date+1,$3)", [event,org,waiver]);
   await db.query("insert into public.categories(id,org_id,event_id,code,label,base_price,slots_total) values($1,$2,$3,'Q','QA',10000,10)", [category,org,event]);
   for (let i=0;i<2;i++) {
    const passport=randomUUID();

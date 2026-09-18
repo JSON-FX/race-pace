@@ -14,9 +14,9 @@ async function makeUser(email: string) {
   return { id: c.data.user!.id, token: s.data.session!.access_token };
 }
 // Resolved from the seed rather than restated — see test/seeded.ts.
-let RWP: string, APO: string, E1: string, C4: string;
+let RWP: string, APO: string, E1: string, C4: string, WAIVER: string;
 beforeAll(async () => {
-  ({ ORG_A: RWP, ORG_B: APO, EVENT_A: E1, CATEGORY_A: C4 } = await seededIds());
+  ({ ORG_A: RWP, ORG_B: APO, EVENT_A: E1, CATEGORY_A: C4, WAIVER_A: WAIVER } = await seededIds());
 });
 
 describe("admin registration reads", () => {
@@ -31,7 +31,7 @@ describe("admin registration reads", () => {
     await svc.from("profiles").insert({ id: runner.id, full_name: "Runner One", bib_name: "RUN1" });
     await svc.from("profiles").insert({ id: stranger.id, full_name: "Stranger" });
 
-    const reg = await svc.from("registrations").insert({ org_id: RWP, event_id: E1, category_id: C4, user_id: runner.id, status: "paid", total_amount: 100000 }).select().single();
+    const reg = await svc.from("registrations").insert({ org_id: RWP, event_id: E1, category_id: C4, user_id: runner.id, status: "paid", total_amount: 100000, waiver_version_id: WAIVER }).select().single();
     await svc.from("payments").insert({ org_id: RWP, registration_id: reg.data!.id, amount: 100000, status: "paid" });
     await svc.from("registration_addons").insert({ registration_id: reg.data!.id, addon_id: "00000000-0000-0000-0000-0000000000d1", price: 60000 });
 

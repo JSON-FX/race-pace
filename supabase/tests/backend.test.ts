@@ -32,11 +32,11 @@ async function removeLocalCapture(registrationId: string) {
 // and the rate card's REAL current row, never a restated literal — a repeat of
 // exactly the drift that broke this file (the org went from a hardcoded 10% to
 // the seed's actual 6%; a ₱3,800 category was asserted as if it were ₱1,000).
-let RWP_RF: string, APO_RF: string, E1_RF: string, C4_RF: string;
+let RWP_RF: string, APO_RF: string, E1_RF: string, C4_RF: string, WAIVER_RF: string;
 let ORG_A_TERMS: FeeTerms;
 let GCASH_RATE: ProcessorRate;
 beforeAll(async () => {
-  ({ ORG_A: RWP_RF, ORG_B: APO_RF, EVENT_A: E1_RF, CATEGORY_A: C4_RF } = await seededIds());
+  ({ ORG_A: RWP_RF, ORG_B: APO_RF, EVENT_A: E1_RF, CATEGORY_A: C4_RF, WAIVER_A: WAIVER_RF } = await seededIds());
 
   const svc = service();
   const org = await svc.from("organizations")
@@ -224,7 +224,7 @@ describe("registrations-checkout", () => {
   // shirt_size) on a fresh org/event/category that IS open — mirroring the
   // "registrations RLS" / "events catalog RLS" fixtures above rather than depending on
   // the global seed for behavior the global seed no longer provides on an open event.
-  let fx: { eventId: string; categoryId: string; addonId: string; addonPrice: number; basePrice: number };
+  let fx: { eventId: string; categoryId: string; addonId: string; addonPrice: number; basePrice: number; waiverId: string };
   let fixtureOrgId: string;
 
   beforeAll(async () => {
@@ -232,7 +232,8 @@ describe("registrations-checkout", () => {
     const stamp = `checkout-fx-${Date.now()}`;
     const org = (await svc.from("organizations").insert({ name: "Checkout Fixture Org", slug: stamp }).select().single()).data!;
     fixtureOrgId = org.id;
-    const ev = (await svc.from("events").insert({ org_id: org.id, name: "Checkout Fixture Race", status: "open" }).select().single()).data!;
+    const waiver = (await svc.from("organizer_waiver_versions").insert({ org_id: org.id, title: "Checkout fixture waiver", body: "Synthetic checkout fixture acceptance." }).select("id").single()).data!;
+    const ev = (await svc.from("events").insert({ org_id: org.id, name: "Checkout Fixture Race", status: "open", waiver_version_id: waiver.id }).select().single()).data!;
     const cat = (await svc.from("categories").insert({
       org_id: org.id, event_id: ev.id, code: "fx", label: "Fixture Category",
       base_price: 170000, slots_total: 50,
@@ -248,7 +249,7 @@ describe("registrations-checkout", () => {
 
     fx = {
       eventId: ev.id, categoryId: cat.id,
-      addonId: addon.id, addonPrice: addon.price, basePrice: cat.base_price,
+      addonId: addon.id, addonPrice: addon.price, basePrice: cat.base_price, waiverId: waiver.id,
     };
   });
   afterAll(async () => {
@@ -268,6 +269,7 @@ describe("registrations-checkout", () => {
         addon_ids: [fx.addonId],
         custom_data: { blood_type: "O", shirt_size: "M" },
         waiver_accepted: true,
+        waiver_version_id: fx.waiverId,
         idempotency_key: `idem-${Date.now()}`,
       }),
     });
@@ -295,6 +297,7 @@ describe("registrations-checkout", () => {
         category_id: fx.categoryId,
         custom_data: { running_club: 12345 }, // fixture field `running_club` is a text field — number fails z.string()
         waiver_accepted: true,
+        waiver_version_id: fx.waiverId,
         idempotency_key: `idem-bad-${Date.now()}`,
       }),
     });
@@ -317,6 +320,7 @@ describe("registrations-checkout", () => {
         category_id: fx.categoryId,
         custom_data: { blood_type: "O+", shirt_size: "XS", running_club: "Trailblazers" },
         waiver_accepted: true,
+        waiver_version_id: fx.waiverId,
         idempotency_key: `idem-passport-${Date.now()}`,
       }),
     });
@@ -347,6 +351,7 @@ describe("registrations-checkout", () => {
         category_id: fx.categoryId,
         custom_data: { shirt_size: "M" }, // omits required blood_type
         waiver_accepted: true,
+        waiver_version_id: fx.waiverId,
         idempotency_key: `idem-missing-${Date.now()}`,
       }),
     });
@@ -370,6 +375,7 @@ describe("payment confirmation (fake) e2e", () => {
         category_id: C4_RF,
         custom_data: { blood_type: "A", shirt_size: "L" },
         waiver_accepted: true,
+        waiver_version_id: WAIVER_RF,
         idempotency_key: `idem-e2e-${Date.now()}`,
       }),
     }).then((r) => r.json());
@@ -437,6 +443,7 @@ describe("processor fee source — actual vs predicted (e2e)", () => {
         category_id: C4_RF,
         custom_data: { blood_type: "A", shirt_size: "L" },
         waiver_accepted: true,
+        waiver_version_id: WAIVER_RF,
         idempotency_key: `idem-${emailPrefix}-${Date.now()}`,
       }),
     }).then((r) => r.json());
@@ -650,6 +657,7 @@ describe("fake-checkout sandbox page", () => {
         category_id: C4_RF,
         custom_data: { blood_type: "A", shirt_size: "L" },
         waiver_accepted: true,
+        waiver_version_id: WAIVER_RF,
         idempotency_key: `idem-fc-${Date.now()}`,
       }),
     }).then((r) => r.json());
@@ -690,7 +698,7 @@ async function paidRegistration(runnerToken: string) {
   const checkout = await fetch(`${FN}/registrations-checkout`, {
     method: "POST",
     headers: { "content-type": "application/json", Authorization: `Bearer ${runnerToken}` },
-    body: JSON.stringify({ event_id: E1_RF, category_id: C4_RF, custom_data: { blood_type: "A", shirt_size: "L" }, waiver_accepted: true, idempotency_key: `idem-rf-${Date.now()}` }),
+    body: JSON.stringify({ event_id: E1_RF, category_id: C4_RF, custom_data: { blood_type: "A", shirt_size: "L" }, waiver_accepted: true, waiver_version_id: WAIVER_RF, idempotency_key: `idem-rf-${Date.now()}` }),
   }).then((r) => r.json());
   await fetch(`${FN}/fake-checkout?rid=${checkout.registration_id}&return=${encodeURIComponent("racepace://cb")}&action=pay`);
   return checkout.registration_id as string;
@@ -773,7 +781,7 @@ describe("admin-refund", () => {
     const checkout = await fetch(`${FN}/registrations-checkout`, {
       method: "POST",
       headers: { "content-type": "application/json", Authorization: `Bearer ${runner.token}` },
-      body: JSON.stringify({ event_id: E1_RF, category_id: C4_RF, custom_data: { blood_type: "A", shirt_size: "L" }, waiver_accepted: true, idempotency_key: `idem-pend-${Date.now()}` }),
+      body: JSON.stringify({ event_id: E1_RF, category_id: C4_RF, custom_data: { blood_type: "A", shirt_size: "L" }, waiver_accepted: true, waiver_version_id: WAIVER_RF, idempotency_key: `idem-pend-${Date.now()}` }),
     }).then((r) => r.json());
     expect((await refundCall(admin.token, checkout.registration_id)).status).toBe(409);
 
@@ -810,7 +818,7 @@ async function webhookPaidRegistration(userId: string) {
   if (category.error) throw category.error;
   const reg = await svc.from("registrations").insert({
     org_id: RWP_RF, event_id: E1_RF, category_id: C4_RF,
-    user_id: userId, total_amount: category.data.base_price, status: "pending",
+    user_id: userId, total_amount: category.data.base_price, status: "pending", waiver_version_id: WAIVER_RF,
   }).select("id").single();
   if (reg.error) throw reg.error;
   const payment = await svc.from("payments").insert({

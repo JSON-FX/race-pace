@@ -10,7 +10,7 @@ it("scopes internal orders and enforces pending capacity atomically", async () =
   await db.query('begin');
   await db.query("insert into auth.users(id,email) values($1,$2)",[user,`${user}@example.com`]);
   await db.query("insert into organizations(id,name,slug) values($1,'Group QA',$2)",[org,org]);
-  await db.query("insert into events(id,org_id,name,status,event_date) values($1,$2,'Group QA','open',current_date+1)",[event,org]);
+  await db.query("insert into events(id,org_id,name,status,event_date) values($1,$2,'Group QA','draft',current_date+1)",[event,org]);
   await db.query("insert into categories(id,org_id,event_id,code,label,base_price,slots_total) values($1,$2,$3,'Q','QA',100000,1)",[cat,org,event]);
   await db.query("insert into booking_orders(id,org_id,event_id,category_id,booked_by_user_id,idempotency_key) values($1,$2,$3,$4,$5,$6)",[order,org,event,cat,user,randomUUID()]);
   await db.query('set local role authenticated');
@@ -58,7 +58,7 @@ it("serializes concurrent single-checkout admissions for the last slot", async (
  try {
   for(const id of users) await a.query('insert into auth.users(id,email) values($1,$2)',[id,`${id}@example.com`]);
   await a.query("insert into organizations(id,name,slug) values($1,'Concurrent group QA',$2)",[org,org]);
-  await a.query("insert into events(id,org_id,name,status,event_date) values($1,$2,'Concurrent QA','open',current_date+1)",[event,org]);
+  await a.query("insert into events(id,org_id,name,status,event_date) values($1,$2,'Concurrent QA','draft',current_date+1)",[event,org]);
   await a.query("insert into categories(id,org_id,event_id,code,label,base_price,slots_total) values($1,$2,$3,'Q','QA',100000,1)",[cat,org,event]);
   const sql="insert into registrations(org_id,event_id,category_id,user_id,total_amount,idempotency_key) values($1,$2,$3,$4,100000,$5)";
   await a.query('begin');

@@ -24,7 +24,7 @@ it("alerts platform staff once when a captured charge needs review", async () =>
     );
     await db.query("insert into public.user_roles(user_id,role) values($1,'super_admin')", [user]);
     await db.query("insert into public.organizations(id,name,slug) values($1,'Capture alert QA',$2)", [org, `capture-alert-${org}`]);
-    await db.query("insert into public.events(id,org_id,name,status) values($1,$2,'Capture alert QA','open')", [event, org]);
+    await db.query("insert into public.events(id,org_id,name,status) values($1,$2,'Capture alert QA','draft')", [event, org]);
     await db.query("insert into public.categories(id,org_id,event_id,code,label,base_price,slots_total) values($1,$2,$3,'QA','QA',10000,10)", [category, org, event]);
     await db.query("insert into public.registrations(id,org_id,event_id,category_id,user_id,status,total_amount) values($1,$2,$3,$4,$5,'pending',10000)", [registration, org, event, category, user]);
     await db.query("insert into public.payments(org_id,registration_id,provider,provider_ref,amount,status,checkout_fee_mode,checkout_request) values($1,$2,'paymongo',$3,10000,'pending','absorb','{}'::jsonb)", [org, registration, session]);
