@@ -409,6 +409,9 @@ deno_version = 2
 [functions.fake-checkout]
 verify_jwt = false
 
+[functions.organizer-inquiry]
+verify_jwt = true
+
 [functions.payments-webhook]
 verify_jwt = false
 

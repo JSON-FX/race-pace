@@ -17,10 +17,11 @@ import Image from "next/image";
  */
 
 const PAYMENTS = [
-  { src: "/payments/gcash.png", alt: "GCash" },
-  { src: "/payments/maya.png", alt: "Maya" },
-  { src: "/payments/visa.png", alt: "Visa" },
-  { src: "/payments/mastercard.png", alt: "Mastercard" },
+  { src: "/payments/gcash.png", alt: "GCash", width: 64, className: "h-9 w-auto" },
+  { src: "/payments/maya.png", alt: "Maya", width: 64, className: "h-9 w-auto" },
+  { src: "/payments/qr-ph.svg", alt: "QR Ph", width: 80, className: "h-9 w-20 rounded-lg bg-white px-1.5 py-2 object-contain" },
+  { src: "/payments/visa.png", alt: "Visa", width: 64, className: "h-9 w-auto" },
+  { src: "/payments/mastercard.png", alt: "Mastercard", width: 64, className: "h-9 w-auto" },
 ] as const;
 
 const COLUMNS: { heading: string; links: { href: string; label: string }[] }[] = [
@@ -42,7 +43,7 @@ const COLUMNS: { heading: string; links: { href: string; label: string }[] }[] =
   },
   {
     heading: "Organizers",
-    links: [{ href: "/events", label: "List a race" }],
+    links: [{ href: "/#organizers", label: "List a race" }],
   },
 ];
 
@@ -52,7 +53,7 @@ export function SiteFooter() {
   return (
     <footer className="no-print mt-24 border-t border-divider bg-muted/40">
       <div className="mx-auto w-full max-w-6xl px-5 py-12 sm:px-6">
-        <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1fr]">
+        <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[1.7fr_.9fr_.9fr_.9fr]">
           <div>
             {/* The full lockup, wordmark included — the only place on the site
                 that uses it. The header carries the mark alone so the two
@@ -71,10 +72,10 @@ export function SiteFooter() {
             <p className="mt-6 font-eyebrow text-[10px] font-bold uppercase tracking-[2px] text-muted-foreground">
               We accept
             </p>
-            <ul className="mt-3 flex flex-wrap items-center gap-2">
+            <ul className="mt-3 flex flex-wrap items-center gap-1.5">
               {PAYMENTS.map((p) => (
                 <li key={p.alt}>
-                  <Image src={p.src} alt={p.alt} width={64} height={40} className="h-10 w-auto" />
+                  <Image src={p.src} alt={p.alt} width={p.width} height={40} className={p.className} />
                 </li>
               ))}
             </ul>

@@ -35,6 +35,22 @@ Branding cleanup, 2026-09-20: Removed the former organizer's name, sample identi
 
 Login lockup alignment, 2026-09-20: The runner login logo is left-aligned with the Mindanao eyebrow and headline. This follow-up uses the standard feature branch to staging to production promotion path. Staging validation and production promotion remain pending.
 
+Landing page selection and enhancement, 2026-09-20: the owner selected Course Atlas. The enhanced direction powers `/`, while the existing event-browsing home is preserved at `/home` and the full catalog remains at `/events`. Four original project-owned backgrounds tell a road-and-trail story across route choice, discovery, preparation and the shared finish. The page retains photo-only pointer parallax, static touch behavior and reduced-motion fallbacks. The owner-requested review pass removed every decorative grid and contour overlay, removed the journey-copy arrow, changed the journey heading to forest green, spaced the checkpoint heading from its icon, and added the QR Ph mark to the accepted-payment row. Browser review at 1,289 px and 390×844 px found no horizontal overflow or application console errors. The owner approved the final design and authorized staging and production deployment.
+
+Organizer inquiry addition, 2026-09-20: the final landing section gives race organizers a responsive signup form for name, work email and organization or race name. The form invokes a new `organizer-inquiry` Edge Function that validates and normalizes input, escapes organizer-controlled email content, limits request size, quietly drops honeypot submissions, sends only to `inquiries@racepace.com.ph`, and sets the organizer email as Reply-To. Owner review removed the extra section and footer gaps and changed the form to a white card with forest-green labels and fields. Desktop and 390×844 browser checks found no horizontal overflow or application console errors. All 426 runner-site tests, the site typecheck, 17 focused inquiry/email tests, `/` and `/home` HTTP checks, and `git diff --check` passed. The full backend/shared run passed 710 of 714 tests; four environment-dependent tests failed because the current database lacks the expected `muspo` test user and one seeded organization. No live inquiry was sent.
+
+Course Atlas staging release, 2026-09-20: PR #59 merged to `staging` at `691324a` after both exact-snapshot GitHub validation runs and both Vercel previews passed. Staging Edge Functions `organizer-inquiry` version 1, `send-ticket-email` version 4 and `group-ticket-delivery` version 3 are active; the inquiry function retains JWT verification. Runner deployment `dpl_Fs1y6DTSN4yYuLwKAX4BGGXBWW9N` is Ready and assigned to `staging.racepace.com.ph`. Protected smoke checks returned HTTP 200 for `/` and `/home`, found the Course Atlas and organizer copy on the landing page, and found the race catalog copy on `/home`. An authenticated invalid inquiry returned HTTP 400 `invalid_input`, proving the deployed route without sending external email. Production promotion is next.
+
+### Current landing page design work
+
+| Work | Status | Blocker | Next task |
+|---|---|---|---|
+| Landing-page direction | **Done** | None. | Course Atlas is the selected direction; keep the five-option study only as a design record. |
+| Course Atlas enhancement | **Design approved** | None. | Preserve the approved compact organizer spacing, white form card and QR Ph footer through release. |
+| Separate landing and home routes | **Verified on staging** | Production deployment is pending. | Promote the same route split to production. |
+| Organizer signup | **Verified on staging** | Production deployment is pending; live delivery remains untested. | Promote the function without sending an unapproved external test email. |
+| Production release | **Authorized** | The production pull request and deployment checks remain. | Promote the staging-verified feature and verify the public aliases. |
+
 ## Release-critical checklist
 
 These are the minimum web and admin gates for the first real organizer. Close each against the same staging release revision, then verify its production configuration. A passing build or database-only test does not close an end-to-end gate.

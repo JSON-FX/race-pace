@@ -24,10 +24,10 @@ export const OAUTH_NEXT_COOKIE = "rp_oauth_next";
  *  Only a same-site relative path is safe: `//host/...` is protocol-relative
  *  and browsers navigate it as absolute, so it — along with any other
  *  absolute-looking target (`https://…`, `javascript:…`, `\\host`) — must
- *  fall back to `/`. A single shared predicate so the credential-auth paths
+ *  fall back to `/home`. A single shared predicate so the credential-auth paths
  *  can't silently drift from the OAuth callback's guard. */
 export function safeNextPath(next: string | null | undefined): string {
-  if (!next || next.includes("\\") || /[\x00-\x1f]/.test(next)) return "/";
+  if (!next || next.includes("\\") || /[\x00-\x1f]/.test(next)) return "/home";
   if (next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/\\")) return next;
-  return "/";
+  return "/home";
 }
