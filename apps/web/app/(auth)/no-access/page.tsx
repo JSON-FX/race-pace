@@ -17,7 +17,7 @@ import { homePathFor } from "@/lib/routes";
  * specific authorization code exists, or should.
  *
  * The page NAMES the rejected address. The gate matches on email, so someone
- * invited at alma@muspo.ph who signs in with a personal alma@gmail.com is
+ * invited at director@example.com who signs in with a personal account is
  * correctly refused — and without seeing which address was rejected, that reads
  * as "the invite is broken" rather than "wrong account". This one line is the
  * difference between a support message and a second attempt.

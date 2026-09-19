@@ -35,7 +35,7 @@
 - `apps/web/src/__tests__/marshal-access.test.tsx` — gate + nav filtering
 
 **Modify:**
-- `supabase/seed.sql` — append Muspo/RunwithPoint, events, categories, registrations, marshal user
+- `supabase/seed.sql` — append TrailNorth/RunwithPoint, events, categories, registrations, marshal user
 - `apps/web/src/lib/roles.ts` — add `isMarshal`, `canAccessWeb`
 - `apps/web/src/App.tsx:15-22` — `RequireAdmin` → `RequireWebAccess`, marshal redirect
 - `apps/web/src/components/Sidebar.tsx:19-27` — filter nav for marshals
@@ -191,7 +191,7 @@ git commit -m "feat(db): let marshals read their org's registrations and checkin
 - Modify: `supabase/seed.sql` (append only — do not touch the existing `…a1`–`…a5` block)
 
 **Interfaces:**
-- Produces: orgs `…a101` (Muspo) / `…a102` (RunwithPoint); events `…e1001`–`…e1010`, `…e2001`–`…e2010`; categories `…c1001`–`…c2020`; ~15 paid + 4 pending registrations on `…e1003` and `…e1004`; user `marshal@racepace.test` / `password123` with role `marshal` on `…a101`
+- Produces: orgs `…a101` (TrailNorth) / `…a102` (RunwithPoint); events `…e1001`–`…e1010`, `…e2001`–`…e2010`; categories `…c1001`–`…c2020`; ~15 paid + 4 pending registrations on `…e1003` and `…e1004`; user `marshal@racepace.test` / `password123` with role `marshal` on `…a101`
 
 A signed `ticket_token` is required — `verifyTicketToken` rejects anything else. Mint it in SQL with the same HMAC-SHA256 + base64url scheme as `supabase/functions/_shared/ticket.ts`.
 
@@ -220,7 +220,7 @@ language sql volatile as $$
 $$;
 ```
 
-- [ ] **Step 2: Append Muspo and RunwithPoint**
+- [ ] **Step 2: Append TrailNorth and RunwithPoint**
 
 Copy the orgs, events and categories from `scratchpad/reseed.sql` (sections 2–4) verbatim into `supabase/seed.sql`, minus its `truncate`/`delete` statements and minus the `profiles`/`user_roles` rows for `…b1`. Keep every id exactly as-is.
 
@@ -253,7 +253,7 @@ end $$;
 
 - [ ] **Step 4: Append registrations with signed tickets**
 
-15 paid across the two on-going Muspo events (`…e1003` Malaybalay Highland 50, `…e1004` Baguio Cordillera Trail 30) plus 4 pending. Runner accounts are created in the same block:
+15 paid across the two on-going TrailNorth events (`…e1003` Malaybalay Highland 50, `…e1004` Baguio Cordillera Trail 30) plus 4 pending. Runner accounts are created in the same block:
 
 ```sql
 do $$
@@ -328,7 +328,7 @@ Expected: PASS. Orgs `…a1`–`…a5` and event `…e1` are untouched, so the 2
 
 ```bash
 git add supabase/seed.sql
-git commit -m "feat(seed): add Muspo/RunwithPoint, marshal user and paid registrations for check-in"
+git commit -m "feat(seed): add TrailNorth/RunwithPoint, marshal user and paid registrations for check-in"
 ```
 
 ---

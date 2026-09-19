@@ -139,7 +139,7 @@ describe("delete_organization_tx", () => {
 
 /** An org with one open event and its own admin — purpose-built so the
  *  suspension tests never touch shared seed data. Root vitest.config.ts sets
- *  no fileParallelism:false, and backend.test.ts reads Muspo
+ *  no fileParallelism:false, and backend.test.ts reads TrailNorth
  *  (00000000-0000-0000-0000-00000000a001) and its categories as anon in the
  *  same run; flipping that org's is_active here would race it. */
 async function makeSuspendableOrg(slug: string) {
@@ -358,9 +358,9 @@ describe("delete_organization_tx / confirm_payment_tx lock ordering", () => {
 });
 
 describe("registrations-checkout on a suspended org", () => {
-  // Own throwaway org, not the seeded Muspo org -- same reason as
+  // Own throwaway org, not the seeded TrailNorth org -- same reason as
   // makeSuspendableOrg's header comment: flipping is_active on shared seed
-  // data would race backend.test.ts, which reads Muspo as anon in the same
+  // data would race backend.test.ts, which reads TrailNorth as anon in the same
   // vitest run.
   it("refuses a direct call with an event id already in hand", async () => {
     const { orgId, eventId } = await makeSuspendableOrg(`t-susp-checkout-${Date.now()}`);

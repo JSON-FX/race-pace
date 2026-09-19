@@ -34,7 +34,7 @@ vi.mock("@/lib/actions/settings", () => ({
   updateOrgCheckInDefaultAction: (...args: unknown[]) => updateOrgCheckInDefaultAction(...(args as Parameters<typeof updateOrgCheckInDefaultAction>)),
 }));
 
-const org: OrgBranding = { id: "a1", name: "Muspo", logo_url: null, banner_url: null, check_in_required_default: true };
+const org: OrgBranding = { id: "a1", name: "TrailNorth", logo_url: null, banner_url: null, check_in_required_default: true };
 
 beforeEach(() => {
   (URL as unknown as { createObjectURL: (b: unknown) => string }).createObjectURL = () => "blob:mock";
@@ -51,7 +51,7 @@ describe("SettingsForm", () => {
     render(<SettingsForm org={org} canEdit />);
     expect(screen.getByText("Avatar")).toBeInTheDocument();
     expect(screen.getByText("Cover photo")).toBeInTheDocument();
-    expect(screen.getByLabelText("Organization name")).toHaveValue("Muspo");
+    expect(screen.getByLabelText("Organization name")).toHaveValue("TrailNorth");
   });
 
   it("crops and saves an avatar upload, then refreshes to pick up the new URL", async () => {

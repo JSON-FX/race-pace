@@ -11,7 +11,7 @@ import {
 
 describe("validateRename", () => {
   it("accepts an ordinary name", () => {
-    expect(validateRename("Muspo Trail Events")).toBeNull();
+    expect(validateRename("TrailNorth Trail Events")).toBeNull();
   });
   // The slug is immutable and the name is not, so a rename to whitespace would
   // leave an organization with no readable identity anywhere in the console.

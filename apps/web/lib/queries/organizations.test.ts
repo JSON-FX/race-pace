@@ -7,8 +7,8 @@ describe("normalizeSlug", () => {
   });
 
   it("collapses runs of punctuation and whitespace into one hyphen", () => {
-    // "Muspo  --  Trail   Co." must not become "muspo------trail---co-".
-    expect(normalizeSlug("Muspo  --  Trail   Co.")).toBe("muspo-trail-co");
+    // "TrailNorth  --  Trail   Co." must not become "trailnorth------trail---co-".
+    expect(normalizeSlug("TrailNorth  --  Trail   Co.")).toBe("trailnorth-trail-co");
   });
 
   it("trims leading and trailing separators", () => {
@@ -42,7 +42,7 @@ describe("normalizeSlug", () => {
 
 describe("isValidSlug", () => {
   it("accepts what normalizeSlug produces", () => {
-    for (const s of ["race-pace", "muspo", "50k-series-2026"]) {
+    for (const s of ["race-pace", "trailnorth", "50k-series-2026"]) {
       expect(isValidSlug(normalizeSlug(s))).toBe(true);
     }
   });

@@ -4,9 +4,9 @@ import { searchEvents } from "./event-search";
 const ev = (name: string, subtitle?: string) => ({ id: name, name, subtitle });
 
 const EVENTS = [
-  ev("Valencia Twin Peaks", "Muspo"),
-  ev("Kalatungan Traverse", "Muspo"),
-  ev("Kitanglad Skyline Ultra", "Muspo"),
+  ev("Valencia Twin Peaks", "TrailNorth"),
+  ev("Kalatungan Traverse", "TrailNorth"),
+  ev("Kitanglad Skyline Ultra", "TrailNorth"),
   ev("Malaybalay Highland Trail", "RunWithPoint"),
   ev("Talakag Forest Loop", "Kitanglad Running Club"),
 ];
@@ -69,6 +69,6 @@ describe("searchEvents", () => {
 
   it("tolerates a missing subtitle", () => {
     expect(searchEvents([{ id: "1", name: "Solo Race" }], "solo")).toHaveLength(1);
-    expect(searchEvents([{ id: "1", name: "Solo Race", subtitle: null }], "muspo")).toEqual([]);
+    expect(searchEvents([{ id: "1", name: "Solo Race", subtitle: null }], "trailnorth")).toEqual([]);
   });
 });

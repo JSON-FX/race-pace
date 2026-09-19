@@ -84,7 +84,7 @@ describe("processor fee columns", () => {
    * since it bypasses RLS and holds a table-wide grant.
    */
   describe("fee_mode is writable by a super admin and nobody else", () => {
-    const SEED_ORG = "00000000-0000-0000-0000-00000000a001"; // Muspo
+    const SEED_ORG = "00000000-0000-0000-0000-00000000a001"; // TrailNorth
 
     async function signedInAs(email: string) {
       const c = createClient(url, anonKey, { auth: { persistSession: false } });
@@ -119,7 +119,7 @@ describe("processor fee columns", () => {
     // OWN organization on pass_on — surcharging their runners and taking the
     // full sticker price — direct through PostgREST, no console involved.
     it("refuses an org admin on their own organization", async () => {
-      const oa = await signedInAs("muspo@racepace.test");
+      const oa = await signedInAs("trailnorth@racepace.test");
       const res = await oa.from("organizations")
         .update({ fee_mode: "pass_on" }).eq("id", SEED_ORG).select("id,fee_mode");
       expect(res.error).not.toBeNull();
@@ -134,7 +134,7 @@ describe("processor fee columns", () => {
     // same org admin still owns their branding, and a save that merely mentions
     // an unchanged fee_mode is not an error either.
     it("still lets that org admin change branding, and tolerates an unchanged fee_mode", async () => {
-      const oa = await signedInAs("muspo@racepace.test");
+      const oa = await signedInAs("trailnorth@racepace.test");
       const before = (await svc().from("organizations").select("logo_url").eq("id", SEED_ORG).single()).data!;
       const logo = `https://example.test/logo-${Date.now()}.png`;
       try {

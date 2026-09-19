@@ -21,9 +21,9 @@ import { LoginForm } from "./login-form";
  * bug report. This uses `login-logo.png` (1177x760, the full lockup, already in
  * public/ and previously unused) at its true ratio.
  *
- * The band carries a real race photo, shared with the runner site's sign-in, so
- * the console and the public site read as one product. Scoped to the band
- * rather than the page: full-bleed, it swamped the card the screen exists for.
+ * The band shares an original Race Pace mountain illustration with the runner
+ * sign-in, keeping both applications visually related without third-party race
+ * photography or sponsor branding.
  */
 export default async function LoginPage() {
   // Never show a bare sign-in form to someone who is ALREADY signed in.
@@ -55,15 +55,11 @@ export default async function LoginPage() {
   return (
     <main className="grid min-h-dvh place-items-center bg-muted p-6">
       <Card className="w-full max-w-sm overflow-hidden rounded-xl p-0 shadow-lg">
-        {/* The photo lives INSIDE the band, not behind the page.
-
-            A real Muspo night flag-off, scoped to the one surface that was
-            already forest. Full-bleed it swamped a 400px sign-in card and made
-            the form the least interesting thing on screen; here it gives the
-            band depth while the card stays the subject. */}
+        {/* The project-owned illustration stays inside the band so the form
+            remains the subject while both applications share one visual cue. */}
         <div className="relative overflow-hidden bg-forest px-6 pb-5 pt-6">
           <Image
-            src="/login-background.jpg"
+            src="/login-mountains.webp"
             alt=""
             aria-hidden
             fill
@@ -71,10 +67,9 @@ export default async function LoginPage() {
             sizes="384px"
             className="object-cover object-center"
           />
-          {/* Heavy wash: this band carries white text at 12.5px, and the frame's
-              head-torches are blown highlights. Without it the subtitle drops
-              below 4.5:1 exactly where the photo is brightest. */}
-          <div aria-hidden className="absolute inset-0 bg-forest/80" />
+          {/* The compact crop needs a stronger wash than the runner pane so its
+              small white subtitle keeps readable contrast. */}
+          <div aria-hidden className="absolute inset-0 bg-forest/72" />
           {/* No plate. login-logo.png is 36% transparent and carries its own
               white fill plus the green mark, so it reads directly on the forest
               band — the white rectangle it used to sit on read as a sticker
