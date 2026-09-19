@@ -61,6 +61,17 @@ Production organizer, event and email verification, 2026-09-20: The public organ
 | Inquiry modal | **Released** | Resend accepted both staging messages; inbox placement was not independently inspected. | Monitor the first real production inquiry and acknowledgment. |
 | Production release | **Done** | None. | Monitor the production page and function logs. |
 
+### Current runner account design work
+
+Profile and managed-bookings redesign, 2026-09-20: the owner selected Summit Bento. The release implementation uses the site's semantic tokens and existing Card, Button, Badge, Input, Label and Separator components. `/profile` keeps photo framing, managed Passport creation, editing, saving and sign-out. `/bookings` keeps the existing query and ticket/payment destinations. The six review annotations are resolved: cover controls moved left, contour lines are absent, shipping is required by shared and Edge validation, both phone fields auto-format as `+63 XXX XXX XXXX`, and relationship is a grouped dropdown that preserves unrecognized saved values. The selected HTML mock reflects the same decisions. The exact staging branch passes the site typecheck and all 441 runner-site tests. Its isolated GitHub validation will provide the full backend and build gate because another local task owns the shared Supabase runtime.
+
+Summit Bento staging release, 2026-09-20: PR #70 merged to `staging` at `efa8000`. Exact-merge GitHub run `35470941056` passed runner/admin typechecks, 441 runner tests, 883 admin tests, 718 backend/shared tests and both production builds. Runner deployment `dpl_CaAEzVD4FfbqpS23j9ZXEdmSWCRt` is Ready and assigned to `staging.racepace.com.ph`. `registrations-checkout` version 11 is Active with JWT verification and the required-address Passport contract. Authenticated browser review loaded `/profile` and `/bookings` without console warnings or errors. The profile displayed the left-side cover action, no contour overlay, required shipping section and grouped relationship choices. The managed-bookings empty state preserved the Passport destination. No staging form or booking data was changed during this read-only review.
+
+| Work | Status | Blocker | Next task |
+|---|---|---|---|
+| Summit Bento production implementation | **Staging passed** | Production promotion and read-only browser verification remain. | Merge the production branch only after its GitHub validation and both Vercel previews pass. |
+| Review annotations | **Resolved in code and selected mock** | None. | Preserve the required-address and Philippine phone contracts during release verification. |
+
 ## Release-critical checklist
 
 These are the minimum web and admin gates for the first real organizer. Close each against the same staging release revision, then verify its production configuration. A passing build or database-only test does not close an end-to-end gate.

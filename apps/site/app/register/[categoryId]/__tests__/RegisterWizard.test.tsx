@@ -42,6 +42,7 @@ const event: EventRow = {
 };
 const addons: AddonRow[] = [];
 const formFields: FormFieldRow[] = [];
+const shipping = { shipping_barangay_code: "012801001", shipping_zip_code: "0123", shipping_address_line: "House 1, Sample Street" };
 
 function renderWizard() {
   return render(
@@ -72,7 +73,7 @@ describe("RegisterWizard — already_registered 409", () => {
   it("keeps the advertised total fixed when both fees are deducted from the organizer payout", () => {
     const passport = { first_name: "QA", last_name: "Runner", date_of_birth: "1990-01-01", gender: "Female" as const,
       contact_number: "09171234567", emergency_contact_name: "Contact", emergency_contact_number: "09171234567",
-      emergency_contact_relationship: "Friend" };
+      emergency_contact_relationship: "Friend", ...shipping };
     render(<RegisterWizard userId="u1" category={category} event={{ ...event, feeMode: "absorb", commissionTerms: {
       commission_type: "percent", commission_rate: 0.03, commission_flat_cents: 0,
     } }} addons={addons} formFields={formFields} passport={passport} />);
@@ -86,7 +87,7 @@ describe("RegisterWizard — already_registered 409", () => {
   it("discloses the known platform fee without quoting PayMongo's changing fee", async () => {
     const passport = { first_name: "QA", last_name: "Runner", date_of_birth: "1990-01-01", gender: "Female" as const,
       contact_number: "09171234567", emergency_contact_name: "Contact", emergency_contact_number: "09171234567",
-      emergency_contact_relationship: "Friend" };
+      emergency_contact_relationship: "Friend", ...shipping };
     render(<RegisterWizard userId="u1" category={category} event={{ ...event, feeMode: "pass_on", commissionTerms: {
       commission_type: "percent", commission_rate: 0.03, commission_flat_cents: 0,
     } }} addons={addons} formFields={formFields} passport={passport} />);
@@ -101,7 +102,7 @@ describe("RegisterWizard — already_registered 409", () => {
   });
 
   it("reviews saved Passport fields without legacy identity inputs", async () => {
-    const passport = { first_name: "QA", last_name: "Runner", team_name: "Trail Team", date_of_birth: "1950-01-01", gender: "Female" as const, contact_number: "09171234567", emergency_contact_name: "QA Contact", emergency_contact_number: "09171234567", emergency_contact_relationship: "Child" };
+    const passport = { first_name: "QA", last_name: "Runner", team_name: "Trail Team", date_of_birth: "1950-01-01", gender: "Female" as const, contact_number: "09171234567", emergency_contact_name: "QA Contact", emergency_contact_number: "09171234567", emergency_contact_relationship: "Child", ...shipping };
     render(<RegisterWizard userId="u1" category={category} event={event} addons={addons} formFields={formFields} passport={passport} email="qa@example.com" />);
     expect(screen.getByText("Trail Team")).toBeInTheDocument();
     expect(screen.getByText("qa@example.com")).toBeInTheDocument();
@@ -170,7 +171,7 @@ it("submits the organizer version shown to the runner", async () => {
 
 it("submits assisted acceptance separately from the authenticated booker", async () => {
  const user = userEvent.setup();
- const passport = { first_name: "Guest", last_name: "Runner", date_of_birth: "1950-01-01", gender: "Female" as const, contact_number: "09171234567", emergency_contact_name: "Helper", emergency_contact_number: "09171234567", emergency_contact_relationship: "Child" };
+ const passport = { first_name: "Guest", last_name: "Runner", date_of_birth: "1950-01-01", gender: "Female" as const, contact_number: "09171234567", emergency_contact_name: "Helper", emergency_contact_number: "09171234567", emergency_contact_relationship: "Child", ...shipping };
  startCheckoutMock.mockResolvedValue({ registration_id: "guest-reg", checkout_url: "https://example.com" });
  render(<RegisterWizard userId="helper" participantId="guest-passport" assisted passport={passport} category={category} event={event} addons={addons} formFields={formFields} waiver={{ id:"guest-waiver",title:"Sample",body:"Sample document" }} />);
  await user.click(screen.getByRole("button", { name:"Continue" }));

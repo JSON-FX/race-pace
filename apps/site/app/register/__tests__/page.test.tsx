@@ -49,7 +49,7 @@ async function loadPage() {
 }
 
 beforeEach(() => {
-  passportResult.mockResolvedValue({ data: { first_name: "QA", last_name: "Runner", date_of_birth: "1950-01-01", gender: "Female", contact_number: "09171234567", emergency_contact_name: "QA Contact", emergency_contact_number: "09171234567", emergency_contact_relationship: "Child" }, error: null });
+  passportResult.mockResolvedValue({ data: { first_name: "QA", last_name: "Runner", date_of_birth: "1950-01-01", gender: "Female", contact_number: "09171234567", emergency_contact_name: "QA Contact", emergency_contact_number: "09171234567", emergency_contact_relationship: "Child", shipping_barangay_code: "012801001", shipping_zip_code: "0123", shipping_address_line: "House 1, Sample Street" }, error: null });
   vi.resetModules();
   redirect.mockClear();
   notFound.mockClear();
