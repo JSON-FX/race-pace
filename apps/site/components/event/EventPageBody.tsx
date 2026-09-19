@@ -17,6 +17,7 @@ import {
   AddonsSection,
   GalleryCarousel,
   CourseLocator,
+  ParticipantRegistrationSection,
 } from "./sections";
 
 /**
@@ -251,6 +252,9 @@ export function EventPageBody({
       <WhatsIncluded event={event} tone={tone} />
       <AddonsSection addons={addons} tone={tone} />
       <GalleryCarousel event={event} tone={tone} />
+      {event.waiver_version_id && !closed ? (
+        <ParticipantRegistrationSection categories={categories} tone={tone} />
+      ) : null}
 
       {/* Closing CTA: by here the runner has read everything, and sending them
           back up to the hero to act would be the page's own fault. Same

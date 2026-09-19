@@ -4,9 +4,10 @@ import * as React from "react";
 import Image from "next/image";
 import dynamic from "next/dynamic";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { CalendarDays, MapPin, Flag, Timer, ChevronLeft, ChevronRight, Check, Navigation } from "lucide-react";
+import { CalendarDays, MapPin, Flag, Timer, ChevronLeft, ChevronRight, Check, Navigation, ArrowRight, UsersRound } from "lucide-react";
 import { formatPeso, formatDateRange, disciplineLayout } from "@race-pace/shared";
-import type { EventRow, AddonRow } from "@/lib/events";
+import Link from "next/link";
+import type { EventRow, AddonRow, CategoryRow } from "@/lib/events";
 import { longDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Reveal } from "./motion-primitives";
@@ -201,7 +202,7 @@ export function GalleryCarousel({ event, tone }: { event: EventRow; tone: Tone }
   };
 
   return (
-    <Section title="Last year" kicker="On the course" tone={tone}>
+    <Section title="Event gallery" kicker="From the organizer" tone={tone}>
       <div className="relative overflow-hidden rounded-2xl">
         <div className="relative aspect-[16/10] sm:aspect-[21/9]">
           {/* mode="popLayout" so the outgoing slide leaves while the incoming
@@ -218,7 +219,7 @@ export function GalleryCarousel({ event, tone }: { event: EventRow; tone: Tone }
             >
               <Image
                 src={images[index]!}
-                alt={`${event.name} — photo ${index + 1} of ${images.length}`}
+                alt={`${event.name} — event image ${index + 1} of ${images.length}`}
                 fill
                 sizes="(max-width: 768px) 100vw, 1100px"
                 className="object-cover"
@@ -254,6 +255,61 @@ export function GalleryCarousel({ event, tone }: { event: EventRow; tone: Tone }
             </div>
           </>
         ) : null}
+      </div>
+    </Section>
+  );
+}
+
+/* ── Assisted registration ─────────────────────────────────────────── */
+export function ParticipantRegistrationSection({ categories, tone }: { categories: CategoryRow[]; tone: Tone }) {
+  if (categories.length === 0) return null;
+
+  return (
+    <Section title="Register another participant" kicker="Booking for someone else" tone={tone}>
+      <div
+        className={cn(
+          "overflow-hidden rounded-2xl border",
+          tone.dark ? "border-white/12 bg-white/[0.04]" : "border-black/10 bg-secondary/45",
+        )}
+      >
+        <div className="flex gap-4 px-5 py-6 sm:px-7 sm:py-7">
+          <span
+            className={cn(
+              "grid size-11 shrink-0 place-items-center rounded-full",
+              tone.dark ? "bg-white/10 text-primary" : "bg-background text-primary",
+            )}
+          >
+            <UsersRound size={21} aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <h3 className="text-[16px] font-bold">Secure a slot for a family member or friend.</h3>
+            <p className={cn("mt-1 max-w-[60ch] text-[14px] leading-6", tone.dark ? "text-white/62" : "text-foreground/65")}>
+              Choose their distance, then select the Race Passport you manage. Every participant receives a separate ticket.
+            </p>
+          </div>
+        </div>
+
+        <div className={cn("grid gap-px border-t sm:grid-cols-2 lg:grid-cols-3", tone.dark ? "border-white/10 bg-white/10" : "border-black/10 bg-black/10")}>
+          {categories.map((category) => (
+            <Link
+              key={category.id}
+              href={`/register/${category.id}`}
+              aria-label={`Register another participant for ${category.label}`}
+              className={cn(
+                "group flex min-h-16 items-center justify-between gap-4 px-5 py-4 transition-colors focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                tone.dark ? "bg-[#06120C] hover:bg-white/[0.06]" : "bg-background hover:bg-secondary",
+              )}
+            >
+              <span className="min-w-0">
+                <span className="block text-[15px] font-bold leading-snug">{category.label}</span>
+                <span className={cn("font-mono-race mt-1 block text-[11.5px]", tone.dark ? "text-white/55" : "text-muted-foreground")}>
+                  {formatPeso(category.base_price)}
+                </span>
+              </span>
+              <ArrowRight size={18} className="shrink-0 text-primary transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+            </Link>
+          ))}
+        </div>
       </div>
     </Section>
   );

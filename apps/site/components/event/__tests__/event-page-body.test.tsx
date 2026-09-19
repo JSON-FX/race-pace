@@ -253,6 +253,52 @@ describe("EventPageBody — discipline branch", () => {
   });
 });
 
+describe("EventPageBody — event gallery and assisted registration", () => {
+  it("describes uploaded media as the organizer event gallery", () => {
+    renderBody({ gallery: ["https://example.com/event-poster.jpg"] });
+
+    expect(screen.getByText("From the organizer")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Event gallery" })).toBeInTheDocument();
+    expect(screen.queryByText("Last year")).not.toBeInTheDocument();
+    expect(screen.getByAltText("Dahilayan Sky Ultra 2026 — event image 1 of 1")).toBeInTheDocument();
+  });
+
+  it("offers responsive category choices when assisted registration is available", () => {
+    renderBody({ waiver_version_id: "waiver-1" }, [
+      cat({ id: "c1", label: "60K Ultra", base_price: 320000 }),
+      cat({ id: "c2", label: "30K Trail", base_price: 180000 }),
+    ]);
+
+    expect(screen.getByRole("heading", { name: "Register another participant" })).toBeInTheDocument();
+    expect(screen.getByText("Booking for someone else")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Register another participant for 60K Ultra" })).toHaveAttribute(
+      "href",
+      "/register/c1",
+    );
+    expect(screen.getByRole("link", { name: "Register another participant for 30K Trail" })).toHaveAttribute(
+      "href",
+      "/register/c2",
+    );
+  });
+
+  it("hides assisted registration when registration is closed or no waiver is published", () => {
+    const { rerender } = renderBody({ waiver_version_id: null });
+    expect(screen.queryByRole("heading", { name: "Register another participant" })).not.toBeInTheDocument();
+
+    rerender(
+      <EventPageBody
+        event={{ ...baseEvent, waiver_version_id: "waiver-1" }}
+        categories={[cat()]}
+        addons={[]}
+        closed
+        myEntry={null}
+        registrationClosesAt={null}
+      />,
+    );
+    expect(screen.queryByRole("heading", { name: "Register another participant" })).not.toBeInTheDocument();
+  });
+});
+
 describe("EventPageBody — sections appear only when they have data", () => {
   it("publishes the race-morning schedule on a TRAIL event", () => {
     renderBody({ discipline: "trail", schedule: [{ time: "04:00", label: "Gun start" }] });
