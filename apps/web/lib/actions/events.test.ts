@@ -20,15 +20,16 @@ function chain(result: unknown) {
   return b;
 }
 
-const { getMyRoles, from, revalidatePath } = vi.hoisted(() => ({
+const { getMyRoles, from, invoke, revalidatePath } = vi.hoisted(() => ({
   getMyRoles: vi.fn(),
   from: vi.fn(),
+  invoke: vi.fn(),
   revalidatePath: vi.fn(),
 }));
 
 vi.mock("@/lib/queries/roles", () => ({ getMyRoles }));
 vi.mock("next/cache", () => ({ revalidatePath }));
-vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ from }) }));
+vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ from, functions: { invoke } }) }));
 
 import { reconcileChildren } from "@/lib/reconcile-children";
 import { saveEventAction, cancelEventAction, rescheduleEventAction, type EventDraft, type CategoryDraft } from "./events";
@@ -65,6 +66,7 @@ function savePayload(event: Partial<EventDraft> = {}, children: {
 beforeEach(() => {
   getMyRoles.mockReset();
   from.mockReset();
+  invoke.mockReset().mockResolvedValue({ data: { outcomes: { unchanged: 0 } }, error: null });
   revalidatePath.mockClear();
 });
 
@@ -205,6 +207,7 @@ describe("saveEventAction", () => {
       registration_closes_at: "2026-09-01T00:00:00.000Z",
       kit_edit_closes_at: "2026-09-05T00:00:00.000Z",
     }));
+    expect(invoke).toHaveBeenCalledWith("reprice-event-checkouts", { body: { event_id: "e1" } });
   });
 
   it("reports failure, not success, when the update silently affects zero rows", async () => {
