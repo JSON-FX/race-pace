@@ -11,6 +11,7 @@ export type AuthState = { error?: string };
 export async function signInAction(_prev: AuthState, formData: FormData): Promise<AuthState> {
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
+  const captchaToken = String(formData.get("captchaToken") ?? "");
   // Absent, not defaulted to "/events" — see login-form.tsx's comment. A
   // hidden field the form omits comes back as `null` from formData.get, so
   // this stays a real "no destination" state through to the fallback below.
@@ -18,9 +19,10 @@ export async function signInAction(_prev: AuthState, formData: FormData): Promis
   const next = typeof nextRaw === "string" && nextRaw.length > 0 ? nextRaw : null;
 
   if (!email || !password) return { error: "Enter your email and password." };
+  if (!captchaToken) return { error: "Complete the bot verification before signing in." };
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  const { error } = await supabase.auth.signInWithPassword({ email, password, options: { captchaToken } });
   if (error) {
     // Two very different failures used to render the same sentence.
     //
