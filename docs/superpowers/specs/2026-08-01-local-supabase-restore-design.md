@@ -32,7 +32,7 @@ Reversal to hosted must stay a one-copy operation.
 | --- | --- | --- |
 | Scope of the cloud→local switch | **Untracked `.env` files only** | The cutover spec (`2026-07-22-supabase-cloud-migration-design.md` §"reversible") established the switch as env-only. Tracked defaults keep documenting hosted, so flipping back is trivial. |
 | Database contents | **`db reset` + a re-runnable seeder script** | The surviving `supabase_db_race-pace` volume predates the cutover and is missing ~15 migrations. A reset guarantees schema/repo parity. |
-| Test-data shape | **2 orgs × 10 events, every lifecycle state** | Muspo and RunwithPoint, each 3 completed / 3 cancelled / 1 rescheduled / 3 open. |
+| Test-data shape | **2 orgs × 10 events, every lifecycle state** | TrailNorth and RunwithPoint, each 3 completed / 3 cancelled / 1 rescheduled / 3 open. |
 | Event images | **Downloaded from Unsplash into the local `event-images` bucket** | Exercises the same storage path the admin uploader writes, and renders offline once seeded. |
 | Fixture packaging | **One idempotent Node script, `scripts/seed-dev-data.mjs`** | Image upload is a runtime step, so `seed.sql` alone cannot express the fixture. `seed.sql` stays untouched. |
 | URL host | **`127.0.0.1` everywhere** | Preserves the HTTPS admin console (see §4). |
@@ -139,7 +139,7 @@ A single idempotent Node script, run after every `db reset`. Reads `API_URL` and
 **Organizations.** Reuses the two organization ids already created by `seed.sql`, so the
 `user_roles` row binding `admin@racepace.test` to org `…a1` survives:
 
-- `…a1` → **Muspo**
+- `…a1` → **TrailNorth**
 - `…a2` → **RunwithPoint**
 - `…a3` (Highland Endurance) deleted, cascading its events
 

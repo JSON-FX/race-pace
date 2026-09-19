@@ -91,7 +91,7 @@ const SUPER = roles({
  *  design's own worked example: a ₱2,000 GCash entry costs ₱60 in commission and
  *  ₱30 to the processor, so net_to_org is ₱1,910. */
 const ORG = {
-  id: "o1", name: "Muspo", since: null, fee_mode: "absorb" as const,
+  id: "o1", name: "TrailNorth", since: null, fee_mode: "absorb" as const,
   commission_type: "percent", commission_rate: 0.03, commission_flat_cents: 0,
   refund_policy: "flat_fee", refund_fee_cents: 30000,
   event_count: 2, paid_count: 5, gross_revenue: 900000, charged_gross: 1000000,
@@ -130,7 +130,7 @@ describe("CommissionPage — the three-party surfaces", () => {
   it("offers the fee-mode control per organization, showing the saved mode", async () => {
     getCommissionOverview.mockResolvedValue({ ...emptyOverview, orgs: [ORG] });
     await renderPage();
-    const control = screen.getByRole("combobox", { name: "Fee mode for Muspo" });
+    const control = screen.getByRole("combobox", { name: "Fee mode for TrailNorth" });
     expect(control).toHaveTextContent("Absorb · org pays fees");
   });
 
@@ -175,7 +175,7 @@ describe("CommissionPage — the three-party surfaces", () => {
     getCommissionOverview.mockResolvedValue({
       ...emptyOverview,
       orgs: [ORG],
-      events: [{ event_id: "e1", event_name: "Trail 40", org_id: "o1", org_name: "Muspo", paid_count: 5, gross: 1000000, commission: 30000, charged: "3.0% each" }],
+      events: [{ event_id: "e1", event_name: "Trail 40", org_id: "o1", org_name: "TrailNorth", paid_count: 5, gross: 1000000, commission: 30000, charged: "3.0% each" }],
       totals: { ...emptyOverview.totals, charged_gross: 1000000, commission: 30000, paid_count: 5 },
     });
     await renderPage();

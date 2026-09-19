@@ -72,7 +72,7 @@ const superAdmin = () => roles({
 /** Five paid ₱2,000 card entries: Race Pace's 6% is ₱600 each, the processor
  *  takes ₱105 each, the organizer is owed ₱1,295 each. */
 const READY = {
-  id: "s1", event_id: "e1", org_id: "o1", event_name: "Dumalinao Trail 40", org_name: "Muspo",
+  id: "s1", event_id: "e1", org_id: "o1", event_name: "Dumalinao Trail 40", org_name: "TrailNorth",
   event_date: "2026-01-05", end_date: null, event_status: "completed",
   gross_cents: 1000000, commission_cents: 60000, processing_cents: 52500,
   refunds_in_period_cents: 0, refunds_cents: 0, net_owed_cents: 887500,

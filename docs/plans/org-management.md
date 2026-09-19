@@ -210,43 +210,43 @@ describe("delete_organization_tx", () => {
 });
 
 describe("a suspended organization", () => {
-  const MUSPO = "00000000-0000-0000-0000-00000000a001";
+  const TRAILNORTH = "00000000-0000-0000-0000-00000000a001";
 
   afterEach(async () => {
-    await svc().from("organizations").update({ is_active: true }).eq("id", MUSPO);
+    await svc().from("organizations").update({ is_active: true }).eq("id", TRAILNORTH);
   });
 
   it("is invisible to anon but still visible to its own admin and the super admin", async () => {
-    await svc().from("organizations").update({ is_active: false }).eq("id", MUSPO);
+    await svc().from("organizations").update({ is_active: false }).eq("id", TRAILNORTH);
 
-    const asAnon = await anon().from("organizations").select("id").eq("id", MUSPO);
+    const asAnon = await anon().from("organizations").select("id").eq("id", TRAILNORTH);
     expect(asAnon.data).toHaveLength(0);
 
     // The regression this guards: `orgs_read_active` used to be
     // `using (is_active = true)`, which hid a suspended org from the very page
     // a super admin would un-suspend it from, and broke the console for the
     // org's own staff.
-    const asOrgAdmin = await (await signedIn("muspo@racepace.test"))
-      .from("organizations").select("id").eq("id", MUSPO);
+    const asOrgAdmin = await (await signedIn("trailnorth@racepace.test"))
+      .from("organizations").select("id").eq("id", TRAILNORTH);
     expect(asOrgAdmin.data).toHaveLength(1);
 
     const asSuper = await (await signedIn("admin@racepace.test"))
-      .from("organizations").select("id").eq("id", MUSPO);
+      .from("organizations").select("id").eq("id", TRAILNORTH);
     expect(asSuper.data).toHaveLength(1);
   });
 
   it("has its events removed from the storefront but not from its own console", async () => {
-    const before = await anon().from("events").select("id").eq("org_id", MUSPO);
+    const before = await anon().from("events").select("id").eq("org_id", TRAILNORTH);
     expect(before.data!.length).toBeGreaterThan(0);
 
-    await svc().from("organizations").update({ is_active: false }).eq("id", MUSPO);
+    await svc().from("organizations").update({ is_active: false }).eq("id", TRAILNORTH);
 
-    const asAnon = await anon().from("events").select("id").eq("org_id", MUSPO);
+    const asAnon = await anon().from("events").select("id").eq("org_id", TRAILNORTH);
     expect(asAnon.data).toHaveLength(0);
 
     // events_read_org_admin is a separate permissive policy; policies are OR'd.
-    const asOrgAdmin = await (await signedIn("muspo@racepace.test"))
-      .from("events").select("id").eq("org_id", MUSPO);
+    const asOrgAdmin = await (await signedIn("trailnorth@racepace.test"))
+      .from("events").select("id").eq("org_id", TRAILNORTH);
     expect(asOrgAdmin.data!.length).toBeGreaterThan(0);
   });
 });
@@ -437,22 +437,22 @@ RLS hides a suspended org's events from the storefront. It does not stop a POST 
 ```ts
 // append to supabase/tests/org-management.test.ts
 describe("registrations-checkout on a suspended org", () => {
-  const MUSPO = "00000000-0000-0000-0000-00000000a001";
+  const TRAILNORTH = "00000000-0000-0000-0000-00000000a001";
   afterEach(async () => {
-    await svc().from("organizations").update({ is_active: true }).eq("id", MUSPO);
+    await svc().from("organizations").update({ is_active: true }).eq("id", TRAILNORTH);
   });
 
   it("refuses a direct call with an event id already in hand", async () => {
     const db = svc();
     const { data: cat } = await db.from("categories")
-      .select("id,event_id").eq("org_id", MUSPO).limit(1).single();
+      .select("id,event_id").eq("org_id", TRAILNORTH).limit(1).single();
 
     const { data: u } = await db.auth.admin.createUser({
       email: "t-suspended-checkout@racepace.test", password: "password123", email_confirm: true,
     });
     const runner = await signedIn("t-suspended-checkout@racepace.test");
 
-    await db.from("organizations").update({ is_active: false }).eq("id", MUSPO);
+    await db.from("organizations").update({ is_active: false }).eq("id", TRAILNORTH);
 
     const { data, error } = await runner.functions.invoke("registrations-checkout", {
       body: {
@@ -552,7 +552,7 @@ import { validateRename, orgStoragePrefixes, isDeleteBlocked } from "./orgAdmin"
 
 describe("validateRename", () => {
   it("accepts an ordinary name", () => {
-    expect(validateRename("Muspo Trail Events")).toBeNull();
+    expect(validateRename("TrailNorth Trail Events")).toBeNull();
   });
   // The slug is immutable and the name is not, so a rename to whitespace would
   // leave an organization with no readable identity anywhere in the console.
@@ -1208,12 +1208,12 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 import { OrgActions } from "./org-actions";
 
-const org = { id: "o1", name: "Muspo", slug: "muspo", isActive: true };
+const org = { id: "o1", name: "TrailNorth", slug: "trailnorth", isActive: true };
 
 beforeEach(() => { invoke.mockReset().mockResolvedValue({ data: { ok: true }, error: null }); refresh.mockReset(); });
 
 async function openMenu() {
-  await userEvent.click(screen.getByRole("button", { name: /actions for muspo/i }));
+  await userEvent.click(screen.getByRole("button", { name: /actions for trailnorth/i }));
 }
 
 describe("OrgActions", () => {
@@ -1224,11 +1224,11 @@ describe("OrgActions", () => {
 
     const field = screen.getByLabelText(/name/i);
     await userEvent.clear(field);
-    await userEvent.type(field, "Muspo Trail");
+    await userEvent.type(field, "TrailNorth Trail");
     await userEvent.click(screen.getByRole("button", { name: /^save$/i }));
 
     expect(invoke).toHaveBeenCalledWith("org-provision", {
-      body: { action: "update", org_id: "o1", name: "Muspo Trail" },
+      body: { action: "update", org_id: "o1", name: "TrailNorth Trail" },
     });
     expect(refresh).toHaveBeenCalled();
   });
@@ -1483,7 +1483,7 @@ describe("OrgActions — delete", () => {
 
     await userEvent.click(confirm);
     expect(invoke).toHaveBeenCalledWith("org-provision", {
-      body: { action: "delete", org_id: "o1", slug: "muspo" },
+      body: { action: "delete", org_id: "o1", slug: "trailnorth" },
     });
   });
 
@@ -1680,13 +1680,13 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 import { ManageAdminsDialog } from "./manage-admins-dialog";
 
-const org = { id: "o1", name: "Muspo", slug: "muspo", isActive: true };
+const org = { id: "o1", name: "TrailNorth", slug: "trailnorth", isActive: true };
 
 beforeEach(() => {
   invoke.mockReset().mockResolvedValue({
     data: { ok: true, members: [
-      { user_id: "u1", email: "boss@muspo.ph", full_name: "Boss", role: "admin" },
-      { user_id: "u2", email: "ed@muspo.ph", full_name: null, role: "editor" },
+      { user_id: "u1", email: "boss@trailnorth.ph", full_name: "Boss", role: "admin" },
+      { user_id: "u2", email: "ed@trailnorth.ph", full_name: null, role: "editor" },
     ] },
     error: null,
   });
@@ -1696,29 +1696,29 @@ describe("ManageAdminsDialog", () => {
   it("lists the org's members with their emails", async () => {
     render(<ManageAdminsDialog org={org} open onOpenChange={() => {}} />);
 
-    expect(await screen.findByText("boss@muspo.ph")).toBeInTheDocument();
-    expect(screen.getByText("ed@muspo.ph")).toBeInTheDocument();
+    expect(await screen.findByText("boss@trailnorth.ph")).toBeInTheDocument();
+    expect(screen.getByText("ed@trailnorth.ph")).toBeInTheDocument();
     // The whole point: an explicit org_id, not the caller's own scope.
     expect(invoke).toHaveBeenCalledWith("org-members", { body: { action: "list", org_id: "o1" } });
   });
 
   it("invites a new admin against that org", async () => {
     render(<ManageAdminsDialog org={org} open onOpenChange={() => {}} />);
-    await screen.findByText("boss@muspo.ph");
+    await screen.findByText("boss@trailnorth.ph");
 
-    await userEvent.type(screen.getByLabelText(/email/i), "new@muspo.ph");
+    await userEvent.type(screen.getByLabelText(/email/i), "new@trailnorth.ph");
     await userEvent.click(screen.getByRole("button", { name: /invite/i }));
 
     expect(invoke).toHaveBeenCalledWith("org-members", {
-      body: { action: "invite", org_id: "o1", email: "new@muspo.ph", role: "admin" },
+      body: { action: "invite", org_id: "o1", email: "new@trailnorth.ph", role: "admin" },
     });
   });
 
   it("removes a member", async () => {
     render(<ManageAdminsDialog org={org} open onOpenChange={() => {}} />);
-    await screen.findByText("ed@muspo.ph");
+    await screen.findByText("ed@trailnorth.ph");
 
-    await userEvent.click(screen.getByRole("button", { name: /remove ed@muspo.ph/i }));
+    await userEvent.click(screen.getByRole("button", { name: /remove ed@trailnorth.ph/i }));
 
     expect(invoke).toHaveBeenCalledWith("org-members", {
       body: { action: "remove", org_id: "o1", user_id: "u2" },

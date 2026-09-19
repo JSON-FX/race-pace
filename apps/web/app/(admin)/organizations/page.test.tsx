@@ -37,7 +37,7 @@ function roles(overrides: Partial<{ isSuperAdmin: boolean; capabilities: string[
 
 function orgRow(overrides: Partial<{ id: string; name: string; slug: string; isActive: boolean }> = {}) {
   return {
-    id: "o1", name: "Muspo", slug: "muspo", isActive: true,
+    id: "o1", name: "TrailNorth", slug: "trailnorth", isActive: true,
     eventCount: 2, regCount: 40, grossRevenue: 100000, chargedGross: 100000,
     platformFee: 3000, netToOrg: 97000,
     commission_type: "percent" as const, commission_rate: 0.03, commission_flat_cents: 0,
@@ -85,7 +85,7 @@ describe("OrganizationsPage", () => {
     getMyRoles.mockResolvedValue(roles({ isSuperAdmin: true, capabilities: ["manage_platform"] }));
     getPlatformOrganizations.mockResolvedValue({
       rows: [
-        orgRow({ id: "o1", name: "Muspo", slug: "muspo", isActive: true }),
+        orgRow({ id: "o1", name: "TrailNorth", slug: "trailnorth", isActive: true }),
         orgRow({ id: "o2", name: "Dormant Trails", slug: "dormant", isActive: false }),
       ],
       kpis: { orgCount: 2, activeCount: 1, gmvCents: 200000, commissionCents: 6000, owedCents: 0, openStatements: 0 },
@@ -93,7 +93,7 @@ describe("OrganizationsPage", () => {
 
     render(await OrganizationsPage());
 
-    const live = screen.getByText("Muspo").closest("tr")!;
+    const live = screen.getByText("TrailNorth").closest("tr")!;
     const suspended = screen.getByText("Dormant Trails").closest("tr")!;
     expect(within(live).getByText("Active")).toBeInTheDocument();
     expect(within(suspended).getByText("Suspended")).toBeInTheDocument();

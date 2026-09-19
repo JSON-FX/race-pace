@@ -169,7 +169,7 @@ const uploadMock = vi.fn().mockResolvedValue({ error: null });
 const getPublicUrlMock = vi.fn(() => ({ data: { publicUrl: "https://cdn.test/org-images/a1/avatar-x.png" } }));
 const updateEq = vi.fn().mockResolvedValue({ error: null });
 const updateMock = vi.fn(() => ({ eq: updateEq }));
-const singleMock = vi.fn().mockResolvedValue({ data: { id: "a1", name: "Muspo", logo_url: null, banner_url: null }, error: null });
+const singleMock = vi.fn().mockResolvedValue({ data: { id: "a1", name: "TrailNorth", logo_url: null, banner_url: null }, error: null });
 vi.mock("../lib/supabase", () => ({
   supabase: {
     from: () => ({ select: () => ({ eq: () => ({ single: singleMock }) }), update: updateMock }),
@@ -187,7 +187,7 @@ function wrap() {
 it("useMyOrg returns the org branding row", async () => {
   const { result } = renderHook(() => useMyOrg("a1"), { wrapper: wrap() });
   await waitFor(() => expect(result.current.data).toBeTruthy());
-  expect(result.current.data).toMatchObject({ id: "a1", name: "Muspo", logo_url: null });
+  expect(result.current.data).toMatchObject({ id: "a1", name: "TrailNorth", logo_url: null });
 });
 
 it("uploadOrgImage uploads under {orgId}/{kind}-… and returns the URL", async () => {
@@ -302,7 +302,7 @@ vi.mock("../lib/org", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../lib/org")>();
   return {
     ...actual,
-    useMyOrg: () => ({ data: { id: "a1", name: "Muspo", logo_url: null, banner_url: null } }),
+    useMyOrg: () => ({ data: { id: "a1", name: "TrailNorth", logo_url: null, banner_url: null } }),
     uploadOrgImage: (...a: unknown[]) => uploadOrgImage(...a),
     updateOrgBranding: (...a: unknown[]) => updateOrgBranding(...a),
   };
@@ -490,11 +490,11 @@ import { OrgBanner } from "../components/OrgBanner";
 
 describe("OrgAvatar", () => {
   it("shows initials as the fallback with no logo", () => {
-    render(<OrgAvatar name="Muspo Trail" color="#159A55" size={48} />);
+    render(<OrgAvatar name="TrailNorth Trail" color="#159A55" size={48} />);
     expect(screen.getByText("MT")).toBeOnTheScreen();
   });
   it("still renders (with the initials fallback) when a logo URL is provided", () => {
-    render(<OrgAvatar name="Muspo Trail" logoUrl="https://cdn/x.png" size={48} />);
+    render(<OrgAvatar name="TrailNorth Trail" logoUrl="https://cdn/x.png" size={48} />);
     expect(screen.getByText("MT")).toBeOnTheScreen();
   });
 });

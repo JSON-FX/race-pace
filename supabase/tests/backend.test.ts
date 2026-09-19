@@ -183,7 +183,7 @@ describe("seed", () => {
     // Ground truth via service role (bypasses RLS), then verify anon sees the exact
     // same thing. Neither the org's slug nor the event's category codes are restated
     // here — both used to be hardcoded ("race-pace" / a literal 4-code list) and both
-    // went stale when seed.sql was rewritten (current org slugs are "muspo" /
+    // went stale when seed.sql was rewritten (current org slugs are "trailnorth" /
     // "runwithpoint"; EVENT_A has 3 categories, not 4). Deriving them from the DB
     // means the next seed rewrite cannot break this test the same way again.
     const svc = service();
