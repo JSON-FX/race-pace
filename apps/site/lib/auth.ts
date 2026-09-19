@@ -7,7 +7,7 @@ export async function signInWithPassword(email: string, password: string): Promi
   return error ? { error: error.message } : {};
 }
 
-export async function signUpWithPassword(email: string, password: string, next = "/"): Promise<{ error?: string; confirmationRequired?: boolean }> {
+export async function signUpWithPassword(email: string, password: string, next = "/home"): Promise<{ error?: string; confirmationRequired?: boolean }> {
   const supabase = createClient();
   document.cookie = `${OAUTH_NEXT_COOKIE}=${encodeURIComponent(safeNextPath(next))}; path=/; max-age=3600; samesite=lax`;
   try {

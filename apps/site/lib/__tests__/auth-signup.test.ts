@@ -14,7 +14,7 @@ describe("signup confirmation", () => {
   it("distinguishes an immediate session and rejects an external destination", async () => {
     signUp.mockResolvedValue({ data: { session: { user: {} } }, error: null });
     expect(await signUpWithPassword("runner@example.com", "password123", "//evil.example")).toEqual({ confirmationRequired: false });
-    expect(document.cookie).toContain("rp_oauth_next=%2F");
+    expect(document.cookie).toContain("rp_oauth_next=%2Fhome");
   });
   it("reports provider and transport errors", async () => {
     signUp.mockResolvedValue({ data: {}, error: { message: "Too many requests" } });
@@ -24,4 +24,4 @@ describe("signup confirmation", () => {
   });
 });
 
-it.each(["/\n/evil.example", "/\t/evil.example", "/path\\evil.example"])("rejects browser-normalized unsafe redirect %j", (path) => { expect(safeNextPath(path)).toBe("/"); });
+it.each(["/\n/evil.example", "/\t/evil.example", "/path\\evil.example"])("rejects browser-normalized unsafe redirect %j", (path) => { expect(safeNextPath(path)).toBe("/home"); });

@@ -38,7 +38,7 @@ describe("SignIn", () => {
     await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
     expect(signInWithPassword).toHaveBeenCalledWith("runner@example.com", "hunter2hunter2");
-    expect(replace).toHaveBeenCalledWith("/");
+    expect(replace).toHaveBeenCalledWith("/home");
   });
 
   it("shows the server's error message and does not navigate", async () => {

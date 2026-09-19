@@ -28,18 +28,15 @@ import { LinkPending } from "./NavProgress";
  */
 
 const TABS = [
-  { href: "/", label: "Home", icon: Home },
+  { href: "/home", label: "Home", icon: Home },
   { href: "/events", label: "Races", icon: Mountain },
   { href: "/races", label: "My Races", icon: Ticket },
   { href: "/profile", label: "Profile", icon: User },
 ] as const;
 
-/** Same rule as SiteNav#isActive — "/" matches exactly, everything else on a
- *  segment boundary, so `/events/abc` lights Races and `/racesomething` does
- *  not light My Races. Duplicated deliberately: this component must keep
- *  working if SiteNav is refactored. */
+/** Same segment-boundary rule as SiteNav#isActive, duplicated deliberately so
+ *  this component keeps working if SiteNav is refactored. */
 function isActive(pathname: string, href: string): boolean {
-  if (href === "/") return pathname === "/";
   return pathname === href || pathname.startsWith(href + "/");
 }
 

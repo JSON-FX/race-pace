@@ -1,0 +1,103 @@
+.stage {
+  --photo-x: 0px;
+  --photo-y: 0px;
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  isolation: isolate;
+}
+
+.photo {
+  position: absolute;
+  inset: -3%;
+  transform: translate3d(var(--photo-x), var(--photo-y), 0) scale(1.045);
+  transition: transform 420ms cubic-bezier(.16, 1, .3, 1);
+  will-change: transform;
+}
+
+.image {
+  object-fit: cover;
+}
+
+.scrim {
+  position: absolute;
+  inset: 0;
+}
+
+.hero .image {
+  object-position: 64% center;
+}
+
+.hero .scrim {
+  background:
+    linear-gradient(90deg, rgb(var(--forest) / .94) 0%, rgb(var(--forest) / .78) 39%, rgb(var(--forest) / .24) 70%, rgb(var(--forest) / .16) 100%),
+    linear-gradient(0deg, rgb(var(--forest) / .72) 0%, transparent 46%);
+}
+
+.journey .image {
+  object-position: center center;
+}
+
+.journey .scrim {
+  background:
+    linear-gradient(180deg, rgb(var(--background) / .97) 0%, rgb(var(--background) / .89) 38%, rgb(var(--background) / .68) 72%, rgb(var(--background) / .88) 100%),
+    linear-gradient(90deg, rgb(var(--background) / .9) 0%, transparent 76%);
+}
+
+.preparation .image {
+  object-position: 58% center;
+}
+
+.preparation .scrim {
+  background:
+    linear-gradient(90deg, rgb(5 15 13 / .94) 0%, rgb(5 15 13 / .79) 43%, rgb(5 15 13 / .46) 72%, rgb(5 15 13 / .58) 100%),
+    linear-gradient(0deg, rgb(5 15 13 / .85) 0%, transparent 58%);
+}
+
+.finish .image {
+  object-position: 64% center;
+}
+
+.finish .scrim {
+  background:
+    linear-gradient(90deg, rgb(var(--forest) / .96) 0%, rgb(var(--forest) / .77) 42%, rgb(var(--forest) / .18) 76%),
+    linear-gradient(0deg, rgb(var(--forest) / .62) 0%, transparent 48%);
+}
+
+@media (max-width: 767px) {
+  .photo {
+    inset: -2%;
+    transform: scale(1.035);
+  }
+
+  .hero .image { object-position: 70% center; }
+  .hero .scrim {
+    background:
+      linear-gradient(0deg, rgb(var(--forest) / .97) 0%, rgb(var(--forest) / .8) 63%, rgb(var(--forest) / .26) 100%),
+      linear-gradient(90deg, rgb(var(--forest) / .58), transparent);
+  }
+
+  .journey .scrim {
+    background: linear-gradient(180deg, rgb(var(--background) / .98) 0%, rgb(var(--background) / .88) 50%, rgb(var(--background) / .8) 100%);
+  }
+
+  .preparation .image { object-position: 62% center; }
+  .preparation .scrim {
+    background: linear-gradient(0deg, rgb(5 15 13 / .97) 0%, rgb(5 15 13 / .83) 70%, rgb(5 15 13 / .42) 100%);
+  }
+
+  .finish .image { object-position: 68% center; }
+  .finish .scrim {
+    background: linear-gradient(0deg, rgb(var(--forest) / .97) 0%, rgb(var(--forest) / .83) 67%, rgb(var(--forest) / .28) 100%);
+  }
+
+}
+
+@media (hover: none), (prefers-reduced-motion: reduce) {
+  .photo {
+    transform: none;
+    transition: none;
+    will-change: auto;
+  }
+}
