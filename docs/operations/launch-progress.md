@@ -23,6 +23,8 @@ Production refund smoke, 2026-09-19: The account owner confirmed the final ₱97
 
 MVP launch scope decision, 2026-09-19: The owner accepted the proven organizer → event → runner registration → PayMongo payment → QR ticket → admin refund and accounting flow as the launch baseline. Advanced recovery automation and nonessential polish move to post-MVP tickets. Issue #51 tracks the missing operator workflow for a distinct second PayMongo capture. Existing code durably records that anomaly, prevents a second ticket or slot, alerts platform staff and blocks payout, so the pilot can escalate it manually without corrupting registration or organizer accounting. The unfinished implementation was removed; only the investigation artifact remains.
 
+Production preflight refresh, 2026-09-19: Both hosted Supabase projects report `ACTIVE_HEALTHY`. Production has seven completed physical backups; the latest completed at 2026-09-18 19:25 UTC. Point-in-time recovery remains disabled, and database backups do not cover Storage object bytes. Production Vercel environment inventories include the required public Supabase URL/key for both apps and the public site URL for the runner app. Production Supabase Edge secrets include PayMongo, webhook, Resend, ticket, worker and application URL entries. Secret values were not exposed. The PayMongo production secret remains the previously verified sandbox credential until the live key and live webhook are installed for launch.
+
 ## Release-critical checklist
 
 These are the minimum web and admin gates for the first real organizer. Close each against the same staging release revision, then verify its production configuration. A passing build or database-only test does not close an end-to-end gate.
