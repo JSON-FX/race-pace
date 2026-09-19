@@ -1,6 +1,6 @@
 # Bot protection rollout
 
-Status: implemented and partially deployed to staging. Provider resources, staging Edge secrets, the rate-limit migration, and the protected inquiry function are live. The staging web clients, mobile build, and Supabase Auth activation remain pending. Production remains unchanged.
+Status: implemented and deployed to the staging web and backend environments. Provider resources, Edge secrets, the rate-limit migration, the protected inquiry function, and both web clients are live. The mobile build and Supabase Auth activation remain pending. Production remains unchanged.
 
 All provider resources must be owned by `support.racepace@gmail.com`. Do not create Race Pace CAPTCHA resources under a personal account.
 
@@ -71,7 +71,7 @@ Before enabling Google Cloud billing, add a budget alert and approve the expecte
 | Durable rate-limit migration | Applied to staging |
 | Protected organizer inquiry | Active; an invalid token returns HTTP 403 before email delivery |
 | Runner and admin public keys | Saved for the `staging` Vercel branch |
-| Runner and admin deployment | Pending merge of the reviewed feature branch |
+| Runner and admin deployment | Ready on both staging custom domains; all password surfaces display Turnstile |
 | Mobile build | Pending |
 | Supabase Auth Turnstile switch | Disabled until all clients are verified |
 | Production | Unchanged |

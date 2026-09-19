@@ -4,7 +4,7 @@
 
 Implemented bot protection for the public organizer inquiry and every password-authentication entry point. The organizer path uses Google reCAPTCHA Enterprise plus durable salted-hash limits. Runner, admin, and mobile password authentication now supplies Cloudflare Turnstile tokens to Supabase Auth.
 
-Provider activation is intentionally staged. Separate Google and Cloudflare resources exist under the support account. The staging database guard, Edge secrets, and organizer-inquiry function are live. Web-client deployment, the mobile build, and Supabase Auth activation remain pending. Production remains unchanged.
+Provider activation is intentionally staged. Separate Google and Cloudflare resources exist under the support account. The staging database guard, Edge secrets, organizer-inquiry function, and both web clients are live. The mobile build and Supabase Auth activation remain pending. Production remains unchanged.
 
 ## Implemented
 
@@ -39,15 +39,14 @@ The focused security scope passes. The unrelated full-suite failures were not ch
 | Google Cloud | Separate staging and production score-based keys and API credentials exist under `support.racepace@gmail.com`. Billing remains disabled. |
 | Cloudflare | Separate staging and production managed widgets exist under `support.racepace@gmail.com`. |
 | Supabase staging | reCAPTCHA secrets, rate-limit salt, migration, and inquiry function deployed. Hosted Auth CAPTCHA remains disabled. |
-| Vercel staging | Runner and admin public keys saved for the `staging` branch. Source deployment awaits merge. |
+| Vercel staging | Runner and admin deployments are Ready on their custom domains. All password surfaces and the hosted mobile bridge display Turnstile. |
 | Production | Provider resources prepared, but no secrets, code, migration, or CAPTCHA enforcement deployed. |
 
 ## Remaining Work
 
-1. Merge the reviewed feature branch and verify the runner and admin staging deployments.
-2. Build and verify a staging mobile client with the matching site URL.
-3. Enable Turnstile in staging Supabase Auth and repeat every password flow.
-4. Monitor the Google free assessment quota and rejected inquiry categories.
-5. Promote the verified configuration to production and enable production CAPTCHA last.
+1. Build and verify a staging mobile client with the matching site URL.
+2. Enable Turnstile in staging Supabase Auth and repeat every password flow.
+3. Monitor the Google free assessment quota and rejected inquiry categories.
+4. Promote the verified configuration to production and enable production CAPTCHA last.
 
-Staging backend deployment was performed. The source commit, pull request, web deployment, mobile build, and all production activation remain pending at this report checkpoint.
+PR #75 merged to `staging` at `9d66a4c`. The staging backend and both web clients are deployed. The mobile build, hosted Auth activation, and all production activation remain pending at this report checkpoint.
