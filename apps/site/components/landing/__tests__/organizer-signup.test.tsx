@@ -13,45 +13,67 @@ beforeEach(() => {
   invoke.mockResolvedValue({ data: { ok: true }, error: null });
 });
 
-async function completeForm() {
+async function openAndCompleteForm() {
   const user = userEvent.setup();
-  await user.type(screen.getByLabelText(/Your name/), "Ana Runner");
-  await user.type(screen.getByLabelText(/Work email/), "ana@example.com");
-  await user.type(screen.getByLabelText(/Organization or race name/), "North Ridge Events");
-  await user.click(screen.getByRole("button", { name: "Request organizer access" }));
+  await user.click(screen.getByRole("button", { name: "Send an inquiry" }));
+  await user.type(screen.getByLabelText(/First name/), "Ana");
+  await user.type(screen.getByLabelText(/Last name/), "Runner");
+  await user.type(screen.getByLabelText(/^Email/), "ana@example.com");
+  await user.selectOptions(screen.getByLabelText(/reaching out as/), "runner");
+  await user.type(screen.getByLabelText(/^Subject/), "Registration payment");
+  await user.type(screen.getByLabelText(/^Message/), "Please help me verify my payment.");
+  return user;
 }
 
 describe("OrganizerSignup", () => {
-  it("uses a white card with forest-green form styling", () => {
+  it("shows the shared runner and organizer inquiry card", () => {
     render(<OrganizerSignup />);
 
-    expect(screen.getByRole("form", { name: "Organizer signup" }).parentElement).toHaveClass(
-      "bg-white",
-      "text-forest",
-    );
-    expect(screen.getByText("Your name", { exact: false }).closest("label")).toHaveClass("text-forest/78");
+    expect(screen.getByText("What can we help with?")).toBeInTheDocument();
+    expect(screen.getByText("Runner support")).toBeInTheDocument();
+    expect(screen.getByText("Organizer access")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Send an inquiry" })).toBeInTheDocument();
   });
 
-  it("delivers the organizer details through the inquiry function", async () => {
+  it("opens an accessible modal with the requested fields and message limit", async () => {
+    const user = userEvent.setup();
     render(<OrganizerSignup />);
-    await completeForm();
+
+    await user.click(screen.getByRole("button", { name: "Send an inquiry" }));
+
+    expect(screen.getByRole("dialog", { name: "How can we help?" })).toBeInTheDocument();
+    expect(screen.getByLabelText(/First name/)).toBeRequired();
+    expect(screen.getByLabelText(/Last name/)).toBeRequired();
+    expect(screen.getByLabelText(/^Email/)).toBeRequired();
+    expect(screen.getByLabelText(/reaching out as/)).toBeRequired();
+    expect(screen.getByLabelText(/^Subject/)).toBeRequired();
+    expect(screen.getByLabelText(/^Message/)).toHaveAttribute("maxlength", "5000");
+  });
+
+  it("delivers the inquiry and confirms the acknowledgement email", async () => {
+    render(<OrganizerSignup />);
+    const user = await openAndCompleteForm();
+    await user.click(screen.getByRole("button", { name: "Send message" }));
 
     expect(invoke).toHaveBeenCalledWith("organizer-inquiry", {
       body: {
-        name: "Ana Runner",
+        firstName: "Ana",
+        lastName: "Runner",
         email: "ana@example.com",
-        organization: "North Ridge Events",
+        audience: "runner",
+        subject: "Registration payment",
+        message: "Please help me verify my payment.",
         website: "",
       },
     });
-    expect(await screen.findByRole("status")).toHaveTextContent("Request sent");
-    expect(screen.getByText(/inquiries@racepace.com.ph/)).toBeInTheDocument();
+    expect(await screen.findByRole("status")).toHaveTextContent("confirmation email is on its way to ana@example.com");
   });
 
   it("shows a direct contact fallback when delivery fails", async () => {
     invoke.mockResolvedValue({ data: null, error: new Error("unavailable") });
     render(<OrganizerSignup />);
-    await completeForm();
+    const user = await openAndCompleteForm();
+    await user.click(screen.getByRole("button", { name: "Send message" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("inquiries@racepace.com.ph");
   });

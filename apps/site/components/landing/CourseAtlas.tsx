@@ -185,7 +185,7 @@ export function CourseAtlas() {
 
       <section
         id="organizers"
-        aria-labelledby="organizer-heading"
+        aria-labelledby="inquiry-heading"
         data-seamless-footer
         className="scroll-mt-16 bg-background px-5 sm:px-6"
       >
@@ -193,23 +193,23 @@ export function CourseAtlas() {
           <Reveal>
             <div className="max-w-xl">
               <p className="font-eyebrow text-[11px] font-bold uppercase tracking-[2.5px] text-primary">
-                For race organizers
+                For runners &amp; organizers
               </p>
               <h2
-                id="organizer-heading"
+                id="inquiry-heading"
                 className="mt-4 max-w-[12ch] font-display text-[clamp(2.5rem,5.5vw,4.8rem)] font-black leading-[.94] tracking-[-2.6px] text-forest"
               >
-                Bring your next race into view.
+                Let&apos;s clear the way forward.
               </h2>
               <p className="mt-6 max-w-[50ch] text-[16px] leading-8 text-foreground/70">
-                Tell us what you&apos;re planning. We&apos;ll review your race, prepare the right organization space, and help your team open entries with confidence.
+                Need help with a registration, payment, or race pass? Planning your next event? Send us the details and our team will point you in the right direction.
               </p>
 
               <ul className="mt-8 grid gap-4 text-[14px] font-semibold text-forest sm:grid-cols-3 lg:grid-cols-1">
                 {[
-                  "A dedicated organizer workspace",
-                  "Events, categories, waivers, and staff",
-                  "Payments, QR passes, and race-day tools",
+                  "Registration, payment, and race-pass support",
+                  "Organizer onboarding and race listings",
+                  "Events, staff, waivers, and race-day tools",
                 ].map((item) => (
                   <li key={item} className="flex min-h-11 items-center gap-3 border-t border-forest/12 pt-4 first:border-0 first:pt-0 sm:first:border-t sm:first:pt-4 lg:first:border-0 lg:first:pt-0">
                     <Check size={18} className="shrink-0 text-primary" strokeWidth={2.2} aria-hidden="true" />
