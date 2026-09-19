@@ -50,6 +50,7 @@ const KNOWN: Record<string, { label: string; marks: MarkKey[] }> = {
   // the two it actually was isn't knowable from this row.
   card: { label: "Card", marks: ["visa", "mastercard"] },
   gcash: { label: "GCash", marks: ["gcash"] },
+  qrph: { label: "QR Ph", marks: [] },
   // PayMongo's source type is "paymaya"; the brand is now "Maya". Both spellings
   // map to the Maya artwork so a rename upstream doesn't blank the column.
   paymaya: { label: "Maya", marks: ["maya"] },
@@ -97,7 +98,7 @@ export function methodPresentation(method: string | null | undefined, status?: s
 // the instruments runners actually use first, anything unrecognised after, and
 // the "Unknown" legacy bucket last, since it is a data artefact rather than a
 // choice a runner made.
-const FILTER_ORDER = ["gcash", "card", "paymaya", "maya", "visa", "mastercard"];
+const FILTER_ORDER = ["qrph", "gcash", "card", "paymaya", "maya", "visa", "mastercard"];
 
 /**
  * Build the Method filter's options from the values actually present in the

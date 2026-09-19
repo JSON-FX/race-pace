@@ -56,7 +56,7 @@ export async function reserveGroup(input: GroupReservationInput): Promise<GroupR
   return invoke("group-reservations", { ...groupReservationInputSchema.parse(input) });
 }
 
-export async function prepareGroupPayment(orderId: string, method: "card" | "gcash" | "maya", key: string): Promise<GroupAttempt> {
+export async function prepareGroupPayment(orderId: string, method: "card" | "gcash" | "maya" | "qrph", key: string): Promise<GroupAttempt> {
   return invoke("group-payment-prepare", { order_id: orderId, method, idempotency_key: key });
 }
 

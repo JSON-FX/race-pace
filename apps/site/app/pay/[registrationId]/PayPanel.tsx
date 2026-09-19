@@ -302,7 +302,7 @@ export function PayPanel({ registrationId }: { registrationId: string }) {
 
       <RefundNotice policy={reg.data.refundPolicy} retention={reg.data.refundFeeCents} />
 
-      {hostedPayMongo && !passOn ? <p className="mt-6 text-sm text-muted-foreground">Choose GCash, Maya or card on PayMongo. The total stays {formatPeso(total)}; processing and Race Pace fees come out of this price.</p> : null}
+      {hostedPayMongo && !passOn ? <p className="mt-6 text-sm text-muted-foreground">Choose QR Ph, GCash, Maya or card on PayMongo. The total stays {formatPeso(total)}; processing and Race Pace fees come out of this price.</p> : null}
       {!hostedPayMongo && !passOn ? <><h2 className="mt-8 text-[11px] font-semibold uppercase tracking-[0.6px] text-muted-foreground">Pay with</h2>
       <div className="mt-3 flex flex-col gap-3">
         {PAY_METHODS.map((m) => (

@@ -44,7 +44,7 @@ export class PayMongoProvider implements PaymentProvider {
     const session = await pmCreateCheckoutSession({
       lineItems: (input.lineItems && input.lineItems.length ? input.lineItems : [{ name: input.description || "Race registration", amount: input.amount }])
         .map((li) => ({ name: li.name, amount: li.amount /* centavos */, currency: "PHP", quantity: 1 })),
-      paymentMethodTypes: input.methods && input.methods.length ? input.methods : ["card", "gcash", "paymaya"],
+      paymentMethodTypes: input.methods && input.methods.length ? input.methods : ["card", "gcash", "paymaya", "qrph"],
       description: input.description,
       successUrl: withStatus(input.returnUrl, "paid"),
       cancelUrl: withStatus(input.returnUrl, "cancel"),

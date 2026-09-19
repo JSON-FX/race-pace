@@ -20,6 +20,10 @@ describe("group PayMongo boundary", () => {
     const result = buildGroupSessionRequest({ ...input, feeMode: "absorb", processorSurchargeCents: 0, grossCents: 200000 });
     expect(result.data.attributes.line_items).toHaveLength(1);
   });
+  it("accepts QR Ph only through the server allowlist", () => {
+    const result = buildGroupSessionRequest({ ...input, method: "qrph" });
+    expect(result.data.attributes.payment_method_types).toEqual(["qrph"]);
+  });
   it.each([NaN, 1.2, -1, 2147483648])("rejects malformed cents %s", grossCents => {
     expect(() => buildGroupSessionRequest({ ...input, grossCents })).toThrow();
   });

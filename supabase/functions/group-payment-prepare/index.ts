@@ -3,7 +3,7 @@ import { serviceClient } from "../_shared/supabase.ts";
 import { preflight, corsHeaders } from "../_shared/cors.ts";
 
 const inputSchema = z.object({
-  order_id: z.string().uuid(), method: z.enum(["card", "gcash", "maya"]), idempotency_key: z.string().uuid(),
+  order_id: z.string().uuid(), method: z.enum(["card", "gcash", "maya", "qrph"]), idempotency_key: z.string().uuid(),
 }).strict();
 Deno.serve(async (req) => {
   const pre = preflight(req);

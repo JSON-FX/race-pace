@@ -158,6 +158,13 @@ it("keeps zero-commission pilot and absorb mode totals consistent", async () => 
   expect(result.error).toBeNull(); expect(result.data).toMatchObject({ method: "paymaya", gross_cents: 225000, platform_fee_cents: 0, processor_surcharge_cents: 0 });
   expect(result.data.net_to_org_predicted_cents).toBe(225000 - result.data.processor_fee_predicted_cents);
 });
+it("prepares QR Ph with the existing server-side rate card", async () => {
+  await db.query("update organizations set fee_mode='absorb' where id=$1", [org]);
+  const result = await svc.rpc("booking_order_prepare_payment", args(await reserve(), randomUUID(), "qrph"));
+  expect(result.error).toBeNull();
+  expect(result.data).toMatchObject({ method: "qrph", gross_cents: 225000, processor_surcharge_cents: 0 });
+  expect(result.data.processor_fee_predicted_cents).toBe(3375);
+});
 it("makes a fully free order fee-free and preserves a free participant in mixed orders", async () => {
   await db.query("update categories set base_price=0 where id=$1", [category]);
   const mixedOrder = await reserve();
