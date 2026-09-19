@@ -64,12 +64,12 @@ export default async function RegisterPage({ params, searchParams }: { params: P
   }
 
   const { data: passport, error: passportError } = await db.from("runner_passports")
-    .select("id,claimed_user_id,first_name,last_name,team_name,date_of_birth,gender,contact_number,emergency_contact_name,emergency_contact_number,emergency_contact_relationship")
+    .select("id,claimed_user_id,first_name,last_name,team_name,date_of_birth,gender,contact_number,emergency_contact_name,emergency_contact_number,emergency_contact_relationship,shipping_barangay_code,shipping_zip_code,shipping_address_line")
     .eq(selectedParticipant ? "id" : "claimed_user_id", selectedParticipant ?? user.id).maybeSingle();
   if (passportError || !passportSchema(new Date().toISOString().slice(0, 10)).safeParse(passport).success) {
     return <><SiteHeader /><main className="mx-auto max-w-xl px-6 py-12">
       <h1 className="text-2xl font-bold">Complete your Race Passport</h1>
-      <p className="mt-4">{passportError ? "We could not check your Passport. Please try again." : "Add your name, birth date, gender, contact number and emergency contact details before registering."}</p>
+      <p className="mt-4">{passportError ? "We could not check your Passport. Please try again." : "Add your identity, contact, emergency and shipping details before registering."}</p>
       <Link className="mt-6 inline-block underline" href="/profile">Open Race Passport</Link>
       <p className="mt-4"><Link className="underline" href={`/events/${category.event_id}`}>Return to event</Link></p>
     </main></>;

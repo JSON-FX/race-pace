@@ -20,7 +20,7 @@ it("blocks an incomplete saved Passport before creating a slot hold, even with f
     const client = createClient(url, anonKey, { auth: { persistSession: false } });
     const login = await client.auth.signInWithPassword({ email, password: "password123" });
     expect(login.error).toBeNull();
-    const identity = { first_name: "QA", last_name: "Runner", date_of_birth: "1950-01-01", gender: "Female", contact_number: "09171234567", emergency_contact_name: "QA Contact", emergency_contact_number: "09171234567", emergency_contact_relationship: "Child" };
+    const identity = { first_name: "QA", last_name: "Runner", date_of_birth: "1950-01-01", gender: "Female", contact_number: "09171234567", emergency_contact_name: "QA Contact", emergency_contact_number: "09171234567", emergency_contact_relationship: "Child", shipping_barangay_code: "012801001", shipping_zip_code: "0123", shipping_address_line: "Unit 1, Sample Street" };
     const body = { event_id: event.data.id, category_id: category.data.id, waiver_accepted: true, custom_data: identity, idempotency_key: randomUUID() };
     const call = () => fetch(`${url}/functions/v1/registrations-checkout`, { method: "POST", headers: { Authorization: `Bearer ${login.data.session!.access_token}`, "content-type": "application/json" }, body: JSON.stringify(body) });
     const missingWaiver = await call();

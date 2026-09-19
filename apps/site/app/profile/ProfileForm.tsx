@@ -8,7 +8,9 @@ import { signOut } from "@/lib/auth";
 import { PassportPhotos } from "./PassportPhotos";
 import { useMyRegistrations } from "@/lib/registration";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { CountUp } from "@/components/event/motion-primitives";
+import { LogOut } from "lucide-react";
 
 /** "Jamie Cruz" -> "JC"; an unset name falls back to a single trail-green
  *  waypoint mark rather than empty air, so the passport card never looks broken. */
@@ -44,15 +46,15 @@ function Figure({
   text?: string;
 }) {
   return (
-    <div className="border-r border-divider px-3 py-4 text-center last:border-r-0">
-      <dt className="font-eyebrow text-[9px] font-bold uppercase tracking-[1.7px] text-muted-foreground">{label}</dt>
-      <dd className="font-mono-race mt-1 text-[20px] font-bold text-primary">
+    <div className="border-r border-divider px-4 py-4 text-center last:border-r-0 lg:border-b lg:border-r-0 lg:border-white/15 lg:px-5 lg:py-5 lg:text-left lg:last:border-b-0">
+      <dt className="font-eyebrow text-[9px] font-bold uppercase tracking-[1.7px] text-muted-foreground lg:text-white/65">{label}</dt>
+      <dd className="font-mono-race mt-1 text-[20px] font-bold text-primary lg:text-2xl lg:text-white">
         {text != null ? (
-          <span className="text-[13px] text-muted-foreground">{text}</span>
+          <span className="text-[13px] text-muted-foreground lg:text-white">{text}</span>
         ) : (
           <>
             <CountUp value={value ?? 0} />
-            {unit ? <span className="text-[11px] text-muted-foreground">{unit}</span> : null}
+            {unit ? <span className="ml-1 text-[11px] text-muted-foreground lg:text-white/65">{unit}</span> : null}
           </>
         )}
       </dd>
@@ -77,17 +79,21 @@ export function ProfileForm({ userId, email }: { userId: string; email?: string 
     setProfile((p) => ({ ...p, [column]: url }));
   }
   return <div>
-    <div className="overflow-hidden rounded-xl border border-border">
+    <Card className="relative gap-0 overflow-hidden py-0 shadow-sm">
       <PassportPhotos userId={userId} name={profile.full_name} mark={initials(profile.full_name)} avatarUrl={profile.avatar_url} coverUrl={profile.cover_url} onChange={savePhoto} />
-      <dl className="grid grid-cols-2 border-b border-divider bg-card">
+      <dl className="grid grid-cols-2 border-t border-divider bg-card lg:absolute lg:bottom-5 lg:right-5 lg:w-64 lg:grid-cols-1 lg:overflow-hidden lg:rounded-xl lg:border lg:border-white/15 lg:bg-forest/90 lg:shadow-xl lg:backdrop-blur-md">
         <Figure label="Races" value={career.races} />
         <Figure label="Distance" value={career.km} unit="km" />
       </dl>
-    </div>
-    {error && <p role="alert">{error}</p>}
+    </Card>
+    {error && <p role="alert" className="mt-3 text-sm text-destructive">{error}</p>}
     <PassportEditor key={userId} userId={userId} email={email} onSaved={(passport) => {
       if (passport.claimed_user_id === userId) setProfile((p) => ({ ...p, full_name: [passport.first_name, passport.last_name].filter(Boolean).join(" ") }));
     }} />
-    <Button type="button" variant="outline" onClick={() => signOut().then(() => window.location.assign("/"))} className="mt-6">Sign out</Button>
+    <div className="mt-6 flex justify-end">
+      <Button type="button" variant="outline" onClick={() => signOut().then(() => window.location.assign("/"))}>
+        <LogOut aria-hidden /> Sign out
+      </Button>
+    </div>
   </div>;
 }
