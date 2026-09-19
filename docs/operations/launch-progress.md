@@ -67,10 +67,12 @@ Profile and managed-bookings redesign, 2026-09-20: the owner selected Summit Ben
 
 Summit Bento staging release, 2026-09-20: PR #70 merged to `staging` at `efa8000`. Exact-merge GitHub run `35470941056` passed runner/admin typechecks, 441 runner tests, 883 admin tests, 718 backend/shared tests and both production builds. Runner deployment `dpl_CaAEzVD4FfbqpS23j9ZXEdmSWCRt` is Ready and assigned to `staging.racepace.com.ph`. `registrations-checkout` version 11 is Active with JWT verification and the required-address Passport contract. Authenticated browser review loaded `/profile` and `/bookings` without console warnings or errors. The profile displayed the left-side cover action, no contour overlay, required shipping section and grouped relationship choices. The managed-bookings empty state preserved the Passport destination. No staging form or booking data was changed during this read-only review.
 
+Summit Bento production release, 2026-09-20: PR #72 merged to `main` at `8351849`. Exact-merge GitHub run `35471782831` passed runner/admin typechecks, 441 runner tests, 883 admin tests, 718 backend/shared tests and both production builds. Runner deployment `dpl_Cgtyjdq9jenKCgJN1TqdDWymdpXa` is Ready and assigned to `racepace.com.ph` and `www.racepace.com.ph`. The newer production `registrations-checkout` version 32 already includes the required-address Passport contract and remains in place to preserve its checkout recovery fixes. Authenticated production browser review loaded `/profile` and `/bookings` without console warnings or errors. The profile displayed the left-side cover action, no contour overlay, required shipping section and grouped relationship choices. The managed-bookings summary and empty state rendered correctly. No production form or booking data was changed during this read-only review.
+
 | Work | Status | Blocker | Next task |
 |---|---|---|---|
-| Summit Bento production implementation | **Staging passed** | Production promotion and read-only browser verification remain. | Merge the production branch only after its GitHub validation and both Vercel previews pass. |
-| Review annotations | **Resolved in code and selected mock** | None. | Preserve the required-address and Philippine phone contracts during release verification. |
+| Summit Bento production implementation | **Released** | None. | Monitor the profile and managed-bookings routes after launch. |
+| Review annotations | **Verified in production** | None. | Preserve the required-address and Philippine phone contracts in future changes. |
 
 ## Release-critical checklist
 
