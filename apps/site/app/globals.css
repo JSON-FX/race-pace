@@ -272,6 +272,12 @@
   }
 }
 
+/* Course Atlas ends with its own bordered organizer panel. Join that panel to
+ * the global footer so the standard page-level footer gap is not repeated. */
+body:has([data-seamless-footer]) footer.no-print {
+  margin-top: 0;
+}
+
 /* Scroll-draw for the course-profile / route-ribbon signature graphics
  * (components/discipline/*). ScrollReveal flips `data-shown` on the wrapper
  * once it enters the viewport; the path animates its dash-offset to 0.

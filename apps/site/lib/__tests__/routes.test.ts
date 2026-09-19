@@ -59,26 +59,26 @@ describe("safeNextPath", () => {
     expect(safeNextPath("/register/abc?step=2")).toBe("/register/abc?step=2");
   });
 
-  it("falls back to / for an absent param", () => {
-    expect(safeNextPath(null)).toBe("/");
-    expect(safeNextPath(undefined)).toBe("/");
-    expect(safeNextPath("")).toBe("/");
+  it("falls back to the runner home for an absent param", () => {
+    expect(safeNextPath(null)).toBe("/home");
+    expect(safeNextPath(undefined)).toBe("/home");
+    expect(safeNextPath("")).toBe("/home");
   });
 
   it("rejects protocol-relative targets", () => {
-    expect(safeNextPath("//evil.example/sign-in")).toBe("/");
+    expect(safeNextPath("//evil.example/sign-in")).toBe("/home");
   });
 
   it("rejects absolute URLs", () => {
-    expect(safeNextPath("https://evil.example")).toBe("/");
+    expect(safeNextPath("https://evil.example")).toBe("/home");
   });
 
   it("rejects javascript: URLs", () => {
-    expect(safeNextPath("javascript:alert(1)")).toBe("/");
+    expect(safeNextPath("javascript:alert(1)")).toBe("/home");
   });
 
   it("rejects backslash-based host smuggling", () => {
-    expect(safeNextPath("\\\\evil.example")).toBe("/");
-    expect(safeNextPath("/\\evil.example")).toBe("/");
+    expect(safeNextPath("\\\\evil.example")).toBe("/home");
+    expect(safeNextPath("/\\evil.example")).toBe("/home");
   });
 });
