@@ -39,15 +39,17 @@ Landing page selection and enhancement, 2026-09-20: the owner selected Course At
 
 Organizer inquiry addition, 2026-09-20: the final landing section now gives race organizers a responsive signup form for name, work email and organization or race name. The form invokes a new `organizer-inquiry` Edge Function that validates and normalizes input, escapes organizer-controlled email content, limits request size, quietly drops honeypot submissions, sends only to `inquiries@racepace.com.ph`, and sets the organizer email as Reply-To. Owner review removed the extra section and footer gaps and changed the form to a white card with forest-green labels and fields. Desktop and 390×844 browser checks found no horizontal overflow or application console errors. All 426 runner-site tests, the site typecheck, 17 focused inquiry/email tests, `/` and `/home` HTTP checks, and `git diff --check` passed. The full backend/shared run passed 710 of 714 tests; four environment-dependent tests failed because the current database lacks the expected `muspo` test user and one seeded organization. No live inquiry was sent. The new function has not been deployed.
 
+Inquiry modal implementation, 2026-09-20: replaced the embedded organizer-only form with the approved runner-and-organizer inquiry card and responsive dialog. The dialog collects first name, last name, email, audience, subject and a message limited to 5,000 characters. The existing authenticated `organizer-inquiry` function now validates every field, sends the escaped inquiry to `inquiries@racepace.com.ph`, and sends a branded thank-you acknowledgment to the supplied email only after the internal notification is accepted. Desktop and mobile measurements found no horizontal overflow; the mobile sheet scrolls within the viewport. All 427 runner-site tests, 716 backend/shared tests, 21 focused inquiry/email tests, the site typecheck and `git diff --check` passed. Staging deployment and live provider acceptance are next; production remains unchanged.
+
 ### Current landing page design work
 
 | Work | Status | Blocker | Next task |
 |---|---|---|---|
 | Landing-page direction | **Done** | None. | Course Atlas is the selected direction; keep the five-option study only as a design record. |
 | Course Atlas enhancement | **Design approved** | None. | Preserve the approved compact organizer spacing, white form card and QR Ph footer through release. |
-| Separate landing and home routes | **Done locally** | Staging and production deployment are pending. | Keep Course Atlas at `/`, the event-browsing home at `/home`, and the full catalog at `/events`. |
-| Organizer signup | **Done locally** | The `organizer-inquiry` function is not deployed and no live delivery has been tested. | Deploy the function to staging and verify it without sending an unapproved external test email. |
-| Production release | **Authorized** | Staging verification and the normal release checks remain. | Deploy and verify staging first, then promote the approved feature to production. |
+| Separate landing and home routes | **Released** | None. | Monitor the public landing and event-browsing routes after launch. |
+| Inquiry modal | **Validated locally** | Hosted delivery is not yet verified. | Deploy to staging and confirm both provider acceptances with a staging-only inquiry. |
+| Production release | **Previous landing released** | The approved inquiry modal is not yet deployed. | Promote the verified staging revision to production. |
 
 ## Release-critical checklist
 

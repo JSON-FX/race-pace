@@ -6,9 +6,9 @@ export function isStagingEmail(): boolean {
   return typeof Deno !== "undefined" && Deno.env.get("EMAIL_ENVIRONMENT") === "staging";
 }
 
-export function emailBrandHeader(): string {
+export function emailBrandHeader(stagingNotice = "TEST — STAGING · This is not a real booking"): string {
   const logoUrl = isStagingEmail() ? STAGING_EMAIL_LOGO_URL : EMAIL_LOGO_URL;
-  return `${isStagingEmail() ? '<tr><td style="background:#fff0ce;color:#6b4913;text-align:center;padding:10px;font:12px Arial,sans-serif;font-weight:bold">TEST — STAGING · This is not a real booking</td></tr>' : ''}
+  return `${isStagingEmail() ? `<tr><td style="background:#fff0ce;color:#6b4913;text-align:center;padding:10px;font:12px Arial,sans-serif;font-weight:bold">${stagingNotice}</td></tr>` : ''}
 <tr><td style="padding:26px 28px;background:#ffffff;border-bottom:1px solid #e4ebe6"><img src="${logoUrl}" width="86" alt="" role="presentation" style="display:inline-block;border:0;vertical-align:middle" /><span style="font:700 21px Arial,sans-serif;color:#183b2a;vertical-align:middle">&nbsp; Race Pace</span></td></tr>`;
 }
 
