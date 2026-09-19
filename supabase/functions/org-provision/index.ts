@@ -18,6 +18,7 @@ import {
   mapDeleteRpcError,
   adminInviteRedirect,
   buildInviteLink,
+  sendExistingAdminSignIn,
   type SettledCounts,
 } from "../_shared/orgAdmin.ts";
 
@@ -394,6 +395,17 @@ Deno.serve(async (req) => {
       return json({ error: "role_failed" }, 500);
     }
 
+    // inviteUserByEmail already sends for a new identity. Existing users skip
+    // that branch, so send a passwordless sign-in link after their role exists.
+    // Delivery remains best-effort because the manual link below is the fallback.
+    const delivery = invited
+      ? "sent"
+      : await sendExistingAdminSignIn(
+        (credentials) => db.auth.signInWithOtp(credentials),
+        input.admin_email,
+        adminUrl,
+      );
+
     // The link exists so provisioning is usable BEFORE SMTP is configured —
     // without it, a successful create leaves the operator with no way to hand
     // the account over.
@@ -418,7 +430,7 @@ Deno.serve(async (req) => {
     });
     const inviteLink: string | null = buildInviteLink(adminUrl, link?.properties?.hashed_token ?? null);
 
-    return json({ ok: true, org, invited, invite_link: inviteLink });
+    return json({ ok: true, org, invited, delivery, invite_link: inviteLink });
   } catch (e) {
     // A throw reaching here after the delete RPC has already committed (e.g.
     // an orgCounts network error, or anything else unexpected) used to leave
