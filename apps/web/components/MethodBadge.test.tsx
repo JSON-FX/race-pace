@@ -6,6 +6,7 @@ describe("methodPresentation", () => {
   it("maps each instrument our own code writes to its marks and label", () => {
     expect(methodPresentation("gcash")).toEqual({ kind: "known", label: "GCash", marks: ["gcash"] });
     expect(methodPresentation("paymaya")).toEqual({ kind: "known", label: "Maya", marks: ["maya"] });
+    expect(methodPresentation("qrph")).toEqual({ kind: "known", label: "QR Ph", marks: [] });
   });
 
   // Not cosmetic: "Card" alone doesn't tell an organizer whether a runner's
@@ -52,7 +53,8 @@ describe("methodPresentation", () => {
 
 describe("methodFilterOptions", () => {
   it("builds options from the distinct values actually present, dropping empties", () => {
-    expect(methodFilterOptions(["gcash", "gcash", null, "card", "", "paymaya"])).toEqual([
+    expect(methodFilterOptions(["gcash", "gcash", null, "card", "", "paymaya", "qrph"])).toEqual([
+      { value: "qrph", label: "QR Ph" },
       { value: "gcash", label: "GCash" },
       { value: "card", label: "Card" },
       { value: "paymaya", label: "Maya" },

@@ -27,8 +27,8 @@ describe("breakdown", () => {
 });
 
 describe("PAY_METHODS", () => {
-  it("offers the three methods the payment-session function accepts", () => {
-    expect(PAY_METHODS.map((m) => m.key)).toEqual(["card", "gcash", "maya"]);
+  it("offers the four methods the payment-session function accepts", () => {
+    expect(PAY_METHODS.map((m) => m.key)).toEqual(["card", "gcash", "maya", "qrph"]);
   });
 
   // Every offerable method must price, or the pay screen would show a runner a
@@ -43,8 +43,8 @@ describe("PAY_METHODS", () => {
   // 'paymaya' there, exactly as METHOD_MAP in payment-session/index.ts maps it.
   // Looking the rate up under 'maya' finds no row, and no row means no
   // breakdown.
-  it("translates Maya to PayMongo's own name for the rate card", () => {
-    expect(RATE_METHOD).toEqual({ card: "card", gcash: "gcash", maya: "paymaya" });
+  it("uses PayMongo's exact method names for the rate card", () => {
+    expect(RATE_METHOD).toEqual({ card: "card", gcash: "gcash", maya: "paymaya", qrph: "qrph" });
   });
 });
 

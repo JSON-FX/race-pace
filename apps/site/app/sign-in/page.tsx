@@ -13,9 +13,8 @@ import { SignInForm } from "./SignInForm";
  * belonged to any product, while the rest of the site speaks in 40px Archivo
  * headlines over forest slabs. Now it sounds like the thing they are joining.
  *
- * The canvas is a REAL Muspo night flag-off, not stock photography — the one
- * thing a licensed trail photo could never be, and the whole argument for
- * giving the pane an image at all.
+ * The canvas uses an original Race Pace mountain illustration. Its fictional
+ * runners carry no event branding, sponsor marks, or identifiable likenesses.
  *
  * A Server Component so the stats below are real. See fetchSeasonStats.
  */
@@ -28,16 +27,11 @@ export default async function SignInPage() {
       {/* BRAND CANVAS — a full pane on desktop, a header band on mobile, so the
           brand survives the breakpoint instead of degrading to a bare form. */}
       <section className="relative flex flex-col justify-between overflow-hidden bg-forest px-6 py-7 text-white md:w-[52%] md:px-12 md:py-12">
-        {/* A REAL race — a Muspo night flag-off, hands up on the line. This is
-            the one thing a stock trail photo could never be, and it is the whole
-            argument for the pane: a runner arriving from a shared link sees the
-            event they are about to join, not a mood board.
-
-            `fill` + `object-cover` rather than a CSS background so Next serves a
-            sized, modern-format image; `priority` because it is the LCP element
-            on this route. */}
+        {/* The project-owned illustration keeps the login specific to trail
+            racing without redistributing an organizer's event photography.
+            `priority` is appropriate because this is the route's LCP image. */}
         <Image
-          src="/login-background.jpg"
+          src="/login-mountains.webp"
           alt=""
           aria-hidden
           fill
@@ -45,12 +39,9 @@ export default async function SignInPage() {
           sizes="(min-width: 768px) 52vw, 100vw"
           className="object-cover object-center"
         />
-        {/* Two layers, doing different jobs. The forest wash ties the photo to
-            the brand instead of leaving a neutral greyscale rectangle; the
-            gradient darkens the bottom, where the headline and stats sit, so
-            white text clears 4.5:1 over the brightest part of the frame — the
-            head-torches. Without it the copy sat on a blown highlight. */}
-        <div aria-hidden className="absolute inset-0 bg-forest/72" />
+        {/* The wash keeps white text legible across both crops and ties the
+            illustrated palette to the product's forest surface. */}
+        <div aria-hidden className="absolute inset-0 bg-forest/58" />
         <div
           aria-hidden
           className="absolute inset-0 bg-gradient-to-t from-forest via-forest/55 to-forest/25"
@@ -66,7 +57,7 @@ export default async function SignInPage() {
           <Link
             href="/"
             aria-label="Race Pace home"
-            className="mx-auto mb-6 flex w-fit items-center"
+            className="mb-6 flex w-fit items-center"
           >
             <Image
               src="/topnav-logo.png"

@@ -45,7 +45,7 @@ describe("commission + refund policy columns", () => {
     const s = svc();
     const rows = (await s.from("organizations")
       .select("name,commission_type,commission_rate,commission_flat_cents,refund_policy,refund_fee_cents")
-      .in("slug", ["muspo", "runwithpoint"])).data ?? [];
+      .in("slug", ["trailnorth", "runwithpoint"])).data ?? [];
     expect(rows.length).toBe(2);
     for (const r of rows) {
       if (r.commission_type === "fixed") {
@@ -64,7 +64,7 @@ describe("commission + refund policy columns", () => {
   it("seeds one org on each fee path so both are exercised in development", async () => {
     const s = svc();
     const rows = (await s.from("organizations")
-      .select("name,commission_type,refund_policy").in("name", ["Muspo", "RunWithPoint"])).data ?? [];
+      .select("name,commission_type,refund_policy").in("name", ["TrailNorth", "RunWithPoint"])).data ?? [];
     expect(rows.length).toBe(2);
     expect(new Set(rows.map((r) => r.commission_type))).toEqual(new Set(["percent", "fixed"]));
     expect(new Set(rows.map((r) => r.refund_policy))).toEqual(new Set(["full", "flat_fee"]));

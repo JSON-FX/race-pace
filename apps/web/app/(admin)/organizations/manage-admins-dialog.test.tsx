@@ -9,13 +9,13 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 import { ManageAdminsDialog } from "./manage-admins-dialog";
 
-const org = { id: "o1", name: "Muspo", slug: "muspo", isActive: true };
+const org = { id: "o1", name: "TrailNorth", slug: "trailnorth", isActive: true };
 
 beforeEach(() => {
   invoke.mockReset().mockResolvedValue({
     data: { ok: true, members: [
-      { user_id: "u1", email: "boss@muspo.ph", full_name: "Boss", role: "admin" },
-      { user_id: "u2", email: "ed@muspo.ph", full_name: null, role: "editor" },
+      { user_id: "u1", email: "boss@trailnorth.ph", full_name: "Boss", role: "admin" },
+      { user_id: "u2", email: "ed@trailnorth.ph", full_name: null, role: "editor" },
     ] },
     error: null,
   });
@@ -25,8 +25,8 @@ describe("ManageAdminsDialog", () => {
   it("lists the org's members with their emails", async () => {
     render(<ManageAdminsDialog org={org} open onOpenChange={() => {}} />);
 
-    expect(await screen.findByText("boss@muspo.ph")).toBeInTheDocument();
-    expect(screen.getByText("ed@muspo.ph")).toBeInTheDocument();
+    expect(await screen.findByText("boss@trailnorth.ph")).toBeInTheDocument();
+    expect(screen.getByText("ed@trailnorth.ph")).toBeInTheDocument();
     // The whole point: an explicit org_id, not the caller's own scope.
     expect(invoke).toHaveBeenCalledWith("org-members", { body: { action: "list", org_id: "o1" } });
   });
@@ -34,22 +34,22 @@ describe("ManageAdminsDialog", () => {
   it("invites a new admin against that org", async () => {
     const user = userEvent.setup();
     render(<ManageAdminsDialog org={org} open onOpenChange={() => {}} />);
-    await screen.findByText("boss@muspo.ph");
+    await screen.findByText("boss@trailnorth.ph");
 
-    await user.type(screen.getByLabelText(/email/i), "new@muspo.ph");
+    await user.type(screen.getByLabelText(/email/i), "new@trailnorth.ph");
     await user.click(screen.getByRole("button", { name: /invite/i }));
 
     expect(invoke).toHaveBeenCalledWith("org-members", {
-      body: { action: "invite", org_id: "o1", email: "new@muspo.ph", role: "admin" },
+      body: { action: "invite", org_id: "o1", email: "new@trailnorth.ph", role: "admin" },
     });
   });
 
   it("removes a member", async () => {
     const user = userEvent.setup();
     render(<ManageAdminsDialog org={org} open onOpenChange={() => {}} />);
-    await screen.findByText("ed@muspo.ph");
+    await screen.findByText("ed@trailnorth.ph");
 
-    await user.click(screen.getByRole("button", { name: /remove ed@muspo.ph/i }));
+    await user.click(screen.getByRole("button", { name: /remove ed@trailnorth.ph/i }));
 
     expect(invoke).toHaveBeenCalledWith("org-members", {
       body: { action: "remove", org_id: "o1", user_id: "u2" },
@@ -62,9 +62,9 @@ describe("ManageAdminsDialog", () => {
   it("offers every assignable role in the per-member picker", async () => {
     const user = userEvent.setup();
     render(<ManageAdminsDialog org={org} open onOpenChange={() => {}} />);
-    await screen.findByText("ed@muspo.ph");
+    await screen.findByText("ed@trailnorth.ph");
 
-    await user.click(screen.getByRole("combobox", { name: /change role for ed@muspo.ph/i }));
+    await user.click(screen.getByRole("combobox", { name: /change role for ed@trailnorth.ph/i }));
     // Sourced from ASSIGNABLE_ROLES, not a second hand-written list — drift
     // between this picker and what org-members accepts fails here.
     for (const label of ["Admin", "Editor", "Marshal"]) {
@@ -75,9 +75,9 @@ describe("ManageAdminsDialog", () => {
   it("changes a member's role against that org", async () => {
     const user = userEvent.setup();
     render(<ManageAdminsDialog org={org} open onOpenChange={() => {}} />);
-    await screen.findByText("ed@muspo.ph");
+    await screen.findByText("ed@trailnorth.ph");
 
-    await user.click(screen.getByRole("combobox", { name: /change role for ed@muspo.ph/i }));
+    await user.click(screen.getByRole("combobox", { name: /change role for ed@trailnorth.ph/i }));
     await user.click(screen.getByRole("option", { name: "Marshal" }));
 
     await waitFor(() => expect(invoke).toHaveBeenCalledWith("org-members", {
@@ -96,15 +96,15 @@ describe("ManageAdminsDialog", () => {
       }
       return Promise.resolve({
         data: { ok: true, members: [
-          { user_id: "u1", email: "boss@muspo.ph", full_name: "Boss", role: "admin" },
+          { user_id: "u1", email: "boss@trailnorth.ph", full_name: "Boss", role: "admin" },
         ] },
         error: null,
       });
     });
 
     render(<ManageAdminsDialog org={org} open onOpenChange={() => {}} />);
-    await screen.findByText("boss@muspo.ph");
-    const trigger = screen.getByRole("combobox", { name: /change role for boss@muspo.ph/i });
+    await screen.findByText("boss@trailnorth.ph");
+    const trigger = screen.getByRole("combobox", { name: /change role for boss@trailnorth.ph/i });
     expect(trigger).toHaveTextContent("Admin");
 
     await user.click(trigger);
@@ -120,7 +120,7 @@ describe("ManageAdminsDialog", () => {
     const user = userEvent.setup();
     invoke.mockResolvedValue({
       data: { ok: true, members: [
-        { user_id: "u1", email: "boss@muspo.ph", full_name: "Boss", role: "admin" },
+        { user_id: "u1", email: "boss@trailnorth.ph", full_name: "Boss", role: "admin" },
         { user_id: "u9", email: null, full_name: "No Mail", role: "editor" },
       ] },
       error: null,
@@ -159,20 +159,20 @@ describe("ManageAdminsDialog", () => {
       }
       return Promise.resolve({
         data: { ok: true, members: [
-          { user_id: "u1", email: "boss@muspo.ph", full_name: "Boss", role: "admin" },
+          { user_id: "u1", email: "boss@trailnorth.ph", full_name: "Boss", role: "admin" },
         ] },
         error: null,
       });
     });
 
     render(<ManageAdminsDialog org={org} open onOpenChange={() => {}} />);
-    await screen.findByText("boss@muspo.ph");
+    await screen.findByText("boss@trailnorth.ph");
 
     const field = screen.getByLabelText(/email/i);
-    await user.type(field, "new@muspo.ph");
+    await user.type(field, "new@trailnorth.ph");
     await user.click(screen.getByRole("button", { name: /invite/i }));
 
-    expect(await screen.findByDisplayValue("new@muspo.ph")).toBeInTheDocument();
+    expect(await screen.findByDisplayValue("new@trailnorth.ph")).toBeInTheDocument();
   });
 
   it("clears the typed email after a successful invite", async () => {
@@ -180,10 +180,10 @@ describe("ManageAdminsDialog", () => {
     // ok/fail branch in the invite handler deserve coverage.
     const user = userEvent.setup();
     render(<ManageAdminsDialog org={org} open onOpenChange={() => {}} />);
-    await screen.findByText("boss@muspo.ph");
+    await screen.findByText("boss@trailnorth.ph");
 
     const field = screen.getByLabelText(/email/i);
-    await user.type(field, "new@muspo.ph");
+    await user.type(field, "new@trailnorth.ph");
     await user.click(screen.getByRole("button", { name: /invite/i }));
 
     await waitFor(() => expect(field).toHaveValue(""));
@@ -207,15 +207,15 @@ describe("ManageAdminsDialog", () => {
       }
       return Promise.resolve({
         data: { ok: true, members: [
-          { user_id: "u1", email: "boss@muspo.ph", full_name: "Boss", role: "admin" },
+          { user_id: "u1", email: "boss@trailnorth.ph", full_name: "Boss", role: "admin" },
         ] },
         error: null,
       });
     });
 
     render(<ManageAdminsDialog org={org} open onOpenChange={() => {}} />);
-    await screen.findByText("boss@muspo.ph");
-    await user.type(screen.getByLabelText(/email/i), "new@muspo.ph");
+    await screen.findByText("boss@trailnorth.ph");
+    await user.type(screen.getByLabelText(/email/i), "new@trailnorth.ph");
     await user.click(screen.getByRole("button", { name: /^invite$/i }));
 
     expect(await screen.findByText(link)).toBeInTheDocument();
@@ -235,15 +235,15 @@ describe("ManageAdminsDialog", () => {
       }
       return Promise.resolve({
         data: { ok: true, members: [
-          { user_id: "u1", email: "boss@muspo.ph", full_name: "Boss", role: "admin" },
+          { user_id: "u1", email: "boss@trailnorth.ph", full_name: "Boss", role: "admin" },
         ] },
         error: null,
       });
     });
 
     render(<ManageAdminsDialog org={org} open onOpenChange={() => {}} />);
-    await screen.findByText("boss@muspo.ph");
-    await user.type(screen.getByLabelText(/email/i), "new@muspo.ph");
+    await screen.findByText("boss@trailnorth.ph");
+    await user.type(screen.getByLabelText(/email/i), "new@trailnorth.ph");
     await user.click(screen.getByRole("button", { name: /^invite$/i }));
 
     expect(await screen.findByText(/could not be generated/i)).toBeInTheDocument();
@@ -262,13 +262,13 @@ describe("ManageAdminsDialog", () => {
     // Retry must actually call load() again, and recover once it succeeds.
     invoke.mockResolvedValueOnce({
       data: { ok: true, members: [
-        { user_id: "u1", email: "boss@muspo.ph", full_name: "Boss", role: "admin" },
+        { user_id: "u1", email: "boss@trailnorth.ph", full_name: "Boss", role: "admin" },
       ] },
       error: null,
     });
     await user.click(screen.getByRole("button", { name: /retry/i }));
 
-    expect(await screen.findByText("boss@muspo.ph")).toBeInTheDocument();
+    expect(await screen.findByText("boss@trailnorth.ph")).toBeInTheDocument();
   });
 
   it("does not flash the previous org's stale list when reopened for a different org", async () => {
@@ -276,7 +276,7 @@ describe("ManageAdminsDialog", () => {
     // open, or the last org's rows render for a moment before the fresh
     // fetch for the new org lands.
     const { rerender } = render(<ManageAdminsDialog org={org} open onOpenChange={() => {}} />);
-    await screen.findByText("boss@muspo.ph");
+    await screen.findByText("boss@trailnorth.ph");
 
     rerender(<ManageAdminsDialog org={org} open={false} onOpenChange={() => {}} />);
 
@@ -284,7 +284,7 @@ describe("ManageAdminsDialog", () => {
     invoke.mockImplementationOnce(() => new Promise((resolve) => { resolveList = resolve; }));
     rerender(<ManageAdminsDialog org={{ ...org, id: "o2", name: "Other" }} open onOpenChange={() => {}} />);
 
-    expect(screen.queryByText("boss@muspo.ph")).not.toBeInTheDocument();
+    expect(screen.queryByText("boss@trailnorth.ph")).not.toBeInTheDocument();
     expect(screen.getByText(/loading/i)).toBeInTheDocument();
 
     resolveList({

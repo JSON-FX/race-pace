@@ -20,7 +20,7 @@ vi.mock("sonner", () => ({ toast: { success: toastSuccess, error: toastError, wa
 
 import { OrgActions } from "./org-actions";
 
-const org = { id: "o1", name: "Muspo", slug: "muspo", isActive: true };
+const org = { id: "o1", name: "TrailNorth", slug: "trailnorth", isActive: true };
 
 beforeEach(() => {
   invoke.mockReset().mockResolvedValue({ data: { ok: true }, error: null });
@@ -31,7 +31,7 @@ beforeEach(() => {
 });
 
 async function openMenu(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByRole("button", { name: /actions for muspo/i }));
+  await user.click(screen.getByRole("button", { name: /actions for trailnorth/i }));
 }
 
 describe("OrgActions", () => {
@@ -45,11 +45,11 @@ describe("OrgActions", () => {
     // aria-labelledby text) also contains the substring "name".
     const field = screen.getByLabelText("Name");
     await user.clear(field);
-    await user.type(field, "Muspo Trail");
+    await user.type(field, "TrailNorth Trail");
     await user.click(screen.getByRole("button", { name: /^save$/i }));
 
     expect(invoke).toHaveBeenCalledWith("org-provision", {
-      body: { action: "update", org_id: "o1", name: "Muspo Trail" },
+      body: { action: "update", org_id: "o1", name: "TrailNorth Trail" },
     });
     expect(refresh).toHaveBeenCalled();
   });
@@ -124,15 +124,15 @@ describe("OrgActions — delete", () => {
     const confirm = await screen.findByRole("button", { name: /delete organization/i });
     expect(confirm).toBeDisabled();
 
-    await user.type(screen.getByLabelText(/type the slug/i), "musp");
+    await user.type(screen.getByLabelText(/type the slug/i), "trailnort");
     expect(confirm).toBeDisabled();
 
-    await user.type(screen.getByLabelText(/type the slug/i), "o");
+    await user.type(screen.getByLabelText(/type the slug/i), "h");
     expect(confirm).toBeEnabled();
 
     await user.click(confirm);
     expect(invoke).toHaveBeenCalledWith("org-provision", {
-      body: { action: "delete", org_id: "o1", slug: "muspo" },
+      body: { action: "delete", org_id: "o1", slug: "trailnorth" },
     });
   });
 
@@ -213,7 +213,7 @@ describe("OrgActions — delete", () => {
     await openMenu(user);
     await user.click(screen.getByRole("menuitem", { name: /delete/i }));
 
-    await user.type(screen.getByLabelText(/type the slug/i), "muspo");
+    await user.type(screen.getByLabelText(/type the slug/i), "trailnorth");
     await user.click(screen.getByRole("button", { name: /delete organization/i }));
 
     const { toast } = await import("sonner");
@@ -234,11 +234,11 @@ describe("OrgActions — delete", () => {
     render(<OrgActions org={org} />);
     await openMenu(user);
     await user.click(screen.getByRole("menuitem", { name: /delete/i }));
-    await user.type(screen.getByLabelText(/type the slug/i), "muspo");
+    await user.type(screen.getByLabelText(/type the slug/i), "trailnorth");
     await user.click(screen.getByRole("button", { name: /delete organization/i }));
 
     const { toast } = await import("sonner");
-    expect(toast.success).toHaveBeenCalledWith("Muspo deleted.");
+    expect(toast.success).toHaveBeenCalledWith("TrailNorth deleted.");
     expect(toast.warning).not.toHaveBeenCalled();
   });
 
@@ -260,7 +260,7 @@ describe("OrgActions — delete", () => {
     render(<OrgActions org={org} />);
     await openMenu(user);
     await user.click(screen.getByRole("menuitem", { name: /delete/i }));
-    await user.type(screen.getByLabelText(/type the slug/i), "muspo");
+    await user.type(screen.getByLabelText(/type the slug/i), "trailnorth");
     await user.click(screen.getByRole("button", { name: /delete organization/i }));
 
     const { toast } = await import("sonner");

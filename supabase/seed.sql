@@ -21,14 +21,14 @@
 -- the exact silent-zero the Commission page flags in red.
 --
 -- The two orgs deliberately differ so both fee paths and both refund paths are
--- exercised in development: Muspo on a percentage with full refunds,
+-- exercised in development: TrailNorth on a percentage with full refunds,
 -- RunWithPoint on a flat ₱75 per registration retaining ₱300 on a cancellation.
 insert into organizations (
   id, name, slug, brand_color, description,
   commission_type, commission_rate, commission_flat_cents,
   refund_policy, refund_fee_cents
 ) values
-  ('00000000-0000-0000-0000-00000000a001','Muspo','muspo','#159A55',
+  ('00000000-0000-0000-0000-00000000a001','TrailNorth','trailnorth','#159A55',
    'Mountain and ultra-trail racing out of Bukidnon. Kitanglad, Kalatungan, and every ridge in between.',
    'percent', 0.06, 0, 'full', 0),
   ('00000000-0000-0000-0000-00000000a002','RunWithPoint','runwithpoint','#FF6B4A',
@@ -37,7 +37,7 @@ insert into organizations (
 
 -- Synthetic organizer documents keep local checkout fixtures on the published-waiver path.
 insert into organizer_waiver_versions (id, org_id, title, body) values
-  ('00000000-0000-0000-0000-00000000b001','00000000-0000-0000-0000-00000000a001','Muspo QA waiver','Synthetic local test waiver for Muspo events.'),
+  ('00000000-0000-0000-0000-00000000b001','00000000-0000-0000-0000-00000000a001','TrailNorth QA waiver','Synthetic local test waiver for TrailNorth events.'),
   ('00000000-0000-0000-0000-00000000b002','00000000-0000-0000-0000-00000000a002','RunWithPoint QA waiver','Synthetic local test waiver for RunWithPoint events.');
 
 -- The multi-row seed predates the publish gate. Mark only this seed session as
@@ -50,25 +50,25 @@ insert into events (
   city_psgc_code, region_name, province_name, city_name, hero_image_url
 ) values
   ('00000000-0000-0000-0000-000000010009','00000000-0000-0000-0000-00000000a001','Valencia Twin Peaks','trail','completed',current_date - 47,null,null,null,
-   2050,16,'04:30:00','Valencia City Sports Complex','101321000','Northern Mindanao','Bukidnon','City of Valencia','https://whaqarofxdlzxrelbcrq.supabase.co/storage/v1/object/public/event-images/00000000-0000-0000-0000-00000000a001/d200cb67-370c-4df5-82ed-4c4aee73b3b3.jpg'),
+   2050,16,'04:30:00','Valencia City Sports Complex','101321000','Northern Mindanao','Bukidnon','City of Valencia',null),
   ('00000000-0000-0000-0000-000000010005','00000000-0000-0000-0000-00000000a001','Kalatungan Traverse','ultra','closed',current_date - 1,current_date + 1,null,'Race in progress. Live results are posted at the finish arch in Pangantucan.',
-   3120,30,'03:00:00','Kalatungan Mountain Range, Pangantucan','101316000','Northern Mindanao','Bukidnon','Pangantucan','https://whaqarofxdlzxrelbcrq.supabase.co/storage/v1/object/public/event-images/00000000-0000-0000-0000-00000000a001/28a77a6a-648b-47dd-b07a-a972317997b1.jpg'),
+   3120,30,'03:00:00','Kalatungan Mountain Range, Pangantucan','101316000','Northern Mindanao','Bukidnon','Pangantucan',null),
   ('00000000-0000-0000-0000-000000010001','00000000-0000-0000-0000-00000000a001','Dulang-Dulang Vertical','trail','almost_full',current_date + 37,null,null,null,
-   1780,12,'05:00:00','Barangay Songco, Lantapan','101310000','Northern Mindanao','Bukidnon','Lantapan','https://whaqarofxdlzxrelbcrq.supabase.co/storage/v1/object/public/event-images/00000000-0000-0000-0000-00000000a001/394196c8-5728-4e5d-935c-e99276c30553.jpg'),
+   1780,12,'05:00:00','Barangay Songco, Lantapan','101310000','Northern Mindanao','Bukidnon','Lantapan',null),
   ('00000000-0000-0000-0000-000000010008','00000000-0000-0000-0000-00000000a001','Maramag Valley Ultra','ultra','cancelled',current_date + 58,null,null,'Cancelled. The Pulangi crossing is unsafe after the August flooding and no alternate line clears the cut-offs. Full refunds have been processed.',
-   2400,20,'04:00:00','Maramag Town Proper','101315000','Northern Mindanao','Bukidnon','Maramag','https://whaqarofxdlzxrelbcrq.supabase.co/storage/v1/object/public/event-images/00000000-0000-0000-0000-00000000a001/5b9ef4e9-2bfd-4b2b-8376-3f79bac05a97.jpg'),
+   2400,20,'04:00:00','Maramag Town Proper','101315000','Northern Mindanao','Bukidnon','Maramag',null),
   ('00000000-0000-0000-0000-000000010000','00000000-0000-0000-0000-00000000a001','Kitanglad Skyline Ultra','ultra','open',current_date + 72,null,null,null,
-   2890,22,'04:00:00','Kitanglad Range Natural Park, Lantapan','101310000','Northern Mindanao','Bukidnon','Lantapan','https://whaqarofxdlzxrelbcrq.supabase.co/storage/v1/object/public/event-images/00000000-0000-0000-0000-00000000a001/d7d9c836-f407-4b75-b8ee-2bd83ad9143e.jpg'),
+   2890,22,'04:00:00','Kitanglad Range Natural Park, Lantapan','101310000','Northern Mindanao','Bukidnon','Lantapan',null),
   ('00000000-0000-0000-0000-000000010002','00000000-0000-0000-0000-00000000a001','Malaybalay Highland Trail','trail','open',current_date + 93,null,null,null,
-   1240,10,'05:30:00','Kaamulan Grounds, Malaybalay','101312000','Northern Mindanao','Bukidnon','City of Malaybalay','https://whaqarofxdlzxrelbcrq.supabase.co/storage/v1/object/public/event-images/00000000-0000-0000-0000-00000000a001/2407f578-6e02-4a9b-abc4-3a8356057398.jpg'),
+   1240,10,'05:30:00','Kaamulan Grounds, Malaybalay','101312000','Northern Mindanao','Bukidnon','City of Malaybalay',null),
   ('00000000-0000-0000-0000-000000010006','00000000-0000-0000-0000-00000000a001','Manolo Fortich Sky Race','trail','open',current_date + 107,null,current_date + 23,'Moved from 29 August after the Tagoloan bridge closure. Existing entries carry over automatically.',
-   1350,11,'05:00:00','Dahilayan Adventure Park, Manolo Fortich','101314000','Northern Mindanao','Bukidnon','Manolo Fortich','https://whaqarofxdlzxrelbcrq.supabase.co/storage/v1/object/public/event-images/00000000-0000-0000-0000-00000000a001/0c1364d4-6c26-4084-98c2-114c3ee92f23.jpg'),
+   1350,11,'05:00:00','Dahilayan Adventure Park, Manolo Fortich','101314000','Northern Mindanao','Bukidnon','Manolo Fortich',null),
   ('00000000-0000-0000-0000-000000010003','00000000-0000-0000-0000-00000000a001','Impasugong Ridge Run','trail','open',current_date + 121,null,null,null,
-   1610,14,'04:30:00','Impasug-Ong Municipal Plaza','101305000','Northern Mindanao','Bukidnon','Impasug-Ong','https://whaqarofxdlzxrelbcrq.supabase.co/storage/v1/object/public/event-images/00000000-0000-0000-0000-00000000a001/6e2e05ad-decd-4713-8d90-c29b77e3639f.jpg'),
+   1610,14,'04:30:00','Impasug-Ong Municipal Plaza','101305000','Northern Mindanao','Bukidnon','Impasug-Ong',null),
   ('00000000-0000-0000-0000-000000010004','00000000-0000-0000-0000-00000000a001','Talakag Forest Loop','cross_country','open',current_date + 170,null,null,null,
-   980,8,'06:00:00','Talakag Municipal Gym','101320000','Northern Mindanao','Bukidnon','Talakag','https://whaqarofxdlzxrelbcrq.supabase.co/storage/v1/object/public/event-images/00000000-0000-0000-0000-00000000a001/8391869f-7b40-47ce-bed0-be6dd580dd24.jpg'),
+   980,8,'06:00:00','Talakag Municipal Gym','101320000','Northern Mindanao','Bukidnon','Talakag',null),
   ('00000000-0000-0000-0000-000000010007','00000000-0000-0000-0000-00000000a001','Sumilao Falls Trail','trail','open',current_date + 191,null,current_date + 51,'Moved from 26 September at the request of the Sumilao LGU. Same course, same inclusions.',
-   1120,9,'05:30:00','Sumilao Municipal Hall','101319000','Northern Mindanao','Bukidnon','Sumilao','https://whaqarofxdlzxrelbcrq.supabase.co/storage/v1/object/public/event-images/00000000-0000-0000-0000-00000000a001/7541d08d-be55-4972-bc9c-6c2e3c50aefd.jpg'),
+   1120,9,'05:30:00','Sumilao Municipal Hall','101319000','Northern Mindanao','Bukidnon','Sumilao',null),
   ('00000000-0000-0000-0000-000000020009','00000000-0000-0000-0000-00000000a002','Baungon Sunrise 10K','road','completed',current_date - 33,null,null,null,
    60,3,'05:00:00','Baungon Municipal Oval','101301000','Northern Mindanao','Bukidnon','Baungon','https://whaqarofxdlzxrelbcrq.supabase.co/storage/v1/object/public/event-images/00000000-0000-0000-0000-00000000a002/a8de85f1-518f-44c2-be4f-9f2911deb0ea.jpg'),
   ('00000000-0000-0000-0000-000000020005','00000000-0000-0000-0000-00000000a002','Maramag Night Run','road','closed',current_date,current_date + 1,null,'Flag-off has passed. The course stays live until the 06:00 sweep.',
@@ -174,7 +174,7 @@ insert into form_fields (id, org_id, event_id, key, label, type, required, optio
 -- circuits on auth_is_super_admin().
 --
 --   admin@racepace.test        super_admin   platform-wide
---   muspo@racepace.test        admin         Muspo only
+--   trailnorth@racepace.test        admin         TrailNorth only
 --   runwithpoint@racepace.test admin         RunWithPoint only
 --
 -- crypt()/gen_salt() come from pgcrypto. Qualified with the extensions schema so
@@ -183,7 +183,7 @@ insert into form_fields (id, org_id, event_id, key, label, type, required, optio
 do $$
 declare
   plat  uuid := '00000000-0000-0000-0000-0000000000b1';
-  muspo uuid := '00000000-0000-0000-0000-0000000000b2';
+  trailnorth uuid := '00000000-0000-0000-0000-0000000000b2';
   rwp   uuid := '00000000-0000-0000-0000-0000000000b3';
 begin
   insert into auth.users (
@@ -198,7 +198,7 @@ begin
          '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb, '', '', '', ''
   from (values
     (plat,  'admin@racepace.test'),
-    (muspo, 'muspo@racepace.test'),
+    (trailnorth, 'trailnorth@racepace.test'),
     (rwp,   'runwithpoint@racepace.test')
   ) as v(id, email);
 
@@ -210,13 +210,13 @@ begin
          'email', now(), now(), now()
   from (values
     (plat,  'admin@racepace.test'),
-    (muspo, 'muspo@racepace.test'),
+    (trailnorth, 'trailnorth@racepace.test'),
     (rwp,   'runwithpoint@racepace.test')
   ) as v(id, email);
 
   -- org_id null = platform-wide. Org admins are bound to exactly one org.
   insert into user_roles (user_id, role, org_id) values
     (plat,  'super_admin', null),
-    (muspo, 'admin',       '00000000-0000-0000-0000-00000000a001'),
+    (trailnorth, 'admin',       '00000000-0000-0000-0000-00000000a001'),
     (rwp,   'admin',       '00000000-0000-0000-0000-00000000a002');
 end $$;

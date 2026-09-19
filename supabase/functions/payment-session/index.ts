@@ -9,8 +9,9 @@ import { passOnBreakdown, type ProcessorRate } from "../_shared/processorFee.ts"
 // Registration creates the PayMongo checkout before the runner chooses a method.
 // Reuse that bound session on the pay screen; creating another can leave two
 // chargeable links. The fake local provider still creates a method-scoped link.
-// Maya is "paymaya" in PayMongo; unknown keys are rejected.
-const METHOD_MAP: Record<string, string> = { card: "card", gcash: "gcash", maya: "paymaya" };
+// Maya is "paymaya" in PayMongo; unknown keys are rejected. QR Ph stays
+// "qrph" across both contracts.
+const METHOD_MAP: Record<string, string> = { card: "card", gcash: "gcash", maya: "paymaya", qrph: "qrph" };
 
 Deno.serve(async (req) => {
   const pre = preflight(req);

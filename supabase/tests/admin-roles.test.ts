@@ -125,7 +125,7 @@ describe("admin draft-event read", () => {
 describe("seeded admin", () => {
   // The seeded account is the PLATFORM super admin, not an org admin: it holds
   // one super_admin row with org_id null, and the per-org admins are separate
-  // accounts (muspo@ / runwithpoint@). This test previously asserted
+  // accounts (trailnorth@ / runwithpoint@). This test previously asserted
   // `{ role: "admin", org_id: RWP }` — true of an earlier seed, stale since the
   // seed was reworked. What still matters, and is what it now checks, is that
   // own-row RLS on user_roles returns exactly the caller's own row and nothing

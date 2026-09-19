@@ -1852,5 +1852,5 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 - [ ] `cd apps/web && pnpm vitest run`
 - [ ] `cd apps/web && pnpm build`
 - [ ] Sign in as `admin@racepace.test` (super admin): all five pages render, org switcher works
-- [ ] Sign in as `muspo@racepace.test` (org admin): the three platform pages are absent from the nav and a typed URL 404s
+- [ ] Sign in as `trailnorth@racepace.test` (org admin): the three platform pages are absent from the nav and a typed URL 404s
 - [ ] Cross-org probe: an org admin reading `payout_statements` gets zero rows

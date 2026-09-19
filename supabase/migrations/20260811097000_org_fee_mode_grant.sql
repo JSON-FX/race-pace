@@ -62,7 +62,7 @@ grant update (fee_mode) on organizations to authenticated;
 -- straight through PostgREST, with no console involved.
 --
 -- That is not hypothetical. Verified against the local stack, signed in as the
--- seeded org admin muspo@racepace.test on the anon key:
+-- seeded org admin trailnorth@racepace.test on the anon key:
 --
 --   update organizations set commission_rate = 0.0001 where id = <own org>
 --   -- 200 OK, {"commission_rate": 0.0001}

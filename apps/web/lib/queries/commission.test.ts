@@ -271,27 +271,27 @@ describe("nonRetroactiveNotice — the whole reason this page has an amber strip
 
   it("reads the other way round when moving to a percentage", () => {
     expect(nonRetroactiveNotice(
-      "Muspo",
+      "TrailNorth",
       { commission_type: "percent", commission_rate: 0.085, commission_flat_cents: 7500 },
       { commission_type: "fixed", commission_rate: 0.1, commission_flat_cents: 7500 },
       1284,
-    )).toBe("Switching Muspo to 8.5% per registration affects entries paid from now on. Their 1,284 existing payments keep the ₱75 flat they were charged at.");
+    )).toBe("Switching TrailNorth to 8.5% per registration affects entries paid from now on. Their 1,284 existing payments keep the ₱75 flat they were charged at.");
   });
 
   it("still says it when nothing is being changed — a rate change is never retroactive, pending or not", () => {
     const terms = { commission_type: "percent", commission_rate: 0.1, commission_flat_cents: 0 };
-    expect(nonRetroactiveNotice("Muspo", terms, terms, 0)).toBe(
-      "Changing Muspo's commission affects entries paid from now on. Their existing payments keep the 10.0% they were charged at.",
+    expect(nonRetroactiveNotice("TrailNorth", terms, terms, 0)).toBe(
+      "Changing TrailNorth's commission affects entries paid from now on. Their existing payments keep the 10.0% they were charged at.",
     );
-    expect(nonRetroactiveNotice("Muspo", terms, terms, 1284)).toBe(
-      "Changing Muspo's commission affects entries paid from now on. Their 1,284 existing payments keep the 10.0% they were charged at.",
+    expect(nonRetroactiveNotice("TrailNorth", terms, terms, 1284)).toBe(
+      "Changing TrailNorth's commission affects entries paid from now on. Their 1,284 existing payments keep the 10.0% they were charged at.",
     );
   });
 
   it("ignores a stale flat amount sitting behind a percentage fee — only the ACTIVE half is a change", () => {
     const saved = { commission_type: "percent", commission_rate: 0.1, commission_flat_cents: 7500 };
     const pending = { commission_type: "percent", commission_rate: 0.1, commission_flat_cents: 9900 };
-    expect(nonRetroactiveNotice("Muspo", pending, saved, 5)).toContain("Changing Muspo's commission");
+    expect(nonRetroactiveNotice("TrailNorth", pending, saved, 5)).toContain("Changing TrailNorth's commission");
   });
 });
 

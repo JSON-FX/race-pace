@@ -140,10 +140,10 @@ continuous scanning. Camera access requires a secure context, satisfied by
 Check-in is not exercisable end-to-end today: the database has zero registrations, and
 check-in requires `status='paid'` with a `ticket_token`.
 
-Extend `supabase/seed.sql` with roughly 15 paid registrations spread across two Muspo events,
+Extend `supabase/seed.sql` with roughly 15 paid registrations spread across two TrailNorth events,
 plus 3–4 pending ones. Paid rows need a `ticket_token` whose signature matches
 `TICKET_SIGNING_SECRET`, so the seed must generate them the same way the RPC does. Add one
-user with the `marshal` role scoped to Muspo, so the marshal-only view can actually be tested.
+user with the `marshal` role scoped to TrailNorth, so the marshal-only view can actually be tested.
 
 ## 6. Testing
 

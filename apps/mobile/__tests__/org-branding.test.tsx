@@ -4,13 +4,13 @@ import { OrgBanner } from "../components/OrgBanner";
 
 describe("OrgAvatar", () => {
   it("shows initials as the fallback with no logo", () => {
-    render(<OrgAvatar name="Muspo Trail" color="#159A55" size={48} />);
-    expect(screen.getByText("MT")).toBeOnTheScreen();
+    render(<OrgAvatar name="TrailNorth Trail" color="#159A55" size={48} />);
+    expect(screen.getByText("TT")).toBeOnTheScreen();
   });
   it("renders the logo image and hides the initials when logoUrl is set", () => {
-    render(<OrgAvatar name="Muspo Trail" logoUrl="https://cdn/x.png" size={48} />);
+    render(<OrgAvatar name="TrailNorth Trail" logoUrl="https://cdn/x.png" size={48} />);
     expect(screen.getByLabelText("Organization logo")).toBeOnTheScreen();
-    expect(screen.queryByText("MT")).toBeNull();
+    expect(screen.queryByText("TT")).toBeNull();
   });
 });
 

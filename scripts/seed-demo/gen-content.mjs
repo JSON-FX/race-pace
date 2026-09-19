@@ -168,16 +168,9 @@ const IMG = (org, file) =>
 const A1 = "00000000-0000-0000-0000-00000000a001";
 const A2 = "00000000-0000-0000-0000-00000000a002";
 
-// Every object already in the event-images bucket, so galleries reference real
-// files rather than an external host that could go away.
-const POOL_A1 = [
-  "000aaf63-170b-4d83-b2ce-264b9b66a98a.jpg", "0c1364d4-6c26-4084-98c2-114c3ee92f23.jpg",
-  "2407f578-6e02-4a9b-abc4-3a8356057398.jpg", "28a77a6a-648b-47dd-b07a-a972317997b1.jpg",
-  "394196c8-5728-4e5d-935c-e99276c30553.jpg", "48f40b78-b896-4f58-8fe4-204afd612439.jpg",
-  "5b9ef4e9-2bfd-4b2b-8376-3f79bac05a97.jpg", "6e2e05ad-decd-4713-8d90-c29b77e3639f.jpg",
-  "7541d08d-be55-4972-bc9c-6c2e3c50aefd.jpg", "8391869f-7b40-47ce-bed0-be6dd580dd24.jpg",
-  "d200cb67-370c-4df5-82ed-4c4aee73b3b3.jpg", "d7d9c836-f407-4b75-b8ee-2bd83ad9143e.jpg",
-].map((f) => IMG(A1, f));
+// The first synthetic organizer deliberately has no gallery. Its former pool
+// pointed at event photographs owned by a previous organizer and must never be
+// restored as demo content.
 const POOL_A2 = [
   "1d1af234-8ee6-4dcc-b415-39c036d76d97.jpg", "3190f573-9905-4508-b568-185558e665e4.jpg",
   "50397d0f-2447-442a-b099-dcec8c567be8.jpg", "733e6ad1-d063-4645-a049-721e41c6c2d6.jpg",
@@ -187,7 +180,8 @@ const POOL_A2 = [
 ].map((f) => IMG(A2, f));
 
 const gallery = (org, i, k = 5) => {
-  const pool = org === A1 ? POOL_A1 : POOL_A2;
+  if (org === A1) return [];
+  const pool = POOL_A2;
   return Array.from({ length: k }, (_, j) => pool[(i * 3 + j * 2) % pool.length]);
 };
 
@@ -239,7 +233,7 @@ const EVENTS = [
     id: "00000000-0000-0000-0000-000000010004", org: A1, seed: 1005,
     start: [8.2361, 124.6042], finish: null, km: 22, gain: 980, base: 700, terrain: true,
     place: "Talakag, Bukidnon",
-    desc: "A cross-country loop through the second-growth forest west of Talakag, run almost entirely under canopy. The footing is soft, the climbs are short and repeated, and the course crosses the same creek four times at four different points. It is the friendliest true trail race on the Muspo calendar and the one that fills with first-timers.",
+    desc: "A cross-country loop through the second-growth forest west of Talakag, run almost entirely under canopy. The footing is soft, the climbs are short and repeated, and the course crosses the same creek four times at four different points. It is the friendliest true trail race on the TrailNorth calendar and the one that fills with first-timers.",
     note: "Race kit claiming: 21–22 January at the Talakag Municipal Gym, 09:00–17:00.",
     incl: ["Race bib with timing chip", "Finisher medal", "Cotton race shirt", "Aid stations every 5 km", "Marshalled course with sweep team", "Baggage deposit", "Post-race meal"],
     sched: [{ time: "04:30", label: "Assembly and baggage deposit opens" }, { time: "05:45", label: "Race briefing" }, { time: "06:00", label: "Gun start, 25K" }, { time: "06:30", label: "Gun start, 12K" }, { time: "09:30", label: "First finishers expected" }, { time: "12:00", label: "Awarding" }, { time: "14:00", label: "Course closes" }],
@@ -249,7 +243,7 @@ const EVENTS = [
     id: "00000000-0000-0000-0000-000000010005", org: A1, seed: 1006,
     start: [7.9601, 124.8062], finish: [7.8341, 124.8183], km: 80, gain: 3120, base: 760, terrain: true,
     place: "Kalatungan Mountain Range, Pangantucan, Bukidnon",
-    desc: "A true traverse: eighty kilometres and 3,120 metres of climbing from the northern approach to the Kalatungan Range down to the finish arch in Pangantucan, crossing four of the five peaks on the way. Self-supported between KM18 and KM41 — that is a six-hour stretch with one water point and no road access. The 50K joins at the KM30 saddle. This is the hardest race in the Muspo calendar and it is meant to be.",
+    desc: "A true traverse: eighty kilometres and 3,120 metres of climbing from the northern approach to the Kalatungan Range down to the finish arch in Pangantucan, crossing four of the five peaks on the way. Self-supported between KM18 and KM41 — that is a six-hour stretch with one water point and no road access. The 50K joins at the KM30 saddle. This is the hardest race in the TrailNorth calendar and it is meant to be.",
     note: "Race in progress. Live results are posted at the finish arch in Pangantucan.",
     incl: ["Race bib with timing chip", "Finisher buckle and medal", "Technical race singlet", "Aid stations at KM18, KM41, KM55 and KM68", "Two drop bags, KM41 and KM55", "Marshalled course with sweep and medical team", "Transport back to the start assembly", "Race insurance for the duration"],
     sched: [{ time: "01:00", label: "Bag drop and mandatory gear check opens" }, { time: "02:30", label: "Race briefing, 80K" }, { time: "03:00", label: "Gun start, 80K Traverse" }, { time: "05:00", label: "Gun start, 50K" }, { time: "15:00", label: "First 50K finishers expected" }, { time: "18:00", label: "First 80K finishers expected" }, { time: "09:00", label: "Course closes, 30-hour cut-off" }],
@@ -290,7 +284,7 @@ const EVENTS = [
     start: [7.9074, 125.0906], finish: null, km: 45, gain: 2050, base: 320, terrain: true,
     place: "City of Valencia, Bukidnon",
     desc: "Two summits, one loop, forty-five kilometres. The course leaves the Valencia sports complex before dawn, climbs the first peak by the old logging road, drops the whole way back to the valley, and then does it again on the second. The double descent breaks more quads than the climbing does. The 20K takes the first peak only.",
-    note: "Results and finisher photos are posted. Unclaimed finisher packages may be picked up at the Muspo office until the end of the month.",
+    note: "Results and finisher photos are posted. Unclaimed finisher packages may be picked up at the TrailNorth office until the end of the month.",
     incl: ["Race bib with timing chip", "Finisher medal", "Technical race singlet", "Aid stations every 6 km", "Marshalled course with sweep team", "Baggage deposit and shower access", "Post-race meal at the sports complex"],
     sched: [{ time: "03:00", label: "Assembly and baggage deposit opens" }, { time: "04:15", label: "Race briefing" }, { time: "04:30", label: "Gun start, 45K Twin Peaks" }, { time: "05:30", label: "Gun start, 20K" }, { time: "10:30", label: "First 45K finishers expected" }, { time: "15:00", label: "Awarding" }, { time: "20:30", label: "Course closes" }],
     addons: [["Event Singlet", 60000], ["Finisher Package", 120000], ["Race Photo Pack", 45000]],

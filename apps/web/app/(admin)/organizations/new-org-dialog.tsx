@@ -236,7 +236,7 @@ export function NewOrgDialog() {
                 <Label htmlFor="org-name">Name</Label>
                 <Input
                   id="org-name" value={name} autoComplete="off"
-                  placeholder="Muspo Trail Series"
+                  placeholder="Northern Peaks Events"
                   onChange={(e) => onNameChange(e.target.value)}
                   onBlur={() => { if (!slugTouched) void checkSlug(); }}
                 />
@@ -245,7 +245,7 @@ export function NewOrgDialog() {
               <div className="grid gap-1.5">
                 <Label htmlFor="org-slug">URL slug</Label>
                 <Input
-                  id="org-slug" value={slug} autoComplete="off" placeholder="muspo-trail-series"
+                  id="org-slug" value={slug} autoComplete="off" placeholder="northern-peaks-events"
                   onChange={(e) => { setSlugTouched(true); setSlug(e.target.value); setSlugState({ checking: false, available: null }); }}
                   onBlur={() => void checkSlug()}
                   aria-describedby="org-slug-status"
