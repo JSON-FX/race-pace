@@ -1,44 +1,63 @@
 import { describe, expect, it } from "vitest";
-import { parseOrganizerInquiry, renderOrganizerInquiryEmail } from "./message";
+import {
+  parseInquiry,
+  renderInquiryAcknowledgement,
+  renderInquiryNotification,
+} from "./message";
 
-describe("organizer inquiry message", () => {
+const inquiry = {
+  firstName: "Ana",
+  lastName: "Runner",
+  email: "ana@example.com",
+  audience: "runner" as const,
+  subject: "Registration payment",
+  message: "Please help me verify my payment.",
+  website: "",
+};
+
+describe("inquiry message", () => {
   it("normalizes a valid inquiry", () => {
-    const result = parseOrganizerInquiry({
-      name: "  Ana Runner  ",
+    const result = parseInquiry({
+      ...inquiry,
+      firstName: "  Ana  ",
+      lastName: "  Runner  ",
       email: "  ANA@EXAMPLE.COM ",
-      organization: "  North Ridge Events  ",
+      subject: "  Registration payment  ",
+      message: "  Please help me verify my payment.  ",
     });
 
     expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data).toEqual({
-        name: "Ana Runner",
-        email: "ana@example.com",
-        organization: "North Ridge Events",
-        website: "",
-      });
-    }
+    if (result.success) expect(result.data).toEqual(inquiry);
   });
 
-  it("rejects malformed and oversized fields", () => {
-    expect(parseOrganizerInquiry({ name: "A", email: "not-an-email", organization: "X" }).success).toBe(false);
-    expect(parseOrganizerInquiry({
-      name: "Organizer",
-      email: "organizer@example.com",
-      organization: "x".repeat(161),
-    }).success).toBe(false);
+  it("rejects malformed roles and oversized content", () => {
+    expect(parseInquiry({ ...inquiry, audience: "sponsor" }).success).toBe(false);
+    expect(parseInquiry({ ...inquiry, subject: "x".repeat(161) }).success).toBe(false);
+    expect(parseInquiry({ ...inquiry, message: "x".repeat(5001) }).success).toBe(false);
   });
 
-  it("escapes organizer-controlled values and strips subject line breaks", () => {
-    const message = renderOrganizerInquiryEmail({
-      name: "Ana <script>alert(1)</script>",
-      email: "ana@example.com",
-      organization: "North Ridge\r\nBcc: outsider@example.com",
-      website: "",
+  it("includes every inquiry field and escapes user-controlled HTML", () => {
+    const notification = renderInquiryNotification({
+      ...inquiry,
+      firstName: "Ana <script>alert(1)</script>",
+      subject: "Payment\r\nBcc: outsider@example.com",
+      message: "Hello <strong>team</strong>\nSecond line",
     });
 
-    expect(message.html).not.toContain("<script>");
-    expect(message.html).toContain("&lt;script&gt;");
-    expect(message.subject).toBe("Organizer inquiry — North Ridge Bcc: outsider@example.com");
+    expect(notification.subject).toBe("Runner inquiry — Payment Bcc: outsider@example.com");
+    expect(notification.html).not.toContain("<script>");
+    expect(notification.html).not.toContain("<strong>team</strong>");
+    expect(notification.html).toContain("&lt;strong&gt;team&lt;/strong&gt;<br>Second line");
+    expect(notification.text).toContain("Role: Runner");
+    expect(notification.text).toContain("Subject: Payment Bcc: outsider@example.com");
+  });
+
+  it("renders the requested thank-you acknowledgement", () => {
+    const acknowledgement = renderInquiryAcknowledgement(inquiry);
+
+    expect(acknowledgement.subject).toBe("We received your Race Pace inquiry");
+    expect(acknowledgement.html).toContain("Thank you for reaching out.");
+    expect(acknowledgement.html).toContain("you will receive feedback from our team soon");
+    expect(acknowledgement.text).toContain("Subject: Registration payment");
   });
 });
