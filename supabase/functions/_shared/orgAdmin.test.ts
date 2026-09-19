@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   validateRename,
   orgStoragePrefixes,
@@ -7,6 +7,7 @@ import {
   adminConfirmRedirect,
   adminInviteRedirect,
   buildInviteLink,
+  sendExistingAdminSignIn,
 } from "./orgAdmin";
 
 describe("validateRename", () => {
@@ -176,5 +177,33 @@ describe("adminInviteRedirect", () => {
       "https://admin.example/auth/confirm/finish",
     );
     expect(adminInviteRedirect("")).toBeNull();
+  });
+});
+
+describe("sendExistingAdminSignIn", () => {
+  it("sends a passwordless admin link without creating another user", async () => {
+    const sender = vi.fn().mockResolvedValue({ error: null });
+
+    await expect(sendExistingAdminSignIn(
+      sender,
+      "support.racepace@gmail.com",
+      "https://admin.racepace.com.ph",
+    )).resolves.toBe("sent");
+    expect(sender).toHaveBeenCalledWith({
+      email: "support.racepace@gmail.com",
+      options: {
+        shouldCreateUser: false,
+        emailRedirectTo: "https://admin.racepace.com.ph/auth/confirm/finish",
+      },
+    });
+  });
+
+  it("reports provider failure and refuses an unconfigured admin URL", async () => {
+    const sender = vi.fn().mockResolvedValue({ error: new Error("smtp") });
+    await expect(sendExistingAdminSignIn(sender, "admin@example.com", "https://admin.example"))
+      .resolves.toBe("failed");
+    await expect(sendExistingAdminSignIn(sender, "admin@example.com", ""))
+      .resolves.toBe("failed");
+    expect(sender).toHaveBeenCalledTimes(1);
   });
 });
