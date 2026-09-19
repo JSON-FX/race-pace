@@ -34,7 +34,7 @@ it("books two non-members for one helper, preserves separate tickets and denies 
   for(let i=0;i<2;i++) {
    const passport=randomUUID(); passports.push(passport);
    expect((await helper.client.rpc("passport_create_managed",{p_passport_id:passport})).error).toBeNull();
-   expect((await helper.client.from("runner_passports").update({first_name:"Guest",last_name:String(i),date_of_birth:"1950-01-01",gender:"Female",contact_number:"09171234567",emergency_contact_name:"Helper",emergency_contact_number:"09171234567",emergency_contact_relationship:"Child"}).eq("id",passport)).error).toBeNull();
+   expect((await helper.client.from("runner_passports").update({first_name:"Guest",last_name:String(i),date_of_birth:"1950-01-01",gender:"Female",contact_number:"09171234567",emergency_contact_name:"Helper",emergency_contact_number:"09171234567",emergency_contact_relationship:"Child",shipping_barangay_code:"012801001",shipping_zip_code:"0123",shipping_address_line:"Unit 1, Sample Street"}).eq("id",passport)).error).toBeNull();
    const denied=await call(stranger.token,{...body,participant_passport_id:passport});
    expect(denied.status).toBe(403);
    const missingAcceptance=await call(helper.token,{...body,participant_passport_id:passport,waiver_acceptance_method:"signed_in_self"});

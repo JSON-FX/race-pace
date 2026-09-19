@@ -18,7 +18,7 @@ The user resolved assisted registration and requested planning for the remaining
 | Required Passport fields | First name, last name, birth date, Male/Female selection, reachable runner contact number, emergency contact name, separate emergency number and relationship | Changes completeness rules and migration prompts |
 | Contact accessibility | Allow a shared household/helper phone, explicitly labeled as such; do not require a unique phone or participant email | Avoids excluding participants without their own device |
 | Email | Account email stays verified and read-only for self registration. For assisted registration, the helper's verified email is the booking contact; participant email is optional and never treated as verified | Separate participant identity from delivery and billing contact |
-| Shipping | Structured shipping address required only when kit delivery is selected; otherwise optional in Passport | If every entry needs an address, collection and privacy notice must change |
+| Shipping | Updated by user on 2026-09-20: a complete structured shipping address is required for every Passport | Completeness, registration validation and privacy copy must use the same requirement |
 | Team name | Optional; replace the Bib name input with a separate team_name field | No team membership system or fee is introduced |
 | Shirt size / blood type | Shirt size required when the event supplies a shirt; blood type optional with Unknown allowed | Do not invent medical details to satisfy a form |
 | Fees | Keep existing absorb/pass_on and commission settings; show platform fee separately from PayMongo processing | No new fee or commission introduced; zero-commission pilot retained |
@@ -83,7 +83,7 @@ Do not expose a global name/email search to helpers. Reuse known managed Passpor
 - Add team_name separately. Old bib_name values are not team names and must not be copied into team_name automatically. Bib numbers remain unchanged.
 - Separate runner phone, emergency name, emergency phone, relationship and optional relationship detail.
 - Store phone numbers as strings. Normalize supported formats without losing leading zeros; validate independently. Do not require uniqueness or a phone OTP subscription.
-- Shipping: region, province where applicable, city/municipality, barangay, ZIP code, house/unit/building and street/address line. Store geographic codes plus labels in registration snapshots.
+- Shipping: region, province where applicable, city/municipality, barangay, ZIP code, house/unit/building and street/address line. This is required for Passport completeness. Store geographic codes plus labels in registration snapshots.
 - Validate geographic parent-child relationships on the server. Handle cities without a province and reset descendants when a parent changes.
 - Use Philippine Standard Geographic Code (PSGC) data for geography. ZIP is a distinct field, not inferred from a PSGC code. Keep it as a four-digit string; verify authoritative mappings before adding ZIP lookup.
 - Do not add a courier integration or delivery fee unless separately specified. If delivery selection does not exist, implement the event option explicitly before conditionally requiring shipping.

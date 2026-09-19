@@ -54,7 +54,12 @@ const functionsUp = await probeFunctionsServe();
 async function makeUser(email: string) {
   const svc = service();
   const created = await svc.auth.admin.createUser({ email, password: "password123", email_confirm: true });
-  const passport = await svc.from("runner_passports").update({ first_name: "Gate", last_name: "Runner", date_of_birth: "1950-01-01", gender: "Female", contact_number: "09171234567", emergency_contact_name: "QA Contact", emergency_contact_number: "09171234567", emergency_contact_relationship: "Child" }).eq("claimed_user_id", created.data.user!.id);
+  const passport = await svc.from("runner_passports").update({
+    first_name: "Gate", last_name: "Runner", date_of_birth: "1950-01-01", gender: "Female",
+    contact_number: "09171234567", emergency_contact_name: "QA Contact",
+    emergency_contact_number: "09171234567", emergency_contact_relationship: "Child",
+    shipping_barangay_code: "012801001", shipping_zip_code: "0123", shipping_address_line: "Unit 1, Sample Street",
+  }).eq("claimed_user_id", created.data.user!.id);
   if (passport.error) throw passport.error;
   const signedIn = await anon().auth.signInWithPassword({ email, password: "password123" });
   return { id: created.data.user!.id, token: signedIn.data.session!.access_token };

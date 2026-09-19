@@ -61,7 +61,7 @@ beforeAll(async () => {
   await db.query("insert into addons(id,org_id,event_id,name,price) values($1,$2,$3,'Optional kit',25000)", [addon, org, event]);
   await db.query("insert into runner_passports(id,created_by_user_id) values($1,$2)", [guest, actor]);
   await db.query("insert into passport_managers(passport_id,user_id) values($1,$2)", [guest, actor]);
-  const updated = await svc.from("runner_passports").update({ first_name: "QA", last_name: "Runner", date_of_birth: "1950-01-01", gender: "Female", contact_number: "09171234567", emergency_contact_name: "Helper", emergency_contact_number: "09171234567", emergency_contact_relationship: "Child" }).in("id", [self, guest]);
+  const updated = await svc.from("runner_passports").update({ first_name: "QA", last_name: "Runner", date_of_birth: "1950-01-01", gender: "Female", contact_number: "09171234567", emergency_contact_name: "Helper", emergency_contact_number: "09171234567", emergency_contact_relationship: "Child", shipping_barangay_code: "012801001", shipping_zip_code: "0123", shipping_address_line: "Unit 1, Sample Street" }).in("id", [self, guest]);
   if (updated.error) throw updated.error;
   vi.stubGlobal("Deno", { env: { get: (key: string) => settings[key] }, serve: (fn: typeof handler) => { handler = fn; } });
   await import("../functions/group-payment-prepare/index");
