@@ -57,7 +57,7 @@ export default async function SignInPage() {
           <Link
             href="/"
             aria-label="Race Pace home"
-            className="mx-auto mb-6 flex w-fit items-center"
+            className="mb-6 flex w-fit items-center"
           >
             <Image
               src="/topnav-logo.png"
