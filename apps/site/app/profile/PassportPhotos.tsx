@@ -143,7 +143,7 @@ export function PassportPhotos({
             as a picture. */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-black/10" />
 
-        <div className="absolute right-3 top-3 flex items-center gap-1.5">
+        <div className="absolute left-3 top-3 flex items-center gap-1.5">
             {cover ? (
               <>
                 <PhotoButton
@@ -180,7 +180,7 @@ export function PassportPhotos({
         {/* Identity, sitting on the photo rather than in a band beneath it. */}
         <div className="absolute inset-x-0 bottom-0 flex items-end gap-4 px-5 pb-4">
           <div className="relative shrink-0">
-            <span className="relative flex size-20 items-center justify-center overflow-hidden rounded-full border-2 border-white/70 bg-forest/70 font-display text-[24px] font-extrabold tracking-[-0.2px] text-[#7FE0A6] backdrop-blur-sm">
+            <span className="relative flex size-20 items-center justify-center overflow-hidden rounded-full border-2 border-white/70 bg-forest/70 font-display text-[24px] font-extrabold tracking-[-0.2px] text-white backdrop-blur-sm">
               {avatar ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
@@ -208,7 +208,7 @@ export function PassportPhotos({
           </div>
 
           <div className="min-w-0 pb-0.5">
-            <p className="font-eyebrow text-[10.5px] font-bold uppercase tracking-[2.6px] text-[#7FE0A6]">Runner</p>
+            <p className="font-eyebrow text-[10.5px] font-bold uppercase tracking-[2.6px] text-white/80">Runner profile</p>
             <p className="mt-1 truncate font-display text-[21px] font-black uppercase leading-none tracking-[-0.9px] text-white">
               {name || "Add your name"}
             </p>

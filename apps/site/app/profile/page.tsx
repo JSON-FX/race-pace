@@ -1,9 +1,9 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { SiteHeader } from "@/components/SiteHeader";
 import { ProfileForm } from "./ProfileForm";
+import { AccountSectionNav } from "@/components/AccountSectionNav";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Profile" };
@@ -18,13 +18,15 @@ export default async function ProfilePage() {
   return (
     <>
       <SiteHeader />
-      <main className="mx-auto w-full max-w-md px-5 py-12 sm:px-6 sm:py-14">
+      <main className="mx-auto w-full max-w-6xl px-5 py-10 sm:px-6 sm:py-14">
         <p className="font-eyebrow text-[11px] font-bold uppercase tracking-[3px] text-primary">Your account</p>
         <h1 className="mt-2 font-display text-[clamp(1.9rem,5vw,2.6rem)] font-black leading-[1.05] tracking-[-1.2px] text-foreground">
           Race Passport
         </h1>
 
-        <Link className="mt-4 inline-block underline" href="/bookings">Bookings I manage</Link>
+        <div className="mt-6 overflow-x-auto pb-1">
+          <AccountSectionNav current="profile" />
+        </div>
         <div className="mt-8">
           <ProfileForm userId={user.id} email={user.email} />
         </div>

@@ -6,7 +6,7 @@ import { prepareGroupLine } from "../functions/_shared/groupReservationValidatio
 const actor = randomUUID(), passport = randomUUID();
 const line = { participant_passport_id: passport, addon_ids: [], custom_data: {}, waiver_accepted: true as const, waiver_acceptance_method: "signed_in_self" as const };
 const input = { event_id: randomUUID(), category_id: randomUUID(), idempotency_key: randomUUID(), waiver_version_id: randomUUID(), participants: [line] };
-const saved = { id: passport, claimed_user_id: actor, first_name: "Runner", last_name: "One", date_of_birth: "1950-01-01", gender: "Female", contact_number: "09171234567", emergency_contact_name: "Helper", emergency_contact_number: "09171234567", emergency_contact_relationship: "Child", shirt_size: "S" };
+const saved = { id: passport, claimed_user_id: actor, first_name: "Runner", last_name: "One", date_of_birth: "1950-01-01", gender: "Female", contact_number: "09171234567", emergency_contact_name: "Helper", emergency_contact_number: "09171234567", emergency_contact_relationship: "Child", shirt_size: "S", shipping_barangay_code: "012801001", shipping_zip_code: "0123", shipping_address_line: "Unit 1, Sample Street" };
 it("keeps runtime contracts aligned and rejects duplicate/oversized/forged requests", () => {
   for (const schema of [edgeSchema, appSchema]) {
     expect(schema.parse(input)).toEqual(input);

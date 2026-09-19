@@ -59,6 +59,15 @@ Production organizer, event and email verification, 2026-09-20: The public organ
 | Inquiry modal | **Staging passed** | Resend accepted both messages; inbox placement was not independently inspected. | Monitor the first real inquiry after production release. |
 | Production release | **Existing landing released** | The approved inquiry modal is not yet deployed. | Promote the exact verified feature revision to production. |
 
+### Current runner account design work
+
+Profile and managed-bookings redesign, 2026-09-20: the owner selected Summit Bento. The release implementation uses the site's semantic tokens and existing Card, Button, Badge, Input, Label and Separator components. `/profile` keeps photo framing, managed Passport creation, editing, saving and sign-out. `/bookings` keeps the existing query and ticket/payment destinations. The six review annotations are resolved: cover controls moved left, contour lines are absent, shipping is required by shared and Edge validation, both phone fields auto-format as `+63 XXX XXX XXXX`, and relationship is a grouped dropdown that preserves unrecognized saved values. The selected HTML mock reflects the same decisions. The exact staging branch passes the site typecheck and all 441 runner-site tests. Its isolated GitHub validation will provide the full backend and build gate because another local task owns the shared Supabase runtime.
+
+| Work | Status | Blocker | Next task |
+|---|---|---|---|
+| Summit Bento production implementation | **Local runner gate passed** | Full isolated validation and authenticated staging review remain. | Merge only after GitHub validation and both Vercel previews pass, then review staging and promote the same source to production. |
+| Review annotations | **Resolved in code and selected mock** | None. | Preserve the required-address and Philippine phone contracts during release verification. |
+
 ## Release-critical checklist
 
 These are the minimum web and admin gates for the first real organizer. Close each against the same staging release revision, then verify its production configuration. A passing build or database-only test does not close an end-to-end gate.
