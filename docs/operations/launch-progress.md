@@ -41,15 +41,17 @@ Organizer inquiry addition, 2026-09-20: the final landing section gives race org
 
 Course Atlas staging release, 2026-09-20: PR #59 merged to `staging` at `691324a` after both exact-snapshot GitHub validation runs and both Vercel previews passed. Staging Edge Functions `organizer-inquiry` version 1, `send-ticket-email` version 4 and `group-ticket-delivery` version 3 are active; the inquiry function retains JWT verification. Runner deployment `dpl_Fs1y6DTSN4yYuLwKAX4BGGXBWW9N` is Ready and assigned to `staging.racepace.com.ph`. Protected smoke checks returned HTTP 200 for `/` and `/home`, found the Course Atlas and organizer copy on the landing page, and found the race catalog copy on `/home`. An authenticated invalid inquiry returned HTTP 400 `invalid_input`, proving the deployed route without sending external email. Production promotion is next.
 
+Course Atlas production release, 2026-09-20: PR #60 merged to `main` at `137f318` after both exact-snapshot GitHub validation runs and both Vercel previews passed. Production Edge Functions `organizer-inquiry` version 1, `send-ticket-email` version 18 and `group-ticket-delivery` version 7 are active; the inquiry function retains JWT verification. Runner deployment `dpl_3UUjjz1DnqvjbfnghmJ9RNwHF3SL` is Ready and assigned to `www.racepace.com.ph`, `racepace.com.ph` and the production Vercel aliases. Public smoke checks returned HTTP 200 for `/`, `/home` and `/events`, found Course Atlas and organizer copy on the landing page, and preserved the empty event-browsing home and catalog. An authenticated invalid production inquiry returned HTTP 400 `invalid_input` without sending email. Live organizer inquiry delivery remains untested because no external test email was authorized.
+
 ### Current landing page design work
 
 | Work | Status | Blocker | Next task |
 |---|---|---|---|
 | Landing-page direction | **Done** | None. | Course Atlas is the selected direction; keep the five-option study only as a design record. |
 | Course Atlas enhancement | **Design approved** | None. | Preserve the approved compact organizer spacing, white form card and QR Ph footer through release. |
-| Separate landing and home routes | **Verified on staging** | Production deployment is pending. | Promote the same route split to production. |
-| Organizer signup | **Verified on staging** | Production deployment is pending; live delivery remains untested. | Promote the function without sending an unapproved external test email. |
-| Production release | **Authorized** | The production pull request and deployment checks remain. | Promote the staging-verified feature and verify the public aliases. |
+| Separate landing and home routes | **Released** | None. | Monitor the public landing and event-browsing routes after launch. |
+| Organizer signup | **Released** | Live delivery remains untested because no external test email was authorized. | Confirm the first real inquiry reaches `inquiries@racepace.com.ph`. |
+| Production release | **Done** | None. | Monitor the public aliases and first organizer inquiry. |
 
 ## Release-critical checklist
 
