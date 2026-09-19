@@ -63,7 +63,15 @@ export function renderTicketEmail(input: TicketEmailInput): { subject: string; h
 
 /** Explicit sandbox transport for local QA; Resend remains the default. Returns a result rather than
  *  throwing: a failed email must never fail a confirmed payment. */
-export async function sendEmail(to: string, subject: string, html: string, text?: string): Promise<{ ok: boolean; error?: string }> {
+export type SendEmailOptions = { replyTo?: string };
+
+export async function sendEmail(
+  to: string,
+  subject: string,
+  html: string,
+  text?: string,
+  options: SendEmailOptions = {},
+): Promise<{ ok: boolean; error?: string }> {
   const provider = Deno.env.get("EMAIL_PROVIDER") ?? "resend";
   if (provider === "mailtrap" || provider === "mailpit") {
     const user = Deno.env.get("MAILTRAP_SMTP_USER");
@@ -82,7 +90,7 @@ export async function sendEmail(to: string, subject: string, html: string, text?
       try {
         const result = await transport.sendMail({
           from: Deno.env.get("EMAIL_FROM") ?? "Race Pace QA <qa@racepace.test>",
-          to, subject, html, ...(text ? { text } : {}),
+          to, subject, html, ...(text ? { text } : {}), ...(options.replyTo ? { replyTo: options.replyTo } : {}),
         });
         return result.accepted.length > 0 ? { ok: true } : { ok: false, error: `${provider}_rejected` };
       } finally { transport.close(); }
@@ -101,7 +109,14 @@ export async function sendEmail(to: string, subject: string, html: string, text?
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { "authorization": `Bearer ${apiKey}`, "content-type": "application/json" },
-      body: JSON.stringify({ from, to: [to], subject, html, ...(text ? { text } : {}) }),
+      body: JSON.stringify({
+        from,
+        to: [to],
+        subject,
+        html,
+        ...(text ? { text } : {}),
+        ...(options.replyTo ? { reply_to: options.replyTo } : {}),
+      }),
     });
     if (!res.ok) return { ok: false, error: `resend_${res.status}: ${await res.text()}` };
     return { ok: true };

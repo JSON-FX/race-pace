@@ -40,6 +40,23 @@ describe("ticket email transport", () => {
     expect(fetch).toHaveBeenCalledWith("https://api.resend.com/emails", expect.objectContaining({ body: expect.stringContaining('"text":"Ticket\\nReference: ABC"') }));
     expect(smtp.sendMail).not.toHaveBeenCalled();
   });
+  it("sets a reply address without changing the fixed recipient", async () => {
+    delete env.EMAIL_PROVIDER;
+    env.RESEND_API_KEY = "test-key";
+    vi.mocked(fetch).mockResolvedValue(new Response("{}", { status: 200 }));
+
+    expect(await sendEmail(
+      "inquiries@racepace.com.ph",
+      "Organizer inquiry",
+      "<p>Inquiry</p>",
+      "Inquiry",
+      { replyTo: "organizer@example.com" },
+    )).toEqual({ ok: true });
+
+    const body = JSON.parse(String(vi.mocked(fetch).mock.calls[0]?.[1]?.body));
+    expect(body.to).toEqual(["inquiries@racepace.com.ph"]);
+    expect(body.reply_to).toBe("organizer@example.com");
+  });
 });
 
 describe("local Mailpit transport", () => {

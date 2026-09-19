@@ -37,11 +37,11 @@ import { LinkPending } from "./NavProgress";
 type Item = { href: string; label: string };
 
 const PUBLIC_ITEMS: Item[] = [
-  { href: "/", label: "Home" },
+  { href: "/home", label: "Home" },
   { href: "/events", label: "Races" },
 ];
 const RUNNER_ITEMS: Item[] = [
-  { href: "/", label: "Home" },
+  { href: "/home", label: "Home" },
   { href: "/events", label: "Races" },
   { href: "/races", label: "My Races" },
   { href: "/profile", label: "Profile" },
@@ -50,9 +50,6 @@ const RUNNER_ITEMS: Item[] = [
 /** `/events/abc` should light "Races"; `/racesomething` should not light
  *  "My Races". Segment boundary, same rule as lib/routes.ts. */
 function isActive(pathname: string, href: string): boolean {
-  // "/" is a prefix of every path, so it gets an exact match only — otherwise
-  // Home would stay lit on /events, /races and everything else.
-  if (href === "/") return pathname === "/";
   return pathname === href || pathname.startsWith(href + "/");
 }
 

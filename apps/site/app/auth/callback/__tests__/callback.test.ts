@@ -59,7 +59,7 @@ describe("OAuth callback", () => {
       req("https://racepace.lan/auth/callback?code=abc", `${OAUTH_NEXT_COOKIE}=https%3A%2F%2Fevil.example%2Fsteal`),
     );
 
-    expect(res.headers.get("location")).toBe("/");
+    expect(res.headers.get("location")).toBe("/home");
   });
 
   it("refuses a protocol-relative destination in the cookie", async () => {
@@ -68,7 +68,7 @@ describe("OAuth callback", () => {
       req("https://racepace.lan/auth/callback?code=abc", `${OAUTH_NEXT_COOKIE}=%2F%2Fevil.example`),
     );
 
-    expect(res.headers.get("location")).toBe("/");
+    expect(res.headers.get("location")).toBe("/home");
   });
 
   it("survives a malformed cookie instead of throwing", async () => {
@@ -76,7 +76,7 @@ describe("OAuth callback", () => {
     // it, which would 500 the one route a runner cannot skip.
     const res = await GET(req("https://racepace.lan/auth/callback?code=abc", `${OAUTH_NEXT_COOKIE}=%`));
 
-    expect(res.headers.get("location")).toBe("/");
+    expect(res.headers.get("location")).toBe("/home");
   });
 
   it("still honours ?next= when no cookie is present", async () => {

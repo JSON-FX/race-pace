@@ -35,6 +35,20 @@ Branding cleanup, 2026-09-20: Removed the former organizer's name, sample identi
 
 Login lockup alignment, 2026-09-20: The runner login logo is left-aligned with the Mindanao eyebrow and headline. This follow-up uses the standard feature branch to staging to production promotion path. Staging validation and production promotion remain pending.
 
+Landing page selection and enhancement, 2026-09-20: the owner selected Course Atlas. The enhanced direction now powers the local `/` route, while the existing event-browsing home is preserved at `/home` and the full catalog remains at `/events`. Four original project-owned backgrounds tell a road-and-trail story across route choice, discovery, preparation and the shared finish. The page retains photo-only pointer parallax, static touch behavior and reduced-motion fallbacks. The owner-requested review pass removed every decorative grid and contour overlay, removed the journey-copy arrow, changed the journey heading to forest green, spaced the checkpoint heading from its icon, and added the QR Ph mark to the accepted-payment row. Browser review at 1,289 px and 390×844 px found no horizontal overflow or application console errors. The root and `/home` routes both returned HTTP 200. The implementation is ready for Design QA but has not been committed, deployed or released.
+
+Organizer inquiry addition, 2026-09-20: the final landing section now gives race organizers a responsive signup form for name, work email and organization or race name. The form invokes a new `organizer-inquiry` Edge Function that validates and normalizes input, escapes organizer-controlled email content, limits request size, quietly drops honeypot submissions, sends only to `inquiries@racepace.com.ph`, and sets the organizer email as Reply-To. Owner review removed the extra section and footer gaps and changed the form to a white card with forest-green labels and fields. Desktop and 390×844 browser checks found no horizontal overflow or application console errors. All 426 runner-site tests, the site typecheck, 17 focused inquiry/email tests, `/` and `/home` HTTP checks, and `git diff --check` passed. The full backend/shared run passed 710 of 714 tests; four environment-dependent tests failed because the current database lacks the expected `muspo` test user and one seeded organization. No live inquiry was sent. The new function has not been deployed.
+
+### Current landing page design work
+
+| Work | Status | Blocker | Next task |
+|---|---|---|---|
+| Landing-page direction | **Done** | None. | Course Atlas is the selected direction; keep the five-option study only as a design record. |
+| Course Atlas enhancement | **Design approved** | None. | Preserve the approved compact organizer spacing, white form card and QR Ph footer through release. |
+| Separate landing and home routes | **Done locally** | Staging and production deployment are pending. | Keep Course Atlas at `/`, the event-browsing home at `/home`, and the full catalog at `/events`. |
+| Organizer signup | **Done locally** | The `organizer-inquiry` function is not deployed and no live delivery has been tested. | Deploy the function to staging and verify it without sending an unapproved external test email. |
+| Production release | **Authorized** | Staging verification and the normal release checks remain. | Deploy and verify staging first, then promote the approved feature to production. |
+
 ## Release-critical checklist
 
 These are the minimum web and admin gates for the first real organizer. Close each against the same staging release revision, then verify its production configuration. A passing build or database-only test does not close an end-to-end gate.
