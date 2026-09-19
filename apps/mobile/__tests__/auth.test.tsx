@@ -2,6 +2,8 @@ import { render, screen, waitFor } from "@testing-library/react-native";
 import { Text } from "react-native";
 import { AuthProvider, useAuth } from "../lib/auth";
 
+jest.mock("../lib/captcha", () => ({ getAuthCaptchaToken: jest.fn() }));
+
 jest.mock("../lib/supabase", () => ({
   supabase: {
     auth: {

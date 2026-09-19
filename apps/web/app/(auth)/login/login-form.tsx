@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { TurnstileWidget } from "@/components/TurnstileWidget";
 import { signInAction, type AuthState } from "@/lib/actions/auth";
 import { GoogleButton } from "./google-button";
 
@@ -31,6 +32,14 @@ export function LoginForm() {
   const next = search.get("next");
   const oauthMessage = OAUTH_MESSAGES[search.get("oauth") ?? ""];
   const [state, formAction, pending] = useActionState<AuthState, FormData>(signInAction, {});
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaResetKey, setCaptchaResetKey] = useState(0);
+
+  useEffect(() => {
+    if (!state.error) return;
+    setCaptchaToken(null);
+    setCaptchaResetKey((value) => value + 1);
+  }, [state]);
 
   return (
     <div className="space-y-4">
@@ -57,6 +66,7 @@ export function LoginForm() {
             back null so signInAction can tell "no destination" apart from
             "destination is the empty string" and fall back by capability. */}
         {next ? <input type="hidden" name="next" value={next} /> : null}
+        <input type="hidden" name="captchaToken" value={captchaToken ?? ""} />
         <div className="space-y-1.5">
           <Label htmlFor="email">Email</Label>
           <Input id="email" name="email" type="email" autoComplete="email" required />
@@ -65,10 +75,11 @@ export function LoginForm() {
           <Label htmlFor="password">Password</Label>
           <Input id="password" name="password" type="password" autoComplete="current-password" required />
         </div>
+        <TurnstileWidget action="admin_sign_in" onTokenChange={setCaptchaToken} resetKey={captchaResetKey} />
         {state.error ? (
           <p role="alert" className="text-sm text-destructive">{state.error}</p>
         ) : null}
-        <Button type="submit" className="w-full" disabled={pending}>
+        <Button type="submit" className="w-full" disabled={pending || !captchaToken}>
           {pending ? <Loader2 className="size-4 animate-spin" /> : null}
           {pending ? "Signing in…" : "Sign in"}
         </Button>

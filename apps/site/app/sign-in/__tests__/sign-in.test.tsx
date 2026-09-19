@@ -23,6 +23,11 @@ vi.mock("@/lib/auth", () => ({
   signInWithPassword: (...args: unknown[]) => signInWithPassword(...args),
   signInWithGoogle: vi.fn(),
 }));
+vi.mock("@/components/TurnstileWidget", () => ({
+  TurnstileWidget: ({ onTokenChange }: { onTokenChange: (token: string) => void }) => (
+    <button type="button" onClick={() => onTokenChange("captcha-token")}>Complete verification</button>
+  ),
+}));
 
 beforeEach(() => {
   signInWithPassword.mockReset();
@@ -35,9 +40,10 @@ describe("SignIn", () => {
     render(<SignIn />);
     await userEvent.type(screen.getByLabelText("Email"), "runner@example.com");
     await userEvent.type(screen.getByLabelText("Password"), "hunter2hunter2");
+    await userEvent.click(screen.getByRole("button", { name: "Complete verification" }));
     await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
-    expect(signInWithPassword).toHaveBeenCalledWith("runner@example.com", "hunter2hunter2");
+    expect(signInWithPassword).toHaveBeenCalledWith("runner@example.com", "hunter2hunter2", "captcha-token");
     expect(replace).toHaveBeenCalledWith("/home");
   });
 
@@ -46,6 +52,7 @@ describe("SignIn", () => {
     render(<SignIn />);
     await userEvent.type(screen.getByLabelText("Email"), "runner@example.com");
     await userEvent.type(screen.getByLabelText("Password"), "wrong");
+    await userEvent.click(screen.getByRole("button", { name: "Complete verification" }));
     await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
     expect(await screen.findByText("Invalid login credentials")).toBeInTheDocument();

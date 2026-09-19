@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { GoogleButton } from "@/components/GoogleButton";
+import { TurnstileWidget } from "@/components/TurnstileWidget";
 import { signInWithPassword } from "@/lib/auth";
 import { safeNextPath } from "@/lib/routes";
 
@@ -26,13 +27,21 @@ export function SignInForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(params.get("error") ? "That sign-in or confirmation link is invalid or expired. Please sign in or request a new link." : null);
   const [busy, setBusy] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaResetKey, setCaptchaResetKey] = useState(0);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!captchaToken) {
+      setError("Complete the bot verification before signing in.");
+      return;
+    }
     setBusy(true);
     setError(null);
-    const { error } = await signInWithPassword(email, password);
+    const { error } = await signInWithPassword(email, password, captchaToken);
     setBusy(false);
+    setCaptchaToken(null);
+    setCaptchaResetKey((value) => value + 1);
     if (error) {
       setError(error);
       return;
@@ -74,6 +83,11 @@ export function SignInForm() {
             className="h-12 rounded-xl"
           />
         </div>
+        <TurnstileWidget
+          action="runner_sign_in"
+          onTokenChange={setCaptchaToken}
+          resetKey={captchaResetKey}
+        />
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="password">Password</Label>
           <Input
@@ -89,7 +103,7 @@ export function SignInForm() {
         ) : null}
         <Button
           type="submit"
-          disabled={busy}
+          disabled={busy || !captchaToken}
           className="h-12 rounded-pill text-[15px] font-bold"
         >
           {busy ? "Signing in…" : "Sign in"}
