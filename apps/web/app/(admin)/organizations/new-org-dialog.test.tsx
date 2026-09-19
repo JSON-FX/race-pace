@@ -58,4 +58,41 @@ describe("NewOrgDialog", () => {
 
     expect(await screen.findByText(/couldn't reach the organization service/i)).toBeInTheDocument();
   });
+
+  it("reports a delivered sign-in email for an existing admin account", async () => {
+    invoke.mockImplementation((_name, options) => options?.body?.action === "check_slug"
+      ? Promise.resolve({ data: { available: true }, error: null })
+      : Promise.resolve({
+        data: { org: { name: "Pilot organizer" }, delivery: "sent", invite_link: "https://admin.example/invite" },
+        error: null,
+      }));
+
+    const user = userEvent.setup();
+    render(<NewOrgDialog />);
+    await user.click(screen.getByRole("button", { name: /new organization/i }));
+    await user.type(screen.getByLabelText("Name"), "Pilot organizer");
+    await user.type(screen.getByLabelText("First admin"), "support.racepace@gmail.com");
+    await user.click(screen.getByRole("button", { name: /create and invite/i }));
+
+    expect(await screen.findByText(/a sign-in email was sent/i)).toBeInTheDocument();
+  });
+
+  it("shows the manual link when admin email delivery fails", async () => {
+    invoke.mockImplementation((_name, options) => options?.body?.action === "check_slug"
+      ? Promise.resolve({ data: { available: true }, error: null })
+      : Promise.resolve({
+        data: { org: { name: "Pilot organizer" }, delivery: "failed", invite_link: "https://admin.example/invite" },
+        error: null,
+      }));
+
+    const user = userEvent.setup();
+    render(<NewOrgDialog />);
+    await user.click(screen.getByRole("button", { name: /new organization/i }));
+    await user.type(screen.getByLabelText("Name"), "Pilot organizer");
+    await user.type(screen.getByLabelText("First admin"), "support.racepace@gmail.com");
+    await user.click(screen.getByRole("button", { name: /create and invite/i }));
+
+    expect(await screen.findByText(/email delivery failed/i)).toBeInTheDocument();
+    expect(screen.getByText("https://admin.example/invite")).toBeInTheDocument();
+  });
 });

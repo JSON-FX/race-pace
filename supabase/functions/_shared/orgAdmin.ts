@@ -93,6 +93,28 @@ export function adminInviteRedirect(adminAppUrl: string): string | null {
   return base ? `${base}/finish` : null;
 }
 
+type SignInWithOtp = (credentials: {
+  email: string;
+  options: { shouldCreateUser: false; emailRedirectTo: string };
+}) => Promise<{ error: unknown }>;
+
+/** Existing auth users do not pass through inviteUserByEmail during organization
+ * provisioning. Send them the same passwordless sign-in email used by Team so
+ * assigning a role never becomes a silent, email-free success. */
+export async function sendExistingAdminSignIn(
+  signInWithOtp: SignInWithOtp,
+  email: string,
+  adminAppUrl: string,
+): Promise<"sent" | "failed"> {
+  const emailRedirectTo = adminInviteRedirect(adminAppUrl);
+  if (!emailRedirectTo) return "failed";
+  const { error } = await signInWithOtp({
+    email,
+    options: { shouldCreateUser: false, emailRedirectTo },
+  });
+  return error ? "failed" : "sent";
+}
+
 /** Builds the manual invite link org-provision hands back to the super admin
  *  who just created an organization — the same destination an SMTP-emailed
  *  invite lands on once SMTP is configured (Task 7 design). `type=magiclink`

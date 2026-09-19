@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Race Pace" xmlns="http://www.topografix.com/GPX/1/1">
+  <trk><name>Race Pace Pilot 5K Loop</name><trkseg>
+    <trkpt lat="8.454200" lon="124.639500"><ele>65.0</ele></trkpt>
+    <trkpt lat="8.455527" lon="124.639354"><ele>72.5</ele></trkpt>
+    <trkpt lat="8.456802" lon="124.638921"><ele>75.8</ele></trkpt>
+    <trkpt lat="8.457978" lon="124.638219"><ele>75.2</ele></trkpt>
+    <trkpt lat="8.459008" lon="124.637274"><ele>71.9</ele></trkpt>
+    <trkpt lat="8.459854" lon="124.636122"><ele>67.4</ele></trkpt>
+    <trkpt lat="8.460482" lon="124.634808"><ele>62.7</ele></trkpt>
+    <trkpt lat="8.460869" lon="124.633383"><ele>58.6</ele></trkpt>
+    <trkpt lat="8.461000" lon="124.631900"><ele>55.0</ele></trkpt>
+    <trkpt lat="8.460869" lon="124.630417"><ele>51.4</ele></trkpt>
+    <trkpt lat="8.460482" lon="124.628992"><ele>47.3</ele></trkpt>
+    <trkpt lat="8.459854" lon="124.627678"><ele>42.6</ele></trkpt>
+    <trkpt lat="8.459008" lon="124.626526"><ele>38.1</ele></trkpt>
+    <trkpt lat="8.457978" lon="124.625581"><ele>34.8</ele></trkpt>
+    <trkpt lat="8.456802" lon="124.624879"><ele>34.2</ele></trkpt>
+    <trkpt lat="8.455527" lon="124.624446"><ele>37.5</ele></trkpt>
+    <trkpt lat="8.454200" lon="124.624300"><ele>45.0</ele></trkpt>
+    <trkpt lat="8.452873" lon="124.624446"><ele>55.9</ele></trkpt>
+    <trkpt lat="8.451598" lon="124.624879"><ele>68.1</ele></trkpt>
+    <trkpt lat="8.450422" lon="124.625581"><ele>79.1</ele></trkpt>
+    <trkpt lat="8.449392" lon="124.626526"><ele>86.1</ele></trkpt>
+    <trkpt lat="8.448546" lon="124.627678"><ele>87.0</ele></trkpt>
+    <trkpt lat="8.447918" lon="124.628992"><ele>81.2</ele></trkpt>
+    <trkpt lat="8.447531" lon="124.630417"><ele>69.7</ele></trkpt>
+    <trkpt lat="8.447400" lon="124.631900"><ele>55.0</ele></trkpt>
+    <trkpt lat="8.447531" lon="124.633383"><ele>40.3</ele></trkpt>
+    <trkpt lat="8.447918" lon="124.634808"><ele>28.8</ele></trkpt>
+    <trkpt lat="8.448546" lon="124.636122"><ele>23.0</ele></trkpt>
+    <trkpt lat="8.449392" lon="124.637274"><ele>23.9</ele></trkpt>
+    <trkpt lat="8.450422" lon="124.638219"><ele>30.9</ele></trkpt>
+    <trkpt lat="8.451598" lon="124.638921"><ele>41.9</ele></trkpt>
+    <trkpt lat="8.452873" lon="124.639354"><ele>54.1</ele></trkpt>
+    <trkpt lat="8.454200" lon="124.639500"><ele>65.0</ele></trkpt>
+  </trkseg></trk>
+</gpx>

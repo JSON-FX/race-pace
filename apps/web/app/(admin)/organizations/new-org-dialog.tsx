@@ -38,6 +38,7 @@ const MESSAGES: Record<string, string> = {
 };
 
 type SlugState = { checking: boolean; available: boolean | null };
+type InviteDelivery = "sent" | "failed" | null;
 
 /**
  * Provisioning dialog. Calls `org-provision` directly from the browser with the
@@ -56,6 +57,7 @@ export function NewOrgDialog() {
   const [error, setError] = useState<string | null>(null);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [createdName, setCreatedName] = useState<string>("");
+  const [inviteDelivery, setInviteDelivery] = useState<InviteDelivery>(null);
   const [copied, setCopied] = useState(false);
 
   const [name, setName] = useState("");
@@ -76,7 +78,7 @@ export function NewOrgDialog() {
     setSlugState({ checking: false, available: null });
     setEmail(""); setCommissionType("percent"); setPercent("3"); setFlatPesos("");
     setRefundPolicy("full"); setRetentionPesos("");
-    setError(null); setInviteLink(null); setCreatedName(""); setCopied(false);
+    setError(null); setInviteLink(null); setCreatedName(""); setInviteDelivery(null); setCopied(false);
   }
 
   function onNameChange(value: string) {
@@ -151,6 +153,7 @@ export function NewOrgDialog() {
 
     setCreatedName(data.org?.name ?? name.trim());
     setInviteLink(data.invite_link ?? null);
+    setInviteDelivery(data.delivery === "sent" ? "sent" : "failed");
     toast.success(`${data.org?.name ?? "Organization"} created.`);
     // The list behind the dialog is a Server Component — refresh, don't mutate
     // local state, so the new row arrives with its real totals.
@@ -189,9 +192,11 @@ export function NewOrgDialog() {
             <DialogHeader>
               <DialogTitle className="text-[17px] font-bold">{createdName} is live</DialogTitle>
               <DialogDescription className="text-[13px] text-muted-foreground">
-                An invite email went to <span className="font-semibold">{email}</span> — it will
-                arrive once SMTP is configured on this project. Until then, send them this sign-in
-                link yourself.
+                {inviteDelivery === "sent" ? (
+                  <>A sign-in email was sent to <span className="font-semibold">{email}</span>.</>
+                ) : (
+                  <>The admin role was created, but email delivery failed. Share this sign-in link with <span className="font-semibold">{email}</span>.</>
+                )}
               </DialogDescription>
             </DialogHeader>
 
