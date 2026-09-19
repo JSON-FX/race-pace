@@ -140,6 +140,7 @@ async function makeUser(email: string) {
     first_name: "Test", last_name: "Runner", date_of_birth: "1990-01-01", gender: "Male",
     contact_number: "09170000001", emergency_contact_name: "QA Contact",
     emergency_contact_number: "09170000002", emergency_contact_relationship: "Friend",
+    shipping_barangay_code: "012801001", shipping_zip_code: "0123", shipping_address_line: "Unit 1, Sample Street",
   }).eq("claimed_user_id", id).select("id").single();
   if (passport.error || !passport.data) throw passport.error ?? new Error("Could not complete test passport");
   const signedIn = await anon().auth.signInWithPassword({ email, password: "password123" });

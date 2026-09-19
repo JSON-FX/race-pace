@@ -7,6 +7,7 @@ const participant = {
   first_name: "Ana", last_name: "Cruz", date_of_birth: "1950-06-01", gender: "Female",
   contact_number: "0917 123 4567", emergency_contact_name: "Juan Cruz",
   emergency_contact_number: "+63 917 123 4567", emergency_contact_relationship: "Son",
+  shipping_barangay_code: "012801001", shipping_zip_code: "0123", shipping_address_line: "House 1, Sample Street",
 };
 
 describe("new Passport contracts", () => {
@@ -36,11 +37,13 @@ describe("new Passport contracts", () => {
     expect(parsed).not.toHaveProperty("bib_name");
     expect(parsed.team_name).toBeUndefined();
   });
-  it("allows no shipping address but rejects incomplete addresses", () => {
-    expect(passportSchema(today).safeParse({ ...participant, shipping_zip_code: "0123" }).success).toBe(false);
-    const complete = { ...participant, shipping_barangay_code: "012801001", shipping_zip_code: "0123", shipping_address_line: "House 1, Sample Street" };
-    expect(passportSchema(today).parse(complete).shipping_zip_code).toBe("0123");
-    expect(passportSchema(today).safeParse({ ...complete, shipping_address_line: "  " }).success).toBe(false);
+  it("requires a complete structured shipping address", () => {
+    const withoutAddress = { ...participant, shipping_barangay_code: undefined, shipping_zip_code: undefined, shipping_address_line: undefined };
+    expect(passportCompleteness(withoutAddress, today).invalidFields).toEqual([
+      "shipping_barangay_code", "shipping_zip_code", "shipping_address_line",
+    ]);
+    expect(passportSchema(today).parse(participant).shipping_zip_code).toBe("0123");
+    expect(passportSchema(today).safeParse({ ...participant, shipping_address_line: "  " }).success).toBe(false);
   });
   it("pins the Deno mirror byte-for-byte", () => {
     expect(readFileSync("supabase/functions/_shared/passport.ts", "utf8"))

@@ -13,7 +13,7 @@ const passports: GroupPassport[] = ids.map((id, index) => ({
   id, claimed_user_id: index === 0 ? "booker" : null, first_name: index === 0 ? "Ava" : "Lola", last_name: "Runner",
   shirt_size: null, blood_type: null, team_name: null, date_of_birth: "1950-06-01", gender: "Female",
   contact_number: "09171234567", emergency_contact_name: "Family", emergency_contact_number: "09181234567",
-  emergency_contact_relationship: "Child", shipping_barangay_code: null, shipping_zip_code: null, shipping_address_line: null,
+  emergency_contact_relationship: "Child", shipping_barangay_code: "012801001", shipping_zip_code: "0123", shipping_address_line: "House 1, Sample Street",
 }));
 const category = { id: "00000000-0000-4000-8000-000000000003", event_id: "00000000-0000-4000-8000-000000000004", org_id: "o", label: "14K", code: "14k", distance_km: 14, base_price: 10000, slots_total: 10, slots_taken: 0 } satisfies CategoryRow;
 const event = { id: category.event_id, org_id: "o", name: "QA Race", status: "open", event_date: "2099-01-01" } as EventRow;

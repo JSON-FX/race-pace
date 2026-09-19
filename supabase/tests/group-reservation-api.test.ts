@@ -14,7 +14,7 @@ const guest = randomUUID(), secondGuest = randomUUID();
 let actor: string, stranger: string, self: string, token: string, strangerToken: string;
 let handler: (req: Request) => Promise<Response>;
 const settings: Record<string, string> = { SUPABASE_URL: env.url, SUPABASE_SERVICE_ROLE_KEY: env.serviceKey, GROUP_RESERVATIONS_ENABLED: "true" };
-const identity = { first_name: "QA", last_name: "Participant", date_of_birth: "1950-01-01", gender: "Female", contact_number: "09171234567", emergency_contact_name: "Helper", emergency_contact_number: "09171234567", emergency_contact_relationship: "Child", shirt_size: "S" };
+const identity = { first_name: "QA", last_name: "Participant", date_of_birth: "1950-01-01", gender: "Female", contact_number: "09171234567", emergency_contact_name: "Helper", emergency_contact_number: "09171234567", emergency_contact_relationship: "Child", shirt_size: "S", shipping_barangay_code: "012801001", shipping_zip_code: "0123", shipping_address_line: "Unit 1, Sample Street" };
 async function account() {
   const email = `group-${randomUUID()}@example.com`;
   const created = await svc.auth.admin.createUser({ email, password: "password123", email_confirm: true });

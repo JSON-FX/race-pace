@@ -10,15 +10,15 @@ vi.mock("@/lib/psgc", () => ({
 describe("Shipping address", () => {
   it("resets the stored barangay when an ancestor changes and preserves ZIP leading zeros", () => {
     const onChange = vi.fn(); render(<ShippingAddress values={{}} onChange={onChange} />);
-    fireEvent.change(screen.getByLabelText("Region"), { target: { value: "r" } });
+    fireEvent.change(screen.getByLabelText("Region *"), { target: { value: "r" } });
     expect(onChange).toHaveBeenLastCalledWith({ shipping_barangay_code: "" });
-    fireEvent.change(screen.getByLabelText("City or municipality"), { target: { value: "c" } });
-    fireEvent.change(screen.getByLabelText("Barangay"), { target: { value: "b" } });
+    fireEvent.change(screen.getByLabelText("City or municipality *"), { target: { value: "c" } });
+    fireEvent.change(screen.getByLabelText("Barangay *"), { target: { value: "b" } });
     expect(onChange).toHaveBeenLastCalledWith({ shipping_barangay_code: "b" });
-    fireEvent.change(screen.getByLabelText("ZIP code"), { target: { value: "0123" } });
+    fireEvent.change(screen.getByLabelText("ZIP code *"), { target: { value: "0123" } });
     expect(onChange).toHaveBeenLastCalledWith({ shipping_zip_code: "0123" });
-    fireEvent.change(screen.getByLabelText("Province"), { target: { value: "p" } });
-    expect(screen.getByLabelText("City or municipality")).toHaveValue("");
+    fireEvent.change(screen.getByLabelText("Province *"), { target: { value: "p" } });
+    expect(screen.getByLabelText("City or municipality *")).toHaveValue("");
     expect(onChange).toHaveBeenLastCalledWith({ shipping_barangay_code: "" });
   });
   it("clears all address fields together", () => {

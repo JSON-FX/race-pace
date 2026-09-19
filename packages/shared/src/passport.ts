@@ -6,8 +6,17 @@ export const PASSPORT_GENDERS = ["Male", "Female"] as const;
 export const PASSPORT_REQUIRED_KEYS = [
   "first_name", "last_name", "date_of_birth", "gender", "contact_number",
   "emergency_contact_name", "emergency_contact_number", "emergency_contact_relationship",
+  "shipping_barangay_code", "shipping_zip_code", "shipping_address_line",
 ] as const;
 export type PassportRequiredKey = (typeof PASSPORT_REQUIRED_KEYS)[number];
+
+export const EMERGENCY_RELATIONSHIPS = [
+  "Mother", "Father", "Parent", "Wife", "Husband", "Spouse", "Partner",
+  "Sister", "Brother", "Sibling", "Daughter", "Son", "Child",
+  "Grandmother", "Grandfather", "Grandparent", "Granddaughter", "Grandson", "Grandchild",
+  "Aunt", "Uncle", "Cousin", "Niece", "Nephew", "Other relative",
+  "Guardian", "Caregiver", "Friend", "Coach", "Team manager", "Colleague", "Neighbor", "Other",
+] as const;
 
 const requiredText = (max: number) => z.string().trim().min(1, "Required").max(max);
 export const passportPhoneSchema = requiredText(32)
@@ -24,9 +33,9 @@ function validDate(value: string): boolean {
 export function passportSchema(today: string) {
   if (!validDate(today)) throw new Error("A valid current ISO date is required");
   return z.object({
-    shipping_barangay_code: z.string().nullable().optional(),
-    shipping_zip_code: z.string().nullable().optional(),
-    shipping_address_line: z.string().trim().max(300).nullable().optional(),
+    shipping_barangay_code: z.string().regex(/^\d{9}$/, "Select a barangay"),
+    shipping_zip_code: z.string().regex(/^\d{4}$/, "Enter a four-digit ZIP code"),
+    shipping_address_line: requiredText(300),
     first_name: requiredText(100),
     last_name: requiredText(100),
     shirt_size: z.enum(["XS", "S", "M", "L", "XL", "XXL", ""]).nullable().optional(),
@@ -40,12 +49,6 @@ export function passportSchema(today: string) {
     emergency_contact_relationship: requiredText(100),
     // This is an unverified contact attribute, never evidence for account claiming.
     participant_email: z.union([z.string().trim().email().max(254), z.literal("")]).nullable().optional(),
-  }).superRefine((value, ctx) => {
-    if (value.shipping_barangay_code || value.shipping_zip_code || value.shipping_address_line) {
-      if (!/^\d{9}$/.test(value.shipping_barangay_code ?? "")) ctx.addIssue({ code: "custom", path: ["shipping_barangay_code"], message: "Select a barangay" });
-      if (!/^\d{4}$/.test(value.shipping_zip_code ?? "")) ctx.addIssue({ code: "custom", path: ["shipping_zip_code"], message: "Enter a four-digit ZIP code" });
-      if (!value.shipping_address_line) ctx.addIssue({ code: "custom", path: ["shipping_address_line"], message: "Enter the house, building and street" });
-    }
   });
 }
 export type PassportInput = z.infer<ReturnType<typeof passportSchema>>;
