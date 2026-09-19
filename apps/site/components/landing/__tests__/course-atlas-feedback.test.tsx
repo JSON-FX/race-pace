@@ -64,11 +64,11 @@ describe("Course Atlas browser feedback", () => {
     expect(title.parentElement?.parentElement).toHaveClass("gap-5", "sm:gap-6");
   });
 
-  it("ends with a dedicated organizer signup section", () => {
+  it("ends with a shared runner and organizer inquiry section", () => {
     render(<CourseAtlas />);
 
-    expect(screen.getByRole("heading", { name: "Bring your next race into view." })).toBeInTheDocument();
-    expect(screen.getByRole("form", { name: "Organizer signup" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Let's clear the way forward." })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Send an inquiry" })).toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: "List your race" }).every((link) => link.getAttribute("href") === "/#organizers")).toBe(true);
 
     const section = document.querySelector("#organizers");
