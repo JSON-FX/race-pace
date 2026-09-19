@@ -204,4 +204,4 @@ export * from "./passport";
 
 export * from "./groupRegistration";
 
-export { isPublicLaunchClosed, isStagingEnvironment } from "./launchGate";
+export { isStagingEnvironment } from "./launchGate";

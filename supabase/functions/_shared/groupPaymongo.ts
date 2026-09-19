@@ -8,7 +8,7 @@ const identifier = (v: unknown, prefix: string): v is string => typeof v === "st
 const uuid = (v: unknown): string | null => typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v) ? v.toLowerCase() : null;
 
 export interface GroupSessionInput {
-  attemptId: string; orderId: string; method: "card" | "gcash" | "paymaya";
+  attemptId: string; orderId: string; method: "card" | "gcash" | "paymaya" | "qrph";
   baseCents: number; platformFeeCents: number; processorSurchargeCents: number;
   grossCents: number; feeMode: "absorb" | "pass_on"; returnUrl: string;
   providerManagedFee?: boolean;
@@ -16,7 +16,7 @@ export interface GroupSessionInput {
 export function buildGroupSessionRequest(input: GroupSessionInput) {
   if (!uuid(input.attemptId) || !uuid(input.orderId) ||
       ![input.baseCents, input.platformFeeCents, input.processorSurchargeCents, input.grossCents].every(cents) ||
-      !["card", "gcash", "paymaya"].includes(input.method) || !["absorb", "pass_on"].includes(input.feeMode)) throw new Error("group_session_invalid_input");
+      !["card", "gcash", "paymaya", "qrph"].includes(input.method) || !["absorb", "pass_on"].includes(input.feeMode)) throw new Error("group_session_invalid_input");
   const passOn = input.feeMode === "pass_on";
   const managed = passOn && input.providerManagedFee === true;
   if (input.providerManagedFee && !passOn) throw new Error("group_session_invalid_input");

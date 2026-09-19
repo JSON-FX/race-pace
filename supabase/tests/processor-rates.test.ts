@@ -36,11 +36,12 @@ describe("processor_rates", () => {
     // Pass-on must use the corrected VAT-inclusive 2.50% rate.
     expect(byKey.get("gcash:local")).toMatchObject({ percent_bps: 250, fixed_cents: 0 });
     expect(byKey.get("paymaya:local")).toMatchObject({ percent_bps: 150, fixed_cents: 0 });
+    expect(byKey.get("qrph:local")).toMatchObject({ percent_bps: 150, fixed_cents: 0 });
   });
 
   /**
    * `offered` is the DB half of a product fact whose other half is METHOD_MAP in
-   * payment-session/index.ts (`{ card, gcash, maya }`) — Deno, and therefore not
+   * payment-session/index.ts (`{ card, gcash, maya, qrph }`) — Deno, and therefore not
    * importable by apps/web. This test is the shared check the two halves would
    * otherwise lack.
    *
@@ -62,13 +63,11 @@ describe("processor_rates", () => {
     // card on both scopes: whether a card is issued abroad is not something the
     // runner picks, so `offered` is a property of the METHOD and scope stays a
     // separate filter at every call site.
-    expect(offered).toEqual(["card:international", "card:local", "gcash:local", "paymaya:local"]);
+    expect(offered).toEqual(["card:international", "card:local", "gcash:local", "paymaya:local", "qrph:local"]);
 
     // `dob` is the row that mattered: at 80 bps it is the cheapest in the table,
     // seeded so enabling the method is a UI change rather than a schema change,
     // and unreachable until then. It is also the one no other test touches.
-    // (`qrph` is asserted only through the set above, on purpose — the rate
-    // test below opens and closes rows on it.)
     const dob = (data ?? []).find((r) => r.method === "dob");
     expect(dob?.offered).toBe(false);
     // Independently of `offered`: an organizer-facing forecast must not rank

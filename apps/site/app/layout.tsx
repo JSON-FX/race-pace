@@ -25,16 +25,6 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  if ((process.env.VERCEL_TARGET_ENV ?? process.env.VERCEL_ENV) === "production") {
-    // Public requests render Coming Soon, but the protected deployment URL
-    // also serves the runner app for prelaunch QA. Its pages still need React
-    // Query; omitting this provider crashes /races immediately after sign-in.
-    return (
-      <html lang="en" className={`${archivo.variable} ${archivoNarrow.variable} ${jetbrainsMono.variable}`}>
-        <body style={{ margin: 0 }}><Providers>{children}</Providers></body>
-      </html>
-    );
-  }
   return (
     <html lang="en" className={`${archivo.variable} ${archivoNarrow.variable} ${jetbrainsMono.variable}`}>
       {/* min-h-dvh + flex so the footer sits at the BOTTOM of a short page

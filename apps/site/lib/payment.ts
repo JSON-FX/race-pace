@@ -4,6 +4,7 @@ export const PAY_METHODS = [
   { key: "card", label: "Card" },
   { key: "gcash", label: "GCash" },
   { key: "maya", label: "Maya" },
+  { key: "qrph", label: "QR Ph" },
 ];
 
 export const POLL_MS = 3000;
@@ -21,7 +22,7 @@ export function breakdown(total: number, basePrice: number | null): { entry: num
  *  "paymaya" to PayMongo and therefore to the rate card; looking a rate up under
  *  "maya" finds nothing, and nothing is indistinguishable here from "this method
  *  has no published price". */
-export const RATE_METHOD: Record<string, string> = { card: "card", gcash: "gcash", maya: "paymaya" };
+export const RATE_METHOD: Record<string, string> = { card: "card", gcash: "gcash", maya: "paymaya", qrph: "qrph" };
 
 /** One method's price, VAT-INCLUSIVE, as stored on `processor_rates`.
  *  `percent_bps` is basis points (350 = 3.50%) so the arithmetic below stays in

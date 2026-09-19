@@ -8,7 +8,7 @@ import { GroupCheckoutError, prepareGroupPayment, startGroupPayment, verifyGroup
 import { Button } from "@/components/ui/button";
 
 type Ticket = { id: string; status: string; custom_data: Record<string, unknown> | null };
-type Method = "gcash" | "card" | "maya";
+type Method = "gcash" | "card" | "maya" | "qrph";
 
 export function GroupOrder({ orderId, initialStatus, entryTotal, eventName, categoryLabel, feeMode, expiresAt, returnStatus }: {
   orderId: string; initialStatus: string; entryTotal: number; eventName: string; categoryLabel: string;
@@ -131,7 +131,7 @@ export function GroupOrder({ orderId, initialStatus, entryTotal, eventName, cate
       {expired || status === "expired" || status === "cancelled" ? <p role="alert">This reservation is no longer payable. No new payment will be started.</p> : null}
       {canPrepare ? <><label className="block font-medium" htmlFor="group-method">Payment method</label>
         <select id="group-method" value={method} onChange={event => setMethod(event.target.value as Method)} className="w-full rounded-lg border bg-background p-3">
-          <option value="gcash">GCash</option><option value="card">Card</option><option value="maya">Maya</option>
+          <option value="gcash">GCash</option><option value="card">Card</option><option value="maya">Maya</option><option value="qrph">QR Ph</option>
         </select><Button disabled={busy} onClick={prepare} className="w-full">{attempt ? "Review another payment attempt" : "Review one payment"}</Button></> : null}
       {canPay && !blocked ? <Button disabled={busy} onClick={pay} className="w-full">Continue to PayMongo</Button> : null}
       {attempt && !complete ? <Button variant="outline" disabled={busy} onClick={check} className="w-full">Check payment status</Button> : null}

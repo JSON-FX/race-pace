@@ -184,7 +184,7 @@ function processorCost(entryCents: number, r: ProcessorRateLite): number {
  * Two filters, and both are load-bearing:
  *
  * 1. `offered` — a runner can only pick what METHOD_MAP offers
- *    (payment-session/index.ts: card, gcash, maya). The rate card seeds more
+ *    (payment-session/index.ts: card, gcash, maya, qrph). The rate card seeds more
  *    than that so enabling a method is a UI change rather than a schema change,
  *    and ranking over all of them made `dob` at 80 bps the cheapest — quoting an
  *    optimistic end of a money forecast that no runner could reach.

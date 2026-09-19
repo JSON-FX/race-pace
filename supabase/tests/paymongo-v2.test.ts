@@ -42,6 +42,9 @@ describe("PayMongo provider-calculated checkout fees", () => {
     await new PayMongoProvider().createCheckout({ registrationId: "registration-id", amount: 10000, description: "5K", returnUrl: "https://staging.racepace.com.ph/pay/callback" });
     expect(calls[0].url).toBe("https://api.paymongo.com/v1/checkout_sessions");
     expect(calls[0].key).toBe("checkout:registration-id");
+    expect(calls[0].body).toMatchObject({ data: { attributes: {
+      payment_method_types: ["card", "gcash", "paymaya", "qrph"],
+    } } });
     expect(JSON.stringify(calls[0].body)).not.toContain("pass_on_fees");
   });
 
