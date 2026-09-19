@@ -190,10 +190,22 @@ export type RegistrationRow = {
 // type level, and `a + b` is `string` to TypeScript, which erases every column
 // type on the result.
 const REG_SELECT =
-  "id,user_id,booked_by_user_id,booking_order_id,status,total_amount,ticket_token,org_id,event_id,expires_at,custom_data,organizations(name,is_active,fee_mode,commission_type,commission_rate,commission_flat_cents,refund_policy,refund_fee_cents),events(name,status,event_date,original_date,status_note,hero_image_url,inclusions,registration_closes_at,kit_edit_closes_at,check_in_required),categories(label,distance_km,base_price),payments(checkout_url,created_at,method,amount,platform_fee,net_to_org,provider,provider_ref,status,checkout_fee_mode,checkout_platform_fee,checkout_provider_managed_fee)";
+  "id,user_id,booked_by_user_id,booking_order_id,status,total_amount,ticket_token,org_id,event_id,expires_at,custom_data,organizations(name,is_active,fee_mode,commission_type,commission_rate,commission_flat_cents,refund_policy,refund_fee_cents),events(name,status,event_date,original_date,status_note,hero_image_url,inclusions,registration_closes_at,kit_edit_closes_at,check_in_required),categories(label,distance_km,base_price),registration_addons(price),payments(checkout_url,created_at,method,amount,platform_fee,net_to_org,provider,provider_ref,status,checkout_fee_mode,checkout_platform_fee,checkout_provider_managed_fee)";
 
 export function mapReg(r: any): RegistrationRow {
   const payment = Array.isArray(r.payments) ? r.payments[0] : r.payments;
+  const addonRows = Array.isArray(r.registration_addons)
+    ? r.registration_addons
+    : r.registration_addons ? [r.registration_addons] : [];
+  const addonTotal = addonRows.reduce(
+    (sum: number, row: { price?: unknown }) => sum + (typeof row?.price === "number" ? row.price : 0),
+    0,
+  );
+  // total_amount and registration_addons are the checkout snapshot. Never mix
+  // them with the category's current master price, which can change later.
+  const checkoutBasePrice = typeof r.total_amount === "number"
+    ? Math.max(0, r.total_amount - addonTotal)
+    : r.categories?.base_price ?? null;
   // Normalised the same way `payments` is: PostgREST returns a to-one embed as
   // an object, but the shape it infers is not something this mapper should
   // depend on. It matters more here than for `orgName` — an org read as an array
@@ -214,7 +226,7 @@ export function mapReg(r: any): RegistrationRow {
     refundPolicy: org?.refund_policy ?? null,
     refundFeeCents: org?.refund_fee_cents ?? null,
     eventHeroUrl: r.events?.hero_image_url ?? null,
-    basePrice: r.categories?.base_price ?? null,
+    basePrice: checkoutBasePrice,
     inclusions: r.events?.inclusions ?? null,
     // Defaulting to `absorb` rather than throwing: a missing embed must render
     // the sticker price, never an unpriced screen. It is also the column's own

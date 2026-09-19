@@ -62,6 +62,12 @@ beforeEach(() => {
   mockRefresh.mockClear();
 });
 
+it("explains that price edits refresh unpaid checkouts", () => {
+  render(<EventEditorForm initial={editorData()} orgId="a1" />);
+  expect(screen.getByText("Price changes automatically refresh unpaid checkouts")).toBeInTheDocument();
+  expect(screen.getByText(/Paid registrations keep their accepted prices/)).toBeInTheDocument();
+});
+
 it("blocks save on an empty name, then saves a valid new event", async () => {
   render(<EventEditorForm initial={null} orgId="a1" />);
   fireEvent.click(screen.getByText("Save event"));

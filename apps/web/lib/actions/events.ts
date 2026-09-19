@@ -277,6 +277,20 @@ export async function saveEventAction(_prev: EditorState, formData: FormData): P
     if (r.error) childErrors.push(`Couldn't remove an add-on.`);
   }
 
+  // Category and add-on prices are promises to every unpaid runner, not only
+  // inputs for future registrations. The edge function closes each old
+  // PayMongo session before replacing its amount, so the browser and provider
+  // cannot disagree about what is chargeable.
+  if (!childErrors.length && eventId) {
+    const refreshed = await supabase.functions.invoke("reprice-event-checkouts", {
+      body: { event_id: finalEventId },
+    });
+    if (refreshed.error) {
+      console.error("[events] pending checkout repricing failed", { eventId: finalEventId, error: refreshed.error });
+      childErrors.push("Prices were saved, but unpaid checkouts could not be refreshed. Please try saving again.");
+    }
+  }
+
   revalidatePath("/events");
   revalidatePath(`/events/${finalEventId}/edit`);
 
