@@ -6,27 +6,39 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { TurnstileWidget } from "@/components/TurnstileWidget";
 import { createRecoveryClient } from "@/lib/recovery";
 
 export default function ForgotPasswordPage() {
   const [pending, setPending] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState("");
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaResetKey, setCaptchaResetKey] = useState(0);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (pending) return;
+    if (!captchaToken) {
+      setError("Complete the bot verification before requesting a reset link.");
+      return;
+    }
     const email = String(new FormData(event.currentTarget).get("email") ?? "").trim();
     setPending(true);
     setError("");
     try {
       const { error } = await createRecoveryClient().auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/auth/recovery`,
+        captchaToken,
       });
       if (error) throw error;
       setSent(true);
     } catch {
       setError("We couldn't send the reset email. Please try again shortly.");
-    } finally { setPending(false); }
+    } finally {
+      setPending(false);
+      setCaptchaToken(null);
+      setCaptchaResetKey((value) => value + 1);
+    }
   }
   return <main className="grid min-h-dvh place-items-center bg-muted p-6">
     <Card className="w-full max-w-sm rounded-xl shadow-lg"><CardContent className="space-y-4 px-6 py-7">
@@ -35,8 +47,9 @@ export default function ForgotPasswordPage() {
         <form onSubmit={submit} className="space-y-4">
           <p className="text-sm text-muted-foreground">Enter the email you use for Race Pace Admin.</p>
           <div className="space-y-1.5"><Label htmlFor="email">Email</Label><Input id="email" name="email" type="email" autoComplete="email" required /></div>
+          <TurnstileWidget action="admin_password_reset" onTokenChange={setCaptchaToken} resetKey={captchaResetKey} />
           {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-          <Button disabled={pending} className="w-full">{pending ? "Sending…" : "Send reset link"}</Button>
+          <Button disabled={pending || !captchaToken} className="w-full">{pending ? "Sending…" : "Send reset link"}</Button>
         </form>}
       <Link href="/login" className="block text-sm underline">Back to sign in</Link>
     </CardContent></Card>

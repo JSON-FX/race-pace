@@ -1,5 +1,8 @@
 import { preflight, corsHeaders } from "../_shared/cors.ts";
 import { sendEmail } from "../_shared/email.ts";
+import { checkOrganizerInquiryRateLimit, inquiryClientIp } from "../_shared/inquiryRateLimit.ts";
+import { recaptchaConfigFromEnv, verifyRecaptchaEnterprise } from "../_shared/recaptcha.ts";
+import { serviceClient } from "../_shared/supabase.ts";
 import {
   parseInquiry,
   renderInquiryAcknowledgement,
@@ -33,6 +36,27 @@ Deno.serve(async (req) => {
     // Quietly accept the hidden honeypot so automated submissions cannot use
     // the response to tune around it. No message is delivered in this branch.
     if (parsed.data.website) return json({ ok: true });
+
+    const captchaToken = typeof body === "object" && body !== null
+      ? (body as Record<string, unknown>).captchaToken
+      : undefined;
+    const captcha = await verifyRecaptchaEnterprise(
+      captchaToken,
+      "organizer_inquiry",
+      recaptchaConfigFromEnv((key) => Deno.env.get(key)),
+    );
+    if (!captcha.ok) {
+      console.warn("[organizer-inquiry] captcha rejected", { reason: captcha.reason });
+      return json({ error: "verification_failed" }, captcha.reason === "provider" || captcha.reason === "configuration" ? 503 : 403);
+    }
+
+    const rateLimit = await checkOrganizerInquiryRateLimit({
+      client: serviceClient(),
+      salt: Deno.env.get("INQUIRY_RATE_LIMIT_SALT"),
+      ipAddress: inquiryClientIp(req.headers),
+      email: parsed.data.email,
+    });
+    if (!rateLimit.ok) return json({ error: "too_many_requests" }, 429);
 
     const notification = renderInquiryNotification(parsed.data);
     const notificationDelivery = await sendEmail(

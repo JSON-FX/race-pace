@@ -49,6 +49,19 @@ Course Atlas production release, 2026-09-20: PR #60 merged to `main` at `137f318
 
 Production organizer, event and email verification, 2026-09-20: The public organizer form initially showed a false delivery failure because production `SITE_ORIGINS` omitted the public and admin custom domains. The secret now includes the exact production origins; the browser submitted a live inquiry for `support.racepace@gmail.com` and displayed success. A production password-reset request delivered the branded Race Pace message to that Gmail inbox. `Race Pace Pilot Organizer` was created at zero commission with the existing support account as admin. Existing users previously skipped `inviteUserByEmail`, so organization creation assigned the role without sending a sign-in message. PR #62 adds an explicit passwordless email for that path, reports delivery accurately in the admin dialog, passed 883 admin tests, 426 runner tests, 716 backend/shared tests, both typechecks, GitHub validation and both Vercel previews, and deployed `org-provision` to staging and production. The completed event-editor smoke saved and reloaded draft event `bf52ed46-e833-48f9-aa6a-5db41b9ba707` with dates, Philippine Standard Geographic Code location, start and finish coordinates, a 5.0 km GPX route, one ₱100 category, three generated images, three schedule rows, three inclusions and two add-ons. Payment and refund work remains owner-led and was intentionally excluded from this phase.
 
+Bot-protection staging backend, 2026-09-20: Separate Google Fraud Defense and Cloudflare Turnstile resources were created under `support.racepace@gmail.com` for staging and production. Google Cloud billing remains disabled. Staging received the Google assessment secrets, a new salted rate-limit secret, migration `20260919212707`, and organizer-inquiry function version 7 with JWT verification. Hosted SQL confirms the limiter table exists, `service_role` can execute its function, and `anon` cannot. A valid-shaped but invalid token returned HTTP 403 `verification_failed` before email delivery. The `staging` Vercel branch now has the runner reCAPTCHA and Turnstile public keys and the admin Turnstile public key. Web deployment, mobile build, and Supabase Auth Turnstile activation remain pending. Production code, secrets, database, and enforcement remain unchanged.
+
+### Current bot protection
+
+| Work | Status | Blocker | Next task |
+|---|---|---|---|
+| Provider resources | **Done** | None. | Keep ownership under `support.racepace@gmail.com`; do not enable Google billing without an approved budget. |
+| Organizer inquiry backend | **Staging active** | None for rejection path. | Deploy the runner source, then verify a real browser token without sending a test email. |
+| Runner and admin web clients | **Configured, not deployed** | Feature branch must pass review and merge. | Merge to `staging`, wait for both Vercel deployments, and inspect every password surface. |
+| Mobile client | **Implemented locally** | No staging build contains the hosted Turnstile bridge yet. | Produce and verify the staging mobile build. |
+| Supabase Auth Turnstile | **Disabled** | Enabling it now would break older mobile clients. | Enable only after runner, admin, and mobile clients pass staging verification. |
+| Production | **Unchanged** | Staging activation and verification are incomplete. | Promote the same verified configuration, then enable production Auth CAPTCHA last. |
+
 ### Current landing page design work
 
 | Work | Status | Blocker | Next task |

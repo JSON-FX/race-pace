@@ -1,19 +1,23 @@
 import { createClient } from "@/lib/supabase/client";
 import { safeNextPath, OAUTH_NEXT_COOKIE } from "@/lib/routes";
 
-export async function signInWithPassword(email: string, password: string): Promise<{ error?: string }> {
+export async function signInWithPassword(email: string, password: string, captchaToken: string): Promise<{ error?: string }> {
   const supabase = createClient();
-  const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+  const { error } = await supabase.auth.signInWithPassword({
+    email: email.trim(),
+    password,
+    options: { captchaToken },
+  });
   return error ? { error: error.message } : {};
 }
 
-export async function signUpWithPassword(email: string, password: string, next = "/home"): Promise<{ error?: string; confirmationRequired?: boolean }> {
+export async function signUpWithPassword(email: string, password: string, captchaToken: string, next = "/home"): Promise<{ error?: string; confirmationRequired?: boolean }> {
   const supabase = createClient();
   document.cookie = `${OAUTH_NEXT_COOKIE}=${encodeURIComponent(safeNextPath(next))}; path=/; max-age=3600; samesite=lax`;
   try {
     const { data, error } = await supabase.auth.signUp({
       email: email.trim(), password,
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+      options: { emailRedirectTo: `${window.location.origin}/auth/callback`, captchaToken },
     });
     return error ? { error: error.message } : { confirmationRequired: !data.session };
   } catch {

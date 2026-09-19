@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { GoogleButton } from "@/components/GoogleButton";
+import { TurnstileWidget } from "@/components/TurnstileWidget";
 import { signUpWithPassword } from "@/lib/auth";
 import { safeNextPath } from "@/lib/routes";
 
@@ -30,13 +31,21 @@ function SignUpForm() {
   const [error, setError] = useState<string | null>(null);
   const [confirmationRequired, setConfirmationRequired] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaResetKey, setCaptchaResetKey] = useState(0);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!captchaToken) {
+      setError("Complete the bot verification before creating an account.");
+      return;
+    }
     setBusy(true);
     setError(null);
-    const { error, confirmationRequired } = await signUpWithPassword(email, password, next);
+    const { error, confirmationRequired } = await signUpWithPassword(email, password, captchaToken, next);
     setBusy(false);
+    setCaptchaToken(null);
+    setCaptchaResetKey((value) => value + 1);
     if (error) setError(error);
     else if (confirmationRequired) setConfirmationRequired(true);
     else { router.replace(next); router.refresh(); }
@@ -72,8 +81,13 @@ function SignUpForm() {
           <Input id="password" type="password" autoComplete="new-password" minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} required />
           <p className="text-[13px] text-muted-foreground">At least 6 characters.</p>
         </div>
+        <TurnstileWidget
+          action="runner_sign_up"
+          onTokenChange={setCaptchaToken}
+          resetKey={captchaResetKey}
+        />
         {error ? <p className="text-[14px] text-destructive">{error}</p> : null}
-        <Button type="submit" disabled={busy} className="h-auto rounded-pill py-4 text-[16px] font-semibold">
+        <Button type="submit" disabled={busy || !captchaToken} className="h-auto rounded-pill py-4 text-[16px] font-semibold">
           {busy ? "Creating…" : "Create account"}
         </Button>
       </form>
