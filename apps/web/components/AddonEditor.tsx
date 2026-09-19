@@ -19,6 +19,9 @@ export function AddonEditor({ rows, onChange }: { rows: AddonDraft[]; onChange: 
         <h2 className="text-[15px] font-bold tracking-[-0.01em]">Add-ons</h2>
         <Button variant="ghost" size="sm" onClick={add} className="h-auto p-0 text-xs font-semibold text-primary hover:bg-transparent">+ Add</Button>
       </div>
+      <p className="mt-1 text-[11px] text-muted-foreground">
+        Price changes automatically refresh unpaid checkouts. Paid registrations keep their accepted prices.
+      </p>
       {rows.length > 0 ? (
         <div className={`mt-3 grid gap-2 ${GRID}`}>
           <span className={head}>Name</span>

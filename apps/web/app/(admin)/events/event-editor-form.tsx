@@ -332,7 +332,7 @@ export function EventEditorForm({ initial, orgId, checkInDefault = true, canEdit
           <FormSection
             id="sec-categories"
             title="Categories"
-            hint="The distances runners choose between"
+            hint="Price changes automatically refresh unpaid checkouts"
             action={
               <Button variant="outline" size="sm" className="rounded-pill" onClick={() => setCats(addCategory(cats))}>
                 + Add distance
