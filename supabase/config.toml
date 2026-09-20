@@ -412,6 +412,9 @@ verify_jwt = false
 [functions.organizer-inquiry]
 verify_jwt = true
 
+[functions.platform-users]
+verify_jwt = true
+
 [functions.payments-webhook]
 verify_jwt = false
 

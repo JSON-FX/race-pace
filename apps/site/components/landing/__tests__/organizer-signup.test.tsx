@@ -20,7 +20,6 @@ beforeEach(() => {
 
 async function openAndCompleteForm() {
   const user = userEvent.setup();
-  await user.click(screen.getByRole("button", { name: "Send an inquiry" }));
   await user.type(screen.getByLabelText(/First name/), "Ana");
   await user.type(screen.getByLabelText(/Last name/), "Runner");
   await user.type(screen.getByLabelText(/^Email/), "ana@example.com");
@@ -31,22 +30,11 @@ async function openAndCompleteForm() {
 }
 
 describe("OrganizerSignup", () => {
-  it("shows the shared runner and organizer inquiry card", () => {
+  it("renders the inquiry fields directly on the dedicated page", () => {
     render(<OrganizerSignup />);
 
     expect(screen.getByText("What can we help with?")).toBeInTheDocument();
-    expect(screen.getByText("Runner support")).toBeInTheDocument();
-    expect(screen.getByText("Organizer access")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Send an inquiry" })).toBeInTheDocument();
-  });
-
-  it("opens an accessible modal with the requested fields and message limit", async () => {
-    const user = userEvent.setup();
-    render(<OrganizerSignup />);
-
-    await user.click(screen.getByRole("button", { name: "Send an inquiry" }));
-
-    expect(screen.getByRole("dialog", { name: "How can we help?" })).toBeInTheDocument();
+    expect(screen.getByRole("form", { name: "Inquiry form" })).toBeInTheDocument();
     expect(screen.getByLabelText(/First name/)).toBeRequired();
     expect(screen.getByLabelText(/Last name/)).toBeRequired();
     expect(screen.getByLabelText(/^Email/)).toBeRequired();
@@ -72,7 +60,8 @@ describe("OrganizerSignup", () => {
         captchaToken: "captcha-token",
       },
     });
-    expect(await screen.findByRole("status")).toHaveTextContent("confirmation email is on its way to ana@example.com");
+    expect(await screen.findByRole("status")).toHaveTextContent("reply to ana@example.com");
+    expect(screen.queryByRole("form", { name: "Inquiry form" })).not.toBeInTheDocument();
   });
 
   it("shows a direct contact fallback when delivery fails", async () => {

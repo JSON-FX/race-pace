@@ -78,7 +78,7 @@ export default async function SignInPage() {
             />
           </Link>
           <p className="font-eyebrow text-[10.5px] font-bold uppercase tracking-[0.15em] text-[#7FE0A6]">
-            Mindanao · 2026 season
+            Philippines · 2026 season
           </p>
           <h2 className="mt-2 max-w-[12ch] font-display text-[28px] font-black leading-[1.02] tracking-[-0.035em] md:text-[38px]">
             Your start line is waiting.

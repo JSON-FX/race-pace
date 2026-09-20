@@ -30,6 +30,8 @@ Protected production runner smoke: [provider fix plan](./plans/2026-09-18-produc
 
 Super-admin organization scope: [selection fix plan](./plans/2026-09-18-super-admin-org-scope.md). The validated organization selected in the console must be the one used by org-scoped queries, even when the super admin also holds an org admin role.
 
+Platform user administration: [design](./specs/2026-09-20-platform-users-design.md) and [implementation plan](./plans/2026-09-20-platform-users.md). The approved table and inspector provide platform account, event, payment and Race Passport visibility, with protected Supabase Auth suspension staged before production.
+
 Unbound PayMongo checkout review: [implementation plan](./plans/2026-09-18-unbound-paymongo-review.md). The fail-closed payment endpoint and platform alert are deployed to staging. A safe operator review queue and provider-backed resolution are planned; the payment launch gate remains open.
 
 ## Production purchasing

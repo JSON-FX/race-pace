@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Find your next race",
-  description: "Discover road, trail, and ultra races across Mindanao. Register, pay, and keep your race-day pass in one place.",
+  description: "Discover road, trail, and ultra races across the Philippines. Register, pay, and keep your race-day pass in one place.",
 };
 
 export default function LandingPage() {

@@ -72,8 +72,14 @@ it("shows the PLATFORM super-admin group to a super_admin", () => {
   renderSidebar(roles({ isSuperAdmin: true, capabilities: SUPER_CAPS }));
   expect(screen.getByText("PLATFORM")).toBeInTheDocument();
   expect(screen.getByText("Organizations")).toBeInTheDocument();
+  expect(screen.getByText("Users")).toBeInTheDocument();
   expect(screen.getByText("Commission")).toBeInTheDocument();
   expect(screen.getByText("Payouts")).toBeInTheDocument();
+});
+
+it("uses the Race Pace artwork instead of an initials placeholder", () => {
+  renderSidebar(roles());
+  expect(screen.getByTestId("race-pace-sidebar-logo")).toHaveAttribute("src", expect.stringContaining("topnav-logo.png"));
 });
 
 it("shows the caller's email-derived name and role label", () => {
