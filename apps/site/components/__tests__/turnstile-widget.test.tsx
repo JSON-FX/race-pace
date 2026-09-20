@@ -20,6 +20,7 @@ describe("TurnstileWidget", () => {
     const onTokenChange = vi.fn();
     render(<TurnstileWidget action="runner_sign_in" onTokenChange={onTokenChange} />);
     await waitFor(() => expect(renderWidget).toHaveBeenCalled());
+    expect(onTokenChange).not.toHaveBeenCalled();
     const options = renderWidget.mock.calls[0][1];
 
     act(() => options.callback("token"));
