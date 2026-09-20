@@ -57,14 +57,16 @@ Event public-link release preparation, 2026-09-20: isolated the reviewed impleme
 
 Event public-link staging release, 2026-09-20: PR #79 merged to `staging` at `b6ac42a` after both pull-request validations and both Vercel previews passed. Exact-merge CI run `35510551819` passed. Migration `20260920250000` was the only pending staging migration and was applied successfully. Read-only checks confirmed both columns, the unique index, the locking trigger and the migration record. Existing staging event `0cc509b5-528a-4055-8e93-5035065d959b` received `test-release-checkout-qa-race`; the database rejected a later slug change with `event_slug_locked`. The slug route rendered the event, while the UUID route permanently redirected and preserved its query string. Canonical and Open Graph URLs both used the slug. Runner deployment `dpl_55RBXn2xXrBgbZ3veCUbsvW8GjHR` is Ready. The admin custom environment now has the staging runner origin, and rebuilt deployment `dpl_9HzAHAi6rHhJtE5zDyMQEiScGLEt` is Ready on `staging-admin.racepace.com.ph`. Production applications, database rows, registrations and payments remain unchanged. The production admin environment now has the production runner origin ready for the eventual build.
 
+Event public-link production release, 2026-09-20: PR #81 merged to `main` at `f307d83` after both protected validation runs and both Vercel previews passed. Migration `20260920250000` was the only pending production migration. It added the nullable URL fields, unique index and locking trigger, then assigned `yalabyalam-backyard-ultra` only to the guarded event ID. Independent readback confirmed the migration record and all schema objects. The event is open and its link is permanently locked. Registration and payment counts rose from 12 to 13 during the rollout because a real user created one new pending checkout; the existing eight paid records remained intact. No registration or payment row was changed by the migration. Exact-main CI run `35511908843` passed. Runner deployment `dpl_J5d6vCHY396QTufUwEmk74PrNHZo` and admin deployment `dpl_CLyyQpXPngvZMYymkWc3Nc6FreRy` are Ready on their production domains. The custom link renders the live event. The former UUID route redirects to it and preserves query parameters. Canonical and Open Graph URLs use the custom link. The signed-in admin editor shows the locked slug, correct production URL and copy control without requiring any save.
+
 ### Current event public-link release
 
 | Work | Status | Blocker | Next task |
 |---|---|---|---|
-| Feature-only release branch | **Staging verified** | None. | Promote the same feature-only change through the protected `main` pull request. |
-| Staging database and applications | **Complete** | Signed-in admin controls were covered by automated tests; the live admin route requires a staging session. | Retain the locked staging event as release evidence. |
-| Existing production event | **Guarded only; unchanged** | Production migration and promotion remain. | Reconfirm the exact event state, apply only migration `20260920250000`, then read it back. |
-| Production traffic and payments | **Unaffected** | Production promotion remains. | Apply the backward-compatible database change before deploying the application, then run read-only smoke checks. |
+| Feature-only release branch | **Production complete** | None. | Use the protected staging-to-main path for future changes. |
+| Staging database and applications | **Complete** | None. | Retain the locked staging event as release evidence. |
+| Existing production event | **Complete** | None. | Share `https://www.racepace.com.ph/events/yalabyalam-backyard-ultra`. |
+| Production traffic and payments | **Unaffected** | None. | Continue normal monitoring; the rollout changed no registration or payment rows. |
 
 ### Current pending-checkout pricing release
 
