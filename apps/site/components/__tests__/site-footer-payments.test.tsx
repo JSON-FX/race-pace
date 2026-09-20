@@ -17,3 +17,10 @@ it("shows QR Ph with the other accepted payment methods", () => {
     "Mastercard",
   ]);
 });
+
+it("uses nationwide copy, the Quezon address, and the dedicated inquiry page", () => {
+  render(<SiteFooter />);
+  expect(screen.getByText(/across the Philippines/)).toBeInTheDocument();
+  expect(screen.getByText(/Quezon, Bukidnon 8715, Philippines · All rights reserved/)).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Send an inquiry" })).toHaveAttribute("href", "/inquiry");
+});

@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Home",
-  description: "Browse road, trail, and ultra races open across Mindanao.",
+  description: "Browse road, trail, and ultra races open across the Philippines.",
 };
 
 export default async function Home() {
@@ -85,7 +85,7 @@ export default async function Home() {
         <section className="mx-auto w-full max-w-6xl px-5 pt-12 sm:px-6 sm:pt-16">
           <Reveal>
             <p className="font-eyebrow text-[11px] font-bold uppercase tracking-[3px] text-primary">
-              Mindanao · {new Date().getFullYear()} season
+              Philippines · {new Date().getFullYear()} season
             </p>
             <h1 className="mt-3 max-w-[16ch] font-display text-[clamp(2.1rem,5.4vw,3.7rem)] font-black leading-[0.98] tracking-[-1.9px] text-foreground">
               Find your next <span className="text-primary">start line.</span>

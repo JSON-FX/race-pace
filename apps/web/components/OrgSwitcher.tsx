@@ -1,7 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
-import { Check, ChevronsUpDown } from "lucide-react";
+import { Building2, Check, ChevronsUpDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
@@ -78,16 +78,20 @@ export function OrgSwitcher({
           // where a mouse makes the extra height wasted chrome. `max-w` +
           // truncate so a long organization name can't push the header wide —
           // the switcher is the last thing that should cost a sideways scroll.
-          className="inline-flex min-h-11 max-w-[42vw] items-center gap-1.5 truncate rounded-md border border-border bg-secondary px-2.5 py-1.5 text-[13px] font-semibold text-secondary-foreground transition-colors hover:bg-accent disabled:opacity-60 md:min-h-0 md:max-w-none"
+          className="inline-flex min-h-11 max-w-[55vw] items-center gap-1.5 truncate rounded-md border border-primary/25 bg-secondary px-2.5 py-1.5 text-[13px] font-semibold text-secondary-foreground transition-colors hover:border-primary/45 hover:bg-accent disabled:opacity-60 md:min-h-0 md:max-w-none"
           disabled={isPending}
         >
-          {active?.name ?? "…"}
-          <ChevronsUpDown className="size-3.5 opacity-60" aria-hidden="true" />
+          <Building2 className="size-3.5 shrink-0 text-primary" aria-hidden="true" />
+          <span className="hidden text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground lg:inline">
+            Organization
+          </span>
+          <span className="truncate">{active?.name ?? "…"}</span>
+          <ChevronsUpDown className="size-3.5 shrink-0 opacity-70" aria-hidden="true" />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="max-h-[70vh] min-w-[240px] overflow-y-auto">
         <DropdownMenuLabel className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-          Viewing as super admin
+          Switch organization · super admin
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         {availableOrgs.map((o) => (
