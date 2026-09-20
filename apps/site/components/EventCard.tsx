@@ -2,7 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { formatDateRange, formatAddress } from "@race-pace/shared";
 import { shortDate } from "@/lib/format";
-import type { EventRow } from "@/lib/events";
+import { eventPublicPath, type EventRow } from "@/lib/events";
 import { cn } from "@/lib/utils";
 import { TopoPattern } from "@/components/TopoPattern";
 import { eventState, STATE_BADGE } from "@/lib/eventState";
@@ -24,7 +24,7 @@ export function EventCard({ event, index }: { event: EventRow; index?: number })
 
   return (
     <Link
-      href={`/events/${event.id}`}
+      href={eventPublicPath(event)}
       className="group block overflow-hidden rounded-xl border border-border bg-card transition-colors hover:border-primary/40"
     >
       {/* aspect-ratio, not a fixed height: these columns narrow from ~350px on

@@ -6,7 +6,7 @@ import type { FeeTerms } from "./payment";
 export type ScheduleItem = { time: string; label: string };
 
 export type EventRow = {
-  id: string; org_id: string; name: string; place: string | null; region: string | null;
+  id: string; org_id: string; name: string; slug: string | null; place: string | null; region: string | null;
   event_date: string | null; end_date: string | null; elevation_gain_m: number | null;
   cutoff_hours: number | null; flag_off?: string | null;
   waiver_version_id?: string | null;
@@ -65,7 +65,7 @@ export type FormFieldRow = {
 // the pay page here needs it). Don't assume field-for-field parity; check
 // apps/mobile/lib/events.ts directly if reconciling the two.
 const EVENT_COLS =
-  "id,org_id,waiver_version_id,name,place,region,event_date,end_date,elevation_gain_m,cutoff_hours,flag_off,status,hero_image_url,description,gallery,original_date,status_note,city_psgc_code,region_name,province_name,city_name,venue,inclusions,discipline,schedule,start_lat,start_lng,finish_lat,finish_lng,route,registration_closes_at,categories(slots_taken,distance_km)";
+  "id,org_id,waiver_version_id,name,slug,place,region,event_date,end_date,elevation_gain_m,cutoff_hours,flag_off,status,hero_image_url,description,gallery,original_date,status_note,city_psgc_code,region_name,province_name,city_name,venue,inclusions,discipline,schedule,start_lat,start_lng,finish_lat,finish_lng,route,registration_closes_at,categories(slots_taken,distance_km)";
 const CAT_COLS =
   "id,event_id,org_id,code,label,distance_km,base_price,slots_total,slots_taken,elevation_gain_m,cutoff_hours,blurb";
 
@@ -117,11 +117,17 @@ export async function fetchMarketplaceEvents(db: SupabaseClient): Promise<EventR
   return (data ?? []).map(mapEvent);
 }
 
-export async function fetchEvent(db: SupabaseClient, eventId: string): Promise<EventRow | null> {
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export function eventPublicPath(event: Pick<EventRow, "id" | "slug">): string {
+  return `/events/${event.slug || event.id}`;
+}
+
+export async function fetchEvent(db: SupabaseClient, identifier: string): Promise<EventRow | null> {
   const { data, error } = await db
     .from("events")
     .select(`${EVENT_COLS},organizations(name,brand_color,logo_url,refund_policy,refund_fee_cents,fee_mode,commission_type,commission_rate,commission_flat_cents)`)
-    .eq("id", eventId)
+    .eq(UUID.test(identifier) ? "id" : "slug", identifier)
     .maybeSingle();
   if (error) throw error;
   return data ? mapEvent(data) : null;

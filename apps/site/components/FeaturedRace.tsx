@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { formatDateRange, disciplineLayout } from "@race-pace/shared";
-import type { EventRow } from "@/lib/events";
+import { eventPublicPath, type EventRow } from "@/lib/events";
 import { longDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { TopoPattern } from "@/components/TopoPattern";
@@ -188,7 +188,7 @@ export function FeaturedRace({
           </dl>
 
           <Link
-            href={`/events/${event.id}`}
+            href={eventPublicPath(event)}
             className={cn(
               "mt-6 inline-flex rounded-pill px-6 py-3 text-[13.5px] font-semibold transition-opacity hover:opacity-90",
               dark ? "bg-white text-forest" : "bg-primary text-primary-foreground",

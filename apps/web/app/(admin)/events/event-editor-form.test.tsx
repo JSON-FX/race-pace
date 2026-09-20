@@ -41,7 +41,7 @@ function lastSavedEvent() {
 function editorData(overrides: Partial<EditorData["event"]> = {}): EditorData {
   return {
     event: {
-      id: "e1", org_id: "a1", name: "Apo",
+      id: "e1", org_id: "a1", name: "Apo", slug: "apo", slug_locked_at: "2026-09-20T00:00:00Z",
       city_psgc_code: null, region_name: null, province_name: null, city_name: null, venue: null,
       event_date: null, end_date: null, flag_off: null, status: "open",
       registration_closes_at: null, kit_edit_closes_at: null,
@@ -77,8 +77,31 @@ it("blocks save on an empty name, then saves a valid new event", async () => {
   fireEvent.change(screen.getByLabelText("Event name"), { target: { value: "Apo Sky Ultra" } });
   fireEvent.click(screen.getByText("Save event"));
   await waitFor(() => expect(mockSaveEventAction).toHaveBeenCalled());
-  expect(lastSavedEvent()).toMatchObject({ name: "Apo Sky Ultra", org_id: "a1", status: "draft" });
+  expect(lastSavedEvent()).toMatchObject({ name: "Apo Sky Ultra", slug: "apo-sky-ultra", org_id: "a1", status: "draft" });
   await waitFor(() => expect(mockPush).toHaveBeenCalledWith("/events"));
+});
+
+it("generates a public link from the event name and lets a draft customize it", () => {
+  render(<EventEditorForm initial={null} orgId="a1" />);
+  fireEvent.change(screen.getByLabelText("Event name"), { target: { value: "Peñafrancia Trail & Ultra" } });
+  expect(screen.getByLabelText("Public event link")).toHaveValue("penafrancia-trail-ultra");
+  expect(screen.getByText(/\/events\/penafrancia-trail-ultra$/)).toBeInTheDocument();
+
+  fireEvent.change(screen.getByLabelText("Public event link"), { target: { value: "Bukidnon 2027" } });
+  expect(screen.getByLabelText("Public event link")).toHaveValue("bukidnon-2027");
+});
+
+it("keeps an existing published link fixed when the event name changes", () => {
+  render(<EventEditorForm initial={editorData({ status: "open", slug: "apo-sky-ultra" })} orgId="a1" />);
+  const slug = screen.getByLabelText("Public event link");
+  expect(slug).toBeDisabled();
+  fireEvent.change(screen.getByLabelText("Event name"), { target: { value: "Renamed Race" } });
+  expect(slug).toHaveValue("apo-sky-ultra");
+});
+
+it("keeps the link fixed when a published event returns to draft", () => {
+  render(<EventEditorForm initial={editorData({ status: "draft", slug: "apo-sky-ultra" })} orgId="a1" />);
+  expect(screen.getByLabelText("Public event link")).toBeDisabled();
 });
 
 it("inherits the organization check-in default and lets an admin change it", async () => {

@@ -24,6 +24,10 @@ real env vars for the Docker container / a hosted deploy (`.env.example`).
   wrong, because `127.0.0.1` there is the container itself, not the Mac — see
   `SUPABASE_INTERNAL_URL` below.
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` — the local or hosted anon key.
+- `NEXT_PUBLIC_SITE_URL` — the matching runner origin used by the event editor
+  and events table when they build public links. Use `http://localhost:3000`
+  without Docker, `https://racepace.lan` in Docker, and the exact staging or
+  production runner domain in Vercel.
 - `SUPABASE_INTERNAL_URL` (container-only, set in `docker-compose.yml`) —
   Server Components, Server Actions, and `middleware.ts` all run *inside* the
   container now that this is Next instead of a Vite SPA, where only the

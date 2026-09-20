@@ -1,10 +1,11 @@
-import { describe, it, expect } from "vitest";
-import { mapEvent } from "../events";
+import { describe, it, expect, vi } from "vitest";
+import { fetchEvent, mapEvent } from "../events";
 
 const raw = {
   id: "e1",
   org_id: "a1",
   name: "Apo Sky Ultra 2026",
+  slug: "apo-sky-ultra-2026",
   event_date: "2026-11-14",
   status: "open",
   hero_image_url: null,
@@ -52,5 +53,28 @@ describe("mapEvent", () => {
     const e = mapEvent({ ...raw, discipline: "fun_run", schedule: [{ time: "04:30", label: "Gun start" }] });
     expect(e.discipline).toBe("fun_run");
     expect(e.schedule).toEqual([{ time: "04:30", label: "Gun start" }]);
+  });
+});
+
+describe("fetchEvent", () => {
+  function db() {
+    const result = { data: raw, error: null };
+    const query: Record<string, unknown> = {};
+    query.select = vi.fn(() => query);
+    query.eq = vi.fn(() => query);
+    query.maybeSingle = vi.fn(() => Promise.resolve(result));
+    return { client: { from: vi.fn(() => query) }, query };
+  }
+
+  it("looks UUID route tokens up by id", async () => {
+    const mock = db();
+    await fetchEvent(mock.client as never, "3f29e7df-fe90-44a6-bfa4-219ffeaad816");
+    expect(mock.query.eq).toHaveBeenCalledWith("id", "3f29e7df-fe90-44a6-bfa4-219ffeaad816");
+  });
+
+  it("looks readable route tokens up by slug", async () => {
+    const mock = db();
+    await fetchEvent(mock.client as never, "yalabyalam-backyard-ultra");
+    expect(mock.query.eq).toHaveBeenCalledWith("slug", "yalabyalam-backyard-ultra");
   });
 });

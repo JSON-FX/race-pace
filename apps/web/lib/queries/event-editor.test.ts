@@ -39,11 +39,13 @@ describe("getEventForEditor", () => {
   // round-trip tests in event-editor-form.test.tsx build an EditorData
   // object by hand and pass it straight in as the `initial` prop — they
   // never call getEventForEditor, so they never touch this string either.
-  it("requests registration_closes_at and kit_edit_closes_at in the events SELECT", async () => {
+  it("requests the public slug and deadline fields in the events SELECT", async () => {
     await getEventForEditor("e1");
     const selectMock = eventsChain.select as ReturnType<typeof vi.fn>;
     expect(selectMock).toHaveBeenCalledTimes(1);
     const selectArg = selectMock.mock.calls[0][0] as string;
+    expect(selectArg).toContain("slug");
+    expect(selectArg).toContain("slug_locked_at");
     expect(selectArg).toContain("registration_closes_at");
     expect(selectArg).toContain("kit_edit_closes_at");
   });

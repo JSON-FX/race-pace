@@ -32,7 +32,7 @@ const category: CategoryRow = {
   distance_km: 21, base_price: 150000, slots_total: 100, slots_taken: 10,
 };
 const event: EventRow = {
-  id: "ev1", org_id: "org1", name: "Test Race", place: null, region: null,
+  id: "ev1", org_id: "org1", name: "Test Race", slug: "test-race", place: null, region: null,
   event_date: "2099-01-01", end_date: null, elevation_gain_m: null,
   cutoff_hours: null, status: "open", hero_image_url: null, description: null,
   gallery: [], original_date: null, status_note: null,

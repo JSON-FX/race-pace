@@ -22,7 +22,7 @@ Recheck these facts before the next release.
 
 Both projects require NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY for Production and Preview.
 Use the hosted project's URL and anon/publishable key. Do not copy a local Docker key from .env.local.
-The runner also requires NEXT_PUBLIC_SITE_URL=https://race-pace-site.vercel.app.
+Both projects also require `NEXT_PUBLIC_SITE_URL` set to the matching runner origin. The runner uses it for provider returns and canonical event URLs; the admin uses it to build event links for organizers to copy. Use `https://staging.racepace.com.ph` for staging and `https://www.racepace.com.ph` for production.
 
 Never set SUPABASE_INTERNAL_URL on Vercel. It is only a local Docker override.
 NEXT_PUBLIC_SUPABASE_URL is used by next.config.ts at build time for image hosts.

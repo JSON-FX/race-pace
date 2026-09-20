@@ -3,7 +3,7 @@ import type { EventDiscipline, RoutePoint } from "@race-pace/shared";
 import type { ScheduleItem } from "@/lib/validation";
 
 export type EditorEvent = {
-  id: string; org_id: string; name: string;
+  id: string; org_id: string; name: string; slug: string | null; slug_locked_at: string | null;
   city_psgc_code: string | null; region_name: string | null; province_name: string | null;
   city_name: string | null; venue: string | null;
   event_date: string | null; end_date: string | null; flag_off: string | null;
@@ -24,7 +24,7 @@ export type EditorAddon = { id: string; name: string; price: number };
 export type EditorData = { event: EditorEvent; categories: EditorCategory[]; addons: EditorAddon[] };
 
 const EVENT_SELECT =
-  "id,org_id,name,city_psgc_code,region_name,province_name,city_name,venue,event_date,end_date,flag_off,status,discipline,check_in_required,elevation_gain_m,cutoff_hours,start_lat,start_lng,finish_lat,finish_lng,route,description,hero_image_url,gallery,schedule,inclusions,registration_closes_at,kit_edit_closes_at";
+  "id,org_id,name,slug,slug_locked_at,city_psgc_code,region_name,province_name,city_name,venue,event_date,end_date,flag_off,status,discipline,check_in_required,elevation_gain_m,cutoff_hours,start_lat,start_lng,finish_lat,finish_lng,route,description,hero_image_url,gallery,schedule,inclusions,registration_closes_at,kit_edit_closes_at";
 
 /** Loads one event plus its categories and add-ons for the editor. Ported
  *  verbatim (query shape and column lists) from the old useEventForEditor

@@ -51,6 +51,17 @@ Production organizer, event and email verification, 2026-09-20: The public organ
 
 Bot-protection staging release, 2026-09-20: Separate Google Fraud Defense and Cloudflare Turnstile resources were created under `support.racepace@gmail.com` for staging and production. Google Cloud billing remains disabled. Staging received the Google assessment secrets, a new salted rate-limit secret, migration `20260919212707`, and organizer-inquiry function version 7 with JWT verification. Hosted SQL confirms the limiter table exists, `service_role` can execute its function, and `anon` cannot. A valid-shaped but invalid token returned HTTP 403 `verification_failed` before email delivery. PR #75 merged to `staging` at `9d66a4c` after both GitHub validations and both Vercel previews passed. The first custom-environment builds exposed missing public keys because they had been saved only for Preview branch scope. The values were corrected in Vercel's custom `staging` environment, and exact-commit rebuilds `dpl_DwYfx2EtnbRsGSvrpZ6mSVzJYhkq` and `dpl_4JqWxTQL3QgLAHL1PAqWm3vGreTi` reached Ready on the runner and admin staging domains. Browser read-back found Turnstile on runner sign-in, signup and reset, admin sign-in and reset, and the hosted mobile challenge. No CAPTCHA was manually solved and no email was sent. The mobile build and Supabase Auth Turnstile activation remain pending. Production code, secrets, database, and enforcement remain unchanged.
 
+Event public-link release preparation, 2026-09-20: isolated the reviewed implementation on `codex/event-public-links-staging` from the latest `staging`, excluding unrelated unfinished workspace changes. UUIDs remain all database and payment identities. The additive migration introduces one nullable globally unique slug, records a permanent lock after first publication, and prepares a guarded update for only event `3f29e7df-fe90-44a6-bfa4-219ffeaad816` after verifying its expected title. The admin editor generates and previews the link, allows draft customization and copies it from the editor or event list. Public UUID routes remain valid and permanently redirect to the canonical slug while preserving query parameters. The exact isolated branch passes 897 admin tests, 456 runner tests, both typechecks, 11 database/grant tests and `git diff --check`. No hosted migration, deployment, environment variable or production row changed during preparation.
+
+### Current event public-link release
+
+| Work | Status | Blocker | Next task |
+|---|---|---|---|
+| Feature-only release branch | **Validated locally** | Protected staging PR and CI are pending. | Commit, push and open the staging pull request. |
+| Staging database and applications | **Not changed** | Staging migration, environment check and deployments are pending. | Apply only migration `20260920250000` after CI, then verify both staging applications. |
+| Existing production event | **Guarded only; unchanged** | Production promotion requires completed staging verification. | Read back the exact title and current state before the production migration. |
+| Production traffic and payments | **Unaffected** | No production action is authorized before staging passes. | Use the normal protected promotion and verify read-only routes before and after cutover. |
+
 ### Current bot protection
 
 | Work | Status | Blocker | Next task |
