@@ -21,7 +21,7 @@ export function RidgeSignal() {
             </Reveal>
             <Reveal delay={0.06}>
               <p className="mt-7 max-w-[48ch] text-[17px] leading-8 text-white/72 sm:text-[19px]">
-                Discover trail and ultra races across Mindanao. Enter with one Race Passport, then carry your pass on your phone.
+                Discover trail and ultra races across the Philippines. Enter with one Race Passport, then carry your pass on your phone.
               </p>
               <div className="mt-8"><LandingActions inverse /></div>
             </Reveal>
@@ -60,7 +60,7 @@ export function RidgeSignal() {
           {[
             { icon: Route, label: "Choose by course", copy: "See terrain, distance, event details, and the path to entry before committing." },
             { icon: Sparkles, label: "Keep the moment", copy: "Your registration, ticket, and race details stay together when the countdown begins." },
-            { icon: Mountain, label: "Rooted in place", copy: "A race platform shaped for Mindanao organizers, communities, and runners." },
+            { icon: Mountain, label: "Rooted in place", copy: "A race platform shaped for Philippine organizers, communities, and runners." },
           ].map(({ icon: Icon, label, copy }) => (
             <Reveal key={label}>
               <div className="border-l border-primary/35 pl-5">

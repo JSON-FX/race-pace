@@ -1,18 +1,21 @@
 import {
+  ArrowUpRight,
   Check,
   Flag,
   Map,
+  MailCheck,
   Mountain,
   Route,
   ShieldCheck,
   TicketCheck,
   Waypoints,
 } from "lucide-react";
+import Link from "next/link";
 import { Reveal } from "@/components/event/motion-primitives";
+import { Button } from "@/components/ui/button";
 import { COURSE_ATLAS_MEDIA } from "@/lib/landing-options";
 import { CourseAtlasMedia } from "./CourseAtlasMedia";
 import { JourneyCards, LandingActions } from "./LandingShared";
-import { OrganizerSignup } from "./OrganizerSignup";
 
 const terrainCards = [
   {
@@ -37,10 +40,7 @@ export function CourseAtlas() {
         <div className="relative z-10 mx-auto grid min-h-[760px] w-full max-w-6xl items-center gap-12 px-5 py-20 sm:px-6 sm:py-24 lg:grid-cols-[1.08fr_.92fr] lg:py-28">
           <Reveal>
             <div className="max-w-2xl">
-              <p className="font-eyebrow text-[11px] font-bold uppercase tracking-[2.5px] text-white/74">
-                Course Atlas <span className="mx-2 text-primary">·</span> Road to ridge
-              </p>
-              <h1 className="mt-5 max-w-[10ch] font-display text-[clamp(3.2rem,7vw,6.7rem)] font-black leading-[.9] tracking-[-4px] text-white">
+              <h1 className="max-w-[10ch] font-display text-[clamp(3.2rem,7vw,6.7rem)] font-black leading-[.9] tracking-[-4px] text-white">
                 Map the way to your next race.
               </h1>
               <p className="mt-7 max-w-[47ch] text-[17px] leading-8 text-white/76 sm:text-[18px]">
@@ -221,7 +221,36 @@ export function CourseAtlas() {
           </Reveal>
 
           <Reveal delay={0.08}>
-            <OrganizerSignup />
+            <div className="rounded-[28px] border border-forest/14 bg-white p-6 text-forest shadow-[0_26px_80px_rgb(13_48_35/.14)] sm:p-8">
+              <div className="flex items-start justify-between gap-5 border-b border-forest/12 pb-6">
+                <div>
+                  <p className="font-eyebrow text-[10px] font-bold uppercase tracking-[2px] text-primary">
+                    Talk to Race Pace
+                  </p>
+                  <h3 className="mt-2 font-display text-[26px] font-extrabold tracking-[-.7px]">
+                    What can we help with?
+                  </h3>
+                </div>
+                <span className="grid size-11 shrink-0 place-items-center rounded-full bg-secondary text-primary">
+                  <MailCheck size={20} aria-hidden="true" />
+                </span>
+              </div>
+              <p className="mt-6 text-[14px] leading-7 text-foreground/70">
+                Whether you are preparing to run or organizing the start line, send us your question. We&apos;ll route it to the right person.
+              </p>
+              <div className="mt-5 flex flex-wrap gap-2" aria-label="Inquiry topics">
+                <span className="rounded-pill border border-forest/12 bg-secondary/45 px-3 py-1.5 text-[12px] font-semibold">Runner support</span>
+                <span className="rounded-pill border border-forest/12 bg-secondary/45 px-3 py-1.5 text-[12px] font-semibold">Organizer access</span>
+              </div>
+              <Button asChild className="mt-6 h-12 w-full rounded-pill text-[15px] font-bold shadow-none">
+                <Link href="/inquiry">
+                  Send an inquiry <ArrowUpRight aria-hidden="true" />
+                </Link>
+              </Button>
+              <p className="mt-4 text-[12px] leading-5 text-muted-foreground">
+                Messages go directly to inquiries@racepace.com.ph.
+              </p>
+            </div>
           </Reveal>
         </div>
       </section>

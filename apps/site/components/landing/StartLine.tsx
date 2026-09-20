@@ -10,7 +10,7 @@ export function StartLine() {
         <LandingBackdrop variant="start" />
         <div className="relative z-10 mx-auto flex min-h-[760px] w-full max-w-6xl flex-col justify-between px-5 py-10 sm:px-6 sm:py-14">
           <div className="flex items-center justify-between border-b border-white/18 pb-5 font-mono-race text-[10px] font-bold uppercase tracking-[1.5px] text-white/62">
-            <span>Mindanao race platform</span>
+            <span>Philippine race platform</span>
             <span>Option 03 / Start Line</span>
           </div>
 

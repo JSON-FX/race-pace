@@ -68,11 +68,16 @@ describe("Course Atlas browser feedback", () => {
     render(<CourseAtlas />);
 
     expect(screen.getByRole("heading", { name: "Let's clear the way forward." })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Send an inquiry" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Send an inquiry" })).toHaveAttribute("href", "/inquiry");
     expect(screen.getAllByRole("link", { name: "List your race" }).every((link) => link.getAttribute("href") === "/#organizers")).toBe(true);
 
     const section = document.querySelector("#organizers");
     expect(section).toHaveAttribute("data-seamless-footer");
     expect(section).not.toHaveClass("pt-20", "sm:pt-28");
+  });
+
+  it("does not show the removed Course Atlas eyebrow", () => {
+    render(<CourseAtlas />);
+    expect(screen.queryByText(/Course Atlas.*Road to ridge/i)).not.toBeInTheDocument();
   });
 });

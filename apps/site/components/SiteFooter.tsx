@@ -43,7 +43,10 @@ const COLUMNS: { heading: string; links: { href: string; label: string }[] }[] =
   },
   {
     heading: "Organizers",
-    links: [{ href: "/#organizers", label: "List a race" }],
+    links: [
+      { href: "/inquiry", label: "List a race" },
+      { href: "/inquiry", label: "Send an inquiry" },
+    ],
   },
 ];
 
@@ -66,7 +69,7 @@ export function SiteFooter() {
               className="h-[70px] w-auto"
             />
             <p className="mt-4 max-w-[30ch] text-[13px] leading-relaxed text-muted-foreground">
-              Trail and ultra-trail racing across Mindanao. Enter, pay, and carry your race pass on your phone.
+              Trail, road, and ultra-trail racing across the Philippines. Enter, pay, and carry your race pass on your phone.
             </p>
 
             <p className="mt-6 font-eyebrow text-[10px] font-bold uppercase tracking-[2px] text-muted-foreground">
@@ -103,7 +106,7 @@ export function SiteFooter() {
         </div>
 
         <p className="mt-10 border-t border-divider pt-6 font-mono-race text-[10px] uppercase tracking-[1px] text-muted-foreground">
-          © {year} Race Pace · Cagayan de Oro, Philippines
+          © {year} Race Pace · Quezon, Bukidnon 8715, Philippines · All rights reserved.
         </p>
       </div>
     </footer>

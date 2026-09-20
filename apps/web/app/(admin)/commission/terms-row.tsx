@@ -1,9 +1,10 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { AlertTriangle, Info } from "lucide-react";
+import { AlertTriangle, ChevronDown, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { initials, peso } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
@@ -118,6 +119,42 @@ function Strip({ tone, children }: { tone: "amber" | "destructive" | "info"; chi
         <AlertTriangle className="mt-px size-[15px] shrink-0" strokeWidth={2.2} aria-hidden />
       )}
       <span>{children}</span>
+    </div>
+  );
+}
+
+function Disclosure({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <details className="group border-t border-divider bg-info-tint text-info">
+      <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-[14px] py-2.5 text-[12.5px] font-bold marker:content-none">
+        <Info className="size-[15px] shrink-0" strokeWidth={2.2} aria-hidden="true" />
+        <span>{label}</span>
+        <ChevronDown className="ml-auto size-4 shrink-0 transition-transform group-open:rotate-180" aria-hidden="true" />
+      </summary>
+      <div className="border-t border-info/15 px-[14px] py-3 pl-[37px] text-[12.5px] font-semibold leading-5">
+        {children}
+      </div>
+    </details>
+  );
+}
+
+function NoticeTooltip({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex min-h-11 items-center border-t border-divider bg-amber-tint px-[14px] py-2 text-amber">
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button type="button" className="inline-flex min-h-9 items-center gap-2 rounded-md px-2 text-[12.5px] font-bold hover:bg-amber/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber/35">
+              <AlertTriangle className="size-[15px] shrink-0" strokeWidth={2.2} aria-hidden="true" />
+              Future payments only
+              <Info className="size-3.5 shrink-0" aria-hidden="true" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="top" sideOffset={8} className="max-w-[380px] text-left leading-5">
+            {children}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
     </div>
   );
 }
@@ -317,23 +354,23 @@ export function FeeTermsTable({ orgs }: { orgs: OrgCommissionRow[] }) {
           confirmation (_shared/confirm.ts), so this is true of every change made
           on this page — including the one the operator has not made yet. */}
       {focus ? (
-        <Strip tone="amber">
+        <NoticeTooltip>
           {nonRetroactiveNotice(focus.name, pendingFee(draftFor(focus)), savedFee(focus), focus.paid_count)}
-        </Strip>
+        </NoticeTooltip>
       ) : null}
 
       {/* Fee mode is a third commercial term, negotiated separately from the
           rate (an org can be on a flat peso commission AND pass-on), and its
           two column values read backwards to anyone thinking about a runner's
           checkout total. Spelled out once here rather than per row. */}
-      <Strip tone="info">
+      <Disclosure label="How fee modes affect the runner and organizer">
         <b className="font-extrabold">Fee mode decides who pays the payment processor</b>, not who pays Race
         Pace. On <b className="font-extrabold">absorb</b> the runner is charged the sticker price and the
         processor&apos;s cut comes out of the organizer&apos;s share. On{" "}
         <b className="font-extrabold">pass on</b> the charge is grossed up so the runner covers it and the
         organizer receives the full entry price. Like the rate, it applies to entries paid from now on — it is
         frozen onto each payment at confirmation and rewrites nothing.
-      </Strip>
+      </Disclosure>
 
       {flatWarnings.map((w) => (
         <Strip key={w} tone="destructive">
@@ -497,7 +534,7 @@ export function RefundTermsTable({ orgs }: { orgs: OrgCommissionRow[] }) {
           the commission re-struck against the retention): that was superseded by
           20260811094000_refund_net_to_org.sql, which dropped the RPC parameter
           that made it possible. */}
-      <Strip tone="info">
+      <Disclosure label="How refunds are calculated">
         <b className="font-extrabold">A refund returns what the organizer would have been paid</b>, never the
         whole entry. Race Pace&apos;s commission is an earned service fee and is kept, and the payment processor
         does not return its cut — so a cancelling runner always gets back less than they paid. Under{" "}
@@ -505,7 +542,7 @@ export function RefundTermsTable({ orgs }: { orgs: OrgCommissionRow[] }) {
         keeps all of it: no commission is struck on a retention, because Race Pace already took its full
         commission when the entry was paid. <b className="font-extrabold">None</b> refuses the refund outright,
         and the org admin&apos;s refund button is disabled with the reason rather than failing on submit.
-      </Strip>
+      </Disclosure>
     </>
   );
 }

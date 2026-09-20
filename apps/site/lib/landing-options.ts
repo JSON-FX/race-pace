@@ -32,7 +32,7 @@ export const LANDING_OPTIONS = [
     number: "05",
     name: "Pace Together",
     direction: "Warm · communal · optimistic",
-    summary: "A people-first direction that positions Race Pace as the shared home for Mindanao runners.",
+    summary: "A people-first direction that positions Race Pace as the shared home for runners across the Philippines.",
   },
 ] as const;
 

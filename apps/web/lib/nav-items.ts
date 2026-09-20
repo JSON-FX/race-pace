@@ -47,6 +47,7 @@ export const ORG_ITEMS: NavItem[] = [
 
 export const SUPER_ITEMS: NavItem[] = [
   { to: "/organizations", label: "Organizations", icon: Building2, requires: "manage_platform" },
+  { to: "/users", label: "Users", icon: Users, requires: "manage_platform" },
   { to: "/commission", label: "Commission", icon: Percent, requires: "manage_platform" },
   { to: "/payouts", label: "Payouts", icon: Banknote, requires: "manage_platform" },
   { to: "/checkout-reviews", label: "Checkout reviews", icon: ShieldAlert, requires: "manage_platform" },
