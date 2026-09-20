@@ -3,14 +3,19 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { OrganizerSignup } from "../OrganizerSignup";
 
-const invoke = vi.fn();
+const { invoke, getOrganizerInquiryCaptchaToken } = vi.hoisted(() => ({
+  invoke: vi.fn(),
+  getOrganizerInquiryCaptchaToken: vi.fn(),
+}));
 vi.mock("@/lib/supabase/client", () => ({
   createClient: () => ({ functions: { invoke } }),
 }));
+vi.mock("@/lib/recaptcha", () => ({ getOrganizerInquiryCaptchaToken }));
 
 beforeEach(() => {
   vi.clearAllMocks();
   invoke.mockResolvedValue({ data: { ok: true }, error: null });
+  getOrganizerInquiryCaptchaToken.mockResolvedValue("captcha-token");
 });
 
 async function openAndCompleteForm() {
@@ -52,6 +57,7 @@ describe("OrganizerSignup", () => {
         subject: "Registration payment",
         message: "Please help me verify my payment.",
         website: "",
+        captchaToken: "captcha-token",
       },
     });
     expect(await screen.findByRole("status")).toHaveTextContent("reply to ana@example.com");

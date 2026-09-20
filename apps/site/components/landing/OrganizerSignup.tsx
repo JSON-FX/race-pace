@@ -5,6 +5,7 @@ import { CheckCircle2, LoaderCircle, MailCheck, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { getOrganizerInquiryCaptchaToken } from "@/lib/recaptcha";
 import { createClient } from "@/lib/supabase/client";
 
 type SubmissionState =
@@ -27,6 +28,7 @@ export function OrganizerSignup() {
     setState({ kind: "sending" });
 
     try {
+      const captchaToken = await getOrganizerInquiryCaptchaToken();
       const { data, error } = await createClient().functions.invoke("organizer-inquiry", {
         body: {
           firstName: String(formData.get("firstName") ?? ""),
@@ -36,6 +38,7 @@ export function OrganizerSignup() {
           subject: String(formData.get("subject") ?? ""),
           message: String(formData.get("message") ?? ""),
           website: String(formData.get("website") ?? ""),
+          captchaToken,
         },
       });
 

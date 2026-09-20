@@ -1,7 +1,20 @@
 import { afterAll, beforeAll, beforeEach, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ sendEmail: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  sendEmail: vi.fn(),
+  verifyRecaptchaEnterprise: vi.fn(),
+  checkOrganizerInquiryRateLimit: vi.fn(),
+}));
 vi.mock("../_shared/email.ts", () => ({ sendEmail: mocks.sendEmail }));
+vi.mock("../_shared/recaptcha.ts", () => ({
+  recaptchaConfigFromEnv: vi.fn(() => ({ configured: true })),
+  verifyRecaptchaEnterprise: mocks.verifyRecaptchaEnterprise,
+}));
+vi.mock("../_shared/inquiryRateLimit.ts", () => ({
+  checkOrganizerInquiryRateLimit: mocks.checkOrganizerInquiryRateLimit,
+  inquiryClientIp: vi.fn(() => "203.0.113.8"),
+}));
+vi.mock("../_shared/supabase.ts", () => ({ serviceClient: vi.fn(() => ({ rpc: vi.fn() })) }));
 
 let handler: (req: Request) => Promise<Response>;
 
@@ -18,6 +31,8 @@ afterAll(() => vi.unstubAllGlobals());
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.sendEmail.mockResolvedValue({ ok: true });
+  mocks.verifyRecaptchaEnterprise.mockResolvedValue({ ok: true });
+  mocks.checkOrganizerInquiryRateLimit.mockResolvedValue({ ok: true });
 });
 
 const validInquiry = {
@@ -28,6 +43,7 @@ const validInquiry = {
   subject: "Registration payment",
   message: "Please help me verify my payment.",
   website: "",
+  captchaToken: "captcha-token-that-is-long-enough",
 };
 
 function request(body: unknown, method = "POST") {
@@ -105,6 +121,24 @@ it("reports acknowledgement delivery failure", async () => {
   expect(response.status).toBe(502);
   expect(await response.json()).toEqual({ error: "delivery_failed" });
   expect(mocks.sendEmail).toHaveBeenCalledTimes(2);
+});
+
+it("rejects failed verification before email delivery", async () => {
+  mocks.verifyRecaptchaEnterprise.mockResolvedValue({ ok: false, reason: "score" });
+  const response = await handler(request(validInquiry));
+
+  expect(response.status).toBe(403);
+  expect(await response.json()).toEqual({ error: "verification_failed" });
+  expect(mocks.sendEmail).not.toHaveBeenCalled();
+});
+
+it("rejects an exhausted limit before email delivery", async () => {
+  mocks.checkOrganizerInquiryRateLimit.mockResolvedValue({ ok: false, reason: "email" });
+  const response = await handler(request(validInquiry));
+
+  expect(response.status).toBe(429);
+  expect(await response.json()).toEqual({ error: "too_many_requests" });
+  expect(mocks.sendEmail).not.toHaveBeenCalled();
 });
 
 it("allows only POST after CORS preflight", async () => {

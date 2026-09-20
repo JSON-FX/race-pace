@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import { clearTicketCache } from "./ticketCache";
+import { getAuthCaptchaToken } from "./captcha";
 
 type AuthValue = {
   session: Session | null;
@@ -27,12 +28,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signIn: AuthValue["signIn"] = async (email, password) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return error ? { error: error.message } : {};
+    try {
+      const captchaToken = await getAuthCaptchaToken();
+      const { error } = await supabase.auth.signInWithPassword({ email, password, options: { captchaToken } });
+      return error ? { error: error.message } : {};
+    } catch {
+      return { error: "Bot verification did not complete. Please try again." };
+    }
   };
   const signUp: AuthValue["signUp"] = async (email, password) => {
-    const { error } = await supabase.auth.signUp({ email, password });
-    return error ? { error: error.message } : {};
+    try {
+      const captchaToken = await getAuthCaptchaToken();
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { captchaToken },
+      });
+      return error ? { error: error.message } : {};
+    } catch {
+      return { error: "Bot verification did not complete. Please try again." };
+    }
   };
   const signOut = async () => {
     try { await clearTicketCache(); } catch { /* cache-clear failure must not block sign-out */ }
