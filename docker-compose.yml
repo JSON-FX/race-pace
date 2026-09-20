@@ -44,6 +44,9 @@ services:
       # the browser keeps .env.local's 127.0.0.1, which is correct from the
       # host. host.docker.internal is provided by Docker Desktop.
       SUPABASE_INTERNAL_URL: "${SUPABASE_INTERNAL_URL-http://host.docker.internal:54521}"
+      # Event-editor share links always target the matching runner surface,
+      # never the admin host that renders the copy button.
+      NEXT_PUBLIC_SITE_URL: "https://racepace.lan"
       # Next dev's file watcher needs polling across the bind mount.
       WATCHPACK_POLLING: "true"
     labels:

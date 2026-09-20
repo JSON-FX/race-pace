@@ -43,6 +43,7 @@ export const inclusionItemSchema = z
 
 export const eventInputSchema = z.object({
   name: z.string().trim().min(1, "Name is required"),
+  slug: z.string().min(1, "Public link is required").max(80).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Use lowercase letters, numbers, and hyphens"),
   city_psgc_code: z.string().nullable(),
   region_name: z.string().nullable(),
   province_name: z.string().nullable(),

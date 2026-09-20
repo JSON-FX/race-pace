@@ -28,7 +28,7 @@ import EditEventPage from "./page";
 function editorData(orgId: string): EditorData {
   return {
     event: {
-      id: "e1", org_id: orgId, name: "Apo", city_psgc_code: null, region_name: null, province_name: null,
+      id: "e1", org_id: orgId, name: "Apo", slug: "apo", slug_locked_at: "2026-09-20T00:00:00Z", city_psgc_code: null, region_name: null, province_name: null,
       city_name: null, venue: null, event_date: null, end_date: null, flag_off: null, status: "open",
       registration_closes_at: null, kit_edit_closes_at: null,
       discipline: "trail", check_in_required: true, elevation_gain_m: null, cutoff_hours: null, start_lat: null, start_lng: null,

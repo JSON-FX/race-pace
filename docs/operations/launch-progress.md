@@ -53,6 +53,17 @@ Production organizer, event and email verification, 2026-09-20: The public organ
 
 Pending checkout repricing release, 2026-09-20: PR #71 merged to `staging` at `b27e099` after both exact-head GitHub validations and both Vercel previews passed. Exact staging CI run `35471691173` then passed. Migrations `20260920220000` and `20260920230000` are recorded, and `reprice-event-checkouts` version 1 is Active with JWT verification. Staging had no pending PayMongo checkout, so no synthetic provider transaction was created. PR #73 merged to `main` at `6895039` after both exact-head validations and both production previews passed; exact-main CI run `35472595512` passed, and both production Vercel deployments reached Ready. Production readback found one unpaid checkout frozen at ₱100 while its current selected items totalled ₱10. Saving the event once expired and rechecked the old provider session, created one replacement, recorded one revision and updated the registration, payment and provider request to ₱10. The registration had zero selected add-ons; the former +₱90 Add-ons line was inferred from the difference and did not represent a runner selection. Final readback found zero stale price snapshots and a single `replaced` attempt. No paid registration was changed.
 
+Event public-link release preparation, 2026-09-20: isolated the reviewed implementation on `codex/event-public-links` from the latest `main`, excluding unrelated unfinished workspace changes. UUIDs remain all database and payment identities. The additive migration introduces one nullable globally unique slug, records a permanent lock after first publication, and prepares a guarded update for only event `3f29e7df-fe90-44a6-bfa4-219ffeaad816` after verifying its expected title. The admin editor generates and previews the link, allows draft customization and copies it from the editor or event list. Public UUID routes remain valid and permanently redirect to the canonical slug while preserving query parameters. The exact isolated branch passes 895 admin tests, 449 runner tests, both typechecks, 11 database/grant tests and `git diff --check`. No hosted migration, deployment, environment variable or production row changed during preparation.
+
+### Current event public-link release
+
+| Work | Status | Blocker | Next task |
+|---|---|---|---|
+| Feature-only release branch | **Validated locally** | Protected staging PR and CI are pending. | Commit, push and open the staging pull request. |
+| Staging database and applications | **Not changed** | Staging migration, environment check and deployments are pending. | Apply only migration `20260920250000` after CI, then verify both staging applications. |
+| Existing production event | **Guarded only; unchanged** | Production promotion requires completed staging verification. | Read back the exact title and current state before the production migration. |
+| Production traffic and payments | **Unaffected** | No production action is authorized before staging passes. | Use the normal protected promotion and verify read-only routes before and after cutover. |
+
 ### Current pending-checkout pricing release
 
 | Work | Status | Evidence / next action |

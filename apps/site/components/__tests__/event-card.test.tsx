@@ -4,7 +4,7 @@ import { EventCard } from "../EventCard";
 import type { EventRow } from "@/lib/events";
 
 const event: EventRow = {
-  id: "e1", org_id: "a1", name: "Apo Sky Ultra 2026", place: "Mt Apo", region: "Davao",
+  id: "e1", org_id: "a1", name: "Apo Sky Ultra 2026", slug: "apo-sky-ultra-2026", place: "Mt Apo", region: "Davao",
   event_date: "2026-11-14", end_date: null, elevation_gain_m: 4200, cutoff_hours: 20,
   status: "open", hero_image_url: null, description: "The flagship 100K.",
   gallery: [], original_date: null, status_note: null,
@@ -35,6 +35,11 @@ describe("EventCard", () => {
 
   it("links to the event page", () => {
     render(<EventCard event={event} />);
+    expect(screen.getByRole("link")).toHaveAttribute("href", "/events/apo-sky-ultra-2026");
+  });
+
+  it("keeps the UUID link for a legacy event without a slug", () => {
+    render(<EventCard event={{ ...event, slug: null }} />);
     expect(screen.getByRole("link")).toHaveAttribute("href", "/events/e1");
   });
 

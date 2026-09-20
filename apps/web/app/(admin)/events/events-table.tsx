@@ -3,7 +3,8 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import type { ColumnDef } from "@tanstack/react-table";
-import { MoreHorizontal } from "lucide-react";
+import { Copy, MoreHorizontal } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -15,6 +16,7 @@ import { RescheduleModal } from "@/components/RescheduleModal";
 import type { AdminEventRow } from "@/lib/queries/events";
 import type { SortState } from "@/lib/table-params";
 import { fmtDate as fmtDateBase } from "@/lib/format";
+import { eventPublicUrl } from "@/lib/event-slug";
 
 // Mirrors the Postgres `event_status` enum (draft, open, almost_full,
 // closed, completed, cancelled — see supabase/migrations) and the labels
@@ -123,6 +125,20 @@ export function EventsTable({ rows, total, page, per, sort, activeFilters, q, ca
               <DropdownMenuItem asChild>
                 <Link href={`/events/${row.original.id}/edit`}>Edit</Link>
               </DropdownMenuItem>
+              {row.original.slug ? (
+                <DropdownMenuItem
+                  onSelect={async () => {
+                    try {
+                      await navigator.clipboard.writeText(eventPublicUrl(row.original.slug!));
+                      toast.success("Public event link copied.");
+                    } catch {
+                      toast.error("Couldn't copy the public event link.");
+                    }
+                  }}
+                >
+                  <Copy className="size-4" />Copy public link
+                </DropdownMenuItem>
+              ) : null}
               <DropdownMenuItem onSelect={() => setRescheduleTarget(row.original)}>
                 Reschedule
               </DropdownMenuItem>

@@ -22,6 +22,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CopyButton } from "@/components/CopyButton";
+import { eventPublicUrl, isValidEventSlug, normalizeEventSlug } from "@/lib/event-slug";
 
 // maplibre-gl reads `window` at module scope and throws during SSR — RouteEditor
 // statically imports CourseDrawEditor (the actual map), so lazy-loading RouteEditor
@@ -35,12 +37,20 @@ const fieldLabel = "mb-1.5 block text-[11px] font-semibold tracking-wide text-mu
 
 function blankDraft(orgId: string, checkInDefault: boolean): EventDraft {
   return {
-    org_id: orgId, name: "", city_psgc_code: null, region_name: null, province_name: null, city_name: null, venue: null,
+    org_id: orgId, name: "", slug: "", city_psgc_code: null, region_name: null, province_name: null, city_name: null, venue: null,
     event_date: null, end_date: null, flag_off: null, status: "draft", discipline: "trail",
     check_in_required: checkInDefault,
     registration_closes_at: null, kit_edit_closes_at: null,
     elevation_gain_m: null, cutoff_hours: null, start_lat: null, start_lng: null, finish_lat: null, finish_lng: null,
     route: null, description: null, hero_image_url: null, gallery: [], schedule: [], inclusions: [],
+  };
+}
+
+function editorDraft(data: EditorData): EventDraft {
+  return {
+    ...data.event,
+    slug: data.event.slug ?? normalizeEventSlug(data.event.name),
+    inclusions: data.event.inclusions ?? [],
   };
 }
 
@@ -58,7 +68,8 @@ export function EventEditorForm({ initial, orgId, checkInDefault = true, canEdit
   const router = useRouter();
 
   const [event, setEvent] = useState<EventDraft>(() =>
-    initial ? { ...initial.event, inclusions: initial.event.inclusions ?? [] } : blankDraft(orgId ?? "", checkInDefault));
+    initial ? editorDraft(initial) : blankDraft(orgId ?? "", checkInDefault));
+  const [slugCustomized, setSlugCustomized] = useState(() => !!initial?.event.slug);
   const [cats, setCats] = useState<CategoryDraft[]>(() => (initial ? seedCats(initial) : []));
   const [addons, setAddons] = useState<AddonDraft[]>(() => (initial ? seedAddons(initial) : []));
   const [origCats, setOrigCats] = useState<{ id?: string }[]>(() => (initial ? initial.categories.map((c) => ({ id: c.id })) : []));
@@ -72,7 +83,7 @@ export function EventEditorForm({ initial, orgId, checkInDefault = true, canEdit
   // stuck on for work that did land.
   const [baseline, setBaseline] = useState(() =>
     JSON.stringify({
-      event: initial ? { ...initial.event, inclusions: initial.event.inclusions ?? [] } : blankDraft(orgId ?? "", checkInDefault),
+      event: initial ? editorDraft(initial) : blankDraft(orgId ?? "", checkInDefault),
       cats: initial ? seedCats(initial) : [],
       addons: initial ? seedAddons(initial) : [],
     }));
@@ -91,13 +102,14 @@ export function EventEditorForm({ initial, orgId, checkInDefault = true, canEdit
   useEffect(() => {
     if (initial && initial !== seededRef.current) {
       seededRef.current = initial;
-      setEvent({ ...initial.event, inclusions: initial.event.inclusions ?? [] });
+      setEvent(editorDraft(initial));
+      setSlugCustomized(!!initial.event.slug);
       setCats(seedCats(initial));
       setAddons(seedAddons(initial));
       setOrigCats(initial.categories.map((c) => ({ id: c.id })));
       setOrigAddons(initial.addons.map((a) => ({ id: a.id })));
       setBaseline(JSON.stringify({
-        event: { ...initial.event, inclusions: initial.event.inclusions ?? [] },
+        event: editorDraft(initial),
         cats: seedCats(initial),
         addons: seedAddons(initial),
       }));
@@ -109,6 +121,8 @@ export function EventEditorForm({ initial, orgId, checkInDefault = true, canEdit
 
   const set = (patch: Partial<EventDraft>) => setEvent((e) => ({ ...e, ...patch }));
   const num = (v: string) => (v === "" ? null : Number(v));
+  const slugEditable = !initial || (initial.event.status === "draft" && !initial.event.slug_locked_at);
+  const publicUrl = isValidEventSlug(event.slug) ? eventPublicUrl(event.slug) : null;
 
   const invalid = useMemo(() => {
     // Status isn't validated here: "cancelled" (set only via the Cancel modal) is
@@ -199,7 +213,37 @@ export function EventEditorForm({ initial, orgId, checkInDefault = true, canEdit
           <FormSection id="sec-basics" title="Basics" hint="Shown on the public race page">
             <div className="space-y-3.5">
               <Field label="Event name" required>
-                <Input aria-label="Event name" className={inputCls} value={event.name} onChange={(e) => set({ name: e.target.value })} />
+                <Input
+                  aria-label="Event name"
+                  className={inputCls}
+                  value={event.name}
+                  onChange={(e) => {
+                    const name = e.target.value;
+                    set({ name, ...(!slugCustomized && slugEditable ? { slug: normalizeEventSlug(name) } : {}) });
+                  }}
+                />
+              </Field>
+              <Field
+                label="Public event link"
+                required
+                hint={slugEditable
+                  ? "Generated from the event name. Customize it before publishing; afterward the link stays fixed."
+                  : "Published event links are fixed so existing shares keep working."}
+              >
+                <div className="flex items-center gap-2">
+                  <Input
+                    aria-label="Public event link"
+                    className={inputCls}
+                    value={event.slug}
+                    disabled={!slugEditable}
+                    onChange={(e) => {
+                      setSlugCustomized(true);
+                      set({ slug: normalizeEventSlug(e.target.value) });
+                    }}
+                  />
+                  {initial?.event.id && publicUrl ? <CopyButton value={publicUrl} label="public event link" /> : null}
+                </div>
+                {publicUrl ? <p className="mt-1.5 break-all text-[12px] text-primary">{publicUrl}</p> : null}
               </Field>
               <div className="grid gap-3.5 sm:grid-cols-2">
                 <Field
