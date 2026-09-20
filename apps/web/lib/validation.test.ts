@@ -1,12 +1,17 @@
 import { EVENT_DISCIPLINES } from "@race-pace/shared";
 import { eventInputSchema, categoryInputSchema, addonInputSchema, scheduleItemSchema, inclusionItemSchema, sanitizeListFields, kitCutoffError, INCLUSION_MAX_LEN } from "./validation";
 
-const validEvent = { name: "Race", city_psgc_code: null, region_name: null, province_name: null, city_name: null, venue: null, event_date: "2026-10-18", end_date: null, flag_off: "04:00", status: "open", discipline: "trail", check_in_required: true, registration_closes_at: null, kit_edit_closes_at: null, elevation_gain_m: 4300, cutoff_hours: 18, description: null, hero_image_url: null };
+const validEvent = { name: "Race", slug: "race", city_psgc_code: null, region_name: null, province_name: null, city_name: null, venue: null, event_date: "2026-10-18", end_date: null, flag_off: "04:00", status: "open", discipline: "trail", check_in_required: true, registration_closes_at: null, kit_edit_closes_at: null, elevation_gain_m: 4300, cutoff_hours: 18, description: null, hero_image_url: null };
 
 it("accepts a valid event and rejects an empty name / bad date", () => {
   expect(eventInputSchema.safeParse(validEvent).success).toBe(true);
   expect(eventInputSchema.safeParse({ ...validEvent, name: "  " }).success).toBe(false);
   expect(eventInputSchema.safeParse({ ...validEvent, event_date: "10/18/2026" }).success).toBe(false);
+});
+it("accepts only stable lowercase event slugs", () => {
+  expect(eventInputSchema.safeParse({ ...validEvent, slug: "yalabyalam-backyard-ultra" }).success).toBe(true);
+  expect(eventInputSchema.safeParse({ ...validEvent, slug: "Yalabyalam Ultra" }).success).toBe(false);
+  expect(eventInputSchema.safeParse({ ...validEvent, slug: "" }).success).toBe(false);
 });
 const validCategory = { code: "21k", label: "21K", distance_km: 21, base_price: 150000, slots_total: 100, elevation_gain_m: null, cutoff_hours: null, blurb: null };
 

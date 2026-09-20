@@ -40,7 +40,7 @@ function roles(overrides: Partial<{ isAdmin: boolean; isOrgAdmin: boolean; isSup
 
 function baseEvent(overrides: Partial<EventDraft> = {}): EventDraft {
   return {
-    org_id: "a1", name: "Apo Sky Ultra", city_psgc_code: null, region_name: null, province_name: null, city_name: null, venue: null,
+    org_id: "a1", name: "Apo Sky Ultra", slug: "apo-sky-ultra", city_psgc_code: null, region_name: null, province_name: null, city_name: null, venue: null,
     event_date: null, end_date: null, flag_off: null, status: "draft", discipline: "trail",
     check_in_required: true,
     registration_closes_at: null, kit_edit_closes_at: null,
@@ -187,9 +187,44 @@ describe("saveEventAction", () => {
     }));
     expect(res.error).toBeUndefined();
     expect(insertChain.insert).toHaveBeenCalledWith(expect.objectContaining({
+      slug: "apo-sky-ultra",
       registration_closes_at: "2026-09-01T00:00:00.000Z",
       kit_edit_closes_at: "2026-09-05T00:00:00.000Z",
     }));
+  });
+
+  it("returns a useful error when another event already owns the public link", async () => {
+    getMyRoles.mockResolvedValue(roles({}));
+    from.mockReturnValueOnce(chain({
+      data: null,
+      error: { code: "23505", message: "duplicate key value violates unique constraint events_slug_unique" },
+    }));
+    const res = await saveEventAction({}, savePayload());
+    expect(res.error).toBe("That public link is already in use. Choose another one.");
+  });
+
+  it("refuses a public-link change after the event has left draft", async () => {
+    getMyRoles.mockResolvedValue(roles({}));
+    from.mockReturnValueOnce(chain({ data: { status: "open", check_in_required: true, slug: "apo-sky-ultra" }, error: null }));
+    const res = await saveEventAction({}, savePayload({ id: "e1", status: "open", slug: "different-link" }));
+    expect(res.error).toBe("The public link cannot be changed after the event is published.");
+    expect(from).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses a public-link change after a published event returns to draft", async () => {
+    getMyRoles.mockResolvedValue(roles({}));
+    from.mockReturnValueOnce(chain({
+      data: {
+        status: "draft",
+        check_in_required: true,
+        slug: "apo-sky-ultra",
+        slug_locked_at: "2026-09-20T00:00:00Z",
+      },
+      error: null,
+    }));
+    const res = await saveEventAction({}, savePayload({ id: "e1", status: "draft", slug: "different-link" }));
+    expect(res.error).toBe("The public link cannot be changed after the event is published.");
+    expect(from).toHaveBeenCalledTimes(1);
   });
 
   it("carries registration_closes_at and kit_edit_closes_at through EVENT_COLS on update", async () => {

@@ -23,7 +23,7 @@ beforeEach(() => {
 
 const rows: AdminEventRow[] = [
   {
-    id: "e1", name: "Dahilayan Sky Ultra", place: "Dahilayan", city_name: "Manolo Fortich",
+    id: "e1", name: "Dahilayan Sky Ultra", slug: "dahilayan-sky-ultra", place: "Dahilayan", city_name: "Manolo Fortich",
     province_name: "Bukidnon", event_date: "2026-11-14", end_date: null, status: "published",
     original_date: null, categories: [{ slots_taken: 120, slots_total: 200 }, { slots_taken: 40, slots_total: 50 }],
   },
@@ -68,11 +68,12 @@ describe("EventsTable", () => {
   });
 
   describe("row actions menu", () => {
-    it("offers Edit, Reschedule and Cancel event when the caller can write", async () => {
+    it("offers Edit, Copy public link, Reschedule and Cancel event when the caller can write", async () => {
       const user = userEvent.setup();
       render(<EventsTable rows={rows} total={1} page={1} per={25} sort={[]} activeFilters={{}} q="" canWrite />);
       await user.click(screen.getByRole("button", { name: /actions for dahilayan sky ultra/i }));
       expect(screen.getByRole("menuitem", { name: "Edit" })).toBeInTheDocument();
+      expect(screen.getByRole("menuitem", { name: "Copy public link" })).toBeInTheDocument();
       expect(screen.getByRole("menuitem", { name: "Reschedule" })).toBeInTheDocument();
       expect(screen.getByRole("menuitem", { name: "Cancel event" })).toBeInTheDocument();
     });
