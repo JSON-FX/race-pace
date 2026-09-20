@@ -9,7 +9,7 @@ import { EventPageBody } from "../EventPageBody";
 vi.mock("../CourseMap", () => ({ CourseMap: () => null }));
 
 const baseEvent: EventRow = {
-  id: "e1", org_id: "a1", name: "Dahilayan Sky Ultra 2026",
+  id: "e1", org_id: "a1", name: "Dahilayan Sky Ultra 2026", slug: "dahilayan-sky-ultra-2026",
   place: "Dahilayan", region: "Northern Mindanao",
   event_date: "2026-11-14", end_date: null, elevation_gain_m: 1223,
   cutoff_hours: 14, flag_off: "04:00:00", status: "open",

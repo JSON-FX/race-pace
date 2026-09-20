@@ -10,8 +10,12 @@ import { reconcileChildren } from "@/lib/reconcile-children";
 
 const GENERIC_ERROR = "Something went wrong. Please try again.";
 const WAIVER_PUBLISH_ERROR = "Publish an organizer waiver and assign it to this event before opening registration.";
-const eventSaveError = (error: { message?: string } | null) =>
-  error?.message?.includes("event_waiver_required_for_publishing") ? WAIVER_PUBLISH_ERROR : GENERIC_ERROR;
+const eventSaveError = (error: { code?: string; message?: string } | null) => {
+  if (error?.message?.includes("event_waiver_required_for_publishing")) return WAIVER_PUBLISH_ERROR;
+  if (error?.code === "23505" && error.message?.includes("events_slug_unique")) return "That public link is already in use. Choose another one.";
+  if (error?.message?.includes("event_slug_locked")) return "The public link cannot be changed after the event is published.";
+  return GENERIC_ERROR;
+};
 
 // ---- Draft shapes, ported verbatim from the old lib/eventWrites.ts -------
 
@@ -21,7 +25,7 @@ export type CategoryDraft = {
 };
 export type AddonDraft = { id?: string; tempId?: string; name: string; price: number };
 export type EventDraft = {
-  id?: string; org_id: string; name: string;
+  id?: string; org_id: string; name: string; slug: string;
   city_psgc_code: string | null; region_name: string | null; province_name: string | null; city_name: string | null; venue: string | null;
   event_date: string | null; end_date: string | null; flag_off: string | null; status: string; discipline: EventDiscipline;
   check_in_required: boolean;
@@ -33,7 +37,7 @@ export type EventDraft = {
 };
 
 const EVENT_COLS = (e: EventDraft) => ({
-  org_id: e.org_id, name: e.name,
+  org_id: e.org_id, name: e.name, slug: e.slug,
   city_psgc_code: e.city_psgc_code, region_name: e.region_name, province_name: e.province_name, city_name: e.city_name, venue: e.venue,
   event_date: e.event_date, end_date: e.end_date, flag_off: e.flag_off, status: e.status, discipline: e.discipline,
   check_in_required: e.check_in_required,
@@ -159,12 +163,15 @@ export async function saveEventAction(_prev: EditorState, formData: FormData): P
   // the database, not because the client claimed it.
   let currentStatus: string | null = null;
   if (eventId) {
-    const cur = await supabase.from("events").select("status,check_in_required").eq("id", eventId).single();
+    const cur = await supabase.from("events").select("status,check_in_required,slug,slug_locked_at").eq("id", eventId).single();
     if (cur.error) {
       console.error("[events] event status lookup failed", { eventId, error: cur.error });
       return { error: GENERIC_ERROR };
     }
     currentStatus = cur.data.status;
+    if ((currentStatus !== "draft" || cur.data.slug_locked_at) && cur.data.slug && sanitized.slug !== cur.data.slug) {
+      return { error: "The public link cannot be changed after the event is published." };
+    }
     if (cur.data.check_in_required !== sanitized.check_in_required && !roles?.isOrgAdmin) {
       return { error: "Only organization admins can change event check-in." };
     }

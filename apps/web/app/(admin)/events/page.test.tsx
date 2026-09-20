@@ -69,7 +69,7 @@ describe("EventsPage", () => {
     });
     listOrgEvents.mockResolvedValue({
       rows: [{
-        id: "e1", name: "Dahilayan Sky Ultra", place: null, city_name: null, province_name: null,
+        id: "e1", name: "Dahilayan Sky Ultra", slug: "dahilayan-sky-ultra", place: null, city_name: null, province_name: null,
         event_date: "2026-11-14", end_date: null, status: "open", original_date: null, categories: [],
       }],
       total: 1,

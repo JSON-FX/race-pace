@@ -5,6 +5,7 @@ import type { TableParams } from "@/lib/table-params";
 export type AdminEventRow = {
   id: string;
   name: string;
+  slug: string | null;
   place: string | null;
   city_name: string | null;
   province_name: string | null;
@@ -16,7 +17,7 @@ export type AdminEventRow = {
 };
 
 const SELECT =
-  "id,name,place,city_name,province_name,event_date,end_date,status,original_date,categories(slots_taken,slots_total)";
+  "id,name,slug,place,city_name,province_name,event_date,end_date,status,original_date,categories(slots_taken,slots_total)";
 
 /**
  * PostgREST's `.or()` filter string is a structural mini-language where
