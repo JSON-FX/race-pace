@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
   Sidebar as UISidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent,
@@ -61,8 +62,16 @@ export function Sidebar({
     <UISidebar collapsible="icon">
       <SidebarHeader>
         <div className="flex items-center gap-2.5 px-2 py-1">
-          <div className="grid size-7 shrink-0 place-items-center rounded-lg bg-primary text-[13px] font-bold text-primary-foreground">
-            RP
+          <div className="grid size-8 shrink-0 place-items-center" aria-hidden="true">
+            <Image
+              src="/topnav-logo.png"
+              alt=""
+              width={700}
+              height={372}
+              priority
+              data-testid="race-pace-sidebar-logo"
+              className="h-auto w-8 object-contain"
+            />
           </div>
           <div className="min-w-0 group-data-[collapsible=icon]:hidden">
             <div className="text-sm font-bold tracking-tight">Race Pace</div>

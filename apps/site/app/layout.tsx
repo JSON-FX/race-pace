@@ -17,7 +17,7 @@ const jetbrainsMono = JetBrains_Mono({ subsets: ["latin"], weight: ["400", "500"
 
 export const metadata: Metadata = {
   title: { default: "Race Pace", template: "%s · Race Pace" },
-  description: "Trail and ultra-trail races in Mindanao, Philippines.",
+  description: "Trail, road, and ultra-trail races across the Philippines.",
   icons: {
     icon: [{ url: "/favicon.png", type: "image/png", sizes: "256x256" }],
     apple: [{ url: "/favicon.png", type: "image/png", sizes: "256x256" }],

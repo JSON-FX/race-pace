@@ -40,7 +40,7 @@ describe("visibleSuperItems", () => {
 
   it("lists the platform destinations with manage_platform", () => {
     expect(paths(visibleSuperItems(who(["manage_platform"]))))
-      .toEqual(["/organizations", "/commission", "/payouts", "/checkout-reviews"]);
+      .toEqual(["/organizations", "/users", "/commission", "/payouts", "/checkout-reviews"]);
   });
 });
 

@@ -18,7 +18,7 @@ export const RUNNER_JOURNEY = [
     icon: Compass,
     step: "01",
     title: "Find your race",
-    copy: "Browse trail, ultra, road, and fun runs across Mindanao in one place.",
+    copy: "Browse trail, ultra, road, and fun runs across the Philippines in one place.",
   },
   {
     icon: UserRoundCheck,
@@ -117,7 +117,7 @@ export function JourneyCards({ compact = false }: { compact?: boolean }) {
 
 export function TrustStrip({ inverse = false }: { inverse?: boolean }) {
   const items = [
-    { icon: MapPinned, label: "Mindanao race discovery" },
+    { icon: MapPinned, label: "Philippine race discovery" },
     { icon: ShieldCheck, label: "Secure online entry" },
     { icon: CalendarDays, label: "One race-day pass" },
   ];
