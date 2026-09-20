@@ -1,6 +1,6 @@
 # Bot protection rollout
 
-Status: implemented and partially deployed to staging. Provider resources, staging Edge secrets, the rate-limit migration, and the protected inquiry function are live. The staging web clients, mobile build, and Supabase Auth activation remain pending. Production remains unchanged.
+Status: deployed to staging and production for the organizer inquiry and browser clients. The production inquiry now enforces Google reCAPTCHA Enterprise and durable rate limits. Turnstile widgets are live on the runner, admin, and hosted mobile challenge pages. Supabase Auth server enforcement remains disabled until a compatible mobile build is released and verified.
 
 All provider resources must be owned by `support.racepace@gmail.com`. Do not create Race Pace CAPTCHA resources under a personal account.
 
@@ -62,19 +62,21 @@ Cloudflare Turnstile is on its free plan with unlimited challenges, subject to C
 
 Before enabling Google Cloud billing, add a budget alert and approve the expected inquiry volume. This rollout does not enable billing.
 
-## Current staging state
+## Current deployment state
 
-| Item | Status |
-| --- | --- |
-| Google and Cloudflare provider resources | Created under `support.racepace@gmail.com` |
-| Edge Function secrets | Saved for staging |
-| Durable rate-limit migration | Applied to staging |
-| Protected organizer inquiry | Active; an invalid token returns HTTP 403 before email delivery |
-| Runner and admin public keys | Saved for the `staging` Vercel branch |
-| Runner and admin deployment | Pending merge of the reviewed feature branch |
-| Mobile build | Pending |
-| Supabase Auth Turnstile switch | Disabled until all clients are verified |
-| Production | Unchanged |
+| Item | Staging | Production |
+| --- | --- | --- |
+| Google and Cloudflare provider resources | Created under `support.racepace@gmail.com` | Created under `support.racepace@gmail.com` |
+| Edge Function secrets | Saved | Saved |
+| Durable rate-limit migration | Applied | Applied as `20260919212707` |
+| Protected organizer inquiry | Active; invalid tokens return HTTP 403 before email delivery | Active on `organizer-inquiry` v7; invalid tokens return HTTP 403 before email delivery |
+| Runner and admin public keys | Saved for the `staging` Vercel branch | Saved for the Vercel production environment |
+| Runner and admin browser widgets | Deployed | Ready on the production custom domains |
+| Hosted mobile challenge | Deployed | Ready at `/auth/captcha` |
+| Native mobile build | Pending | Pending |
+| Supabase Auth Turnstile switch | Disabled until all clients are verified | Disabled until the compatible mobile build is released and verified |
+
+The production password pages require a browser widget token before their user interface submits. Supabase Auth does not yet verify that token server-side. Treat production Auth CAPTCHA as partially activated until the final switch is enabled.
 
 ## Activation order
 
