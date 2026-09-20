@@ -53,14 +53,16 @@ Bot-protection staging release, 2026-09-20: Separate Google Fraud Defense and Cl
 
 Event public-link release preparation, 2026-09-20: isolated the reviewed implementation on `codex/event-public-links-staging` from the latest `staging`, excluding unrelated unfinished workspace changes. UUIDs remain all database and payment identities. The additive migration introduces one nullable globally unique slug, records a permanent lock after first publication, and prepares a guarded update for only event `3f29e7df-fe90-44a6-bfa4-219ffeaad816` after verifying its expected title. The admin editor generates and previews the link, allows draft customization and copies it from the editor or event list. Public UUID routes remain valid and permanently redirect to the canonical slug while preserving query parameters. The exact isolated branch passes 897 admin tests, 456 runner tests, both typechecks, 11 database/grant tests and `git diff --check`. No hosted migration, deployment, environment variable or production row changed during preparation.
 
+Event public-link staging release, 2026-09-20: PR #79 merged to `staging` at `b6ac42a` after both pull-request validations and both Vercel previews passed. Exact-merge CI run `35510551819` passed. Migration `20260920250000` was the only pending staging migration and was applied successfully. Read-only checks confirmed both columns, the unique index, the locking trigger and the migration record. Existing staging event `0cc509b5-528a-4055-8e93-5035065d959b` received `test-release-checkout-qa-race`; the database rejected a later slug change with `event_slug_locked`. The slug route rendered the event, while the UUID route permanently redirected and preserved its query string. Canonical and Open Graph URLs both used the slug. Runner deployment `dpl_55RBXn2xXrBgbZ3veCUbsvW8GjHR` is Ready. The admin custom environment now has the staging runner origin, and rebuilt deployment `dpl_9HzAHAi6rHhJtE5zDyMQEiScGLEt` is Ready on `staging-admin.racepace.com.ph`. Production applications, database rows, registrations and payments remain unchanged. The production admin environment now has the production runner origin ready for the eventual build.
+
 ### Current event public-link release
 
 | Work | Status | Blocker | Next task |
 |---|---|---|---|
-| Feature-only release branch | **Validated locally** | Protected staging PR and CI are pending. | Commit, push and open the staging pull request. |
-| Staging database and applications | **Not changed** | Staging migration, environment check and deployments are pending. | Apply only migration `20260920250000` after CI, then verify both staging applications. |
-| Existing production event | **Guarded only; unchanged** | Production promotion requires completed staging verification. | Read back the exact title and current state before the production migration. |
-| Production traffic and payments | **Unaffected** | No production action is authorized before staging passes. | Use the normal protected promotion and verify read-only routes before and after cutover. |
+| Feature-only release branch | **Staging verified** | None. | Promote the same feature-only change through the protected `main` pull request. |
+| Staging database and applications | **Complete** | Signed-in admin controls were covered by automated tests; the live admin route requires a staging session. | Retain the locked staging event as release evidence. |
+| Existing production event | **Guarded only; unchanged** | Production migration and promotion remain. | Reconfirm the exact event state, apply only migration `20260920250000`, then read it back. |
+| Production traffic and payments | **Unaffected** | Production promotion remains. | Apply the backward-compatible database change before deploying the application, then run read-only smoke checks. |
 
 ### Current bot protection
 
