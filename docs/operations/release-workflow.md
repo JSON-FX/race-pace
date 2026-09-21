@@ -160,22 +160,19 @@ Then merge `main` back into `staging`. This sync-back should add the production 
 changing application or backend content. Confirm `main` is an ancestor of `staging` before starting
 the next feature.
 
-## One-time reconciliation required
+## One-time reconciliation completed
 
-The 2026-09-22 audit found that `main` and `staging` have diverged. Do not start another feature
-release until this is repaired.
+PR #90 merged production `main` into `staging` on 2026-09-22 without rewriting either protected
+branch. The nine conflicts retained staging-only release evidence and the later production code.
+`main` is now an ancestor of `staging`, with zero production-only commits.
 
-1. Create a reconciliation branch from `origin/staging`.
-2. Merge `origin/main` into it without rebasing or rewriting either protected branch.
-3. Resolve duplicate implementation conflicts using the production version unless staging contains a
-   reviewed fix that production lacks. Combine release records instead of discarding either history.
-4. Restore production migration `20260920200000` to the staging line and apply it to staging.
-5. Deploy the reconciled function set to staging, including functions currently missing there.
-6. Run local validation and the full hosted staging acceptance gate.
-7. Merge the reconciliation pull request into `staging`, then promote `staging` into `main`.
+Staging migration `20260920200000` is applied and independently read back. Eleven Edge Functions
+were deployed from the reconciled source, including the previously missing `group-reservations` and
+`send-push`. Both staging applications are Ready and their bundles reference the staging Supabase
+project. Exact-merge CI passed.
 
-The dry merge currently reports conflicts in nine files. Resolve those in an isolated worktree. Do
-not attempt the reconciliation inside a dirty feature checkout.
+This synchronization is not production approval. The authenticated organization, event, and email
+journey remains a manual hosted acceptance gate until a protected automated workflow exists.
 
 ## Rollback and failure rules
 
@@ -191,17 +188,17 @@ not attempt the reconciliation inside a dirty feature checkout.
 
 | Surface | Result |
 | --- | --- |
-| Git branches | Not synchronized: 41 `main`-only commits and 19 `staging`-only commits |
+| Git branches | Synchronized: `main` is an ancestor of `staging`; zero `main`-only commits |
 | Vercel production | Both apps Ready at `08512ba` from `main` |
-| Vercel staging | Both apps Ready at `021c9a7` from `staging` |
+| Vercel staging | Both apps Ready at `ee8c118`; runner `dpl_9fwjdrTRZPa68gxTd1VN6eWNoRVm`, admin `dpl_5jZbYaQJ1FX72WW4QZa3bCnq1fxa` |
 | Vercel routing | `main` tracks production; custom `staging` tracks the staging branch |
-| GitHub protection | Both branches require local CI, but neither requires an approving review |
-| Supabase migrations | Each branch matches its own project; production alone has `20260920200000` |
-| Edge Functions | Nine shared slugs differ; staging lacks `group-reservations` and `send-push` |
+| GitHub protection | Both branches require `web-admin-validate`; run `35651165007` passed on exact staging merge |
+| Supabase migrations | Staging has all 145 repository migrations; `20260920200000` and its service-role-only function grant were read back |
+| Edge Functions | Eleven reconciled functions are Active in staging; seven production bundle hashes still differ from the staged source and need review before a future production deploy |
 | Supabase secrets | Environment-specific fingerprints differ; staging alone has `EMAIL_ENVIRONMENT` |
 | Supabase Auth | Site URLs and redirect allowlists match their environments |
 | Auth SMTP | Resend SMTP enabled in both projects with distinct sender names |
 | Resend | Domain verified; separate staging and production sending keys exist |
-| Hosted staging E2E | Manual evidence exists; bypass entries exist, but no required hosted check runs |
+| Hosted staging E2E | Public runner/admin smoke passed and both bundles use staging Supabase; authenticated business-flow approval remains manual and incomplete |
 
 This snapshot is evidence for the date shown. Re-run every check before a release.
