@@ -44,7 +44,16 @@ a fresh deployment.
 ### 1. Start from staging
 
 Fetch the remote branches. Confirm `origin/main` is an ancestor of `origin/staging` before starting.
-Create the feature branch from current `origin/staging` and target its pull request to `staging`.
+Create a dedicated feature branch and a new isolated Git worktree from current `origin/staging`.
+Keep one task per worktree. Never implement new work in the shared checkout, a protected-branch
+checkout, or a worktree owned by another task. Target the feature pull request to `staging`.
+
+For example:
+
+```bash
+git fetch origin main staging
+git worktree add -b codex/<task-name> ../race-pace-<task-name> origin/staging
+```
 
 If that ancestry check fails, stop. Reconcile the branches before adding another release branch.
 

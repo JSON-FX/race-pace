@@ -32,7 +32,10 @@ Before changing code, configuration, branches, or hosted services:
 3. Read `docs/operations/release-workflow.md` before any push, merge, backend change, or deploy.
 4. Fetch the remotes, inspect `git status`, and compare the working branch with `origin/staging`
    and `origin/main`.
-5. Preserve unrelated working-tree changes. Never use them as part of a release by accident.
+5. Create every feature or fix in a new isolated Git worktree and dedicated branch from current
+   `origin/staging`. Never implement new work in the shared checkout or a branch used by another
+   task.
+6. Preserve unrelated working-tree changes. Never use them as part of a release by accident.
 
 Do not treat an earlier session's deployment evidence as current. Recheck the exact commit,
 deployment, migration history, Edge Function bundle, and provider configuration in this session.
@@ -41,8 +44,8 @@ deployment, migration history, Edge Function bundle, and provider configuration 
 
 `staging` is the only integration branch. `main` is the production branch.
 
-- Start feature and fix branches from current `staging`, then open their pull requests into
-  `staging`.
+- Give every feature or fix its own isolated Git worktree and dedicated branch from current
+  `origin/staging`. Keep one task per worktree, then open its pull request into `staging`.
 - A production pull request must use `staging` as its head and `main` as its base. Do not use a
   parallel production branch, cherry-pick, or direct feature-to-`main` pull request.
 - Production may lag staging. Production must never contain application, migration, Edge

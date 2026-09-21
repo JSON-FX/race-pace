@@ -1,6 +1,7 @@
 ## Scope
 
 - [ ] This change contains only the stated feature, fix, or release work.
+- [ ] I used a dedicated branch and isolated worktree created from current `origin/staging`.
 - [ ] I preserved unrelated working-tree changes and release artifacts.
 
 ## Local validation
