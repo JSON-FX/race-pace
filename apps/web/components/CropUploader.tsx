@@ -2,12 +2,14 @@
 
 import { useCallback, useState, type ChangeEvent } from "react";
 import Cropper, { type Area } from "react-easy-crop";
+import { ImageIcon, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { getCroppedBlob } from "@/lib/cropImage";
 import { uploadOrgImage, type OrgImageKind } from "@/lib/org-upload";
 import { updateOrgBrandingAction } from "@/lib/actions/settings";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 export function CropUploader({ orgId, kind, aspect, field, label, currentUrl, round, onSaved }: {
   orgId: string;
@@ -66,16 +68,37 @@ export function CropUploader({ orgId, kind, aspect, field, label, currentUrl, ro
   }
 
   return (
-    <div>
-      <div className="mb-2 text-sm font-semibold">{label}</div>
-      {currentUrl ? (
-        <img src={currentUrl} alt={`Current ${label.toLowerCase()}`}
-          className={`mb-2.5 block border border-border object-cover ${round ? "h-[72px] w-[72px] rounded-full" : "h-[90px] w-[234px] rounded-[10px]"}`} />
-      ) : null}
-      <label className="cursor-pointer text-[13px] font-semibold text-primary">
-        Choose image
-        <input type="file" accept="image/*" aria-label={`Choose ${label}`} onChange={onFile} className="hidden" />
-      </label>
+    <div className="min-w-0">
+      <div className="mb-2 text-[12px] font-bold">{label}</div>
+      <div className="relative grid h-40 place-items-center overflow-hidden rounded-[13px] border border-dashed border-primary/35 bg-gradient-to-br from-secondary to-muted">
+        {currentUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={currentUrl}
+            alt={`Current ${label.toLowerCase()}`}
+            className={cn(
+              "object-cover",
+              round ? "m-auto size-24 rounded-full border-4 border-card shadow-lg" : "size-full",
+            )}
+          />
+        ) : round ? (
+          <span className="grid size-24 place-items-center rounded-full border-4 border-card bg-forest text-[12px] font-bold text-white shadow-lg">
+            No image
+          </span>
+        ) : (
+          <ImageIcon className="size-8 text-primary/60" strokeWidth={1.5} aria-hidden="true" />
+        )}
+      </div>
+      <div className="mt-2.5 flex flex-wrap items-center gap-2.5">
+        <label className="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-[10px] border bg-card px-3 text-[12px] font-bold transition-colors hover:bg-muted focus-within:ring-[3px] focus-within:ring-ring/30">
+          <Upload className="size-4" aria-hidden="true" />
+          {currentUrl ? "Replace" : "Choose image"}
+          <input type="file" accept="image/*" aria-label={`Choose ${label}`} onChange={onFile} className="hidden" />
+        </label>
+        <span className="text-[10.5px] text-muted-foreground">
+          {round ? "Square image" : "Recommended 13:5 ratio"}
+        </span>
+      </div>
 
       <Dialog open={!!src} onOpenChange={(open) => { if (!open) close(); }}>
         <DialogContent aria-label={`Crop ${label}`} className="w-auto max-w-none gap-3 p-6">
