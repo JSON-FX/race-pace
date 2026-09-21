@@ -51,3 +51,30 @@ Four named Auth accounts, their Passports, the platform super-admin role and 12 
 | Profile Storage objects | 12 |
 
 Only the named platform super-admin role remains. Production runner and admin routes still redirect to Coming Soon.
+
+## Final identity and tenant reset — 2026-09-20
+
+The owner explicitly confirmed a final production reset that removed every organization, event and non-target user. The confirmed scope included deleting the Race Pace ledger record for live settled QR Ph payment `pay_oXDqw1NdFmQF3sTxELf8H51R` for ₱10.00 without issuing a refund. PayMongo retains its provider-side transaction record.
+
+Before the reset, a new restricted snapshot was written outside the repository under `/Users/jsonse/Documents/development/race-pace-backups/production-final-reset-20260919T225408Z/`. Its public, Auth and Storage data dump has SHA-256 `18bf2d826a65052da68b3474107f3115c9c00a3d78d5ac6ebcd7730e8d65bd41`. The Storage snapshot contains 19 objects and 9,698,756 bytes with aggregate checksum `f6f6afdfa811a983647f10f0e1b8472606fc3cb5850d9963ab42362b39bb503d`.
+
+Pending checkout `cs_1bfbfc1ba1e26f07041739f4` was expired at PayMongo before its local record was deleted. The tenant reset then removed the pilot organizer, verification event, five registrations and payments, the settled capture, all tenant notifications and email jobs, three event images, and fifteen obsolete profile images. Six non-target Auth accounts were deleted through the Auth admin API. Philippine Standard Geographic Code data, processor rates, and the email-branding asset were preserved.
+
+Final production readback:
+
+| Record | Count |
+|---|---:|
+| Auth accounts | 3 |
+| Platform `super_admin` roles | 3 |
+| Runner Passports | 3 |
+| Organizations | 0 |
+| Events | 0 |
+| Categories | 0 |
+| Registrations | 0 |
+| Payments and captures | 0 |
+| Refund requests and payout statements | 0 |
+| Notifications and transactional email jobs | 0 |
+| Event and profile Storage objects | 0 |
+| Email-branding Storage objects | 1 |
+
+The retained platform accounts are `jayson@racepace.com.ph`, `mondel@racepace.com.ph`, and `support.racepace@gmail.com`. Each has exactly one platform-wide `super_admin` role with no organization scope. Jayson accepted the invitation during verification. Mondel's invitation is registered and awaiting acceptance. The support account remains confirmed.

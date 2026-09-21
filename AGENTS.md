@@ -23,6 +23,50 @@ projects from the same repo**, distinguished by Root Directory (`docs/deploy-ver
 The root `README.md` is stale — it predates `apps/site` and still describes `apps/web` as a
 Vite SPA. Trust `docs/README.md` and the code.
 
+## Required session startup
+
+Before changing code, configuration, branches, or hosted services:
+
+1. Read this file in full before taking repository actions.
+2. Read the nearest nested `AGENTS.md` for every path in scope.
+3. Read `docs/operations/release-workflow.md` before any push, merge, backend change, or deploy.
+4. Fetch the remotes, inspect `git status`, and compare the working branch with `origin/staging`
+   and `origin/main`.
+5. Preserve unrelated working-tree changes. Never use them as part of a release by accident.
+
+Do not treat an earlier session's deployment evidence as current. Recheck the exact commit,
+deployment, migration history, Edge Function bundle, and provider configuration in this session.
+
+## Staging-first release policy
+
+`staging` is the only integration branch. `main` is the production branch.
+
+- Start feature and fix branches from current `staging`, then open their pull requests into
+  `staging`.
+- A production pull request must use `staging` as its head and `main` as its base. Do not use a
+  parallel production branch, cherry-pick, or direct feature-to-`main` pull request.
+- Production may lag staging. Production must never contain application, migration, Edge
+  Function, Auth, email, payment, or provider changes that staging has not already validated.
+- Run the local CI suite before merging into `staging`. Then deploy the exact staging revision,
+  including every required backend change, and complete the hosted staging checks.
+- Record the exact Git commit, both Vercel deployment IDs, Supabase migration versions, Edge
+  Function versions, provider modes, and end-to-end evidence before opening the production pull
+  request.
+- Apply production backend changes from the same reviewed revision. Verify production again after
+  deployment. Never add synthetic data or trigger a real payment as an automated production test.
+- After production verification, merge `main` back into `staging`. Start no new feature until
+  `main` is again an ancestor of `staging`.
+
+Hosted environment identities are fixed:
+
+| Environment | Git branch | Supabase project | Vercel environment |
+| --- | --- | --- | --- |
+| Staging | `staging` | `pepbmqomiailnnvvwupz` | custom `staging` environment |
+| Production | `main` | `whaqarofxdlzxrelbcrq` | `production` |
+
+Both `race-pace-site` and `race-pace-web` must use the matching environment. Resend, PayMongo,
+Auth URLs, CAPTCHA, webhooks, scheduled workers, and Edge Function secrets follow the same boundary.
+
 ## Commands
 
 ```bash
@@ -53,7 +97,8 @@ docker compose logs -f site web    # first boot runs pnpm install; ~2 min to "Re
 ```
 
 `pnpm lint` at the root is a **no-op** — no app defines a `lint` script and there is no ESLint
-config anywhere. `typecheck` + the test suites are the gate. There is no CI; run them locally.
+config anywhere. `typecheck` + the test suites are the gate. GitHub Actions mirrors these checks in
+`.github/workflows/ci.yml`, but hosted staging verification remains a separate release gate.
 
 ## Architecture
 

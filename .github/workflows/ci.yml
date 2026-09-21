@@ -24,6 +24,15 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+      - name: Require staging as the production source
+        if: github.event_name == 'pull_request' && github.base_ref == 'main'
+        env:
+          RELEASE_HEAD_REF: ${{ github.head_ref }}
+        run: |
+          if [ "$RELEASE_HEAD_REF" != "staging" ]; then
+            echo "::error::Production pull requests must promote staging into main."
+            exit 1
+          fi
       - uses: pnpm/action-setup@v4
         with:
           version: 9.7.0

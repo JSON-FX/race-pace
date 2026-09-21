@@ -71,6 +71,7 @@ export function TurnstileWidget({
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const widgetIdRef = useRef<string | null>(null);
+  const previousResetKeyRef = useRef(resetKey);
   const [failed, setFailed] = useState(false);
   const onTokenChangeRef = useRef(onTokenChange);
   onTokenChangeRef.current = onTokenChange;
@@ -109,6 +110,8 @@ export function TurnstileWidget({
   }, [action, siteKey]);
 
   useEffect(() => {
+    if (previousResetKeyRef.current === resetKey) return;
+    previousResetKeyRef.current = resetKey;
     onTokenChangeRef.current(null);
     if (widgetIdRef.current && window.turnstile) {
       window.turnstile.reset(widgetIdRef.current);
