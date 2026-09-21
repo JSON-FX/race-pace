@@ -34,6 +34,8 @@ Super-admin organization scope: [selection fix plan](./plans/2026-09-18-super-ad
 
 Platform user administration: [design](./specs/2026-09-20-platform-users-design.md) and [implementation plan](./plans/2026-09-20-platform-users.md). The approved table and inspector provide platform account, event, payment and Race Passport visibility, with protected Supabase Auth suspension staged before production.
 
+Admin settings Brand Studio: [approved design](./specs/2026-09-22-settings-brand-studio-design.md) and [implementation plan](./plans/2026-09-22-settings-brand-studio.md). The redesign preserves organization settings behavior and adds a shared searchable Popover combobox for form-backed selections.
+
 Unbound PayMongo checkout review: [implementation plan](./plans/2026-09-18-unbound-paymongo-review.md). The fail-closed payment endpoint and platform alert are deployed to staging. A safe operator review queue and provider-backed resolution are planned; the payment launch gate remains open.
 
 ## Production purchasing

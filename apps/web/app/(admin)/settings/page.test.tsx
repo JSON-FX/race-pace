@@ -2,11 +2,24 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import SettingsPage from "./page";
 
-const { getOrg, getMyRoles } = vi.hoisted(() => ({
-  getOrg: vi.fn(() => {
+vi.mock("next/navigation", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("next/navigation")>();
+  return { ...actual, useRouter: () => ({ refresh: vi.fn() }) };
+});
+
+const { getOrg, getMyRoles, getWaiverVersions, getEventWaiverSettings } = vi.hoisted(() => ({
+  getOrg: vi.fn(async (_orgId: string): Promise<{
+    id: string;
+    name: string;
+    logo_url: string | null;
+    banner_url: string | null;
+    check_in_required_default: boolean;
+  }> => {
     throw new Error("must not be called");
   }),
   getMyRoles: vi.fn(),
+  getWaiverVersions: vi.fn(),
+  getEventWaiverSettings: vi.fn(),
 }));
 
 vi.mock("@/lib/queries/org", async (importOriginal) => {
@@ -17,6 +30,11 @@ vi.mock("@/lib/queries/org", async (importOriginal) => {
 vi.mock("@/lib/queries/roles", async () => {
   const actual = await vi.importActual<typeof import("@/lib/queries/roles")>("@/lib/queries/roles");
   return { ...actual, getMyRoles };
+});
+
+vi.mock("@/lib/queries/waivers", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/queries/waivers")>();
+  return { ...actual, getWaiverVersions, getEventWaiverSettings };
 });
 
 describe("SettingsPage", () => {
@@ -47,5 +65,26 @@ describe("SettingsPage", () => {
 
     await expect(SettingsPage()).rejects.toThrow("NEXT_REDIRECT");
     expect(getOrg).not.toHaveBeenCalled();
+  });
+
+  it("renders the approved Brand Studio with the organization identity", async () => {
+    getMyRoles.mockResolvedValue({
+      role: "admin", orgId: "org-1", isSuperAdmin: false, isAdmin: true, isOrgAdmin: true,
+      capabilities: ["manage_org"],
+    });
+    getOrg.mockResolvedValue({
+      id: "org-1", name: "Yalabyalam Trail Runners", logo_url: null, banner_url: null,
+      check_in_required_default: true,
+    });
+    getWaiverVersions.mockResolvedValue([]);
+    getEventWaiverSettings.mockResolvedValue([]);
+
+    const ui = await SettingsPage();
+    render(ui);
+
+    expect(screen.getByRole("heading", { name: "Organization settings" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Public organization identity preview")).toHaveTextContent("Yalabyalam Trail Runners");
+    expect(screen.getByRole("navigation", { name: "Settings sections" })).toBeInTheDocument();
+    expect(screen.getByText("Admin access")).toBeInTheDocument();
   });
 });
