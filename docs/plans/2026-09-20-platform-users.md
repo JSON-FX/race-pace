@@ -30,4 +30,4 @@
 
 ## Status
 
-Implementation and local validation are complete. All site, admin, backend, typecheck, build, grant, authorization, and local suspend/restore checks pass. Hosted staging and production are pending.
+Implementation, staging verification, and production release are complete. All site, admin, backend, typecheck, build, grant, authorization, and local suspend/restore checks pass. Staging and production CI, both application deployments, the migration, the Edge Function, and read-only smoke checks pass. Production before-and-after counts match exactly, and no synthetic data or live account suspension was used for production verification.
