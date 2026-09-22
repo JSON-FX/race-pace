@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Check, Lock, ShieldCheck } from "lucide-react";
 import { formatPeso } from "@race-pace/shared";
 import { isRegistrationClosed } from "@/lib/eventStatus";
 import { holdExpired } from "@/lib/holdExpiry";
-import { useRegistration, createMethodCheckout } from "@/lib/registration";
+import { useRegistration, createMethodCheckout, inspectCheckoutMethods } from "@/lib/registration";
 import { checkoutErrorMessage } from "@/lib/errors";
 import { PAY_METHODS, breakdown } from "@/lib/payment";
 import { longDate } from "@/lib/format";
@@ -250,18 +250,17 @@ export function PayPanel({ registrationId }: { registrationId: string }) {
           </dl>
           {passOn ? <p className={styles.finePrint}>PayMongo calculates the processing fee for your chosen method. Review the exact fee and final total on its secure checkout before you confirm payment.</p> : <p className={styles.finePrint}>{platformFee !== null ? `${formatPeso(platformFee)} in Taxes and fees is included in this price. ` : ""}PayMongo’s actual processing fee is deducted after payment. Neither fee increases your total.</p>}
         </section>
-        <section className={styles.payMethods}>
-          <h3>{!hostedPayMongo && !passOn ? "Pay with" : "Available at checkout"}</h3>
-          <p>{!hostedPayMongo && !passOn ? "Choose a payment method to continue." : "Choose your method on PayMongo after continuing."}</p>
-          <div className={styles.methodGrid} aria-label="Payment methods available on PayMongo">
-            {(["qrph", "gcash", "maya", "card"] as const).map((key) => {
-              const label = PAY_METHODS.find((item) => item.key === key)?.label ?? key;
-              const content = <><MethodLogo methodKey={key} /><span>{label}</span></>;
-              return !hostedPayMongo && !passOn ? <button key={key} type="button" aria-pressed={method === key} onClick={() => setMethod(key)} className={styles.methodItem}>{content}{method === key ? <Check className={styles.methodSelected} size={16} aria-hidden="true" /> : null}</button> : <span key={key} className={styles.methodItem}>{content}</span>;
-            })}
-          </div>
-          {hostedPayMongo && !passOn ? <p className={styles.finePrint}>The total stays {formatPeso(total)}. Processing and Race Pace fees come out of this price.</p> : null}
-        </section>
+        {hostedPayMongo ? <HostedPaymentMethods key={registrationId} registrationId={registrationId} total={total} passOn={passOn} /> :
+          <section className={styles.payMethods}>
+            <h3>Pay with</h3>
+            <p>Choose a payment method to continue.</p>
+            <div className={styles.methodGrid} aria-label="Payment methods">
+              {(["qrph", "gcash", "maya", "card"] as const).map((key) => {
+                const label = PAY_METHODS.find((item) => item.key === key)?.label ?? key;
+                return <button key={key} type="button" aria-pressed={method === key} onClick={() => setMethod(key)} className={styles.methodItem}><MethodLogo methodKey={key} /><span>{label}</span>{method === key ? <Check className={styles.methodSelected} size={16} aria-hidden="true" /> : null}</button>;
+              })}
+            </div>
+          </section>}
       </div>
       {inclusions.length > 0 ? <section className={styles.inclusions}><h3>What&apos;s included</h3><ul>{inclusions.map((item, index) => <li key={index}><Check size={15} aria-hidden="true" />{item}</li>)}</ul></section> : null}
       <RefundNotice policy={reg.data.refundPolicy} retention={reg.data.refundFeeCents} />
@@ -270,6 +269,31 @@ export function PayPanel({ registrationId }: { registrationId: string }) {
       <p className={styles.securityNote}><Lock size={13} aria-hidden="true" /> Encrypted and secured by PayMongo</p>
     </RaceBib>
   );
+}
+
+const PROVIDER_METHODS = { qrph: "qrph", gcash: "gcash", paymaya: "maya", card: "card" } as const;
+
+function HostedPaymentMethods({ registrationId, total, passOn }: { registrationId: string; total: number; passOn: boolean }) {
+  const [inspection, setInspection] = useState<{ loading: boolean; methods: string[] | null }>({ loading: true, methods: null });
+  useEffect(() => {
+    let active = true;
+    void inspectCheckoutMethods(registrationId).then((methods) => { if (active) setInspection({ loading: false, methods }); });
+    return () => { active = false; };
+  }, [registrationId]);
+
+  const available = inspection.methods?.filter((method): method is keyof typeof PROVIDER_METHODS => method in PROVIDER_METHODS) ?? [];
+  return <section className={styles.payMethods}>
+    <h3>Available at checkout</h3>
+    <p>{inspection.loading ? "Checking payment methods with PayMongo…" : available.length ? "These methods are enabled for this checkout. Choose one on PayMongo." : "PayMongo will show the methods available for this checkout."}</p>
+    {available.length ? <div className={cn(styles.methodGrid, available.length === 1 && styles.singleMethod)} aria-label="Payment methods available on PayMongo">
+      {available.map((method) => {
+        const key = PROVIDER_METHODS[method];
+        const label = PAY_METHODS.find((item) => item.key === key)?.label ?? key;
+        return <span key={method} className={styles.methodItem}><MethodLogo methodKey={key} /><span>{label}</span></span>;
+      })}
+    </div> : null}
+    {!passOn ? <p className={styles.finePrint}>The total stays {formatPeso(total)}. Processing and Race Pace fees come out of this price.</p> : null}
+  </section>;
 }
 
 function PaymentRow({ label, value, strong }: { label: string; value: string; strong?: boolean }) {

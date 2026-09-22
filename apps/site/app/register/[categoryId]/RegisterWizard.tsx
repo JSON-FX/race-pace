@@ -300,7 +300,7 @@ export function RegisterWizard({ userId, category, event, addons, formFields, pa
         </div>
         <RefundNotice policy={event.refundPolicy} retention={event.refundFeeCents} />
         {assisted ? <p className="mt-6 rounded-lg bg-muted p-4 text-sm">Pass this device to {runnerName}. The participant must read and accept the waiver personally. You remain the booking contact.</p> : null}
-        <div className={styles.waiverChoice}><Checkbox id="waiver" checked={draft.waiver} onCheckedChange={(c) => patch({ waiver: c === true })} /><div><Label htmlFor="waiver">{assisted ? `I, ${runnerName}, personally accept the event waiver and confirm I’m medically fit to take part.` : "I accept the event waiver and confirm I’m medically fit to take part."}</Label><button type="button" onClick={() => setWaiverOpen(true)}>Read event waiver</button></div></div>
+        <div className={styles.waiverChoice}><Checkbox id="waiver" checked={draft.waiver} onCheckedChange={(c) => patch({ waiver: c === true })} /><div><Label htmlFor="waiver">{assisted ? `I, ${runnerName}, personally accept the event waiver and confirm I’m medically fit to take part.` : "I accept the event waiver and confirm I’m medically fit to take part."}</Label><button className={styles.waiverLink} type="button" onClick={() => setWaiverOpen(true)}>Read event waiver</button></div></div>
       </> : null}
 
       {formError ? <p role="alert" className={styles.formError}>{formError}</p> : null}

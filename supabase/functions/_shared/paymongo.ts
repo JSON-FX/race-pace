@@ -49,6 +49,15 @@ export interface CreateSessionInput {
 
 export interface PmSession { id: string; checkoutUrl: string; paid: boolean; status: string; raw: unknown }
 
+/** The methods frozen on this checkout, not the merchant's current capabilities. */
+export function pmCheckoutMethods(session: PmSession): string[] {
+  const attributes = (session.raw as { data?: { attributes?: { payment_method_types?: unknown } } })?.data?.attributes;
+  const methods = attributes?.payment_method_types;
+  if (!Array.isArray(methods)) return [];
+  const supported = new Set(["card", "gcash", "paymaya", "qrph"]);
+  return methods.filter((method): method is string => typeof method === "string" && supported.has(method));
+}
+
 export async function pmActivePaymentMethods(): Promise<string[]> {
   let response: Response;
   try {

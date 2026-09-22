@@ -5,6 +5,7 @@ import { preflight, corsHeaders } from "../_shared/cors.ts";
 import { isRegistrationClosed } from "../_shared/eventStatus.ts";
 import { computeFee, type FeeTerms } from "../_shared/fee.ts";
 import { passOnBreakdown, type ProcessorRate } from "../_shared/processorFee.ts";
+import { pmCheckoutMethods, pmGetCheckoutSession } from "../_shared/paymongo.ts";
 
 // Registration creates the PayMongo checkout before the runner chooses a method.
 // Reuse that bound session on the pay screen; creating another can leave two
@@ -175,6 +176,16 @@ Deno.serve(async (req) => {
       if (!payment.provider_ref?.startsWith("cs_") ||
           !payment.checkout_url?.startsWith("https://checkout.paymongo.com/")) {
         return json({ error: "provider_fee_session_unavailable" }, 503);
+      }
+      if (raw?.inspect === true) {
+        // The methods are fixed when PayMongo creates this session. Read that
+        // session rather than guessing from current merchant capabilities.
+        try {
+          const session = await pmGetCheckoutSession(payment.provider_ref);
+          return json({ payment_method_types: pmCheckoutMethods(session) });
+        } catch {
+          return json({ error: "payment_methods_unavailable" }, 503);
+        }
       }
       return json({ checkout_url: payment.checkout_url });
     }

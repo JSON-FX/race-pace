@@ -130,6 +130,23 @@ export async function createMethodCheckout(registrationId: string, method: strin
   }
 }
 
+/** Read the methods frozen on a hosted PayMongo checkout. This never creates a session. */
+export async function inspectCheckoutMethods(registrationId: string): Promise<string[] | null> {
+  try {
+    const supabase = createClient();
+    const { data, error } = await supabase.functions.invoke("payment-session", {
+      body: { registration_id: registrationId, method: "qrph", inspect: true },
+    });
+    if (error) return null;
+    const methods = (data as { payment_method_types?: unknown })?.payment_method_types;
+    return Array.isArray(methods) && methods.every((method) => typeof method === "string")
+      ? methods
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 export type RegistrationPayment = {
   createdAt: string | null; method: string | null; amount: number | null;
   platformFee: number | null; netToOrg: number | null; provider: string | null;
