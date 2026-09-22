@@ -1,12 +1,12 @@
 import { emailBrandHeader, emailBrandFooter, isStagingEmail } from "./emailBrand.ts";
-export type GroupTicket = { name: string; reference: string; ticketUrl: string; qrUrl: string };
+export type GroupTicket = { name: string; categoryLabel: string; reference: string; ticketUrl: string; qrUrl: string };
 function escape(value: string) { return value.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;"); }
 export function renderGroupTicketEmail(input: { eventName: string; categoryLabel: string; eventDate: string | null; venue: string | null; total: number; tickets: GroupTicket[] }) {
-  if (!Number.isSafeInteger(input.total) || input.total<0 || input.tickets.length<1 || input.tickets.length>10) throw new Error("invalid_ticket_email");
+  if (!Number.isSafeInteger(input.total) || input.total<0 || input.tickets.length<2 || input.tickets.length>10) throw new Error("invalid_ticket_email");
   const ticketCount = input.tickets.length;
   const runnerWord = ticketCount === 1 ? "runner" : "runners";
   const ticketWord = ticketCount === 1 ? "ticket" : "tickets";
-  const cards=input.tickets.map((t,i)=>`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #dce4df;margin:14px 0 22px"><tr><td align="center" style="padding:20px"><p style="font-size:16px;font-weight:bold;margin:0 0 8px">${escape(t.name)}</p><p style="font-size:13px;color:#627267;margin:0 0 16px">${escape(input.categoryLabel)} · Ticket ${i+1} of ${input.tickets.length}</p><img src="${escape(t.qrUrl)}" width="200" height="200" alt="Ticket QR for ${escape(t.name)}" style="display:block;border:0;background:#fff" /><p style="font-size:12px;color:#657469;margin:16px 0">Reference: ${escape(t.reference)}</p><a href="${escape(t.ticketUrl)}" style="color:#148b4d">View and save this participant's ticket</a></td></tr></table>`).join("");
+  const cards=input.tickets.map((t,i)=>`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #dce4df;margin:14px 0 22px"><tr><td align="center" style="padding:20px"><p style="font-size:16px;font-weight:bold;margin:0 0 8px">${escape(t.name)}</p><p style="font-size:13px;color:#627267;margin:0 0 16px">${escape(t.categoryLabel)} · Ticket ${i+1} of ${input.tickets.length}</p><img src="${escape(t.qrUrl)}" width="200" height="200" alt="Ticket QR for ${escape(t.name)}" style="display:block;border:0;background:#fff" /><p style="font-size:12px;color:#657469;margin:16px 0">Reference: ${escape(t.reference)}</p><a href="${escape(t.ticketUrl)}" style="color:#148b4d">View and save this participant's ticket</a></td></tr></table>`).join("");
   const details=[input.eventDate,input.venue].filter(Boolean).join(" · ");
   const plain = (value: string) => value.replace(/\s+/g, " ").trim();
   const text = [
@@ -19,6 +19,7 @@ export function renderGroupTicketEmail(input: { eventName: string; categoryLabel
     "",
     ...input.tickets.flatMap((ticket, index) => [
       `Ticket ${index + 1} of ${ticketCount}: ${plain(ticket.name)}`,
+      `Category: ${plain(ticket.categoryLabel)}`,
       `Reference: ${plain(ticket.reference)}`,
       `View this participant's ticket and QR: ${ticket.ticketUrl}`,
       "",

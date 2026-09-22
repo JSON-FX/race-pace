@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { fetchAddons, fetchCategory, fetchEvent, fetchFormFields } from "@/lib/events";
+import { fetchAddons, fetchCategories, fetchCategory, fetchEvent, fetchFormFields } from "@/lib/events";
 import { isRegistrationClosed } from "@/lib/eventStatus";
 import { SiteHeader } from "@/components/SiteHeader";
 import { GroupRegister, type GroupPassport } from "../GroupRegister";
@@ -17,12 +17,12 @@ export default async function GroupRegisterPage({ params }: { params: Promise<{ 
 
   const category = await fetchCategory(db, categoryId);
   if (!category) notFound();
-  const [event, addons, fields] = await Promise.all([
-    fetchEvent(db, category.event_id), fetchAddons(db, category.event_id), fetchFormFields(db, category.event_id),
+  const [event, categories, addons, fields] = await Promise.all([
+    fetchEvent(db, category.event_id), fetchCategories(db, category.event_id), fetchAddons(db, category.event_id), fetchFormFields(db, category.event_id),
   ]);
   if (!event || !event.waiver_version_id) notFound();
   if (isRegistrationClosed(event.status, event.registration_closes_at)) redirect(`/events/${event.id}?closed=${categoryId}`);
-  if (category.slots_taken >= category.slots_total) redirect(`/events/${event.id}?soldout=${categoryId}`);
+  if (categories.every(value => value.slots_taken >= value.slots_total)) redirect(`/events/${event.id}?soldout=${categoryId}`);
 
   const [passportResult, waiverResult] = await Promise.all([
     db.from("runner_passports").select("id,claimed_user_id,first_name,last_name,shirt_size,blood_type,team_name,date_of_birth,gender,contact_number,emergency_contact_name,emergency_contact_number,emergency_contact_relationship,shipping_barangay_code,shipping_zip_code,shipping_address_line").order("created_at"),
@@ -31,5 +31,5 @@ export default async function GroupRegisterPage({ params }: { params: Promise<{ 
   if (passportResult.error || waiverResult.error || !waiverResult.data) throw new Error("Group registration details are unavailable");
   const passports = (passportResult.data ?? []).filter(p => !p.claimed_user_id || p.claimed_user_id === user.id) as GroupPassport[];
 
-  return <><SiteHeader /><main><GroupRegister userId={user.id} category={category} event={event} passports={passports} addons={addons} fields={fields} waiver={waiverResult.data} /></main></>;
+  return <><SiteHeader /><main><GroupRegister userId={user.id} initialCategory={category} categories={categories} event={event} passports={passports} addons={addons} fields={fields} waiver={waiverResult.data} /></main></>;
 }

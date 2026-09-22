@@ -97,6 +97,10 @@ User-requested scope added to the [revision implementation plan](plans/2026-09-1
 
 Same-category group checkout confirmed by the user. [Architecture baseline](specs/group-checkout-architecture.md) defines one shared payment with separate participant registrations, atomic slot holds, fee allocations and order-aware refunds. Internal reservation work is implemented locally; combined payments, refunds and the public UI remain pending.
 
+### 2026-09-22 mixed-category group checkout
+
+The approved [mixed-category extension](specs/2026-09-22-mixed-category-group-checkout.md) keeps one event and one payment while assigning a category to each selected Passport. The [implementation plan](plans/2026-09-22-mixed-category-group-checkout.md) covers atomic category capacity, participant-level refunds, the Trail Roster interface and distinct QR ticket verification. The Trail Roster and Trail Ledger are staging-accepted at merge `3e3fe1b`. One PayMongo test-mode GCash payment fulfilled two Passports in different categories, issued two distinct QR tickets, and supported a participant-only refund that released only the refunded category. Staging flags are enabled; production remains unchanged pending an explicit promotion decision.
+
 
 ### 2026-09-17 group foundation implemented locally
 
