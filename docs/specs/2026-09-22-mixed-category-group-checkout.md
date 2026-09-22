@@ -1,6 +1,6 @@
 # Mixed-category group checkout
 
-Date: 2026-09-22. Status: approved for implementation.
+Date: 2026-09-22. Status: implemented and accepted on staging; production promotion pending.
 Extends: [group checkout architecture](group-checkout-architecture.md).
 
 ## Decision
