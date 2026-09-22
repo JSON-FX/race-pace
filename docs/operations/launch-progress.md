@@ -37,12 +37,14 @@ Trail Ledger alignment and roster-change production release, 2026-09-22: PR #108
 
 Trail Roster visual-alignment checkpoint, 2026-09-22: the local runner implementation now uses the approved forest hero, responsive Passport roster, per-runner ShadCN category controls and sticky live summary as the functional first group-registration step. The existing details, add-ons, per-runner waiver acceptance, draft persistence, mixed-category reservation and redirect remain the second step. Focused coverage passed 6 tests, the full runner suite passed 462 tests, TypeScript is clean, the production build passes and `git diff --check` passes. Browser review at 1280px, 768px and 375px found no horizontal overflow or framework error overlay in either step. Hosted staging and production are unchanged.
 
+Trail Roster visual-alignment staging release, 2026-09-22: PR #110 merged to `staging` at `b960945`. Exact-merge CI run `35742200191` passed migration replay, 462 runner tests, 909 admin tests, 754 backend/shared tests, both typechecks and both production builds. Runner deployment `dpl_J9CBAENpGWF8xyAtspEExLY4x1iD` and admin deployment `dpl_5YZKmmsogqAffeuTM3s1WAFhc6sR` are Ready and assigned to the staging aliases from that commit. This application-only release changed no migration, Edge Function, secret or provider setting. Read-only browser checks loaded the staging landing page, seven-race catalog, runner sign-in and admin login without an error surface. The authenticated Trail Roster journey remains for owner design acceptance; production is unchanged.
+
 ### Current mixed-category group checkout release
 
 | Work | Status | Blocker | Next task |
 |---|---|---|---|
 | Trail Roster and Trail Ledger | **Staging accepted** | None on the tested GCash path. | Preserve the approved layout and participant-category pairing. |
-| Trail Roster proposal alignment | **Implemented and locally verified** | Hosted staging has not received this layout revision. | Open a feature pull request to `staging`, then verify the exact deployment. |
+| Trail Roster proposal alignment | **Staging released** | Authenticated owner design acceptance remains. | Test the roster on staging, then decide whether to promote `staging` to `main`. |
 | Trail Ledger proposal alignment and roster changes | **Production released** | A real cancellation remains owner-led. | Monitor the first real unpaid group-order cancellation and its return to the Trail Roster. |
 | One payment and distinct QR tickets | **Production released** | No fresh inbox delivery has inspected the exact email revision. | Monitor the first real multi-ticket payment, QR tickets and group email. |
 | Participant-only refund and category capacity | **Staging accepted** | None. | Keep the one-registration refund boundary during promotion. |
