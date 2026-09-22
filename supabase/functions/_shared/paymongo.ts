@@ -2,6 +2,22 @@
 // Docs: https://docs.paymongo.com/reference/checkout-session-resource
 const BASE = "https://api.paymongo.com/v1";
 const V2_CHECKOUT = "https://api.paymongo.com/v2/checkout_sessions";
+const CAPABILITIES = `${BASE}/merchants/capabilities/payment_methods`;
+
+export class PayMongoCheckoutError extends Error {
+  constructor(
+    public readonly code: string,
+    public readonly outcome: "rejected" | "uncertain",
+    public readonly providerStatus?: number,
+  ) {
+    super(code);
+    this.name = "PayMongoCheckoutError";
+  }
+}
+
+export function isDefinitiveCheckoutRejection(error: unknown): error is PayMongoCheckoutError {
+  return error instanceof PayMongoCheckoutError && error.outcome === "rejected";
+}
 
 export function paymongoConfigured(): boolean {
   return !!Deno.env.get("PAYMONGO_SECRET_KEY");
@@ -33,6 +49,30 @@ export interface CreateSessionInput {
 
 export interface PmSession { id: string; checkoutUrl: string; paid: boolean; status: string; raw: unknown }
 
+export async function pmActivePaymentMethods(): Promise<string[]> {
+  let response: Response;
+  try {
+    response = await fetch(CAPABILITIES, { headers: { Authorization: authHeader() } });
+  } catch {
+    // Checkout creation has not started, so this failure cannot have produced
+    // a chargeable provider session. The caller may release its local hold.
+    throw new PayMongoCheckoutError("paymongo_capabilities_unavailable", "rejected");
+  }
+  if (!response.ok) {
+    throw new PayMongoCheckoutError("paymongo_capabilities_rejected", "rejected", response.status);
+  }
+  let body: unknown;
+  try {
+    body = await response.json();
+  } catch {
+    throw new PayMongoCheckoutError("paymongo_capabilities_invalid", "rejected", response.status);
+  }
+  if (!Array.isArray(body) || !body.every((method) => typeof method === "string")) {
+    throw new PayMongoCheckoutError("paymongo_capabilities_invalid", "rejected", response.status);
+  }
+  return body;
+}
+
 // deno-lint-ignore no-explicit-any
 function parseSession(body: any): PmSession {
   const d = body?.data;
@@ -50,26 +90,43 @@ function parseSession(body: any): PmSession {
 }
 
 export async function pmCreateCheckoutSession(input: CreateSessionInput): Promise<PmSession> {
-  const res = await fetch(input.passOnFees ? V2_CHECKOUT : `${BASE}/checkout_sessions`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: authHeader(), "Idempotency-Key": input.idempotencyKey },
-    body: JSON.stringify({
-      data: {
-        attributes: {
-          line_items: input.lineItems,
-          payment_method_types: input.paymentMethodTypes,
-          description: input.description,
-          success_url: input.successUrl,
-          cancel_url: input.cancelUrl,
-          metadata: input.metadata,
-          billing: input.billing,
-          ...(input.passOnFees ? { pass_on_fees: true, reference_number: input.metadata?.registration_id } : {}),
+  let res: Response;
+  try {
+    res = await fetch(input.passOnFees ? V2_CHECKOUT : `${BASE}/checkout_sessions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: authHeader(), "Idempotency-Key": input.idempotencyKey },
+      body: JSON.stringify({
+        data: {
+          attributes: {
+            line_items: input.lineItems,
+            payment_method_types: input.paymentMethodTypes,
+            description: input.description,
+            success_url: input.successUrl,
+            cancel_url: input.cancelUrl,
+            metadata: input.metadata,
+            billing: input.billing,
+            ...(input.passOnFees ? { pass_on_fees: true, reference_number: input.metadata?.registration_id } : {}),
+          },
         },
-      },
-    }),
-  });
-  const body = await res.json();
-  if (!res.ok) throw new Error(`paymongo_create_failed: ${JSON.stringify(body?.errors ?? body)}`);
+      }),
+    });
+  } catch {
+    // The request may have reached PayMongo. Checkout idempotency was observed
+    // minting distinct sessions, so this outcome must remain held for review.
+    throw new PayMongoCheckoutError("paymongo_create_uncertain", "uncertain");
+  }
+  let body: unknown;
+  try {
+    body = await res.json();
+  } catch {
+    throw new PayMongoCheckoutError("paymongo_create_response_invalid", "uncertain", res.status);
+  }
+  if (!res.ok) {
+    // A client rejection means PayMongo refused the create. Server errors can
+    // occur after work began and therefore remain uncertain.
+    const outcome = res.status >= 400 && res.status < 500 ? "rejected" : "uncertain";
+    throw new PayMongoCheckoutError("paymongo_create_failed", outcome, res.status);
+  }
   return parseSession(body);
 }
 
