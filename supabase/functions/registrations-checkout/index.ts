@@ -4,6 +4,7 @@ import { customDataSchema, formFieldSchema, isProfileKey, registrationInputSchem
 import { preflight, corsHeaders } from "../_shared/cors.ts";
 import { isRegistrationClosed } from "../_shared/eventStatus.ts";
 import { computeFee, type FeeTerms } from "../_shared/fee.ts";
+import { isDefinitiveCheckoutRejection, PayMongoCheckoutError } from "../_shared/paymongo.ts";
 
 Deno.serve(async (req) => {
   const pre = preflight(req);
@@ -205,14 +206,22 @@ Deno.serve(async (req) => {
     const total = category.base_price + addonTotal;
 
     const insertRegistration = () =>
-      db.from("registrations").upsert({
+      db.from("registrations").insert({
         org_id: category.org_id, event_id: input.event_id, category_id: input.category_id,
         user_id: passport.claimed_user_id, booked_by_user_id: userId, participant_passport_id: passport.id,
         waiver_acceptance_method: assisted ? "participant_on_helper_device" : "signed_in_self", status: "pending", total_amount: total,
         waiver_version_id: input.waiver_version_id ?? null,
         custom_data: input.custom_data, waiver_accepted_at: new Date().toISOString(),
         idempotency_key: input.idempotency_key,
-      }, { onConflict: "booked_by_user_id,participant_passport_id,idempotency_key" }).select().single();
+      }).select().single();
+
+    const idempotentEntryQuery = () =>
+      db.from("registrations")
+        .select("id,user_id,booked_by_user_id,status,expires_at,payments(provider,checkout_url)")
+        .eq("booked_by_user_id", userId)
+        .eq("participant_passport_id", passport.id)
+        .eq("idempotency_key", input.idempotency_key)
+        .maybeSingle();
 
     const isLiveGateViolation = (err: { code?: string; message?: string | null } | null) =>
       err?.code === "23505" && (err.message ?? "").includes("registrations_one_live_per_event");
@@ -221,6 +230,19 @@ Deno.serve(async (req) => {
 
     if (regErr?.message?.includes("category_capacity_exhausted")) return json({ error: "sold_out" }, 409);
     if (regErr?.message?.includes("waiver_version_changed")) return json({ error: "waiver_version_changed" }, 409);
+
+    if ((regErr || !reg) && regErr?.code === "23505" && !isLiveGateViolation(regErr)) {
+      // Idempotency prevents a replay from creating a second registration. It
+      // must also prevent a released attempt from being revived: the old
+      // upsert overwrote an expired registration back to pending while its
+      // payment correctly remained failed, stranding the runner on /pay.
+      const { data: replay, error: replayErr } = await idempotentEntryQuery();
+      if (replayErr) return json({ error: "registration_failed", details: replayErr.message }, 500);
+      if (replay?.status === "pending" || replay?.status === "paid") {
+        return alreadyRegisteredResponse(replay);
+      }
+      if (replay) return json({ error: "idempotency_conflict" }, 409);
+    }
 
     if ((regErr || !reg) && isLiveGateViolation(regErr)) {
       // 23505 on registrations_one_live_per_event: a concurrent checkout won
@@ -306,7 +328,32 @@ Deno.serve(async (req) => {
     }
     if (paymentInsertError) return json({ error: "payment_setup_failed" }, 500);
 
-    const checkout = await provider.createCheckout(checkoutInput);
+    let checkout;
+    try {
+      checkout = await provider.createCheckout(checkoutInput);
+    } catch (error) {
+      const providerError = error instanceof PayMongoCheckoutError ? error : null;
+      console.error("[checkout] provider creation failed", {
+        registrationId: reg.id,
+        code: providerError?.code ?? "unknown_provider_error",
+        outcome: providerError?.outcome ?? "uncertain",
+        providerStatus: providerError?.providerStatus ?? null,
+      });
+      if (!isDefinitiveCheckoutRejection(error)) throw error;
+      const release = await db.rpc("release_rejected_paymongo_checkout", {
+        p_registration_id: reg.id,
+        p_reason: `${providerError?.code ?? "provider_rejected"}:${providerError?.providerStatus ?? "none"}`,
+      });
+      if (release.error || release.data !== "released") {
+        console.error("[checkout] rejected provider attempt could not be released", {
+          registrationId: reg.id,
+          result: release.data ?? null,
+          error: release.error?.message ?? null,
+        });
+        return json({ error: "checkout_reconciliation_required", registration_id: reg.id }, 503);
+      }
+      return json({ error: "payment_method_unavailable" }, 503);
+    }
     const { error: paymentUpdateError } = await db.from("payments").update({
       provider_ref: checkout.providerRef,
       checkout_url: checkout.checkoutUrl,

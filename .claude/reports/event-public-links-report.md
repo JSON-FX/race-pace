@@ -20,8 +20,8 @@ COMPLETE for local implementation. Hosted rollout remains a separate, staged ope
 - Database slug and function grant tests: 11 passed.
 - Final focused admin feature tests: 98 passed.
 - Final focused runner event tests: 59 passed.
-- Full admin suite: 895 passed on the final implementation.
-- Full runner suite: 449 passed on the latest `main` base.
+- Full admin suite: 897 passed on the current `staging` base.
+- Full runner suite: 456 passed on the current `staging` base.
 - Admin and runner TypeScript checks: passed.
 - Diff whitespace check: passed.
 - The feature's database and grant tests pass independently against the final local schema. A new full backend/shared run is deferred to protected GitHub validation because the shared local runtime is serving other in-progress work.

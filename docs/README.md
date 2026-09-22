@@ -20,6 +20,8 @@ ultra-trail event platform (Mindanao, Philippines).
 
 **Primary progress table:** [Launch progress](./operations/launch-progress.md). Update affected rows after each setup, implementation or verification step; show the next task and outstanding blockers.
 
+**Required release path:** [Staging-first workflow](./operations/release-workflow.md). Every application and backend change must pass the exact staging revision before promotion into `main`.
+
 Active verification ledger: [end-to-end checklist](./plans/2026-09-15-web-admin-e2e-checklist.md). Local refund ownership and durable callback reconciliation are implemented under [this plan](./plans/2026-09-16-durable-refund-requests.md). Staff invitation redirects, event restrictions and SMTP resend are implemented locally under [this plan](./plans/2026-09-16-staff-invitation-fixes.md). Hosted rollout and production readiness remain pending. The historical roadmap below records earlier checkpoints.
 
 Fixed-price pilot payment work: [PayMongo fee contract](./specs/paymongo-provider-fees.md), [implementation plan](./plans/2026-09-18-paymongo-provider-fees.md), and [review findings](../.claude/code-reviews/2026-09-18-fixed-price-paymongo.md). Staging code and price disclosure are deployed; a fresh sandbox capture, session expiry, and durable reconciliation remain before production.
@@ -31,6 +33,8 @@ Protected production runner smoke: [provider fix plan](./plans/2026-09-18-produc
 Super-admin organization scope: [selection fix plan](./plans/2026-09-18-super-admin-org-scope.md). The validated organization selected in the console must be the one used by org-scoped queries, even when the super admin also holds an org admin role.
 
 Platform user administration: [design](./specs/2026-09-20-platform-users-design.md) and [implementation plan](./plans/2026-09-20-platform-users.md). The approved table and inspector provide platform account, event, payment and Race Passport visibility, with protected Supabase Auth suspension staged before production.
+
+Admin settings Brand Studio: [approved design](./specs/2026-09-22-settings-brand-studio-design.md) and [implementation plan](./plans/2026-09-22-settings-brand-studio.md). The redesign preserves organization settings behavior and adds a shared searchable Popover combobox for form-backed selections.
 
 Unbound PayMongo checkout review: [implementation plan](./plans/2026-09-18-unbound-paymongo-review.md). The fail-closed payment endpoint and platform alert are deployed to staging. A safe operator review queue and provider-backed resolution are planned; the payment launch gate remains open.
 

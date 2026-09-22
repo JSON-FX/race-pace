@@ -49,7 +49,7 @@ beforeEach(() => {
 describe("SettingsForm", () => {
   it("renders avatar and cover uploaders and the org name field", () => {
     render(<SettingsForm org={org} canEdit />);
-    expect(screen.getByText("Avatar")).toBeInTheDocument();
+    expect(screen.getByText("Organization avatar")).toBeInTheDocument();
     expect(screen.getByText("Cover photo")).toBeInTheDocument();
     expect(screen.getByLabelText("Organization name")).toHaveValue("TrailNorth");
   });
@@ -57,9 +57,9 @@ describe("SettingsForm", () => {
   it("crops and saves an avatar upload, then refreshes to pick up the new URL", async () => {
     render(<SettingsForm org={org} canEdit />);
     const file = new File([new Uint8Array([1])], "a.png", { type: "image/png" });
-    fireEvent.change(screen.getByLabelText("Choose Avatar"), { target: { files: [file] } });
-    expect(await screen.findByRole("dialog", { name: "Crop Avatar" })).toBeInTheDocument();
-    fireEvent.click(within(screen.getByRole("dialog", { name: "Crop Avatar" })).getByRole("button", { name: "Save" }));
+    fireEvent.change(screen.getByLabelText("Choose Organization avatar"), { target: { files: [file] } });
+    expect(await screen.findByRole("dialog", { name: "Crop Organization avatar" })).toBeInTheDocument();
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Crop Organization avatar" })).getByRole("button", { name: "Save" }));
     await waitFor(() => expect(uploadOrgImage).toHaveBeenCalledWith("a1", expect.anything(), "avatar"));
     await waitFor(() =>
       expect(updateOrgBrandingAction).toHaveBeenCalledWith("a1", { logo_url: "https://cdn/org-images/a1/avatar-x.png" }),
@@ -70,7 +70,7 @@ describe("SettingsForm", () => {
   it("submits the org name to updateOrgNameAction", async () => {
     render(<SettingsForm org={org} canEdit />);
     fireEvent.change(screen.getByLabelText("Organization name"), { target: { value: "Renamed Org" } });
-    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save profile" }));
     await waitFor(() => expect(updateOrgNameAction).toHaveBeenCalled());
   });
 
@@ -79,7 +79,7 @@ describe("SettingsForm", () => {
     expect(screen.queryByText("Choose Avatar")).not.toBeInTheDocument();
     expect(screen.getByText(/only organization admins can update branding/i)).toBeInTheDocument();
     expect(screen.getByLabelText("Organization name")).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Save profile" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Save default" })).toBeDisabled();
   });
 
