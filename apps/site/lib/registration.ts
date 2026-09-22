@@ -130,6 +130,23 @@ export async function createMethodCheckout(registrationId: string, method: strin
   }
 }
 
+/** Read the methods frozen on a hosted PayMongo checkout. This never creates a session. */
+export async function inspectCheckoutMethods(registrationId: string): Promise<string[] | null> {
+  try {
+    const supabase = createClient();
+    const { data, error } = await supabase.functions.invoke("payment-session", {
+      body: { registration_id: registrationId, method: "qrph", inspect: true },
+    });
+    if (error) return null;
+    const methods = (data as { payment_method_types?: unknown })?.payment_method_types;
+    return Array.isArray(methods) && methods.every((method) => typeof method === "string")
+      ? methods
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 export type RegistrationPayment = {
   createdAt: string | null; method: string | null; amount: number | null;
   platformFee: number | null; netToOrg: number | null; provider: string | null;
@@ -146,6 +163,7 @@ export type RegistrationRow = {
   expiresAt: string | null;
   eventName: string; categoryLabel: string; categoryDistance: number | null; checkoutUrl: string | null;
   eventStatus: string | null; eventDate: string | null; originalDate: string | null; statusNote: string | null;
+  eventPlace?: string | null;
   eventCheckInRequired?: boolean;
   /** Null means "no deadline" — see lib/eventStatus.ts. */
   eventRegistrationClosesAt: string | null;
@@ -190,7 +208,7 @@ export type RegistrationRow = {
 // type level, and `a + b` is `string` to TypeScript, which erases every column
 // type on the result.
 const REG_SELECT =
-  "id,user_id,booked_by_user_id,booking_order_id,status,total_amount,ticket_token,org_id,event_id,expires_at,custom_data,organizations(name,is_active,fee_mode,commission_type,commission_rate,commission_flat_cents,refund_policy,refund_fee_cents),events(name,status,event_date,original_date,status_note,hero_image_url,inclusions,registration_closes_at,kit_edit_closes_at,check_in_required),categories(label,distance_km,base_price),registration_addons(price),payments(checkout_url,created_at,method,amount,platform_fee,net_to_org,provider,provider_ref,status,checkout_fee_mode,checkout_platform_fee,checkout_provider_managed_fee)";
+  "id,user_id,booked_by_user_id,booking_order_id,status,total_amount,ticket_token,org_id,event_id,expires_at,custom_data,organizations(name,is_active,fee_mode,commission_type,commission_rate,commission_flat_cents,refund_policy,refund_fee_cents),events(name,status,event_date,original_date,status_note,place,city_name,province_name,hero_image_url,inclusions,registration_closes_at,kit_edit_closes_at,check_in_required),categories(label,distance_km,base_price),registration_addons(price),payments(checkout_url,created_at,method,amount,platform_fee,net_to_org,provider,provider_ref,status,checkout_fee_mode,checkout_platform_fee,checkout_provider_managed_fee)";
 
 export function mapReg(r: any): RegistrationRow {
   const payment = Array.isArray(r.payments) ? r.payments[0] : r.payments;
@@ -259,6 +277,7 @@ export function mapReg(r: any): RegistrationRow {
     identitySnapshot: r.custom_data ?? null,
     shirtSize: (r.custom_data as Record<string, unknown> | null)?.shirt_size as string ?? null,
     eventDate: r.events?.event_date ?? null,
+    eventPlace: r.events?.place || [r.events?.city_name, r.events?.province_name].filter(Boolean).join(", ") || null,
     originalDate: r.events?.original_date ?? null,
     statusNote: r.events?.status_note ?? null,
     payment: payment

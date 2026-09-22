@@ -1,20 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Check, Lock } from "lucide-react";
+import { ArrowRight, Check, Lock, ShieldCheck } from "lucide-react";
 import { formatPeso } from "@race-pace/shared";
 import { isRegistrationClosed } from "@/lib/eventStatus";
 import { holdExpired } from "@/lib/holdExpiry";
-import { useRegistration, createMethodCheckout } from "@/lib/registration";
+import { useRegistration, createMethodCheckout, inspectCheckoutMethods } from "@/lib/registration";
 import { checkoutErrorMessage } from "@/lib/errors";
 import { PAY_METHODS, breakdown } from "@/lib/payment";
+import { longDate } from "@/lib/format";
 import { MethodLogo } from "@/components/PaymentLogos";
-import { TicketStub } from "@/components/TicketStub";
 import { RefundNotice } from "@/components/RefundNotice";
-import { StepRail } from "@/components/StepRail";
+import { RaceBib, RaceBibHeading } from "@/components/registration/RaceBib";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import styles from "./PayPanel.module.css";
 
 export function PayPanel({ registrationId }: { registrationId: string }) {
   const reg = useRegistration(registrationId);
@@ -223,128 +224,78 @@ export function PayPanel({ registrationId }: { registrationId: string }) {
   }
 
   return (
-    <div className="mx-auto w-full max-w-2xl px-6 py-10">
-      <StepRail current={4} />
-
-      <h1 className="mt-8 text-[28px] font-semibold tracking-[-0.6px] text-foreground">Payment</h1>
-      <p className="mt-1.5 text-[14px] text-muted-foreground">
-        Your slot is held while you pay — complete this to lock it in.
-      </p>
-
-      <div className="mt-6">
-        <TicketStub
-          eventName={reg.data.eventName}
-          categoryLabel={reg.data.categoryLabel}
-          amountLabel="Total due"
-          amount={due}
-        />
-      </div>
-
-      <dl className="mt-5 divide-y divide-divider overflow-hidden rounded-xl border border-border">
-        <div className="flex justify-between px-5 py-3.5">
-          <dt className="text-[14px] text-muted-foreground">Entry fee</dt>
-          <dd className="text-[14px] font-semibold tabular-nums text-foreground">{formatPeso(entry)}</dd>
-        </div>
-        {addons > 0 ? (
-          <div className="flex justify-between px-5 py-3.5">
-            <dt className="text-[14px] text-muted-foreground">Add-ons</dt>
-            <dd className="text-[14px] font-semibold tabular-nums text-foreground">+{formatPeso(addons)}</dd>
-          </div>
-        ) : null}
-        {passOn && platformFee !== null && platformFee > 0 ? (
-          <div className="flex justify-between px-5 py-3.5">
-            <dt className="text-[14px] text-muted-foreground">Taxes and fees</dt>
-            <dd className="text-[14px] font-semibold tabular-nums text-foreground">+{formatPeso(platformFee)}</dd>
-          </div>
-        ) : null}
-        {passOn ? (
-          <>
-            <div className="flex justify-between px-5 py-3.5">
-              <dt className="text-[14px] text-muted-foreground">Payment processing</dt>
-              <dd className="text-[14px] text-muted-foreground">Calculated by PayMongo</dd>
-            </div>
-            <div className="flex justify-between bg-secondary px-5 py-3.5">
-              <dt className="text-[14px] font-semibold text-foreground">Total to pay</dt>
-              <dd className="text-[14px] text-muted-foreground">Shown on PayMongo</dd>
-            </div>
-          </>
-        ) : (
-          <div className="flex justify-between px-5 py-3.5">
-            <dt className="text-[14px] text-muted-foreground">Added at checkout</dt>
-            <dd className="text-[14px] font-semibold text-primary">₱0.00</dd>
-          </div>
-        )}
-      </dl>
-      {passOn ? (
-        <p className="mt-2.5 text-[12.5px] leading-relaxed text-muted-foreground">
-          PayMongo calculates the processing fee for your chosen method. Review the exact fee and final total
-          on its secure checkout before you confirm payment.
-        </p>
-      ) : null}
-      {!passOn ? <p className="mt-2.5 text-[12.5px] leading-relaxed text-muted-foreground">
-        {platformFee !== null ? `${formatPeso(platformFee)} in Taxes and fees is included in this price. ` : ""}
-        PayMongo’s actual processing fee is deducted after payment. Neither fee increases your total.
-      </p> : null}
-
-      {inclusions.length > 0 ? (
-        <section className="mt-8">
-          <h2 className="text-[15px] font-semibold text-foreground">What&apos;s included</h2>
-          <ul className="mt-3 flex flex-col gap-2">
-            {inclusions.map((item, i) => (
-              <li key={i} className="flex items-center gap-2.5 text-[14px] text-foreground">
-                <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-                {item}
-              </li>
-            ))}
-          </ul>
+    <RaceBib
+      step={4}
+      eventName={reg.data.eventName}
+      categoryLabel={reg.data.categoryLabel}
+      distanceKm={reg.data.categoryDistance}
+      dateLabel={reg.data.eventDate ? longDate(reg.data.eventDate) : null}
+      organizer={reg.data.orgName}
+      place={reg.data.eventPlace}
+      amount={total + (passOn ? platformFee ?? 0 : 0)}
+      amountLabel={passOn ? "Subtotal before processing" : "Total due"}
+      note={passOn ? "Payment processing is calculated at PayMongo checkout." : "The amount shown includes all fees for this entry."}
+    >
+      <RaceBibHeading step={4} icon={<Lock />} title="Finish your entry" description="Your slot is held while you complete the secure checkout." />
+      <div className={styles.holdBanner}><ShieldCheck size={18} aria-hidden="true" /><span><strong>Secure payment with PayMongo</strong><small>{passOn ? "You will see the exact processing fee before confirming payment." : "You will review the final amount before confirming payment."}</small></span></div>
+      <div className={styles.payGrid}>
+        <section className={styles.reviewCard}>
+          <h3>Payment summary</h3>
+          <dl>
+            <PaymentRow label="Entry fee" value={formatPeso(entry)} />
+            {addons > 0 ? <PaymentRow label="Add-ons" value={`+${formatPeso(addons)}`} /> : null}
+            {passOn && platformFee !== null && platformFee > 0 ? <PaymentRow label="Taxes and fees" value={`+${formatPeso(platformFee)}`} /> : null}
+            <PaymentRow label={passOn ? "Subtotal before processing" : "Subtotal"} value={formatPeso(total + (passOn ? platformFee ?? 0 : 0))} strong />
+            {passOn ? <><PaymentRow label="Payment processing" value="Calculated by PayMongo" /><PaymentRow label="Final total" value="Shown on PayMongo" strong /></> : <PaymentRow label="Added at checkout" value="₱0.00" />}
+          </dl>
+          {passOn ? <p className={styles.finePrint}>PayMongo calculates the processing fee for your chosen method. Review the exact fee and final total on its secure checkout before you confirm payment.</p> : <p className={styles.finePrint}>{platformFee !== null ? `${formatPeso(platformFee)} in Taxes and fees is included in this price. ` : ""}PayMongo’s actual processing fee is deducted after payment. Neither fee increases your total.</p>}
         </section>
-      ) : null}
-
+        {hostedPayMongo ? <HostedPaymentMethods key={registrationId} registrationId={registrationId} total={total} passOn={passOn} /> :
+          <section className={styles.payMethods}>
+            <h3>Pay with</h3>
+            <p>Choose a payment method to continue.</p>
+            <div className={styles.methodGrid} aria-label="Payment methods">
+              {(["qrph", "gcash", "maya", "card"] as const).map((key) => {
+                const label = PAY_METHODS.find((item) => item.key === key)?.label ?? key;
+                return <button key={key} type="button" aria-pressed={method === key} onClick={() => setMethod(key)} className={styles.methodItem}><MethodLogo methodKey={key} /><span>{label}</span>{method === key ? <Check className={styles.methodSelected} size={16} aria-hidden="true" /> : null}</button>;
+              })}
+            </div>
+          </section>}
+      </div>
+      {inclusions.length > 0 ? <section className={styles.inclusions}><h3>What&apos;s included</h3><ul>{inclusions.map((item, index) => <li key={index}><Check size={15} aria-hidden="true" />{item}</li>)}</ul></section> : null}
       <RefundNotice policy={reg.data.refundPolicy} retention={reg.data.refundFeeCents} />
-
-      {hostedPayMongo && !passOn ? <p className="mt-6 text-sm text-muted-foreground">Choose QR Ph, GCash, Maya or card on PayMongo. The total stays {formatPeso(total)}; processing and Race Pace fees come out of this price.</p> : null}
-      {!hostedPayMongo && !passOn ? <><h2 className="mt-8 text-[11px] font-semibold uppercase tracking-[0.6px] text-muted-foreground">Pay with</h2>
-      <div className="mt-3 flex flex-col gap-3">
-        {PAY_METHODS.map((m) => (
-          <button
-            key={m.key}
-            type="button"
-            aria-pressed={method === m.key}
-            onClick={() => setMethod(m.key)}
-            className={cn(
-              "flex items-center justify-between rounded-lg border-[1.5px] p-4 text-left transition-colors",
-              method === m.key ? "border-primary bg-secondary" : "border-border hover:border-primary",
-            )}
-          >
-            <span className="flex items-center gap-2.5">
-              <MethodLogo methodKey={m.key} />
-              <span className="text-[15px] font-semibold text-foreground">{m.label}</span>
-            </span>
-            <span
-              className={cn(
-                "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-[1.5px]",
-                method === m.key ? "border-primary bg-primary" : "border-border",
-              )}
-            >
-              {method === m.key ? <Check size={12} className="text-primary-foreground" /> : null}
-            </span>
-          </button>
-        ))}
-      </div></> : null}
-
-      {error ? <p className="mt-5 text-[14px] text-destructive">{error}</p> : null}
-
-      <Button
-        type="button"
-        disabled={busy}
-        onClick={pay}
-        className="mt-8 h-auto w-full rounded-pill py-4 text-[16px] font-semibold"
-      >
-        {busy ? "Opening…" : passOn ? "Continue to checkout" : `Pay ${formatPeso(due ?? total)}`}
-      </Button>
-      <p className="mt-3 flex items-center justify-center gap-1.5 text-[13px] text-muted-foreground">
-        <Lock size={13} /> Encrypted and secured by PayMongo
-      </p>
-    </div>
+      {error ? <p role="alert" className={styles.error}>{error}</p> : null}
+      <div className={styles.actions}><Button type="button" disabled={busy} onClick={pay}>{busy ? "Opening…" : passOn ? "Continue to checkout" : `Pay ${formatPeso(due ?? total)}`} <ArrowRight size={16} aria-hidden="true" /></Button></div>
+      <p className={styles.securityNote}><Lock size={13} aria-hidden="true" /> Encrypted and secured by PayMongo</p>
+    </RaceBib>
   );
+}
+
+const PROVIDER_METHODS = { qrph: "qrph", gcash: "gcash", paymaya: "maya", card: "card" } as const;
+
+function HostedPaymentMethods({ registrationId, total, passOn }: { registrationId: string; total: number; passOn: boolean }) {
+  const [inspection, setInspection] = useState<{ loading: boolean; methods: string[] | null }>({ loading: true, methods: null });
+  useEffect(() => {
+    let active = true;
+    void inspectCheckoutMethods(registrationId).then((methods) => { if (active) setInspection({ loading: false, methods }); });
+    return () => { active = false; };
+  }, [registrationId]);
+
+  const available = inspection.methods?.filter((method): method is keyof typeof PROVIDER_METHODS => method in PROVIDER_METHODS) ?? [];
+  return <section className={styles.payMethods}>
+    <h3>Available at checkout</h3>
+    <p>{inspection.loading ? "Checking payment methods with PayMongo…" : available.length ? "These methods are enabled for this checkout. Choose one on PayMongo." : "PayMongo will show the methods available for this checkout."}</p>
+    {available.length ? <div className={cn(styles.methodGrid, available.length === 1 && styles.singleMethod)} aria-label="Payment methods available on PayMongo">
+      {available.map((method) => {
+        const key = PROVIDER_METHODS[method];
+        const label = PAY_METHODS.find((item) => item.key === key)?.label ?? key;
+        return <span key={method} className={styles.methodItem}><MethodLogo methodKey={key} /><span>{label}</span></span>;
+      })}
+    </div> : null}
+    {!passOn ? <p className={styles.finePrint}>The total stays {formatPeso(total)}. Processing and Race Pace fees come out of this price.</p> : null}
+  </section>;
+}
+
+function PaymentRow({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
+  return <div className={cn(styles.reviewRow, strong && styles.reviewStrong)}><dt>{label}</dt><dd>{value}</dd></div>;
 }

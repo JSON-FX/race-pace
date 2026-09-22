@@ -80,6 +80,10 @@ Runner confirmation now waits for email and resumes the intended route. Web and 
 
 ## Planned registration revisions
 
+### 2026-09-23 single registration Race Bib redesign
+
+The approved [Race Bib design](previews/register-single-prototypes/02-race-bib.html) is implemented for single registration across Details, Kit, Confirm, and Pay. The [specification](specs/2026-09-23-race-bib-single-registration.md) and [implementation plan](plans/2026-09-23-race-bib-single-registration.md) cover the shared responsive shell, saved profile avatar, existing payment artwork, and checkout safeguards. This change does not alter the group registration flow or payment calculations. Staging release evidence is tracked in [launch progress](operations/launch-progress.md).
+
 - [Assisted registration and Passport revisions](./plans/2026-09-16-assisted-registration-passport-revisions.md) — implementation started locally: Passport identity/access foundation, self/managed editor and structured shipping addresses. Self-checkout completeness and canonical identity snapshots are enforced locally. Organizer waiver publishing, event selection and self-registration acceptance evidence are implemented locally. Basic assisted checkout, separate helper bookings and guest notification routing are available locally. Full payment/scanning verification, privacy controls, optional check-in and release validation remain pending.
 
 

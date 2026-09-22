@@ -2,9 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { ArrowLeft, ArrowRight, Check, Shirt, UserRound } from "lucide-react";
 import {
   customDataSchema, isProfileKey, formatPeso, formatDateRange,
-  SHIRT_SIZES, BLOOD_TYPES, GENDERS, type FormField, type PassportInput,
+  SHIRT_SIZES, BLOOD_TYPES, GENDERS, parsePhotoUrl, framedImageStyle, type FormField, type PassportInput,
 } from "@race-pace/shared";
 import type { CategoryRow, AddonRow, FormFieldRow, EventRow } from "@/lib/events";
 import { loadDraft, newDraft, saveDraft, clearDraft, type RegistrationDraft } from "@/lib/draft";
@@ -21,9 +23,9 @@ import { PillSelect } from "@/components/PillSelect";
 import { DynamicField } from "@/components/DynamicField";
 import { RefundNotice } from "@/components/RefundNotice";
 import { feeOn } from "@/lib/payment";
-import { StepRail } from "@/components/StepRail";
-import { TicketStub } from "@/components/TicketStub";
+import { RaceBib, RaceBibHeading } from "@/components/registration/RaceBib";
 import { cn } from "@/lib/utils";
+import styles from "./RegisterWizard.module.css";
 
 export function RegisterWizard({ userId, category, event, addons, formFields, passport, email, waiver, participantId, assisted = false }: {
   participantId?: string;
@@ -91,7 +93,9 @@ export function RegisterWizard({ userId, category, event, addons, formFields, pa
   if (passOn && !event.commissionTerms) throw new Error("Race Pace fee terms are unavailable");
   const platformFee = event.commissionTerms ? feeOn(total, event.commissionTerms) : 0;
   const dateLabel = event.event_date ? formatDateRange(event.event_date, event.end_date, longDate) : null;
-  const stubMeta = [dateLabel, event.org_name].filter(Boolean).join(" · ");
+  const place = [event.place || event.venue || event.city_name, event.province_name || event.region_name].filter(Boolean).join(", ");
+  const runnerName = passport ? `${passport.first_name} ${passport.last_name}` : draft.details.full_name || draft.details.bib_name || "Runner";
+  const avatar = !assisted ? parsePhotoUrl(profile?.avatar_url) : null;
 
   const patch = (p: Partial<RegistrationDraft>) => setDraft((d) => ({ ...d, ...p }));
   const setDetail = (k: string, v: string) => setDraft((d) => ({ ...d, details: { ...d.details, [k]: v } }));
@@ -212,187 +216,114 @@ export function RegisterWizard({ userId, category, event, addons, formFields, pa
   }
 
   return (
-    <div className="mx-auto w-full max-w-2xl px-6 py-10">
-      <StepRail current={draft.step} />
+    <RaceBib
+      step={draft.step as 1 | 2 | 3}
+      eventName={event.name}
+      categoryLabel={category.label}
+      distanceKm={category.distance_km}
+      dateLabel={dateLabel}
+      organizer={event.org_name}
+      place={place}
+      amount={total + (passOn ? platformFee : 0)}
+      amountLabel={passOn ? "Subtotal before processing" : draft.addonIds.length ? "Entry + extras" : "Entry fee"}
+      note={passOn ? "Payment processing is calculated at PayMongo checkout." : "The amount shown includes all fees for this entry."}
+    >
+      {draft.step === 1 && passport ? <>
+        <RaceBibHeading step={1} icon={<UserRound />} title={assisted ? "Check the participant’s Race Passport" : "Check your Race Passport"} description="Your ticket and emergency details will use this information." />
+        <div className={styles.passportHeader}>
+          <span className={styles.avatar}>
+            {avatar ? <img src={avatar.src} alt={`${runnerName}'s profile photo`} style={framedImageStyle(avatar.framing)} /> : <span aria-hidden="true">{`${passport.first_name[0] ?? ""}${passport.last_name[0] ?? ""}`.toUpperCase()}</span>}
+          </span>
+          <span className={styles.runnerName}><strong>{runnerName}</strong><span>Race Passport ready</span></span>
+          <span className={styles.readyBadge}><Check size={13} aria-hidden="true" /> Verified details</span>
+        </div>
+        <div className={styles.fieldGroups}>
+          <section><h3>Runner identity</h3><dl className={styles.passportGrid}>
+            <PassportField label="First name" value={passport.first_name} />
+            <PassportField label="Last name" value={passport.last_name} />
+            <PassportField label="Team name" value={passport.team_name || "None"} />
+            <PassportField label="Date of birth" value={longDate(passport.date_of_birth)} />
+            <PassportField label="Gender" value={passport.gender} />
+            <PassportField label="Contact number" value={passport.contact_number} />
+          </dl></section>
+          <section><h3>Safety and booking</h3><dl className={styles.passportGrid}>
+            <PassportField label="Emergency contact" value={passport.emergency_contact_name} />
+            <PassportField label="Emergency number" value={passport.emergency_contact_number} />
+            <PassportField label="Relationship" value={passport.emergency_contact_relationship} />
+            <PassportField label="Booking email" value={email || ""} />
+          </dl></section>
+        </div>
+        <Link href="/profile" className={styles.editLink}>Edit Race Passport <ArrowRight size={15} aria-hidden="true" /></Link>
+      </> : null}
 
-      <div className="mt-8">
-        <TicketStub
-          eventName={event.name}
-          categoryLabel={category.label}
-          meta={stubMeta || undefined}
-          amountLabel={draft.addonIds.length ? "Total" : "Entry fee"}
-          amount={total}
-        />
-      </div>
+      {draft.step === 1 && !passport ? <>
+        <RaceBibHeading step={1} icon={<UserRound />} title="Your details" description="Your ticket and emergency details will use this information." />
+        <div className={styles.formFields}>
+          <div className={styles.formField}><Label htmlFor="full_name">Full name</Label><Input id="full_name" value={draft.details.full_name ?? ""} onChange={(e) => setDetail("full_name", e.target.value)} /></div>
+          <div className={styles.formField}><Label htmlFor="bib_name">Bib name *</Label><Input id="bib_name" value={draft.details.bib_name ?? ""} onChange={(e) => setDetail("bib_name", e.target.value)} aria-invalid={!!errors.bib_name} /><p>Printed on your race bib.</p>{errors.bib_name ? <p className={styles.error}>{errors.bib_name}</p> : null}</div>
+          <div className={styles.formField}><Label htmlFor="date_of_birth">Date of birth *</Label><Input id="date_of_birth" type="date" value={draft.details.date_of_birth ?? ""} onChange={(e) => setDetail("date_of_birth", e.target.value)} aria-invalid={!!errors.date_of_birth} />{errors.date_of_birth ? <p className={styles.error}>{errors.date_of_birth}</p> : null}</div>
+          <div className={styles.formField}><Label htmlFor="emergency_contact">Emergency contact *</Label><Input id="emergency_contact" value={draft.details.emergency_contact ?? ""} onChange={(e) => setDetail("emergency_contact", e.target.value)} placeholder="Name and mobile number" aria-invalid={!!errors.emergency_contact} />{errors.emergency_contact ? <p className={styles.error}>{errors.emergency_contact}</p> : null}</div>
+        </div>
+        {requestedProfileKeys.has("gender") ? <PillSelect label="GENDER" value={draft.details.gender ?? ""} options={GENDERS} onChange={(v) => setDetail("gender", v)} error={errors.gender} /> : null}
+      </> : null}
 
-      {draft.step === 1 && passport ? <section className="mt-8 space-y-4">
-        <h2 className="text-2xl font-bold">{assisted ? "Participant Race Passport" : "Your Race Passport"}</h2>
-        <dl className="space-y-3">
-          {[["First name", passport.first_name], ["Last name", passport.last_name], ["Team name", passport.team_name || "None"],
-            ["Date of birth", passport.date_of_birth], ["Gender", passport.gender], ["Contact number", passport.contact_number],
-            ["Emergency contact", passport.emergency_contact_name], ["Emergency number", passport.emergency_contact_number],
-            ["Relationship", passport.emergency_contact_relationship], ["Booking email", email || ""]].map(([label,value]) =>
-              <div key={label}><dt className="text-sm text-muted-foreground">{label}</dt><dd>{value}</dd></div>)}
-        </dl>
-        <a className="inline-block underline" href="/profile">Edit Race Passport</a>
-      </section> : null}
-      {draft.step === 1 && !passport ? (
-        <section className="mt-8">
-          <h2 className="font-display text-[26px] font-extrabold tracking-[-0.5px] text-foreground">Your details</h2>
-          <div className="mt-6 flex flex-col gap-2">
-            <Label htmlFor="full_name">Full name</Label>
-            <Input id="full_name" value={draft.details.full_name ?? ""} onChange={(e) => setDetail("full_name", e.target.value)} />
-          </div>
-          <div className="mt-6 flex flex-col gap-2">
-            <Label htmlFor="bib_name">Bib name *</Label>
-            <Input id="bib_name" value={draft.details.bib_name ?? ""} onChange={(e) => setDetail("bib_name", e.target.value)} aria-invalid={!!errors.bib_name} />
-            <p className="text-[13px] text-muted-foreground">Printed on your race bib.</p>
-            {errors.bib_name ? <p className="text-[13px] text-destructive">{errors.bib_name}</p> : null}
-          </div>
-          <div className="mt-6 flex flex-col gap-2">
-            <Label htmlFor="date_of_birth">Date of birth *</Label>
-            <Input id="date_of_birth" type="date" value={draft.details.date_of_birth ?? ""} onChange={(e) => setDetail("date_of_birth", e.target.value)} aria-invalid={!!errors.date_of_birth} />
-            {errors.date_of_birth ? <p className="text-[13px] text-destructive">{errors.date_of_birth}</p> : null}
-          </div>
-          <div className="mt-6 flex flex-col gap-2">
-            <Label htmlFor="emergency_contact">Emergency contact *</Label>
-            <Input id="emergency_contact" value={draft.details.emergency_contact ?? ""} onChange={(e) => setDetail("emergency_contact", e.target.value)} placeholder="Name and mobile number" aria-invalid={!!errors.emergency_contact} />
-            {errors.emergency_contact ? <p className="text-[13px] text-destructive">{errors.emergency_contact}</p> : null}
-          </div>
-          {requestedProfileKeys.has("gender") ? (
-            <PillSelect label="GENDER" value={draft.details.gender ?? ""} options={GENDERS} onChange={(v) => setDetail("gender", v)} error={errors.gender} />
-          ) : null}
+      {draft.step === 2 ? <>
+        <RaceBibHeading step={2} icon={<Shirt />} title="Make this entry yours" description="Choose your kit and answer the event questions." />
+        <section className={styles.kitSection}>
+          <div className={styles.sectionRow}><div><h3>Shirt size</h3><p>Choose the size you want on race day.</p></div>{requiredProfileKeys.includes("shirt_size") ? <span className={styles.required}>Required</span> : null}</div>
+          <div className={styles.sizeGrid} role="group" aria-label="Shirt size">{SHIRT_SIZES.map((size) => <button key={size} type="button" className={styles.sizeButton} aria-pressed={draft.kit.shirt_size === size} onClick={() => setKit("shirt_size", size)}>{size}</button>)}</div>
+          {errors.shirt_size ? <p className={styles.formError}>{errors.shirt_size}</p> : null}
         </section>
-      ) : null}
+        {requestedProfileKeys.has("blood_type") ? <section className={styles.kitSection}><div className={styles.sectionRow}><div><h3>Blood type</h3><p>Used by the organizer for race-day preparation.</p></div>{requiredProfileKeys.includes("blood_type") ? <span className={styles.required}>Required</span> : null}</div><div className={styles.sizeGrid} role="group" aria-label="Blood type">{BLOOD_TYPES.map((bloodType) => <button key={bloodType} type="button" className={styles.sizeButton} aria-pressed={draft.kit.blood_type === bloodType} onClick={() => setKit("blood_type", bloodType)}>{bloodType}</button>)}</div>{errors.blood_type ? <p className={styles.formError}>{errors.blood_type}</p> : null}</section> : null}
+        <section className={styles.kitSection}><div className={styles.sectionRow}><div><h3>Event question</h3><p>Your answer helps the organizers prepare.</p></div></div><div className={styles.choice}><Checkbox id="first_ultra" checked={draft.firstUltra} onCheckedChange={(c) => patch({ firstUltra: c === true })} /><span className={styles.choiceCopy}><Label htmlFor="first_ultra">First ultra at this distance?</Label><small>You can update this before you confirm.</small></span></div><div className={styles.dynamicFields}>{eventQuestions.map((f) => <DynamicField key={f.id} field={f} value={draft.values[f.key]} onChange={(v) => setValue(f.key, v)} error={errors[f.key]} />)}</div></section>
+        {addons.length > 0 ? <section className={styles.kitSection}><div className={styles.sectionRow}><div><h3>Optional extras</h3><p>Only selected extras are added to your entry.</p></div></div>{addons.map((a) => { const on = draft.addonIds.includes(a.id); return <button key={a.id} type="button" aria-pressed={on} aria-label={a.name} onClick={() => patch({ addonIds: on ? draft.addonIds.filter((id) => id !== a.id) : [...draft.addonIds, a.id] })} className={styles.addon}><span className={styles.addonCheck}><Check size={15} aria-hidden="true" /></span><span className={styles.choiceCopy}><strong>{a.name}</strong></span><span className={styles.addonPrice}>+{formatPeso(a.price)}</span></button>; })}</section> : null}
+        {!passport && showSaveBack(profile, { ...draft.details, ...draft.kit }) ? <div className={styles.choice}><Checkbox id="save_back" checked={draft.saveBack} onCheckedChange={(c) => patch({ saveBack: c === true })} /><Label htmlFor="save_back">Save these details to my profile</Label></div> : null}
+      </> : null}
 
-      {draft.step === 2 ? (
-        <section className="mt-8">
-          <h2 className="font-display text-[26px] font-extrabold tracking-[-0.5px] text-foreground">Kit &amp; extras</h2>
-          <PillSelect label="SHIRT SIZE" value={draft.kit.shirt_size ?? ""} options={SHIRT_SIZES} onChange={(v) => setKit("shirt_size", v)} error={errors.shirt_size} />
-          {requestedProfileKeys.has("blood_type") ? (
-            <PillSelect label="BLOOD TYPE" value={draft.kit.blood_type ?? ""} options={BLOOD_TYPES} onChange={(v) => setKit("blood_type", v)} error={errors.blood_type} />
-          ) : null}
-
-          <div className="mt-6 flex items-center gap-3 rounded-lg border border-border p-4">
-            <Checkbox id="first_ultra" checked={draft.firstUltra} onCheckedChange={(c) => patch({ firstUltra: c === true })} />
-            <Label htmlFor="first_ultra" className="text-[14px]">First ultra at this distance?</Label>
-          </div>
-
-          {eventQuestions.map((f) => (
-            <DynamicField key={f.id} field={f} value={draft.values[f.key]} onChange={(v) => setValue(f.key, v)} error={errors[f.key]} />
-          ))}
-
-          {addons.length > 0 ? (
-            <>
-              <h3 className="mt-10 text-[15px] font-semibold text-foreground">Add-ons</h3>
-              <div className="mt-3 flex flex-col gap-3">
-                {addons.map((a) => {
-                  const on = draft.addonIds.includes(a.id);
-                  return (
-                    <button
-                      key={a.id}
-                      type="button"
-                      aria-pressed={on}
-                      aria-label={a.name}
-                      onClick={() => patch({ addonIds: on ? draft.addonIds.filter((id) => id !== a.id) : [...draft.addonIds, a.id] })}
-                      className={cn(
-                        "flex items-center justify-between rounded-lg border p-4 text-left transition-colors",
-                        on ? "border-primary bg-secondary" : "border-border hover:border-primary",
-                      )}
-                    >
-                      <span className="text-[14px] font-medium text-foreground">{a.name}</span>
-                      <span className="text-[14px] font-semibold text-primary">+{formatPeso(a.price)}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </>
-          ) : null}
-
-          {/* Save-back is optional; the registration keeps its own snapshot. */}
-          {!passport && showSaveBack(profile, { ...draft.details, ...draft.kit }) ? (
-            <div className="mt-6 flex items-center gap-3 rounded-lg border border-border p-4">
-              <Checkbox id="save_back" checked={draft.saveBack} onCheckedChange={(c) => patch({ saveBack: c === true })} />
-              <Label htmlFor="save_back" className="text-[14px]">Save these details to my profile</Label>
-            </div>
-          ) : null}
-        </section>
-      ) : null}
-
-      {draft.step === 3 ? (
-        <section className="mt-8">
-          <h2 className="font-display text-[26px] font-extrabold tracking-[-0.5px] text-foreground">Review</h2>
-          <dl className="mt-6 divide-y divide-divider rounded-xl border border-border">
-            {passport ? <><Row label="Runner" value={`${passport.first_name} ${passport.last_name}`} /><Row label="Team name" value={passport.team_name || "None"} /></> : <Row label="Bib name" value={draft.details.bib_name} />}
-            <Row label="Date of birth" value={passport?.date_of_birth ?? draft.details.date_of_birth} />
+      {draft.step === 3 ? <>
+        <RaceBibHeading step={3} icon={<Check />} title="One last look" description="Review the entry before your slot is reserved for payment." />
+        <div className={styles.reviewGrid}>
+          <section className={styles.reviewCard}><div className={styles.reviewTitle}><h3>Runner and kit</h3><Button type="button" variant="link" className={styles.miniLink} onClick={() => patch({ step: 1 })}>Edit details</Button></div><dl>
+            {passport ? <><Row label="Runner" value={runnerName} /><Row label="Team name" value={passport.team_name || "None"} /></> : <Row label="Bib name" value={draft.details.bib_name} />}
+            <Row label="Date of birth" value={longDate(passport?.date_of_birth ?? draft.details.date_of_birth)} />
             <Row label="Emergency contact" value={passport ? `${passport.emergency_contact_name} — ${passport.emergency_contact_number}` : draft.details.emergency_contact} />
             {draft.kit.shirt_size ? <Row label="Shirt size" value={draft.kit.shirt_size} /> : null}
             {draft.kit.blood_type ? <Row label="Blood type" value={draft.kit.blood_type} /> : null}
+            <Row label="First ultra?" value={draft.firstUltra ? "Yes" : "No"} />
+          </dl></section>
+          <section className={styles.reviewCard}><div className={styles.reviewTitle}><h3>Entry cost</h3><Button type="button" variant="link" className={styles.miniLink} onClick={() => patch({ step: 2 })}>Edit kit</Button></div><dl>
             <Row label="Entry fee" value={formatPeso(category.base_price)} />
-            {draft.addonIds.length ? (
-              <Row label="Add-ons" value={`+${formatPeso(total - category.base_price)}`} />
-            ) : null}
+            {draft.addonIds.length ? <Row label="Add-ons" value={`+${formatPeso(total - category.base_price)}`} /> : null}
             {passOn && platformFee > 0 ? <Row label="Taxes and fees" value={formatPeso(platformFee)} /> : null}
             <Row label={passOn ? "Subtotal before payment processing" : "Total to pay"} value={formatPeso(total + (passOn ? platformFee : 0))} strong />
-          </dl>
-          {passOn ? <p className="mt-3 text-sm text-muted-foreground">PayMongo calculates the processing fee and final total when you choose a payment method on its checkout page.</p> : null}
-          {!passOn ? <p className="mt-3 text-sm text-muted-foreground">This price includes {formatPeso(platformFee)} in Taxes and fees. PayMongo’s actual processing fee is also deducted from this payment after capture. Neither fee is added to your total.</p> : null}
+          </dl><p className={styles.finePrint}>{passOn ? "PayMongo calculates the processing fee and final total when you choose a payment method on its checkout page." : `This price includes ${formatPeso(platformFee)} in Taxes and fees. PayMongo’s actual processing fee is also deducted from this payment after capture. Neither fee is added to your total.`}</p></section>
+        </div>
+        <RefundNotice policy={event.refundPolicy} retention={event.refundFeeCents} />
+        {assisted ? <p className="mt-6 rounded-lg bg-muted p-4 text-sm">Pass this device to {runnerName}. The participant must read and accept the waiver personally. You remain the booking contact.</p> : null}
+        <div className={styles.waiverChoice}><Checkbox id="waiver" checked={draft.waiver} onCheckedChange={(c) => patch({ waiver: c === true })} /><div><Label htmlFor="waiver">{assisted ? `I, ${runnerName}, personally accept the event waiver and confirm I’m medically fit to take part.` : "I accept the event waiver and confirm I’m medically fit to take part."}</Label><button className={styles.waiverLink} type="button" onClick={() => setWaiverOpen(true)}>Read event waiver</button></div></div>
+      </> : null}
 
-          <RefundNotice policy={event.refundPolicy} retention={event.refundFeeCents} />
-
-          {assisted ? <p className="mt-6 rounded-lg bg-muted p-4 text-sm">Pass this device to {passport?.first_name} {passport?.last_name}. The participant must read and accept the waiver personally. You remain the booking contact.</p> : null}
-          <div className="mt-6 flex items-start gap-3 rounded-lg border border-border p-4">
-            <Checkbox id="waiver" checked={draft.waiver} onCheckedChange={(c) => patch({ waiver: c === true })} />
-            <Label htmlFor="waiver" className="text-[13px] leading-relaxed">
-              {assisted ? `I, ${passport?.first_name} ${passport?.last_name}, personally accept the event ` : "I accept the event "}
-              <button type="button" className="font-semibold text-primary underline" onClick={() => setWaiverOpen(true)}>
-                waiver
-              </button>{" "}
-              and confirm I&apos;m medically fit to take part.
-            </Label>
-          </div>
-        </section>
-      ) : null}
-
-      {formError ? <p className="mt-6 text-[14px] text-destructive">{formError}</p> : null}
-
-      <div className="mt-10 flex items-center gap-3">
-        {draft.step > 1 ? (
-          <Button type="button" variant="outline" className="h-auto rounded-pill px-6 py-4" onClick={() => patch({ step: draft.step - 1 })}>
-            Back
-          </Button>
-        ) : null}
-        {draft.step < 3 ? (
-          <Button type="button" className="h-auto flex-1 rounded-pill py-4 text-[16px] font-semibold" onClick={next}>
-            Continue
-          </Button>
-        ) : (
-          <Button type="button" disabled={busy} className="h-auto flex-1 rounded-pill py-4 text-[16px] font-semibold" onClick={submit}>
-            {busy ? "Submitting…" : passOn ? "Continue to payment" : `Register · ${formatPeso(total)}`}
-          </Button>
-        )}
+      {formError ? <p role="alert" className={styles.formError}>{formError}</p> : null}
+      <div className={styles.actions}>
+        {draft.step > 1 ? <Button type="button" variant="outline" onClick={() => patch({ step: draft.step - 1 })}><ArrowLeft size={16} aria-hidden="true" /> Back</Button> : null}
+        {draft.step < 3 ? <Button type="button" onClick={next}>Continue <ArrowRight size={16} aria-hidden="true" /></Button> : <Button type="button" disabled={busy} onClick={submit}>{busy ? "Submitting…" : "Continue to payment"} <ArrowRight size={16} aria-hidden="true" /></Button>}
       </div>
 
       <Dialog open={waiverOpen} onOpenChange={setWaiverOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>{waiver?.title ?? "Event waiver"}</DialogTitle></DialogHeader>
-          <div className="max-h-[60vh] overflow-y-auto whitespace-pre-line text-[14px] leading-relaxed text-foreground">
-            {waiver?.body ?? WAIVER_TEXT}
-          </div>
-          <Button type="button" className="mt-4 h-auto rounded-pill py-3" onClick={() => { patch({ waiver: true }); setWaiverOpen(false); }}>
-            I accept
-          </Button>
+          <div className="max-h-[60vh] overflow-y-auto whitespace-pre-line text-[14px] leading-relaxed text-foreground">{waiver?.body ?? WAIVER_TEXT}</div>
+          <Button type="button" className="mt-4 h-auto py-3" onClick={() => { patch({ waiver: true }); setWaiverOpen(false); }}>I accept</Button>
         </DialogContent>
       </Dialog>
-    </div>
+    </RaceBib>
   );
 }
 
+function PassportField({ label, value }: { label: string; value: string | null | undefined }) {
+  return <div className={styles.passportField}><dt>{label}</dt><dd>{value || "None"}</dd></div>;
+}
+
 function Row({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
-  return (
-    <div className="flex items-center justify-between px-5 py-3.5">
-      <dt className="text-[14px] text-muted-foreground">{label}</dt>
-      <dd className={cn("text-[14px] text-foreground", strong && "text-[16px] font-semibold")}>{value}</dd>
-    </div>
-  );
+  return <div className={cn(styles.reviewRow, strong && styles.reviewStrong)}><dt>{label}</dt><dd>{value}</dd></div>;
 }

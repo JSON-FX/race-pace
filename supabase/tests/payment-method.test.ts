@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { pmMethodFromAttributes } from "../functions/_shared/paymongo.ts";
+import { pmCheckoutMethods, pmMethodFromAttributes } from "../functions/_shared/paymongo.ts";
 
 const payment = (type: string, status = "paid") => ({
   attributes: { status, source: { type } },
@@ -36,5 +36,18 @@ describe("pmMethodFromAttributes", () => {
 
   it("survives a non-array payments field", () => {
     expect(pmMethodFromAttributes({ payments: "nope" })).toBe("paymongo");
+  });
+});
+
+describe("pmCheckoutMethods", () => {
+  it("uses the checkout's frozen methods and ignores unsupported provider values", () => {
+    const session = { id: "cs_test", checkoutUrl: "https://checkout.paymongo.com/test", paid: false, status: "active",
+      raw: { data: { attributes: { payment_method_types: ["qrph", "gcash", "unsupported"] } } } };
+    expect(pmCheckoutMethods(session)).toEqual(["qrph", "gcash"]);
+  });
+
+  it("does not guess methods when PayMongo omits them", () => {
+    const session = { id: "cs_test", checkoutUrl: "https://checkout.paymongo.com/test", paid: false, status: "active", raw: {} };
+    expect(pmCheckoutMethods(session)).toEqual([]);
   });
 });

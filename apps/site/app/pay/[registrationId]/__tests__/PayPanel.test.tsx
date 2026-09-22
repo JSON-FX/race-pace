@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { RegistrationRow } from "@/lib/registration";
 import { PayPanel } from "../PayPanel";
@@ -16,10 +16,12 @@ import { PayPanel } from "../PayPanel";
 // there would have bounced the runner to /events/<id> with no explanation.
 const useRegistrationMock = vi.fn();
 const createMethodCheckoutMock = vi.fn();
+const inspectCheckoutMethodsMock = vi.fn();
 
 vi.mock("@/lib/registration", () => ({
   useRegistration: (...args: unknown[]) => useRegistrationMock(...args),
   createMethodCheckout: (...args: unknown[]) => createMethodCheckoutMock(...args),
+  inspectCheckoutMethods: (...args: unknown[]) => inspectCheckoutMethodsMock(...args),
 }));
 
 // jsdom's own window.location.assign throws "Not implemented", and this panel
@@ -56,6 +58,7 @@ function renderWithRegistration(overrides: Partial<RegistrationRow> = {}) {
 beforeEach(() => {
   useRegistrationMock.mockReset();
   createMethodCheckoutMock.mockReset().mockResolvedValue({ url: null, code: null });
+  inspectCheckoutMethodsMock.mockReset().mockResolvedValue(null);
   assign.mockReset();
 });
 
@@ -220,6 +223,7 @@ describe("PayPanel — provider-managed fees", () => {
   });
 
   it("keeps PayMongo absorb checkout at one hosted session and never reopens a stored URL after a failed check", async () => {
+    inspectCheckoutMethodsMock.mockResolvedValue(["qrph"]);
     renderWithRegistration({ total_amount: 10000, basePrice: 10000,
       checkoutUrl: "https://checkout.paymongo.com/stored",
       payment: { createdAt: null, method: null, amount: 10000, platformFee: null,
@@ -227,9 +231,26 @@ describe("PayPanel — provider-managed fees", () => {
     });
     expect(screen.getByText(/The total stays ₱100.00/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "GCash" })).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("These methods are enabled for this checkout. Choose one on PayMongo.")).toBeInTheDocument());
+    for (const [title, path] of [["QR Ph", "qr-ph.svg"]]) {
+      const src = screen.getByTitle(title).getAttribute("src") ?? "";
+      const asset = src.startsWith("/_next/image") ? new URL(src, "http://localhost").searchParams.get("url") : src;
+      expect(asset).toBe(`/payments/${path}`);
+    }
+    expect(screen.queryByTitle("GCash")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("Maya")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("Visa")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("Mastercard")).not.toBeInTheDocument();
     createMethodCheckoutMock.mockResolvedValue({ url: null, code: null });
     await userEvent.setup().click(screen.getByRole("button", { name: "Pay ₱100.00" }));
     expect(assign).not.toHaveBeenCalled();
+  });
+
+  it("does not advertise methods when PayMongo inspection is unavailable", async () => {
+    inspectCheckoutMethodsMock.mockResolvedValue(null);
+    renderWithRegistration({ payment: { provider: "paymongo" } as RegistrationRow["payment"] });
+    await waitFor(() => expect(screen.getByText("PayMongo will show the methods available for this checkout.")).toBeInTheDocument());
+    expect(screen.queryByLabelText("Payment methods available on PayMongo")).not.toBeInTheDocument();
   });
 
   it("shows the frozen platform fee and defers exact processing to PayMongo", async () => {
