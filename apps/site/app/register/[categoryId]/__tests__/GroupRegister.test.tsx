@@ -26,10 +26,14 @@ describe("GroupRegister", () => {
   it("requires each selected participant's own waiver acceptance and reserves one order", async () => {
     reserve.mockResolvedValue({ order_id: "order-1", status: "pending" });
     render(<GroupRegister userId="booker" initialCategory={category} categories={[category]} event={event} passports={passports} addons={[]} fields={[]} waiver={waiver} />);
-    await waitFor(() => expect(screen.getByRole("button", { name: "Reserve 0 places" })).toBeDisabled());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Continue with 0 runners" })).toBeDisabled());
+    expect(screen.getByRole("heading", { name: "Build your race roster." })).toBeInTheDocument();
+    expect(screen.getByText("Separate registrations and QR tickets")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("checkbox", { name: "Select Ava Runner" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "Select Lola Runner" }));
-    expect(screen.getByText("Entry and add-ons: ₱200.00")).toBeInTheDocument();
+    expect(screen.getByText("₱200.00")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Continue with 2 runners" }));
+    expect(screen.getByRole("heading", { name: "Complete each runner’s entry." })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Reserve 2 places" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("participant acceptance required");
     fireEvent.click(screen.getByRole("checkbox", { name: "Ava Runner accepts waiver" }));
@@ -63,7 +67,9 @@ describe("GroupRegister", () => {
       },
     }));
     render(<GroupRegister userId="booker" initialCategory={category} categories={[category, ultra]} event={event} passports={passports} addons={[]} fields={[]} waiver={waiver} />);
-    await waitFor(() => expect(screen.getByText("Entry and add-ons: ₱280.00")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Continue with 2 runners" })).toBeEnabled());
+    expect(screen.getByText("₱280.00")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Continue with 2 runners" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "Ava Runner accepts waiver" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "Lola Runner accepts waiver" }));
     fireEvent.click(screen.getByRole("button", { name: "Reserve 2 places" }));
@@ -79,7 +85,7 @@ describe("GroupRegister", () => {
     render(<GroupRegister userId="booker" initialCategory={nearlyFull} categories={[nearlyFull]} event={event} passports={passports} addons={[]} fields={[]} waiver={waiver} />);
     fireEvent.click(screen.getByRole("checkbox", { name: "Select Ava Runner" }));
     expect(screen.getByRole("checkbox", { name: "Select Lola Runner" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Reserve 1 place" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Continue with 1 runner" })).toBeEnabled();
     expect(reserve).not.toHaveBeenCalled();
   });
 });
