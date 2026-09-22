@@ -2,7 +2,7 @@ import { emailBrandHeader, emailBrandFooter, isStagingEmail } from "./emailBrand
 export type GroupTicket = { name: string; categoryLabel: string; reference: string; ticketUrl: string; qrUrl: string };
 function escape(value: string) { return value.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;"); }
 export function renderGroupTicketEmail(input: { eventName: string; categoryLabel: string; eventDate: string | null; venue: string | null; total: number; tickets: GroupTicket[] }) {
-  if (!Number.isSafeInteger(input.total) || input.total<0 || input.tickets.length<1 || input.tickets.length>10) throw new Error("invalid_ticket_email");
+  if (!Number.isSafeInteger(input.total) || input.total<0 || input.tickets.length<2 || input.tickets.length>10) throw new Error("invalid_ticket_email");
   const ticketCount = input.tickets.length;
   const runnerWord = ticketCount === 1 ? "runner" : "runners";
   const ticketWord = ticketCount === 1 ? "ticket" : "tickets";
