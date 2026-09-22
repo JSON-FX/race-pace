@@ -71,7 +71,7 @@ describe("RegisterWizard", () => {
     await userEvent.click(screen.getByRole("button", { name: "M" }));
     await userEvent.click(screen.getByRole("button", { name: "Continue" }));
 
-    await userEvent.click(screen.getByRole("button", { name: /Register/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Continue to payment/ }));
     expect(startCheckout).not.toHaveBeenCalled();
   });
 
@@ -84,7 +84,7 @@ describe("RegisterWizard", () => {
     unmount();
 
     renderWizard();
-    expect(await screen.findByText("Kit & extras")).toBeInTheDocument();
+    expect(await screen.findByText("Make this entry yours")).toBeInTheDocument();
   });
 
   // Guards the duplicate-registration bug from Task 7.
@@ -124,6 +124,6 @@ describe("RegisterWizard", () => {
     // Selecting a gender clears the error and lets the runner advance.
     await userEvent.click(screen.getByRole("button", { name: "Male" }));
     await userEvent.click(screen.getByRole("button", { name: "Continue" }));
-    expect(await screen.findByText("Kit & extras")).toBeInTheDocument();
+    expect(await screen.findByText("Make this entry yours")).toBeInTheDocument();
   });
 });

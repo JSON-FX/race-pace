@@ -1,0 +1,68 @@
+.passportHeader { display:flex; align-items:center; gap:14px; padding:18px 0; margin-top:28px; border-top:1px solid rgb(var(--border)); border-bottom:1px solid rgb(var(--border)); }
+.avatar { position:relative; display:grid; place-items:center; flex:none; width:48px; height:48px; overflow:hidden; border:2px solid rgb(var(--card)); border-radius:50%; background:rgb(var(--forest)); color:white; box-shadow:0 0 0 1px rgb(var(--border)); font-size:14px; font-weight:800; }
+.avatar img { display:block; }
+.runnerName { display:flex; flex-direction:column; gap:2px; min-width:0; }
+.runnerName strong { overflow-wrap:anywhere; font-size:16px; }
+.runnerName span { color:rgb(var(--muted-foreground)); font-size:12px; }
+.readyBadge { display:inline-flex; align-items:center; gap:4px; flex:none; margin-left:auto; padding:6px 10px; border-radius:999px; background:rgb(var(--secondary)); color:rgb(var(--secondary-foreground)); font-size:11px; font-weight:800; white-space:nowrap; }
+.fieldGroups { display:grid; gap:26px; margin-top:27px; }
+.fieldGroups h3,.kitSection h3,.reviewCard h3 { font-size:16px; font-weight:800; letter-spacing:-.02em; }
+.passportGrid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px 28px; margin-top:14px; }
+.passportField { min-width:0; padding-bottom:12px; border-bottom:1px solid rgb(var(--border)); }
+.passportField dt { color:rgb(var(--muted-foreground)); font-size:12px; }
+.passportField dd { margin-top:4px; overflow-wrap:anywhere; font-size:14px; font-weight:700; }
+.editLink { display:inline-flex; align-items:center; gap:7px; min-height:44px; margin-top:17px; color:rgb(var(--secondary-foreground)); font-size:13px; font-weight:800; text-decoration:underline; text-underline-offset:3px; }
+.formFields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px 28px; margin-top:28px; }
+.formField { display:grid; align-content:start; gap:8px; min-width:0; }
+.formField label { font-size:13px; font-weight:700; }
+.formField input { min-height:46px; }
+.formField p { color:rgb(var(--muted-foreground)); font-size:12px; }
+.formField .error { color:rgb(var(--destructive)); }
+.kitSection { padding-top:22px; margin-top:30px; border-top:1px solid rgb(var(--border)); }
+.sectionRow { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
+.sectionRow p { margin-top:5px; color:rgb(var(--muted-foreground)); font-size:13px; }
+.required { flex:none; color:rgb(var(--secondary-foreground)); font-size:11px; font-weight:800; }
+.sizeGrid { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:9px; margin-top:17px; }
+.sizeButton { min-height:51px; border:1px solid rgb(var(--border)); border-radius:11px; background:rgb(var(--card)); color:rgb(var(--foreground)); font-size:13px; font-weight:800; transition:background .2s,border-color .2s; }
+.sizeButton:hover,.addon:hover { border-color:rgb(var(--primary)); }
+.sizeButton[aria-pressed=true],.addon[aria-pressed=true] { border-color:rgb(var(--primary)); background:rgb(var(--secondary)); color:rgb(var(--secondary-foreground)); box-shadow:inset 0 0 0 1px rgb(var(--primary)); }
+.choice,.addon,.waiverChoice { display:flex; align-items:center; gap:13px; width:100%; min-height:65px; padding:14px 17px; margin-top:15px; border:1px solid rgb(var(--border)); border-radius:12px; background:rgb(var(--card)); text-align:left; }
+.choice [data-slot=checkbox],.waiverChoice [data-slot=checkbox] { width:20px; height:20px; }
+.choiceCopy { display:flex; flex-direction:column; gap:2px; }
+.choiceCopy strong { font-size:13px; font-weight:800; }
+.choiceCopy small { color:rgb(var(--muted-foreground)); font-size:12px; }
+.addon { cursor:pointer; }
+.addonCheck { display:grid; place-items:center; flex:none; width:22px; height:22px; border:1px solid #9cb5a4; border-radius:6px; color:transparent; }
+.addon[aria-pressed=true] .addonCheck { border-color:rgb(var(--primary)); background:rgb(var(--primary)); color:rgb(var(--primary-foreground)); }
+.addonPrice { flex:none; margin-left:auto; color:rgb(var(--secondary-foreground)); font-size:13px; font-weight:800; white-space:nowrap; }
+.dynamicFields { display:grid; gap:8px; margin-top:20px; }
+.reviewGrid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:17px; margin-top:28px; }
+.reviewCard { min-width:0; padding:19px; border:1px solid rgb(var(--border)); border-radius:13px; background:rgb(var(--card)); }
+.reviewTitle { display:flex; align-items:center; justify-content:space-between; gap:7px; }
+.reviewCard dl { margin-top:12px; }
+.reviewRow { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding:10px 0; border-top:1px solid rgb(var(--border)); font-size:12px; }
+.reviewRow dt { color:rgb(var(--muted-foreground)); }
+.reviewRow dd { max-width:55%; text-align:right; font-weight:700; overflow-wrap:anywhere; }
+.reviewStrong,.reviewStrong dt { color:rgb(var(--foreground)); font-size:13px; font-weight:800; }
+.miniLink { min-height:36px; padding:0; color:rgb(var(--secondary-foreground)); font-size:13px; font-weight:800; text-decoration:underline; text-underline-offset:3px; }
+.finePrint { margin-top:13px; color:rgb(var(--muted-foreground)); font-size:12px; line-height:1.6; }
+.waiverChoice { align-items:flex-start; min-height:58px; margin-top:18px; padding:15px; }
+.waiverChoice label { font-size:13px; line-height:1.6; cursor:pointer; }
+.waiverChoice button { display:block; min-height:36px; padding:0; color:rgb(var(--secondary-foreground)); font-size:12px; font-weight:800; text-decoration:underline; text-underline-offset:3px; }
+.actions { display:flex; justify-content:flex-end; gap:10px; padding-top:26px; margin-top:28px; border-top:1px solid rgb(var(--border)); }
+.actions button { min-height:50px; border-radius:11px; padding:11px 21px; font-size:14px; font-weight:800; }
+.actions button:last-child { min-width:200px; }
+.formError { margin-top:10px; color:rgb(var(--destructive)); font-size:13px; font-weight:700; }
+@media (max-width:650px) {
+  .readyBadge { margin-left:0; }
+  .passportHeader { flex-wrap:wrap; }
+  .passportGrid { gap:12px; }
+  .passportField dd { font-size:12px; }
+  .sizeGrid { grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .reviewGrid,.formFields { grid-template-columns:1fr; }
+  .actions { flex-direction:column-reverse; align-items:stretch; padding-top:18px; margin-top:20px; }
+  .actions button:last-child { width:100%; min-width:0; }
+  .actions button:first-child:not(:last-child) { align-self:flex-start; min-height:44px; padding:7px 4px; border:0; background:none; box-shadow:none; }
+}
+@media (max-width:390px) { .passportGrid { grid-template-columns:1fr; } }
+@media (prefers-reduced-motion:reduce) { .sizeButton { transition:none; } }
