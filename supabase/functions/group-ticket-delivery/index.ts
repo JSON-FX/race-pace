@@ -23,24 +23,24 @@ Deno.serve(async req=>{
     for(const job of claim.data??[]) {
       let reason:string|null=null;
       try {
-        const order=await db.from("booking_orders").select("booked_by_user_id,status,event_id,category_id").eq("id",job.booking_order_id).single();
+        const order=await db.from("booking_orders").select("booked_by_user_id,status,event_id").eq("id",job.booking_order_id).single();
         if(order.error || !order.data || order.data.status!=="paid") throw new Error("paid_order_required");
-        const [registrations,capture,event,category,booker]=await Promise.all([
-          db.from("registrations").select("id,status,ticket_token,custom_data").eq("booking_order_id",job.booking_order_id).order("id"),
+        const [registrations,capture,event,booker]=await Promise.all([
+          db.from("registrations").select("id,status,ticket_token,custom_data,categories(label)").eq("booking_order_id",job.booking_order_id).order("id"),
           db.from("booking_payment_captures").select("id,capture").eq("booking_order_id",job.booking_order_id).eq("state","fulfilled").single(),
           db.from("events").select("name,event_date,venue").eq("id",order.data.event_id).single(),
-          db.from("categories").select("label").eq("id",order.data.category_id).single(),
           db.auth.admin.getUserById(order.data.booked_by_user_id),
         ]);
-        if(registrations.error || capture.error || event.error || category.error || booker.error || !registrations.data?.length) throw new Error("delivery_read_failed");
+        if(registrations.error || capture.error || event.error || booker.error || !registrations.data?.length) throw new Error("delivery_read_failed");
         const active=registrations.data.filter(r=>r.status==="paid");
         if(registrations.data.some(r=>!["paid","refunded"].includes(r.status)) || active.some(r=>!r.ticket_token)) throw new Error("tickets_not_ready");
         if(active.length===0) { skipped++; }
         else {
           const to=booker.data.user?.email;
           if(!to || !booker.data.user.email_confirmed_at) throw new Error("confirmed_booking_email_required");
-          const rendered=renderGroupTicketEmail({eventName:event.data.name,categoryLabel:category.data.label,eventDate:event.data.event_date,venue:event.data.venue,
-            total:capture.data.capture.amount,tickets:active.map(r=>({name:typeof r.custom_data?.full_name==="string"?r.custom_data.full_name:"Participant",reference:r.id.slice(0,8).toUpperCase(),ticketUrl:`${site}/ticket/${r.id}`,qrUrl:`${functions}/ticket-qr?token=${encodeURIComponent(r.ticket_token)}`}))});
+          const labels=[...new Set(active.map(r=>Array.isArray(r.categories)?r.categories[0]?.label:r.categories?.label).filter(Boolean))];
+          const rendered=renderGroupTicketEmail({eventName:event.data.name,categoryLabel:labels.join(" · ")||"Selected categories",eventDate:event.data.event_date,venue:event.data.venue,
+            total:capture.data.capture.amount,tickets:active.map(r=>({name:typeof r.custom_data?.full_name==="string"?r.custom_data.full_name:"Participant",categoryLabel:(Array.isArray(r.categories)?r.categories[0]?.label:r.categories?.label)||"Category",reference:r.id.slice(0,8).toUpperCase(),ticketUrl:`${site}/ticket/${r.id}`,qrUrl:`${functions}/ticket-qr?token=${encodeURIComponent(r.ticket_token)}`}))});
           const result=await sendEmail(to,rendered.subject,rendered.html,rendered.text);
           if(!result.ok) throw new Error("email_transport_failed");
           sent++;

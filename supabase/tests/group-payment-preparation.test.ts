@@ -19,7 +19,7 @@ import { groupReservationInputSchema } from "../functions/_shared/groupRegistrat
 import { quoteGroup, type GroupFeeTerms, type GroupRate } from "../functions/_shared/groupPricing";
 const env = loadEnv(), db = new Client({ connectionString: env.dbUrl });
 const svc = createClient(env.url, env.serviceKey, { auth: { persistSession: false } });
-const org = randomUUID(), event = randomUUID(), category = randomUUID(), guest = randomUUID(), waiver = randomUUID(), addon = randomUUID();
+const org = randomUUID(), event = randomUUID(), category = randomUUID(), category2 = randomUUID(), guest = randomUUID(), waiver = randomUUID(), addon = randomUUID();
 let actor: string, stranger: string, token: string, strangerToken: string, self: string;
 let handler: (req: Request) => Promise<Response>;
 let deliveryHandler: (req: Request) => Promise<Response>;
@@ -35,9 +35,9 @@ async function account() {
   if (login.error) throw login.error;
   return { id: created.data.user.id, token: login.data.session!.access_token };
 }
-async function reserve() {
-  const input = groupReservationInputSchema.parse({ event_id: event, category_id: category, waiver_version_id: waiver, idempotency_key: randomUUID(), participants: [self, guest].map((id) => ({
-    participant_passport_id: id, addon_ids: id === guest ? [addon] : [], waiver_accepted: true, waiver_acceptance_method: id === self ? "signed_in_self" : "participant_on_helper_device",
+async function reserve(mixedCategories = false) {
+  const input = groupReservationInputSchema.parse({ event_id: event, ...(mixedCategories ? {} : { category_id: category }), waiver_version_id: waiver, idempotency_key: randomUUID(), participants: [self, guest].map((id) => ({
+    participant_passport_id: id, ...(mixedCategories ? { category_id: id === self ? category : category2 } : {}), addon_ids: id === guest ? [addon] : [], waiver_accepted: true, waiver_acceptance_method: id === self ? "signed_in_self" : "participant_on_helper_device",
   })) });
   const rows = await svc.from("runner_passports").select("*").in("id", [self, guest]);
   if (rows.error) throw rows.error;
@@ -58,6 +58,7 @@ beforeAll(async () => {
   await db.query("insert into organizer_waiver_versions(id,org_id,title,body) values($1,$2,'QA waiver','Sample waiver')", [waiver, org]);
   await db.query("insert into events(id,org_id,name,status,waiver_version_id) values($1,$2,'Payment preparation QA','open',$3)", [event, org, waiver]);
   await db.query("insert into categories(id,org_id,event_id,code,label,base_price,slots_total) values($1,$2,$3,'Q','Q',100000,20)", [category, org, event]);
+  await db.query("insert into categories(id,org_id,event_id,code,label,base_price,slots_total) values($1,$2,$3,'U','Ultra',175000,20)", [category2, org, event]);
   await db.query("insert into addons(id,org_id,event_id,name,price) values($1,$2,$3,'Optional kit',25000)", [addon, org, event]);
   await db.query("insert into runner_passports(id,created_by_user_id) values($1,$2)", [guest, actor]);
   await db.query("insert into passport_managers(passport_id,user_id) values($1,$2)", [guest, actor]);
@@ -98,7 +99,7 @@ beforeEach(async () => {
   await db.query("delete from registrations where event_id=$1", [event]);
   await db.query("delete from booking_orders where event_id=$1", [event]);
   await db.query("update organizations set fee_mode='pass_on',commission_type='fixed',commission_flat_cents=1000,commission_rate=0.03,is_active=true where id=$1", [org]);
-  await db.query("update categories set base_price=100000,slots_total=20,slots_taken=0 where id=$1", [category]);
+  await db.query("update categories set base_price=case when id=$1 then 100000 else 175000 end,slots_total=20,slots_taken=0 where id=any($2::uuid[])", [category, [category, category2]]);
   await db.query("update addons set price=25000 where id=$1", [addon]);
   await db.query("update events set status='open' where id=$1", [event]);
   await db.query("update auth.users set email_confirmed_at=now() where id=$1", [actor]);
@@ -132,6 +133,12 @@ it("prepares one combined quote with exact participant allocations and no charge
   for (const line of expected.lines) expect(result.lines.find((l: { registration_id: string }) => l.registration_id === line.registration_id)).toMatchObject(line);
   expect((await db.query("select p.id from payments p join registrations r on r.id=p.registration_id where r.event_id=$1", [event])).rowCount).toBe(0);
   expect((await db.query("select status,ticket_token from registrations where event_id=$1", [event])).rows).toEqual([{ status: "pending", ticket_token: null }, { status: "pending", ticket_token: null }]);
+});
+it("rolls back the whole mixed-category reservation when one category is full", async () => {
+  await db.query("update categories set slots_total=0 where id=$1", [category2]);
+  await expect(reserve(true)).rejects.toThrow("category_capacity_exhausted");
+  expect((await db.query("select count(*)::int n from booking_orders where event_id=$1", [event])).rows[0].n).toBe(0);
+  expect((await db.query("select count(*)::int n from registrations where event_id=$1", [event])).rows[0].n).toBe(0);
 });
 it("freezes terms on replay and refuses overlapping payment attempts", async () => {
   const order = await reserve(), key = randomUUID();
@@ -264,8 +271,8 @@ it("keeps the endpoint disabled by default and validates authentication and meth
 async function groupCall(attempt: string, action = "session", bearer = token) {
   return groupHandler(new Request("http://localhost/group-payment", { method: "POST", headers: { Authorization: `Bearer ${bearer}`, "content-type": "application/json" }, body: JSON.stringify({ attempt_id: attempt, action }) }));
 }
-async function prepared() {
-  const result = await svc.rpc("booking_order_prepare_payment", args(await reserve()));
+async function prepared(mixedCategories = false) {
+  const result = await svc.rpc("booking_order_prepare_payment", args(await reserve(mixedCategories)));
   if (result.error) throw result.error;
   return result.data;
 }
@@ -292,6 +299,40 @@ it("creates one provider session across concurrent clicks and verifies all disti
   expect(ledger).toEqual({ gross: attempt.gross_cents + 5678, fee: 5678, net: attempt.base_cents });
   expect((await db.query("select slots_taken from categories where id=$1", [category])).rows[0].slots_taken).toBe(2);
   expect((await db.query("select * from booking_order_deliveries where org_id=$1", [org])).rowCount).toBe(1);
+});
+it("fulfills mixed categories with one payment, category-aware tickets, delivery, and slot release", async () => {
+  const attempt = await prepared(true);
+  expect((await db.query("select category_id from booking_orders where id=$1", [attempt.booking_order_id])).rows[0].category_id).toBeNull();
+  expect((await groupCall(attempt.id)).status).toBe(200);
+  provider.retrieve.mockResolvedValue(providerCapture(attempt));
+  expect(await (await groupCall(attempt.id, "verify")).json()).toEqual({ status: "paid" });
+
+  const regs = (await db.query("select id,category_id,ticket_token,status from registrations where booking_order_id=$1 order by category_id", [attempt.booking_order_id])).rows;
+  expect(regs).toHaveLength(2);
+  expect(new Set(regs.map(row => row.category_id))).toEqual(new Set([category, category2]));
+  expect(new Set(regs.map(row => row.ticket_token)).size).toBe(2);
+  for (const row of regs) {
+    expect(row.status).toBe("paid");
+    expect(await verifyTicketToken(row.ticket_token, "group-test-secret")).toMatchObject({ rid: row.id, eid: event });
+  }
+  expect((await db.query("select id,slots_taken from categories where id=any($1::uuid[]) order by id", [[category, category2]])).rows)
+    .toEqual([category, category2].sort().map(id => ({ id, slots_taken: 1 })));
+
+  await firstDelivery(attempt.booking_order_id);
+  expect((await deliver()).status).toBe(200);
+  const deliveredHtml = mail.send.mock.calls[0][2];
+  expect(deliveredHtml).toContain("Q");
+  expect(deliveredHtml).toContain("Ultra");
+  expect((deliveredHtml.match(/alt="Ticket QR for /g) ?? [])).toHaveLength(2);
+
+  await db.query("insert into user_roles(user_id,org_id,role) values($1,$2,'admin')", [stranger, org]);
+  refundProvider.create.mockImplementation(async request => refundResource(request));
+  const selected = regs.find(row => row.category_id === category2)!;
+  const allocation = (await db.query("select net_to_org_cents from booking_payment_allocations where registration_id=$1", [selected.id])).rows[0];
+  const response = await refundCall(attempt.booking_order_id, { preview: false, registration_ids: [selected.id], expected_amount: allocation.net_to_org_cents });
+  expect(await response.json()).toMatchObject({ status: "succeeded" });
+  expect((await db.query("select slots_taken from categories where id=$1", [category])).rows[0].slots_taken).toBe(1);
+  expect((await db.query("select slots_taken from categories where id=$1", [category2])).rows[0].slots_taken).toBe(0);
 });
 it("allocates a one-cent PayMongo rounding excess without losing a centavo", async () => {
   const attempt = await prepared();
