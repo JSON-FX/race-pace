@@ -1,6 +1,6 @@
 # Race Bib single registration
 
-Status: approved visual direction; implemented locally, staging release pending.
+Status: approved visual direction; deployed to staging, authenticated acceptance pending.
 
 The selected [Race Bib preview](../previews/register-single-prototypes/02-race-bib.html) is the visual acceptance reference for the runner's single registration path. It defines the photographic masthead, four-step progress rail, ticket-like main panel, pale race summary, content hierarchy, typography, spacing, and responsive behavior from phone to desktop. The masthead uses the approved dark trail photograph. The Passport row uses the runner's saved profile avatar where available, with initials when no photo exists.
 
