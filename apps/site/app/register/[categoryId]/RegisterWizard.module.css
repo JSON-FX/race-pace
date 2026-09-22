@@ -48,7 +48,7 @@
 .finePrint { margin-top:13px; color:rgb(var(--muted-foreground)); font-size:12px; line-height:1.6; }
 .waiverChoice { align-items:flex-start; min-height:58px; margin-top:18px; padding:15px; }
 .waiverChoice label { font-size:13px; line-height:1.6; cursor:pointer; }
-.waiverChoice button { display:block; min-height:36px; padding:0; color:rgb(var(--secondary-foreground)); font-size:12px; font-weight:800; text-decoration:underline; text-underline-offset:3px; }
+.waiverLink { display:block; min-height:36px; padding:0; color:rgb(var(--secondary-foreground)); font-size:12px; font-weight:800; text-decoration:underline; text-underline-offset:3px; }
 .actions { display:flex; justify-content:flex-end; gap:10px; padding-top:26px; margin-top:28px; border-top:1px solid rgb(var(--border)); }
 .actions button { min-height:50px; border-radius:11px; padding:11px 21px; font-size:14px; font-weight:800; }
 .actions button:last-child { min-width:200px; }

@@ -1,6 +1,6 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ createCheckout: vi.fn(), payment: {} as Record<string, unknown> }));
+const mocks = vi.hoisted(() => ({ createCheckout: vi.fn(), getCheckout: vi.fn(), payment: {} as Record<string, unknown> }));
 vi.mock("../functions/_shared/supabase.ts", () => ({ serviceClient: () => ({
   auth: { getUser: async () => ({ data: { user: { id: "runner-id", email: "runner@example.com" } } }) },
   from: (table: string) => table === "registrations" ? {
@@ -17,6 +17,11 @@ vi.mock("../functions/_shared/supabase.ts", () => ({ serviceClient: () => ({
   } : undefined,
 }) }));
 vi.mock("../functions/_shared/payments.ts", () => ({ getPaymentProviderByName: () => ({ createCheckout: mocks.createCheckout }) }));
+vi.mock("../functions/_shared/paymongo.ts", () => ({
+  pmGetCheckoutSession: mocks.getCheckout,
+  pmCheckoutMethods: (session: { raw?: { data?: { attributes?: { payment_method_types?: string[] } } } }) =>
+    session.raw?.data?.attributes?.payment_method_types ?? [],
+}));
 vi.mock("../functions/_shared/cors.ts", () => ({ preflight: () => null, corsHeaders: () => ({}) }));
 vi.mock("../functions/_shared/eventStatus.ts", () => ({ isRegistrationClosed: () => false }));
 
@@ -28,6 +33,7 @@ beforeAll(async () => {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.spyOn(console, "error").mockImplementation(() => {});
+  mocks.getCheckout.mockReset();
   mocks.payment = {
     provider: "paymongo", provider_ref: null, checkout_url: null,
     checkout_fee_mode: "absorb", checkout_platform_fee: 300,
@@ -68,6 +74,33 @@ describe("uncertain PayMongo checkout creation", () => {
     const response = await request();
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ checkout_url: "https://checkout.paymongo.com/existing" });
+    expect(mocks.createCheckout).not.toHaveBeenCalled();
+  });
+
+  it("reads the methods frozen on the bound PayMongo session without creating checkout", async () => {
+    mocks.payment.provider_ref = "cs_existing";
+    mocks.payment.checkout_url = "https://checkout.paymongo.com/existing";
+    mocks.getCheckout.mockResolvedValue({ raw: { data: { attributes: { payment_method_types: ["qrph"] } } } });
+    const response = await handler(new Request("http://localhost/payment-session", {
+      method: "POST", headers: { Authorization: "Bearer test-jwt", "Content-Type": "application/json" },
+      body: JSON.stringify({ registration_id: "registration-id", method: "qrph", inspect: true }),
+    }));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ payment_method_types: ["qrph"] });
+    expect(mocks.getCheckout).toHaveBeenCalledWith("cs_existing");
+    expect(mocks.createCheckout).not.toHaveBeenCalled();
+  });
+
+  it("does not guess methods when PayMongo cannot be reached", async () => {
+    mocks.payment.provider_ref = "cs_existing";
+    mocks.payment.checkout_url = "https://checkout.paymongo.com/existing";
+    mocks.getCheckout.mockRejectedValue(new Error("provider unavailable"));
+    const response = await handler(new Request("http://localhost/payment-session", {
+      method: "POST", headers: { Authorization: "Bearer test-jwt", "Content-Type": "application/json" },
+      body: JSON.stringify({ registration_id: "registration-id", method: "qrph", inspect: true }),
+    }));
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ error: "payment_methods_unavailable" });
     expect(mocks.createCheckout).not.toHaveBeenCalled();
   });
 
