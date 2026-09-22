@@ -164,6 +164,17 @@ it is testable without a Next runtime; `middleware.ts` just calls them.
 
 ## Conventions that bite
 
+### Approved prototypes are implementation contracts
+
+- When the product owner selects a layout proposal or prototype, treat its visual design,
+  responsive behavior, interaction states, and demonstrated functionality as the production
+  acceptance criteria.
+- Reproduce the approved composition, spacing, typography, hierarchy, controls, and breakpoints
+  with real application data and working flows. Do not ship only the underlying business logic
+  or a rough visual interpretation.
+- Validate the implemented screen at desktop, tablet, and mobile sizes. Document every intentional
+  deviation from the approved prototype before calling the implementation complete.
+
 - **Never edit a migration already applied to the hosted project.** `db push` skips a version
   it has recorded regardless of content, so an edit silently diverges from what is live. Write
   a follow-up migration instead. Editing in place is acceptable only for a version that has

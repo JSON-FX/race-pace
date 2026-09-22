@@ -19,6 +19,8 @@ describe("TrailRosterParticipantSelector", () => {
     expect(screen.getByRole("combobox", { name: "Category for Ava Runner" })).toBeEnabled();
     expect(screen.getByRole("combobox", { name: "Category for Lola Runner" })).toBeDisabled();
     expect(screen.getAllByRole("listitem")[0]).not.toHaveClass("bg-primary");
+    expect(screen.getByText("AR")).toBeInTheDocument();
+    expect(screen.getByText("LR")).toBeInTheDocument();
   });
 
   it("adds an omitted Passport with the first available category", () => {
