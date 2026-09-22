@@ -1,4 +1,4 @@
-import { paymongoConfigured, pmCreateCheckoutSession, pmGetCheckoutSession, pmPaymentIdFromSession, pmCreateRefund, pmGetRefund } from "./paymongo.ts";
+import { paymongoConfigured, pmActivePaymentMethods, pmCreateCheckoutSession, pmGetCheckoutSession, pmPaymentIdFromSession, pmCreateRefund, pmGetRefund, PayMongoCheckoutError } from "./paymongo.ts";
 
 export interface CheckoutInput { registrationId: string; amount: number; description: string; returnUrl: string; methods?: string[]; lineItems?: { name: string; amount: number }[]; billing?: { name?: string; email?: string; phone?: string }; passOnFees?: boolean; metadata?: Record<string, string> }
 export interface CheckoutResult { checkoutUrl: string; providerRef: string }
@@ -41,10 +41,20 @@ export class FakePaymentProvider implements PaymentProvider {
 export class PayMongoProvider implements PaymentProvider {
   readonly name = "paymongo";
   async createCheckout(input: CheckoutInput): Promise<CheckoutResult> {
+    const requestedMethods = input.methods && input.methods.length
+      ? input.methods
+      : ["card", "gcash", "paymaya", "qrph"];
+    const activeMethods = await pmActivePaymentMethods();
+    const paymentMethodTypes = requestedMethods.filter((method) => activeMethods.includes(method));
+    if (!paymentMethodTypes.length) {
+      // No provider POST has happened, so callers can safely release a local
+      // reservation instead of parking it for reconciliation.
+      throw new PayMongoCheckoutError("paymongo_payment_method_unavailable", "rejected");
+    }
     const session = await pmCreateCheckoutSession({
       lineItems: (input.lineItems && input.lineItems.length ? input.lineItems : [{ name: input.description || "Race registration", amount: input.amount }])
         .map((li) => ({ name: li.name, amount: li.amount /* centavos */, currency: "PHP", quantity: 1 })),
-      paymentMethodTypes: input.methods && input.methods.length ? input.methods : ["card", "gcash", "paymaya", "qrph"],
+      paymentMethodTypes,
       description: input.description,
       successUrl: withStatus(input.returnUrl, "paid"),
       cancelUrl: withStatus(input.returnUrl, "cancel"),
@@ -55,7 +65,7 @@ export class PayMongoProvider implements PaymentProvider {
     });
     if (!session.id?.startsWith("cs_") ||
         !session.checkoutUrl?.startsWith("https://checkout.paymongo.com/")) {
-      throw new Error("paymongo_checkout_response_invalid");
+      throw new PayMongoCheckoutError("paymongo_checkout_response_invalid", "uncertain");
     }
     return { checkoutUrl: session.checkoutUrl, providerRef: session.id };
   }

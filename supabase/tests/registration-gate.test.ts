@@ -1133,3 +1133,66 @@ describe("admin_registrations_v / admin_registration_aggregates — expired & ca
     expect(pendingAgg.data![0].total).toBe(1);
   });
 });
+
+describe("release_rejected_paymongo_checkout", () => {
+  it("expires a reservation only when checkout creation was definitively rejected", async () => {
+    const svc = service();
+    const f = await makeEvent(`release_rejected_${Date.now()}`);
+    const runner = await makeUser(`release_rejected_${Date.now()}@test.dev`);
+    const registration = await svc.from("registrations").insert({
+      ...regRow(f, runner.id), idempotency_key: `release-${Date.now()}`,
+    }).select().single();
+    expect(registration.error).toBeNull();
+    const payment = await svc.from("payments").insert({
+      org_id: f.orgId, registration_id: registration.data!.id,
+      provider: "paymongo", amount: 100000, status: "pending",
+    });
+    expect(payment.error).toBeNull();
+
+    const released = await svc.rpc("release_rejected_paymongo_checkout", {
+      p_registration_id: registration.data!.id,
+      p_reason: "paymongo_create_failed:422",
+    });
+    expect(released.error).toBeNull();
+    expect(released.data).toBe("released");
+
+    const row = await svc.from("registrations").select("status,expires_at").eq("id", registration.data!.id).single();
+    const paymentRow = await svc.from("payments").select("status,provider_ref,checkout_url").eq("registration_id", registration.data!.id).single();
+    expect(row.data).toMatchObject({ status: "expired", expires_at: null });
+    expect(paymentRow.data).toMatchObject({ status: "failed", provider_ref: null, checkout_url: null });
+
+    await svc.from("organizations").delete().eq("id", f.orgId);
+    await svc.auth.admin.deleteUser(runner.id);
+  });
+
+  it("keeps the reservation pending when provider state already exists", async () => {
+    const svc = service();
+    const f = await makeEvent(`release_guard_${Date.now()}`);
+    const runner = await makeUser(`release_guard_${Date.now()}@test.dev`);
+    const registration = await svc.from("registrations").insert({
+      ...regRow(f, runner.id), idempotency_key: `guard-${Date.now()}`,
+    }).select().single();
+    expect(registration.error).toBeNull();
+    const payment = await svc.from("payments").insert({
+      org_id: f.orgId, registration_id: registration.data!.id, provider: "paymongo",
+      provider_ref: "cs_existing", checkout_url: "https://checkout.paymongo.com/existing",
+      amount: 100000, status: "pending",
+    });
+    expect(payment.error).toBeNull();
+
+    const guarded = await svc.rpc("release_rejected_paymongo_checkout", {
+      p_registration_id: registration.data!.id,
+      p_reason: "paymongo_create_failed:422",
+    });
+    expect(guarded.error).toBeNull();
+    expect(guarded.data).toBe("provider_state_mismatch");
+
+    const row = await svc.from("registrations").select("status").eq("id", registration.data!.id).single();
+    const paymentRow = await svc.from("payments").select("status").eq("registration_id", registration.data!.id).single();
+    expect(row.data?.status).toBe("pending");
+    expect(paymentRow.data?.status).toBe("pending");
+
+    await svc.from("organizations").delete().eq("id", f.orgId);
+    await svc.auth.admin.deleteUser(runner.id);
+  });
+});
