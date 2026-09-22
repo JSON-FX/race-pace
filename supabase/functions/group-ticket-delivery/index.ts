@@ -1,6 +1,6 @@
 import { serviceClient } from "../_shared/supabase.ts";
 import { isAuthorizedBearer } from "../_shared/authz.ts";
-import { sendEmail } from "../_shared/email.ts";
+import { renderTicketEmail, sendEmail } from "../_shared/email.ts";
 import { renderGroupTicketEmail } from "../_shared/groupTicketEmail.ts";
 function baseUrl(name: string): string {
   const value=Deno.env.get(name); if (!value) throw new Error("email_not_configured");
@@ -39,8 +39,19 @@ Deno.serve(async req=>{
           const to=booker.data.user?.email;
           if(!to || !booker.data.user.email_confirmed_at) throw new Error("confirmed_booking_email_required");
           const labels=[...new Set(active.map(r=>Array.isArray(r.categories)?r.categories[0]?.label:r.categories?.label).filter(Boolean))];
-          const rendered=renderGroupTicketEmail({eventName:event.data.name,categoryLabel:labels.join(" · ")||"Selected categories",eventDate:event.data.event_date,venue:event.data.venue,
-            total:capture.data.capture.amount,tickets:active.map(r=>({name:typeof r.custom_data?.full_name==="string"?r.custom_data.full_name:"Participant",categoryLabel:(Array.isArray(r.categories)?r.categories[0]?.label:r.categories?.label)||"Category",reference:r.id.slice(0,8).toUpperCase(),ticketUrl:`${site}/ticket/${r.id}`,qrUrl:`${functions}/ticket-qr?token=${encodeURIComponent(r.ticket_token)}`}))});
+          const tickets=active.map(r=>({name:typeof r.custom_data?.full_name==="string"?r.custom_data.full_name:"Participant",categoryLabel:(Array.isArray(r.categories)?r.categories[0]?.label:r.categories?.label)||"Category",reference:r.id.slice(0,8).toUpperCase(),ticketUrl:`${site}/ticket/${r.id}`,qrUrl:`${functions}/ticket-qr?token=${encodeURIComponent(r.ticket_token)}`}));
+          let rendered;
+          if(tickets.length===1) {
+            const registration=active[0],ticket=tickets[0];
+            if(!registration || !ticket) throw new Error("delivery_read_failed");
+            const allocation=await db.from("booking_payment_allocations").select("gross_cents").eq("registration_id",registration.id).single();
+            if(allocation.error || !allocation.data || !Number.isSafeInteger(allocation.data.gross_cents) || allocation.data.gross_cents<0) throw new Error("delivery_read_failed");
+            rendered=renderTicketEmail({participantName:ticket.name,eventName:event.data.name,categoryLabel:ticket.categoryLabel,eventDate:event.data.event_date,venue:event.data.venue,
+              total:allocation.data.gross_cents,reference:ticket.reference,ticketUrl:ticket.ticketUrl,qrUrl:ticket.qrUrl});
+          } else {
+            rendered=renderGroupTicketEmail({eventName:event.data.name,categoryLabel:labels.join(" · ")||"Selected categories",eventDate:event.data.event_date,venue:event.data.venue,
+              total:capture.data.capture.amount,tickets});
+          }
           const result=await sendEmail(to,rendered.subject,rendered.html,rendered.text);
           if(!result.ok) throw new Error("email_transport_failed");
           sent++;

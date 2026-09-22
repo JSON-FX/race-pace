@@ -665,7 +665,8 @@ it("retains failed email for retry and excludes refunded tickets",async()=>{
  refundProvider.create.mockImplementation(async r=>refundResource(r));
  await refundCall(order,{preview:false,registration_ids:[lines[0].registration_id],expected_amount:lines[0].net_to_org_cents});
  await db.query("update booking_order_deliveries set next_attempt_at=now() where booking_order_id=$1",[order]);
- expect((await deliver()).status).toBe(200);const html=mail.send.mock.calls[1][2];
+ expect((await deliver()).status).toBe(200);const [to,subject,html]=mail.send.mock.calls[1];
+ expect(to).toContain("@example.com");expect(subject).toContain("race pass");expect(html).toContain("Your race ticket");expect(html).not.toContain("One booking, everyone included.");
  expect(html).not.toContain(`/ticket/${lines[0].registration_id}`);expect(html).toContain(`/ticket/${lines[1].registration_id}`);
 });
 it("does not email an entirely refunded order and refuses unauthorized or disabled workers",async()=>{

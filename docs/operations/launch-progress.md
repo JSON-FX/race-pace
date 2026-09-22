@@ -25,14 +25,16 @@ Mixed-category group checkout staging release, 2026-09-22: PR #98 merged to `sta
 
 Hosted acceptance selected one self Passport and one managed Passport in the Trail Roster, assigned 14K Trail QA and Backyard Ultra QA, and accepted separate waivers. Trail Ledger reviewed one ₱2,650 payment. PayMongo test-mode GCash produced one fulfilled non-livemode capture, two paid registrations, two financial allocations, one occupied slot in each category and two distinct ticket tokens. Both ticket pages visibly rendered the correct participant and category with separate QR passes. A participant-only refund succeeded for the Backyard Ultra registration, invalidated only that ticket and returned only that category's slot to zero; the 14K registration stayed paid with its QR active. The temporary staging Auth user, Passports, event, order and dependent ledger rows were deleted after evidence capture, and read-back found zero matching orders, events or Passports.
 
+Group-ticket email revision approved, 2026-09-22: the exact group renderer now rejects fewer than two active tickets. The delivery worker falls back to the existing individual-ticket template when only one active ticket remains, including after a participant-only refund. The fallback reads the participant's captured gross allocation instead of showing the original group total. The approved production-style preview covers different categories, separate QR cards and one booking total. Focused renderer and delivery tests passed 51 of 51. The complete runner and admin suites passed 461 and 909 tests, both typechecks passed, and both production builds succeeded. Ninety of 93 backend/shared files passed 684 tests; the three networked function files were blocked by the already-running local Edge runtime using different webhook and ticket-signing secrets. This adjustment remains local until its staging pull request passes the isolated GitHub environment.
+
 ### Current mixed-category group checkout release
 
 | Work | Status | Blocker | Next task |
 |---|---|---|---|
 | Trail Roster and Trail Ledger | **Staging accepted** | None on the tested GCash path. | Preserve the approved layout and participant-category pairing. |
-| One payment and distinct QR tickets | **Staging accepted** | Fresh group email inbox delivery was not inspected. | Monitor the first authorized staging delivery run. |
+| One payment and distinct QR tickets | **Email revision approved locally** | No fresh inbox delivery has inspected this revision. | Merge to staging, then repeat hosted staging delivery. |
 | Participant-only refund and category capacity | **Staging accepted** | None. | Keep the one-registration refund boundary during promotion. |
-| Production | **Unchanged** | Explicit production promotion and owner-led live validation are still required. | Open a staging-to-main release only when authorized. |
+| Production | **Paused for staging gate** | The approved email revision must pass isolated CI and hosted staging delivery before promotion. | Promote only after the exact staging revision passes. |
 
 Use the release-critical table below as the launch decision. Keep the original 20-item checklist and detailed evidence as supporting records. Update affected rows after every completed action, failed verification, or blocker. Do not mark a row complete on submission alone. The dated hosted checkpoint is historical supporting evidence; these tables take precedence for current status.
 
