@@ -227,6 +227,11 @@ describe("PayPanel — provider-managed fees", () => {
     });
     expect(screen.getByText(/The total stays ₱100.00/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "GCash" })).not.toBeInTheDocument();
+    for (const [title, path] of [["GCash", "gcash.png"], ["QR Ph", "qr-ph.svg"], ["Maya", "maya.png"], ["Visa", "visa.png"], ["Mastercard", "mastercard.png"]]) {
+      const src = screen.getByTitle(title).getAttribute("src") ?? "";
+      const asset = src.startsWith("/_next/image") ? new URL(src, "http://localhost").searchParams.get("url") : src;
+      expect(asset).toBe(`/payments/${path}`);
+    }
     createMethodCheckoutMock.mockResolvedValue({ url: null, code: null });
     await userEvent.setup().click(screen.getByRole("button", { name: "Pay ₱100.00" }));
     expect(assign).not.toHaveBeenCalled();

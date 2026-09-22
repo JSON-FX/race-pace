@@ -1,7 +1,17 @@
 # Web and admin launch progress
 
-Updated: 2026-09-22. Overall: MVP RELEASED; PILOT EVENT DRAFT READY; OWNER CHECKOUT PENDING.
+Updated: 2026-09-23. Overall: MVP RELEASED; PILOT EVENT DRAFT READY; OWNER CHECKOUT PENDING.
 Scope: runner website and admin only. The first release is a controlled pilot with one organizer and PayMongo. Production now contains only the authorized pilot organizer and its draft verification event; add no other synthetic data.
+
+### Current single registration redesign
+
+| Work | Status | Blocker | Next task |
+|---|---|---|---|
+| Race Bib Details → Kit → Confirm → Pay design | **Implemented and validated locally** | No local blocker; staging release is pending. | Release the selected [Race Bib design](../previews/register-single-prototypes/02-race-bib.html) to staging. |
+| Runner and payment behavior | **Local validation passed** | Hosted single-entry acceptance remains. | Verify Passport, kit, waiver, and PayMongo test-mode checkout on staging. |
+| Hosted staging and production | **Staging pending; production unchanged** | Pull request, CI, and exact deployment verification remain. | Merge the validated implementation into staging and check its deployed revision. |
+
+Local evidence, 2026-09-23: 463 runner tests, 909 admin tests, 754 backend/shared tests, both typechecks, both production builds, and a fresh local reset of 147 migrations passed. The live components were reviewed at 375, 390, 768, 1024, 1265, and 1440 pixel widths with no horizontal overflow. The Pay step displayed the existing QR Ph, GCash, Maya, Visa, and Mastercard artwork. Temporary visual-check routes were removed before release.
 
 Settings Brand Studio production release, 2026-09-22: PR #97 promoted the staging-approved settings redesign, shared searchable combobox popover, and recovered PayMongo checkout safeguards to `main` at `dbea17c`. Main CI run `35677584238` passed. Runner deployment `dpl_EZWh6X1tvkWfso8zKtymwnBUUsuw` and admin deployment `dpl_8iHmkoszapg8LAoyzw4o9TcDshp1` are Ready on the production domains. The production database dry run reported no pending migrations. Eight reviewed Edge Functions were deployed from exact staging revision `5ad5614`: `admin-group-refund` v11 (`409a4c76`), `admin-refund` v28 (`00f96095`), `expire-paymongo-checkouts` v11 (`626bf960`), `payment-session` v31 (`340b9ce8`), `payment-verify` v32 (`6e465cb7`), `payments-webhook` v31 (`ba5a868c`), `registrations-checkout` v34 (`f5af9a35`), and `reprice-event-checkouts` v3 (`fd7f84a4`). Their hashes match staging, expected JWT settings remain intact, protected requests returned HTTP 401, invalid webhook input returned HTTP 401, and production `fake-checkout` returned HTTP 404. The public runner returned HTTP 200 and unauthenticated `/settings` redirected to login. No synthetic production data was added, no payment was triggered, and no application row was mutated. PR #100 merges the verified production history into current staging while preserving staging-only PR #98.
 

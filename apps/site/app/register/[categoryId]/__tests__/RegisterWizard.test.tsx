@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { CategoryRow, AddonRow, FormFieldRow, EventRow } from "@/lib/events";
-import { upsertProfile } from "@/lib/profile";
+import { getProfile, upsertProfile } from "@/lib/profile";
 import { CheckoutError } from "@/lib/registration";
 import { RegisterWizard } from "../RegisterWizard";
 
@@ -59,10 +59,11 @@ async function fillAndSubmit(user: ReturnType<typeof userEvent.setup>, saveProfi
   if (saveProfile) await user.click(screen.getByLabelText("Save these details to my profile"));
   await user.click(await screen.findByRole("button", { name: "Continue" }));
   await user.click(screen.getByRole("checkbox"));
-  await user.click(await screen.findByRole("button", { name: /^Register/ }));
+  await user.click(await screen.findByRole("button", { name: /Continue to payment/ }));
 }
 
 beforeEach(() => {
+  vi.mocked(getProfile).mockReset().mockResolvedValue(null);
   vi.mocked(upsertProfile).mockClear();
   mockReplace.mockReset();
   startCheckoutMock.mockReset();
@@ -70,6 +71,18 @@ beforeEach(() => {
 });
 
 describe("RegisterWizard — already_registered 409", () => {
+  it("shows the saved runner avatar and keeps initials as the missing-photo fallback", async () => {
+    const passport = { first_name: "QA", last_name: "Runner", date_of_birth: "1990-01-01", gender: "Female" as const,
+      contact_number: "09171234567", emergency_contact_name: "Contact", emergency_contact_number: "09171234567",
+      emergency_contact_relationship: "Friend", ...shipping };
+    vi.mocked(getProfile).mockResolvedValueOnce({ id: "u1", full_name: "QA Runner", bib_name: null, city: null,
+      avatar_url: "https://cdn.test/avatar.png#c=10,10,80,80" });
+    const { unmount } = render(<RegisterWizard userId="u1" category={category} event={event} addons={addons} formFields={formFields} passport={passport} />);
+    expect(await screen.findByRole("img", { name: "QA Runner's profile photo" })).toHaveAttribute("src", "https://cdn.test/avatar.png");
+    unmount();
+    render(<RegisterWizard userId="u1" category={category} event={event} addons={addons} formFields={formFields} passport={passport} />);
+    expect(screen.getByText("QR", { selector: "span[aria-hidden=true]" })).toBeInTheDocument();
+  });
   it("keeps the advertised total fixed when both fees are deducted from the organizer payout", () => {
     const passport = { first_name: "QA", last_name: "Runner", date_of_birth: "1990-01-01", gender: "Female" as const,
       contact_number: "09171234567", emergency_contact_name: "Contact", emergency_contact_number: "09171234567",
@@ -96,7 +109,7 @@ describe("RegisterWizard — already_registered 409", () => {
     expect(screen.getByText("Taxes and fees")).toBeInTheDocument();
     expect(screen.getByText("₱45.00")).toBeInTheDocument();
     expect(screen.getByText("Subtotal before payment processing")).toBeInTheDocument();
-    expect(screen.getByText("₱1,545.00")).toBeInTheDocument();
+    expect(screen.getAllByText("₱1,545.00")).toHaveLength(2);
     expect(screen.getByText(/PayMongo calculates the processing fee and final total/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Continue to payment" })).toBeInTheDocument();
   });
@@ -109,7 +122,7 @@ describe("RegisterWizard — already_registered 409", () => {
     expect(screen.queryByLabelText(/Bib name/)).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Edit Race Passport" })).toHaveAttribute("href", "/profile");
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-    expect(await screen.findByText("Kit & extras")).toBeInTheDocument();
+    expect(await screen.findByText("Make this entry yours")).toBeInTheDocument();
   });
   it("routes straight to /pay/<id> instead of showing a dead-end error", async () => {
     startCheckoutMock.mockRejectedValue(new CheckoutError("already_registered", "existing-reg-1"));
@@ -178,6 +191,6 @@ it("submits assisted acceptance separately from the authenticated booker", async
  await user.click(screen.getByRole("button", { name:"Continue" }));
  expect(screen.getByText(/Pass this device to/)).toBeInTheDocument();
  await user.click(screen.getByRole("checkbox"));
- await user.click(screen.getByRole("button", { name:/^Register/ }));
+ await user.click(screen.getByRole("button", { name:/Continue to payment/ }));
  expect(startCheckoutMock).toHaveBeenCalledWith(expect.objectContaining({participant_passport_id:"guest-passport",waiver_acceptance_method:"participant_on_helper_device",waiver_version_id:"guest-waiver"}));
 });
