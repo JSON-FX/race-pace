@@ -2,11 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { formatPeso } from "@race-pace/shared";
-import { ArrowLeft, CheckCircle2, QrCode, ReceiptText, ShieldCheck } from "lucide-react";
+import { ArrowLeft, CheckCircle2, QrCode } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { GroupCheckoutError, prepareGroupPayment, startGroupPayment, verifyGroupPayment, type GroupAttempt } from "@/lib/groupCheckout";
+import { cancelGroupOrder, GroupCheckoutError, prepareGroupPayment, startGroupPayment, verifyGroupPayment, type GroupAttempt } from "@/lib/groupCheckout";
 import { MethodLogo } from "@/components/PaymentLogos";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,10 +20,11 @@ type Ticket = { id: string; status: string; total_amount: number; custom_data: R
 type Method = "gcash" | "card" | "maya" | "qrph";
 const METHOD_LABELS: Record<Method, string> = { gcash: "GCash", card: "Card", maya: "Maya", qrph: "QR Ph" };
 
-export function GroupOrder({ orderId, initialStatus, entryTotal, eventName, categoryLabel, participantCount, feeMode, expiresAt, returnStatus }: {
+export function GroupOrder({ orderId, initialStatus, entryTotal, eventName, categoryLabel, categoryCount, participantCount, feeMode, expiresAt, rosterHref, returnStatus }: {
   orderId: string; initialStatus: string; entryTotal: number; eventName: string; categoryLabel: string; participantCount: number;
-  feeMode: "absorb" | "pass_on"; expiresAt: string | null; returnStatus?: string;
+  categoryCount: number; feeMode: "absorb" | "pass_on"; expiresAt: string | null; rosterHref: string; returnStatus?: string;
 }) {
+  const router = useRouter();
   const [status, setStatus] = useState(initialStatus);
   const [attempt, setAttempt] = useState<GroupAttempt | null>(null);
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -106,27 +109,45 @@ export function GroupOrder({ orderId, initialStatus, entryTotal, eventName, cate
     finally { setBusy(false); }
   }
 
+  async function cancelBooking() {
+    setBusy(true); setError(null);
+    try {
+      await cancelGroupOrder(orderId);
+      try { sessionStorage.removeItem(`rp:group-payment:${orderId}`); } catch { /* No storage access. */ }
+      router.push(rosterHref);
+      router.refresh();
+    } catch (cause) {
+      const code = cause instanceof GroupCheckoutError ? cause.code : "booking_cancellation_unavailable";
+      setError(code === "payment_already_started"
+        ? "Payment has already started. Check its status before changing participants."
+        : "We could not cancel this booking. Please try again.");
+      await refresh().catch(() => {});
+    } finally { setBusy(false); }
+  }
+
   const complete = status === "paid";
   const effectiveFeeMode = attempt?.terms_snapshot?.fee_mode ?? feeMode;
   const blocked = status === "reconciliation_required" || attempt?.status === "creation_unknown";
   const canPrepare = (!attempt || ["failed", "expired"].includes(attempt.status)) && !expired && status === "pending" && entryTotal > 0;
   const canPay = attempt && ["prepared", "ready"].includes(attempt.status) && status === "pending" && !expired;
+  const canCancel = loaded && status === "pending" && !expired && (!attempt || ["prepared", "failed", "expired"].includes(attempt.status));
+  const categoryBadge = categoryCount > 1 ? `${categoryCount} categories` : categoryLabel;
 
-  return <div className="mx-auto max-w-5xl px-5 py-10 sm:px-6 sm:py-14">
+  return <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
     <Link className="mb-5 inline-flex min-h-11 items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground" href="/bookings"><ArrowLeft aria-hidden="true" className="size-4" />Back to bookings</Link>
-    <Card className="gap-0 overflow-hidden py-0 shadow-lg shadow-black/5">
-      <CardHeader className="gap-3 border-b p-6 sm:p-8">
+    <Card className="gap-0 overflow-hidden rounded-3xl border-border/70 py-0 shadow-[0_20px_55px_rgba(20,35,25,0.08)]">
+      <CardHeader className="gap-3 border-b border-border/70 p-6 sm:p-8 lg:px-10 lg:py-9">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">Group booking · payment</p>
         <CardTitle className="text-3xl tracking-tight sm:text-4xl">{eventName}</CardTitle>
         <CardDescription className="text-base">Review the runners and categories before continuing to PayMongo.</CardDescription>
         <div className="flex flex-wrap gap-2 pt-1">
-          <Badge variant="secondary">{participantCount} participant{participantCount === 1 ? "" : "s"}</Badge>
-          <Badge variant="secondary">{categoryLabel}</Badge>
-          <Badge variant="secondary">{participantCount} QR ticket{participantCount === 1 ? "" : "s"} after payment</Badge>
+          <Badge variant="secondary" className="border border-border/70">{participantCount} participant{participantCount === 1 ? "" : "s"}</Badge>
+          <Badge variant="secondary" className="border border-border/70">{categoryBadge}</Badge>
+          <Badge variant="secondary" className="border border-border/70">{participantCount} QR ticket{participantCount === 1 ? "" : "s"} after payment</Badge>
         </div>
       </CardHeader>
 
-    {!loaded ? <div className="grid gap-8 p-6 lg:grid-cols-[minmax(0,1fr)_360px] sm:p-8"><div className="space-y-3"><Skeleton className="h-5 w-48" /><Skeleton className="h-20 w-full" /><Skeleton className="h-20 w-full" /></div><Skeleton className="h-80 w-full" /></div> : complete ? <section className="p-6 sm:p-8">
+    {!loaded ? <div className="grid gap-8 p-6 sm:p-8 lg:grid-cols-[minmax(0,1.4fr)_minmax(340px,0.8fr)] lg:p-10"><div className="space-y-3"><Skeleton className="h-5 w-48" /><Skeleton className="h-20 w-full" /><Skeleton className="h-20 w-full" /></div><Skeleton className="h-80 w-full" /></div> : complete ? <section className="p-6 sm:p-8 lg:p-10">
       <h2 className="flex items-center gap-2 text-xl font-bold"><CheckCircle2 aria-hidden="true" className="size-5 text-primary" />Payment confirmed</h2>
       <p className="mt-2 text-sm text-muted-foreground">One payment secured {tickets.filter(ticket => ticket.status === "paid").length} individual tickets.</p>
       <ul className="mt-5 grid gap-3 sm:grid-cols-2">{tickets.map(ticket => {
@@ -136,29 +157,29 @@ export function GroupOrder({ orderId, initialStatus, entryTotal, eventName, cate
           {ticket.status === "paid" ? <Button asChild variant="outline"><Link href={`/ticket/${ticket.id}`}><QrCode aria-hidden="true" />View QR ticket</Link></Button> : <span className="capitalize">{ticket.status}</span>}
         </li>;
       })}</ul>
-    </section> : <div className="grid lg:grid-cols-[minmax(0,1fr)_360px]">
-      <section className="p-6 sm:p-8">
+    </section> : <div className="grid lg:grid-cols-[minmax(0,1.4fr)_minmax(340px,0.8fr)]">
+      <section className="p-6 sm:p-8 lg:p-10">
         <div className="mb-4 flex items-center justify-between gap-4"><h2 className="text-lg font-semibold">Runners in this booking</h2><span className="text-sm text-muted-foreground">{tickets.length} entries</span></div>
         <ul className="space-y-3">{tickets.map(ticket => {
           const name = typeof ticket.custom_data?.full_name === "string" ? ticket.custom_data.full_name : "Participant";
           const category = Array.isArray(ticket.categories) ? ticket.categories[0] : ticket.categories;
           const initials = name.split(" ").map(part => part[0]).join("").slice(0, 2).toUpperCase();
-          return <li key={ticket.id} className="grid grid-cols-[44px_minmax(0,1fr)_auto] items-center gap-3 rounded-xl border p-4">
+          return <li key={ticket.id} className="grid grid-cols-[44px_minmax(0,1fr)_auto] items-center gap-3 rounded-2xl border border-border/70 p-4">
             <span className="grid size-11 place-items-center rounded-full bg-primary/10 text-sm font-bold text-primary">{initials}</span>
             <span><span className="block font-semibold">{name}</span><span className="text-sm text-muted-foreground">{category?.label ?? "Category"}</span></span>
-            <span className="text-right font-semibold tabular-nums">{formatPeso(ticket.total_amount)}</span>
+            <span className="text-right"><span className="block font-semibold tabular-nums">{formatPeso(ticket.total_amount)}</span><span className="text-xs text-muted-foreground">Entry fee</span></span>
           </li>;
         })}</ul>
         <div className="mt-6 grid gap-3 sm:grid-cols-3">
-          <div className="rounded-xl bg-muted p-4 text-sm"><ReceiptText aria-hidden="true" className="mb-2 size-5 text-primary" /><strong className="block">One payment</strong><span className="text-muted-foreground">Pay once for this booking.</span></div>
-          <div className="rounded-xl bg-muted p-4 text-sm"><QrCode aria-hidden="true" className="mb-2 size-5 text-primary" /><strong className="block">Separate tickets</strong><span className="text-muted-foreground">Each runner receives a QR.</span></div>
-          <div className="rounded-xl bg-muted p-4 text-sm"><ShieldCheck aria-hidden="true" className="mb-2 size-5 text-primary" /><strong className="block">Saved booking</strong><span className="text-muted-foreground">Return to check the status.</span></div>
+          <div className="rounded-xl bg-muted/70 p-4 text-sm"><strong className="block">One payment</strong><span className="text-muted-foreground">Pay once for this entire booking.</span></div>
+          <div className="rounded-xl bg-muted/70 p-4 text-sm"><strong className="block">Separate tickets</strong><span className="text-muted-foreground">Each runner receives their own QR.</span></div>
+          <div className="rounded-xl bg-muted/70 p-4 text-sm"><strong className="block">Saved booking</strong><span className="text-muted-foreground">Return here to check payment status.</span></div>
         </div>
       </section>
-      <aside className="border-t bg-muted/30 p-6 lg:border-t-0 lg:border-l sm:p-8">
-        <Card className="gap-4 bg-background py-5 shadow-none">
-          <CardHeader className="px-5"><CardTitle>Payment summary</CardTitle></CardHeader>
-          <CardContent className="space-y-4 px-5">
+      <aside className="border-t border-border/70 bg-muted/20 p-6 sm:p-8 lg:border-t-0 lg:border-l lg:p-10">
+        <Card className="gap-4 rounded-2xl border-border bg-background py-6 shadow-none">
+          <CardHeader className="px-6"><CardTitle>Payment summary</CardTitle></CardHeader>
+          <CardContent className="space-y-4 px-6">
             <div className="flex justify-between gap-4 text-sm"><span className="text-muted-foreground">Entries and add-ons</span><strong className="tabular-nums">{formatPeso(entryTotal)}</strong></div>
             {attempt ? <div className="flex justify-between gap-4 text-sm"><span className="text-muted-foreground">Race Pace fees</span><strong>{effectiveFeeMode === "absorb" ? "Included" : formatPeso(attempt.platform_fee_cents)}</strong></div> : null}
             <Separator />
@@ -175,6 +196,20 @@ export function GroupOrder({ orderId, initialStatus, entryTotal, eventName, cate
             {attempt && !canPrepare ? <div className="flex items-center justify-between rounded-lg border p-3 text-sm"><span className="text-muted-foreground">Payment method</span><span className="flex items-center gap-2 font-medium"><MethodLogo methodKey={attempt.method} />{METHOD_LABELS[attempt.method as Method] ?? attempt.method}</span></div> : null}
             {canPay && !blocked ? <Button disabled={busy} onClick={pay} className="h-12 w-full">{busy ? "Opening PayMongo…" : "Continue to PayMongo"}</Button> : null}
             {attempt && !complete ? <Button variant="outline" disabled={busy} onClick={check} className="h-11 w-full">Check payment status</Button> : null}
+            {canCancel ? <AlertDialog>
+              <AlertDialogTrigger asChild><Button variant="ghost" disabled={busy} className="h-11 w-full text-muted-foreground">Change participants</Button></AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Cancel this group booking?</AlertDialogTitle>
+                  <AlertDialogDescription>This unpaid booking will be cancelled and its held spots released. You will return to the Trail Roster, where you can select only yourself or choose a different group.</AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel disabled={busy}>Keep this booking</AlertDialogCancel>
+                  <AlertDialogAction disabled={busy} onClick={cancelBooking}>{busy ? "Cancelling…" : "Cancel and edit roster"}</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog> : null}
+            <p className="text-center text-xs text-muted-foreground">Also accepts Maya, QR Ph, Visa, and Mastercard.</p>
           </CardContent>
         </Card>
       </aside>

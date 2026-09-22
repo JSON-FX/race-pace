@@ -69,3 +69,7 @@ export async function startGroupPayment(attemptId: string): Promise<{ action: st
 export async function verifyGroupPayment(attemptId: string): Promise<{ status: string }> {
   return invoke("group-payment", { attempt_id: attemptId, action: "verify" });
 }
+
+export async function cancelGroupOrder(orderId: string): Promise<{ order_id: string; status: "cancelled" }> {
+  return invoke("group-order-cancel", { order_id: orderId });
+}
