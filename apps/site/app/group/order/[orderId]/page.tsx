@@ -19,15 +19,20 @@ export default async function GroupOrderPage({ params, searchParams }: {
     .eq("id", orderId).eq("booked_by_user_id", user.id).maybeSingle();
   if (error) throw error;
   if (!order) notFound();
-  const [event, category, organization] = await Promise.all([
+  const [event, registrations, organization] = await Promise.all([
     db.from("events").select("name").eq("id", order.event_id).single(),
-    db.from("categories").select("label").eq("id", order.category_id).single(),
+    db.from("registrations").select("category_id,categories(label)").eq("booking_order_id", order.id),
     db.from("organizations").select("fee_mode").eq("id", order.org_id).single(),
   ]);
-  if (event.error || category.error || organization.error) throw new Error("Group payment terms are unavailable");
+  if (event.error || registrations.error || organization.error) throw new Error("Group payment terms are unavailable");
+  const categoryLabels = [...new Set((registrations.data ?? []).map(row => {
+    const category = Array.isArray(row.categories) ? row.categories[0] : row.categories;
+    return category?.label;
+  }).filter((label): label is string => Boolean(label)))].sort((a, b) => a.localeCompare(b));
   return <><SiteHeader /><main><GroupOrder orderId={order.id} initialStatus={order.status} entryTotal={order.entry_total_cents ?? 0}
     eventName={event.data.name}
-    categoryLabel={category.data.label}
+    categoryLabel={categoryLabels.join(" · ") || "Selected categories"}
+    participantCount={(registrations.data ?? []).length}
     feeMode={organization.data.fee_mode === "pass_on" ? "pass_on" : "absorb"}
     expiresAt={order.expires_at} returnStatus={(await searchParams)?.status} /></main></>;
 }

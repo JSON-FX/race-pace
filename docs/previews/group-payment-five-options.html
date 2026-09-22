@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Race Pace · Group payment options</title>
+  <style>
+    :root {
+      --bg: #f6f7f5; --surface: #fff; --surface-soft: #f3f6f2; --text: #171b18;
+      --muted: #667069; --line: #dfe5df; --line-strong: #c8d0c9; --green: #159957; --forest: #0f5132;
+      --green-dark: #0d6d3d; --green-soft: #eaf6ef; --amber-soft: #fff8e5; --amber: #8a6400;
+      --shadow: 0 20px 55px rgba(20, 35, 25, .08); --radius: 18px;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.5; }
+    button { font: inherit; }
+    .shell { min-height: 100dvh; }
+    .topbar { position: sticky; top: 0; z-index: 20; border-bottom: 1px solid var(--line); background: rgba(255,255,255,.92); backdrop-filter: blur(16px); }
+    .topbar-inner { display: flex; align-items: center; justify-content: space-between; width: min(1180px, calc(100% - 32px)); min-height: 68px; margin: auto; }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 900; letter-spacing: -.03em; }
+    .brand-mark { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 12px; background: var(--text); color: white; font-style: italic; }
+    .exit { color: var(--muted); font-size: 14px; }
+    .chooser { width: min(1180px, calc(100% - 32px)); margin: 28px auto 0; }
+    .eyebrow { margin: 0 0 8px; color: var(--green-dark); font-size: 12px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
+    .chooser h1 { margin: 0; font-size: clamp(27px, 4vw, 42px); line-height: 1.08; letter-spacing: -.04em; }
+    .chooser-copy { max-width: 700px; margin: 10px 0 20px; color: var(--muted); }
+    .tabs { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; padding: 6px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); box-shadow: 0 8px 25px rgba(20,35,25,.04); }
+    .tab { min-height: 48px; padding: 9px 12px; border: 0; border-radius: 11px; background: transparent; color: var(--muted); cursor: pointer; transition: background .18s ease, color .18s ease, box-shadow .18s ease; }
+    .tab strong { display: block; color: inherit; font-size: 13px; }
+    .tab span { display: block; margin-top: 2px; font-size: 11px; }
+    .tab[aria-selected="true"] { background: var(--forest); color: white; box-shadow: 0 6px 16px rgba(15,81,50,.22); }
+    .stage { width: min(1180px, calc(100% - 32px)); margin: 20px auto 64px; }
+    .concept { display: none; }
+    .concept.active { display: block; }
+    .concept-note { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 14px; padding: 14px 16px; border: 1px solid #cbe8d6; border-radius: 14px; background: var(--green-soft); color: #235b39; font-size: 14px; }
+    .concept-note b { color: #103d25; }
+    .checkout { border: 1px solid var(--line); border-radius: 24px; background: var(--surface); box-shadow: var(--shadow); overflow: hidden; }
+    .checkout-head { padding: 28px 30px 24px; border-bottom: 1px solid var(--line); }
+    .back { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 18px; color: var(--muted); font-size: 14px; }
+    .checkout h2 { margin: 0; font-size: clamp(26px, 3.6vw, 38px); line-height: 1.12; letter-spacing: -.035em; }
+    .sub { margin: 8px 0 0; color: var(--muted); }
+    .pill-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+    .pill { display: inline-flex; align-items: center; gap: 6px; min-height: 30px; padding: 5px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface-soft); color: #4b554e; font-size: 12px; font-weight: 700; }
+    .grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(320px, .8fr); }
+    .main { padding: 28px 30px 32px; }
+    .side { padding: 28px; border-left: 1px solid var(--line); background: #fbfcfb; }
+    .section-title { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
+    .section-title h3 { margin: 0; font-size: 17px; }
+    .section-title span { color: var(--muted); font-size: 13px; }
+    .runner-list { display: grid; gap: 10px; }
+    .runner { display: grid; grid-template-columns: 42px minmax(0,1fr) auto; gap: 12px; align-items: center; padding: 14px; border: 1px solid var(--line); border-radius: 14px; }
+    .avatar { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 50%; background: var(--green-soft); color: var(--green-dark); font-size: 13px; font-weight: 900; }
+    .runner-name { font-weight: 750; }
+    .runner-meta { margin-top: 2px; color: var(--muted); font-size: 13px; }
+    .runner-price { text-align: right; font-weight: 750; font-variant-numeric: tabular-nums; }
+    .runner-price small { display: block; color: var(--muted); font-size: 11px; font-weight: 500; }
+    .assurance { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 22px; }
+    .assurance div { padding: 13px; border-radius: 13px; background: var(--surface-soft); color: #465048; font-size: 12px; }
+    .assurance b { display: block; margin-bottom: 3px; color: var(--text); font-size: 13px; }
+    .summary-card { padding: 20px; border: 1px solid var(--line-strong); border-radius: 16px; background: white; }
+    .summary-card h3 { margin: 0 0 16px; font-size: 17px; }
+    .money { display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; color: var(--muted); font-size: 14px; }
+    .money strong { color: var(--text); font-variant-numeric: tabular-nums; }
+    .money.total { margin-top: 10px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--text); font-size: 16px; font-weight: 800; }
+    .money.total strong { font-size: 21px; }
+    .method { margin-top: 16px; }
+    .method label { display: block; margin-bottom: 7px; font-size: 13px; font-weight: 750; }
+    .select { display: flex; width:100%; align-items: center; justify-content: space-between; min-height: 46px; padding: 0 13px; border: 1px solid var(--line-strong); border-radius: 9px; background: white; color:var(--text); font-size: 14px; box-shadow:0 1px 2px rgba(0,0,0,.04); }
+    .method-name { display:flex; align-items:center; gap:9px; }.method-logo { display:block; width:auto; height:24px; object-fit:contain; }.method-logo.qr { height:18px; }
+    .cta { width: 100%; min-height: 48px; margin-top: 14px; border: 0; border-radius: 11px; background: var(--green); color: white; font-weight: 800; cursor: pointer; box-shadow: 0 8px 18px rgba(21,153,87,.2); }
+    .secondary { width: 100%; min-height: 44px; margin-top: 8px; border: 0; background: transparent; color: var(--muted); font-weight: 650; cursor: pointer; }
+    .fine { margin: 12px 0 0; color: var(--muted); font-size: 12px; text-align: center; }
+    .steps { display: flex; gap: 0; margin-top: 18px; }
+    .step { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 12px; font-weight: 700; }
+    .step:not(:last-child)::after { content: ""; width: 54px; height: 1px; margin: 0 10px; background: var(--line-strong); }
+    .step i { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--surface-soft); color: var(--muted); font-style: normal; }
+    .step.done { color: var(--green-dark); }.step.done i { background: var(--green); color: white; }.step.current { color: var(--text); }.step.current i { border: 2px solid var(--green); background: white; color: var(--green-dark); }
+    .ticket-stack { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; }
+    .ticket { position: relative; padding: 18px; border: 1px solid var(--line); border-radius: 16px; background: linear-gradient(135deg,#fff,#f5f8f5); overflow: hidden; }
+    .ticket::after { content: "TICKET"; position: absolute; right: -8px; bottom: 8px; color: rgba(21,153,87,.08); font-size: 36px; font-weight: 950; letter-spacing: -.06em; transform: rotate(-90deg); }
+    .ticket .code { color: var(--green-dark); font-size: 11px; font-weight: 850; letter-spacing: .12em; text-transform: uppercase; }
+    .ticket h4 { margin: 9px 0 3px; font-size: 17px; }.ticket p { margin: 0; color: var(--muted); font-size: 13px; }
+    .ticket .ticket-price { margin-top: 16px; color: var(--text); font-weight: 800; }
+    .receipt { width: min(620px, calc(100% - 32px)); margin: 0 auto; padding: 30px; }
+    .receipt-sheet { position: relative; padding: 26px; border: 1px solid var(--line); border-radius: 16px; background: #fff; }
+    .receipt-sheet::before, .receipt-sheet::after { content:""; position:absolute; left:18px; right:18px; height:8px; background: radial-gradient(circle at 4px 8px, transparent 4px, var(--bg) 4.5px) 0 0/16px 8px repeat-x; }
+    .receipt-sheet::before { top:-1px; transform:rotate(180deg); }.receipt-sheet::after { bottom:-1px; }
+    .receipt-head { text-align: center; }.receipt-head h2 { font-size: 30px; }.receipt-head p { margin: 7px 0 0; color: var(--muted); }
+    .receipt-lines { margin-top: 22px; border-top: 1px dashed var(--line-strong); border-bottom: 1px dashed var(--line-strong); padding: 12px 0; }
+    .receipt-row { display: grid; grid-template-columns: 1fr auto; gap: 16px; padding: 10px 0; font-size: 14px; }
+    .receipt-row small { display:block; color:var(--muted); }.receipt-row b { font-variant-numeric: tabular-nums; }
+    .receipt-total { display:flex; justify-content:space-between; align-items:end; padding-top:18px; font-weight:850; }.receipt-total b { font-size:26px; }
+    .status-bar { display:flex; gap:10px; align-items:center; margin-top:18px; padding:12px 14px; border-radius:12px; background:var(--amber-soft); color:var(--amber); font-size:13px; }
+    .rail-grid { display:grid; grid-template-columns: 290px minmax(0,1fr); min-height:650px; }
+    .event-rail { padding:30px; background:#11271c; color:white; }.event-rail .eyebrow { color:#77d49f; }.event-rail h2 { font-size:34px; }.event-rail p { color:#b8c8bf; }
+    .event-stat { margin-top:24px; padding-top:18px; border-top:1px solid rgba(255,255,255,.15); }.event-stat span { display:block; color:#95a99e; font-size:11px; text-transform:uppercase; letter-spacing:.12em; }.event-stat b { display:block; margin-top:4px; font-size:15px; }
+    .rail-content { padding:30px; }.rail-content .grid { grid-template-columns:minmax(0,1fr) 330px; gap:28px; }.rail-content .side { padding:0; border:0; background:transparent; }
+    .mobile-bar { display:none; }
+    @media (max-width: 820px) {
+      .tabs { grid-template-columns: 1fr 1fr; }.tab:last-child { grid-column: 1 / -1; }
+      .grid, .rail-grid, .rail-content .grid { grid-template-columns: 1fr; }
+      .side { border-left: 0; border-top: 1px solid var(--line); }
+      .event-rail { padding:24px; }.rail-content { padding:22px; }
+      .assurance { grid-template-columns: 1fr; }.ticket-stack { grid-template-columns:1fr; }
+    }
+    @media (max-width: 520px) {
+      .topbar-inner, .chooser, .stage { width: min(100% - 20px, 1180px); }
+      .chooser { margin-top:20px; }
+      .checkout { border-radius:18px; }.checkout-head,.main,.side { padding:22px 18px; }
+      .runner { grid-template-columns:40px minmax(0,1fr); }.runner-price { grid-column:2; text-align:left; }
+      .steps { overflow-x:auto; padding-bottom:5px; }.step:not(:last-child)::after { width:24px; }
+      .receipt { width:100%; padding:18px; }.receipt-sheet { padding:24px 18px; }
+      .mobile-bar { display:block; position:sticky; bottom:0; margin:0 -18px -22px; padding:12px 18px calc(12px + env(safe-area-inset-bottom)); border-top:1px solid var(--line); background:rgba(255,255,255,.94); backdrop-filter:blur(12px); }
+      .mobile-bar .cta { margin:0; }
+    }
+  </style>
+</head>
+<body>
+<div class="shell">
+  <header class="topbar"><div class="topbar-inner"><div class="brand"><span class="brand-mark">RP</span> Race Pace</div><span class="exit">Secure group checkout</span></div></header>
+  <section class="chooser">
+    <p class="eyebrow">Design review · payment step</p>
+    <h1>Choose the group payment layout</h1>
+    <p class="chooser-copy">All options preserve one order, one payment, category-aware participants, and one QR ticket per runner.</p>
+    <div class="tabs" role="tablist" aria-label="Payment design options">
+      <button class="tab" role="tab" aria-selected="true" data-option="one"><strong>01 · Trail Ledger</strong><span>Recommended</span></button>
+      <button class="tab" role="tab" aria-selected="false" data-option="two"><strong>02 · Ticket Stack</strong><span>Participant-led</span></button>
+      <button class="tab" role="tab" aria-selected="false" data-option="three"><strong>03 · Guided Checkout</strong><span>Step-led</span></button>
+      <button class="tab" role="tab" aria-selected="false" data-option="four"><strong>04 · Race Receipt</strong><span>Price-led</span></button>
+      <button class="tab" role="tab" aria-selected="false" data-option="five"><strong>05 · Split Course</strong><span>Event-led</span></button>
+    </div>
+  </section>
+  <main class="stage">
+    <section class="concept active" id="one">
+      <div class="concept-note"><span>✓</span><div><b>Recommended:</b> the strongest balance of participant verification, transparent pricing, and a single payment action.</div></div>
+      <article class="checkout">
+        <header class="checkout-head"><span class="back">← Back to roster</span><p class="eyebrow">Group booking · payment</p><h2>Yalabyalam Backyard Ultra</h2><p class="sub">Review the runners and categories before continuing to PayMongo.</p><div class="pill-row"><span class="pill">2 participants</span><span class="pill">2 categories</span><span class="pill">2 QR tickets after payment</span></div></header>
+        <div class="grid"><div class="main"><div class="section-title"><h3>Runners in this booking</h3><span>2 entries</span></div><div class="runner-list">
+          <div class="runner"><div class="avatar">JA</div><div><div class="runner-name">Jayson Alano</div><div class="runner-meta">Backyard Ultra · Your Race Passport</div></div><div class="runner-price">₱1,700.00<small>Entry fee</small></div></div>
+          <div class="runner"><div class="avatar">MA</div><div><div class="runner-name">Maricris Alano</div><div class="runner-meta">14K Trail · Managed Race Passport</div></div><div class="runner-price">₱950.00<small>Entry fee</small></div></div>
+        </div><div class="assurance"><div><b>One payment</b>Pay once for this entire booking.</div><div><b>Separate tickets</b>Each runner receives their own QR.</div><div><b>Saved booking</b>Return here to check payment status.</div></div></div>
+        <aside class="side"><div class="summary-card"><h3>Payment summary</h3><div class="money"><span>Entries and add-ons</span><strong>₱2,650.00</strong></div><div class="money"><span>Race Pace fees</span><strong>Included</strong></div><div class="money total"><span>Total to pay</span><strong>₱2,650.00</strong></div><div class="method"><label>Payment method</label><button class="select" type="button" aria-haspopup="listbox"><span class="method-name"><img class="method-logo" src="/apps/site/public/payments/gcash.png" alt="" />GCash</span><span>⌄</span></button></div><button class="cta">Continue to PayMongo</button><button class="secondary">Check payment status</button><p class="fine">Also accepts Maya, QR Ph, Visa, and Mastercard.</p></div></aside></div>
+      </article>
+    </section>
+
+    <section class="concept" id="two">
+      <div class="concept-note"><span>02</span><div><b>Ticket Stack:</b> emphasizes exactly who will receive tickets. Best when runner confirmation matters more than price detail.</div></div>
+      <article class="checkout"><header class="checkout-head"><span class="back">← Edit participants</span><p class="eyebrow">Your group entry</p><h2>Two runners. Two categories. One payment.</h2><p class="sub">Every selected Race Passport gets a separate QR ticket after payment.</p></header><div class="grid"><div class="main"><div class="section-title"><h3>Tickets being created</h3><span>Pending payment</span></div><div class="ticket-stack">
+        <div class="ticket"><div class="code">Ticket 01 · BYU</div><h4>Jayson Alano</h4><p>Backyard Ultra</p><div class="ticket-price">₱1,700.00</div></div>
+        <div class="ticket"><div class="code">Ticket 02 · 14K</div><h4>Maricris Alano</h4><p>14K Trail</p><div class="ticket-price">₱950.00</div></div>
+      </div><div class="status-bar"><span>○</span><span>QR codes become available only after PayMongo confirms the payment.</span></div></div><aside class="side"><div class="summary-card"><h3>Pay for both tickets</h3><div class="money"><span>2 race entries</span><strong>₱2,650.00</strong></div><div class="money total"><span>Total</span><strong>₱2,650.00</strong></div><button class="cta">Pay for 2 tickets</button><button class="secondary">Check payment status</button></div></aside></div></article>
+    </section>
+
+    <section class="concept" id="three">
+      <div class="concept-note"><span>03</span><div><b>Guided Checkout:</b> makes the sequence explicit. Best for first-time runners who need stronger progress feedback.</div></div>
+      <article class="checkout"><header class="checkout-head"><span class="back">← Back to participant details</span><p class="eyebrow">Group registration</p><h2>Review and pay</h2><div class="steps"><span class="step done"><i>✓</i>Participants</span><span class="step done"><i>✓</i>Categories</span><span class="step current"><i>3</i>Payment</span><span class="step"><i>4</i>Tickets</span></div></header><div class="grid"><div class="main"><div class="section-title"><h3>Registration review</h3><span>Edit from the roster</span></div><div class="runner-list">
+        <div class="runner"><div class="avatar">JA</div><div><div class="runner-name">Jayson Alano</div><div class="runner-meta">Backyard Ultra</div></div><div class="runner-price">₱1,700.00</div></div>
+        <div class="runner"><div class="avatar">MA</div><div><div class="runner-name">Maricris Alano</div><div class="runner-meta">14K Trail</div></div><div class="runner-price">₱950.00</div></div>
+      </div><div class="status-bar"><span>Next</span><span>After payment, Race Pace generates two separate QR tickets.</span></div></div><aside class="side"><div class="summary-card"><h3>Step 3 of 4</h3><div class="money"><span>Booking subtotal</span><strong>₱2,650.00</strong></div><div class="money"><span>Fees</span><strong>Included</strong></div><div class="money total"><span>Due now</span><strong>₱2,650.00</strong></div><button class="cta">Continue to secure payment</button><button class="secondary">Check existing payment</button></div></aside></div></article>
+    </section>
+
+    <section class="concept" id="four">
+      <div class="concept-note"><span>04</span><div><b>Race Receipt:</b> the most compact option. Best when price transparency and fast checkout are the primary goals.</div></div>
+      <article class="checkout"><div class="receipt"><span class="back">← Back to roster</span><div class="receipt-sheet"><div class="receipt-head"><p class="eyebrow">Race Pace · group booking</p><h2>Payment review</h2><p>Yalabyalam Backyard Ultra</p></div><div class="receipt-lines">
+        <div class="receipt-row"><span>Jayson Alano<small>Backyard Ultra</small></span><b>₱1,700.00</b></div>
+        <div class="receipt-row"><span>Maricris Alano<small>14K Trail</small></span><b>₱950.00</b></div>
+        <div class="receipt-row"><span>Race Pace fees<small>Included in listed prices</small></span><b>₱0.00</b></div>
+      </div><div class="receipt-total"><span>Total to pay</span><b>₱2,650.00</b></div><div class="pill-row"><span class="pill">2 QR tickets after payment</span></div><button class="cta">Continue to PayMongo</button><button class="secondary">Check payment status</button><p class="fine">Secure payment · Booking saved for 24 hours</p></div></div></article>
+    </section>
+
+    <section class="concept" id="five">
+      <div class="concept-note"><span>05</span><div><b>Split Course:</b> uses a strong event panel and a focused checkout area. Best for a more editorial race-day feel.</div></div>
+      <article class="checkout"><div class="rail-grid"><aside class="event-rail"><p class="eyebrow">Group booking</p><h2>Yalabyalam Backyard Ultra</h2><p>One event booking covering runners across two categories.</p><div class="event-stat"><span>Participants</span><b>2 Race Passports</b></div><div class="event-stat"><span>Categories</span><b>Backyard Ultra + 14K Trail</b></div><div class="event-stat"><span>Ticket delivery</span><b>2 separate QR tickets</b></div></aside><div class="rail-content"><span class="back">← Change the roster</span><div class="grid"><div><div class="section-title"><h3>Confirm runners</h3><span>Ready</span></div><div class="runner-list">
+        <div class="runner"><div class="avatar">JA</div><div><div class="runner-name">Jayson Alano</div><div class="runner-meta">Backyard Ultra</div></div><div class="runner-price">₱1,700.00</div></div>
+        <div class="runner"><div class="avatar">MA</div><div><div class="runner-name">Maricris Alano</div><div class="runner-meta">14K Trail</div></div><div class="runner-price">₱950.00</div></div>
+      </div></div><aside class="side"><div class="summary-card"><h3>Combined payment</h3><div class="money"><span>Entries</span><strong>₱2,650.00</strong></div><div class="money total"><span>Total</span><strong>₱2,650.00</strong></div><button class="cta">Continue to PayMongo</button><button class="secondary">Check status</button></div></aside></div></div></div></article>
+    </section>
+  </main>
+</div>
+<script>
+  const tabs = [...document.querySelectorAll('.tab')];
+  const concepts = [...document.querySelectorAll('.concept')];
+  tabs.forEach(tab => tab.addEventListener('click', () => {
+    tabs.forEach(item => item.setAttribute('aria-selected', String(item === tab)));
+    concepts.forEach(concept => concept.classList.toggle('active', concept.id === tab.dataset.option));
+    document.querySelector('.stage').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+  }));
+</script>
+</body>
+</html>

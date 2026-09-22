@@ -1,12 +1,16 @@
 # Architecture — group registration checkout
 
-Date: 2026-09-17. Status: architecture baseline; internal reservation and payment preparation slices implemented locally. Provider capture and public activation pending.
+Date: 2026-09-17. Status: architecture baseline; mixed-category scope is superseded by the approved [2026-09-22 extension](2026-09-22-mixed-category-group-checkout.md).
 Scope: public runner web and admin only.
 Intent and acceptance checklist: [assisted registration revisions](../plans/2026-09-16-assisted-registration-passport-revisions.md).
 
+The original same-category boundary remains the compatibility contract for existing orders. New
+orders may assign a different category to each participant when every category belongs to the same
+event and organization.
+
 ## Problem and goals
 
-A signed-in helper selects their own Passport and/or managed non-member Passports from the registration page. One payment secures one registration and a distinct named QR ticket for each selected participant. Each participant retains their own identity, kit choices, waiver evidence, collection state and attendance. The user confirmed that everyone joins the same event category in the first version. A helper need not enter themselves.
+A signed-in helper selects their own Passport and/or managed non-member Passports from the registration page. One payment secures one registration and a distinct named QR ticket for each selected participant. Each participant retains their own identity, kit choices, waiver evidence, collection state and attendance. The original version placed everyone in one event category; the approved extension now allows a category per participant. A helper need not enter themselves.
 
 ## Approaches considered
 
@@ -92,7 +96,7 @@ Each is a bounded PIV implementation slice with its own detailed plan and valida
 
 ## Deferred decisions
 
-Mixed categories and mixed organizers are out of scope. Courier integration and representative waiver acceptance are not introduced here. The reservation API initially limits one order to ten participants and twenty add-ons per participant. Provider payload testing must confirm these limits before public activation. Provider partial-refund behavior and the existing rate-card variance must be verified rather than assumed.
+Mixed organizers and mixed events remain out of scope. Courier integration and representative waiver acceptance are not introduced here. The reservation API initially limits one order to ten participants and twenty add-ons per participant. Provider payload testing must confirm these limits before public activation. Provider partial-refund behavior and the existing rate-card variance must be verified rather than assumed.
 
 
 ## Provider lifecycle research — 2026-09-17

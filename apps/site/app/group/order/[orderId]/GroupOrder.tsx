@@ -3,15 +3,23 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { formatPeso } from "@race-pace/shared";
+import { ArrowLeft, CheckCircle2, QrCode, ReceiptText, ShieldCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { GroupCheckoutError, prepareGroupPayment, startGroupPayment, verifyGroupPayment, type GroupAttempt } from "@/lib/groupCheckout";
+import { MethodLogo } from "@/components/PaymentLogos";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
 
-type Ticket = { id: string; status: string; custom_data: Record<string, unknown> | null };
+type Ticket = { id: string; status: string; total_amount: number; custom_data: Record<string, unknown> | null; categories: { label: string } | { label: string }[] | null };
 type Method = "gcash" | "card" | "maya" | "qrph";
+const METHOD_LABELS: Record<Method, string> = { gcash: "GCash", card: "Card", maya: "Maya", qrph: "QR Ph" };
 
-export function GroupOrder({ orderId, initialStatus, entryTotal, eventName, categoryLabel, feeMode, expiresAt, returnStatus }: {
-  orderId: string; initialStatus: string; entryTotal: number; eventName: string; categoryLabel: string;
+export function GroupOrder({ orderId, initialStatus, entryTotal, eventName, categoryLabel, participantCount, feeMode, expiresAt, returnStatus }: {
+  orderId: string; initialStatus: string; entryTotal: number; eventName: string; categoryLabel: string; participantCount: number;
   feeMode: "absorb" | "pass_on"; expiresAt: string | null; returnStatus?: string;
 }) {
   const [status, setStatus] = useState(initialStatus);
@@ -29,7 +37,7 @@ export function GroupOrder({ orderId, initialStatus, entryTotal, eventName, cate
     const [order, attempts, registrations] = await Promise.all([
       db.from("booking_orders").select("status").eq("id", orderId).single(),
       db.from("booking_payment_attempts").select("id,booking_order_id,status,method,base_cents,platform_fee_cents,gross_cents,terms_snapshot").eq("booking_order_id", orderId).order("created_at", { ascending: false }).limit(1),
-      db.from("registrations").select("id,status,custom_data").eq("booking_order_id", orderId).order("id"),
+      db.from("registrations").select("id,status,total_amount,custom_data,categories(label)").eq("booking_order_id", orderId).order("id"),
     ]);
     if (order.error || attempts.error || registrations.error) throw new Error("Could not load the group booking");
     setStatus(order.data.status);
@@ -104,39 +112,74 @@ export function GroupOrder({ orderId, initialStatus, entryTotal, eventName, cate
   const canPrepare = (!attempt || ["failed", "expired"].includes(attempt.status)) && !expired && status === "pending" && entryTotal > 0;
   const canPay = attempt && ["prepared", "ready"].includes(attempt.status) && status === "pending" && !expired;
 
-  return <div className="mx-auto max-w-2xl px-5 py-12 sm:px-6">
-    <p className="text-sm font-semibold uppercase tracking-widest text-primary">Group booking</p>
-    <h1 className="mt-3 text-3xl font-bold">{eventName}</h1>
-    <p className="mt-2 text-muted-foreground">{categoryLabel} · {tickets.length || "Your"} participant{tickets.length === 1 ? "" : "s"}</p>
+  return <div className="mx-auto max-w-5xl px-5 py-10 sm:px-6 sm:py-14">
+    <Link className="mb-5 inline-flex min-h-11 items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground" href="/bookings"><ArrowLeft aria-hidden="true" className="size-4" />Back to bookings</Link>
+    <Card className="gap-0 overflow-hidden py-0 shadow-lg shadow-black/5">
+      <CardHeader className="gap-3 border-b p-6 sm:p-8">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">Group booking · payment</p>
+        <CardTitle className="text-3xl tracking-tight sm:text-4xl">{eventName}</CardTitle>
+        <CardDescription className="text-base">Review the runners and categories before continuing to PayMongo.</CardDescription>
+        <div className="flex flex-wrap gap-2 pt-1">
+          <Badge variant="secondary">{participantCount} participant{participantCount === 1 ? "" : "s"}</Badge>
+          <Badge variant="secondary">{categoryLabel}</Badge>
+          <Badge variant="secondary">{participantCount} QR ticket{participantCount === 1 ? "" : "s"} after payment</Badge>
+        </div>
+      </CardHeader>
 
-    {!loaded ? <p className="mt-8 text-muted-foreground">Loading your booking…</p> : complete ? <section className="mt-8 rounded-xl border p-6">
-      <h2 className="text-xl font-bold">Payment confirmed</h2>
+    {!loaded ? <div className="grid gap-8 p-6 lg:grid-cols-[minmax(0,1fr)_360px] sm:p-8"><div className="space-y-3"><Skeleton className="h-5 w-48" /><Skeleton className="h-20 w-full" /><Skeleton className="h-20 w-full" /></div><Skeleton className="h-80 w-full" /></div> : complete ? <section className="p-6 sm:p-8">
+      <h2 className="flex items-center gap-2 text-xl font-bold"><CheckCircle2 aria-hidden="true" className="size-5 text-primary" />Payment confirmed</h2>
       <p className="mt-2 text-sm text-muted-foreground">One payment secured {tickets.filter(ticket => ticket.status === "paid").length} individual tickets.</p>
-      <ul className="mt-5 space-y-3">{tickets.map(ticket => {
+      <ul className="mt-5 grid gap-3 sm:grid-cols-2">{tickets.map(ticket => {
         const name = typeof ticket.custom_data?.full_name === "string" ? ticket.custom_data.full_name : "Participant";
-        return <li key={ticket.id} className="flex items-center justify-between rounded-lg border p-4"><span>{name}</span>
-          {ticket.status === "paid" ? <Link href={`/ticket/${ticket.id}`} className="font-semibold underline">View QR ticket</Link> : <span className="capitalize">{ticket.status}</span>}
+        const category = Array.isArray(ticket.categories) ? ticket.categories[0] : ticket.categories;
+        return <li key={ticket.id} className="flex items-center justify-between gap-4 rounded-xl border p-4"><span><span className="block font-medium">{name}</span><span className="text-sm text-muted-foreground">{category?.label ?? "Category"}</span></span>
+          {ticket.status === "paid" ? <Button asChild variant="outline"><Link href={`/ticket/${ticket.id}`}><QrCode aria-hidden="true" />View QR ticket</Link></Button> : <span className="capitalize">{ticket.status}</span>}
         </li>;
       })}</ul>
-    </section> : <section className="mt-8 space-y-5">
-      <div className="rounded-xl border p-6">
-        <p className="font-semibold">Entry and add-ons: {formatPeso(entryTotal)}</p>
-        {attempt ? <><p className="mt-2">Taxes and fees: {formatPeso(attempt.platform_fee_cents)} {effectiveFeeMode === "absorb" ? "included" : "added"}</p>
-          <p className="mt-2 font-bold">{effectiveFeeMode === "pass_on" ? "Subtotal before PayMongo processing" : "Total to pay"}: {formatPeso(attempt.gross_cents)}</p></> : null}
-        <p className="mt-2 text-sm text-muted-foreground">{effectiveFeeMode === "pass_on"
-          ? "PayMongo shows the exact processing fee and final total after you choose a payment method."
-          : "Race Pace and PayMongo fees are deducted from this price. They are not added to your total."}</p>
-      </div>
-      {blocked ? <p role="alert" className="rounded-lg border border-destructive p-4">This payment needs review. Do not start a new checkout. Contact Race Pace support with this booking ID: {orderId}.</p> : null}
-      {expired || status === "expired" || status === "cancelled" ? <p role="alert">This reservation is no longer payable. No new payment will be started.</p> : null}
-      {canPrepare ? <><label className="block font-medium" htmlFor="group-method">Payment method</label>
-        <select id="group-method" value={method} onChange={event => setMethod(event.target.value as Method)} className="w-full rounded-lg border bg-background p-3">
-          <option value="gcash">GCash</option><option value="card">Card</option><option value="maya">Maya</option><option value="qrph">QR Ph</option>
-        </select><Button disabled={busy} onClick={prepare} className="w-full">{attempt ? "Review another payment attempt" : "Review one payment"}</Button></> : null}
-      {canPay && !blocked ? <Button disabled={busy} onClick={pay} className="w-full">Continue to PayMongo</Button> : null}
-      {attempt && !complete ? <Button variant="outline" disabled={busy} onClick={check} className="w-full">Check payment status</Button> : null}
-    </section>}
-    {error ? <p role="alert" className="mt-5 text-sm text-destructive">{error}</p> : null}
-    <Link className="mt-8 inline-block text-sm underline" href="/bookings">Bookings I manage</Link>
+    </section> : <div className="grid lg:grid-cols-[minmax(0,1fr)_360px]">
+      <section className="p-6 sm:p-8">
+        <div className="mb-4 flex items-center justify-between gap-4"><h2 className="text-lg font-semibold">Runners in this booking</h2><span className="text-sm text-muted-foreground">{tickets.length} entries</span></div>
+        <ul className="space-y-3">{tickets.map(ticket => {
+          const name = typeof ticket.custom_data?.full_name === "string" ? ticket.custom_data.full_name : "Participant";
+          const category = Array.isArray(ticket.categories) ? ticket.categories[0] : ticket.categories;
+          const initials = name.split(" ").map(part => part[0]).join("").slice(0, 2).toUpperCase();
+          return <li key={ticket.id} className="grid grid-cols-[44px_minmax(0,1fr)_auto] items-center gap-3 rounded-xl border p-4">
+            <span className="grid size-11 place-items-center rounded-full bg-primary/10 text-sm font-bold text-primary">{initials}</span>
+            <span><span className="block font-semibold">{name}</span><span className="text-sm text-muted-foreground">{category?.label ?? "Category"}</span></span>
+            <span className="text-right font-semibold tabular-nums">{formatPeso(ticket.total_amount)}</span>
+          </li>;
+        })}</ul>
+        <div className="mt-6 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-xl bg-muted p-4 text-sm"><ReceiptText aria-hidden="true" className="mb-2 size-5 text-primary" /><strong className="block">One payment</strong><span className="text-muted-foreground">Pay once for this booking.</span></div>
+          <div className="rounded-xl bg-muted p-4 text-sm"><QrCode aria-hidden="true" className="mb-2 size-5 text-primary" /><strong className="block">Separate tickets</strong><span className="text-muted-foreground">Each runner receives a QR.</span></div>
+          <div className="rounded-xl bg-muted p-4 text-sm"><ShieldCheck aria-hidden="true" className="mb-2 size-5 text-primary" /><strong className="block">Saved booking</strong><span className="text-muted-foreground">Return to check the status.</span></div>
+        </div>
+      </section>
+      <aside className="border-t bg-muted/30 p-6 lg:border-t-0 lg:border-l sm:p-8">
+        <Card className="gap-4 bg-background py-5 shadow-none">
+          <CardHeader className="px-5"><CardTitle>Payment summary</CardTitle></CardHeader>
+          <CardContent className="space-y-4 px-5">
+            <div className="flex justify-between gap-4 text-sm"><span className="text-muted-foreground">Entries and add-ons</span><strong className="tabular-nums">{formatPeso(entryTotal)}</strong></div>
+            {attempt ? <div className="flex justify-between gap-4 text-sm"><span className="text-muted-foreground">Race Pace fees</span><strong>{effectiveFeeMode === "absorb" ? "Included" : formatPeso(attempt.platform_fee_cents)}</strong></div> : null}
+            <Separator />
+            <div className="flex items-end justify-between gap-4"><span className="font-semibold">{effectiveFeeMode === "pass_on" ? "Subtotal before processing" : "Total to pay"}</span><strong className="text-xl tabular-nums">{formatPeso(attempt?.gross_cents ?? entryTotal)}</strong></div>
+            <p className="text-xs text-muted-foreground">{effectiveFeeMode === "pass_on" ? "PayMongo shows the exact processing fee before confirmation." : "Race Pace and PayMongo fees are included in this total."}</p>
+            {blocked ? <p role="alert" className="rounded-lg border border-destructive p-3 text-sm">This payment needs review. Do not start another checkout. Contact Race Pace support with booking ID {orderId}.</p> : null}
+            {expired || status === "expired" || status === "cancelled" ? <p role="alert" className="text-sm text-destructive">This reservation is no longer payable. No new payment will be started.</p> : null}
+            {canPrepare ? <div className="space-y-2"><label className="text-sm font-medium" htmlFor="group-method">Payment method</label>
+              <Select value={method} onValueChange={value => setMethod(value as Method)}>
+                <SelectTrigger id="group-method" className="h-12 w-full"><span className="flex items-center gap-2"><MethodLogo methodKey={method} /><span>{METHOD_LABELS[method]}</span></span></SelectTrigger>
+                <SelectContent position="popper" align="start" className="w-[var(--radix-select-trigger-width)]">{(Object.keys(METHOD_LABELS) as Method[]).map(value => <SelectItem key={value} value={value}><MethodLogo methodKey={value} /><span>{METHOD_LABELS[value]}</span></SelectItem>)}</SelectContent>
+              </Select>
+              <Button disabled={busy} onClick={prepare} className="h-12 w-full">{busy ? "Preparing payment…" : "Review one payment"}</Button></div> : null}
+            {attempt && !canPrepare ? <div className="flex items-center justify-between rounded-lg border p-3 text-sm"><span className="text-muted-foreground">Payment method</span><span className="flex items-center gap-2 font-medium"><MethodLogo methodKey={attempt.method} />{METHOD_LABELS[attempt.method as Method] ?? attempt.method}</span></div> : null}
+            {canPay && !blocked ? <Button disabled={busy} onClick={pay} className="h-12 w-full">{busy ? "Opening PayMongo…" : "Continue to PayMongo"}</Button> : null}
+            {attempt && !complete ? <Button variant="outline" disabled={busy} onClick={check} className="h-11 w-full">Check payment status</Button> : null}
+          </CardContent>
+        </Card>
+      </aside>
+    </div>}
+    {error ? <p role="alert" className="border-t px-6 py-4 text-sm text-destructive sm:px-8">{error}</p> : null}
+    </Card>
   </div>;
 }

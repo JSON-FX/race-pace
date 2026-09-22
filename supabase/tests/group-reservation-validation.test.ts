@@ -18,6 +18,22 @@ it("keeps runtime contracts aligned and rejects duplicate/oversized/forged reque
     expect(schema.safeParse({ ...input, participants: [{ ...line, waiver_accepted: false }] }).success).toBe(false);
   }
 });
+it("accepts one category per participant and rejects missing or conflicting categories", () => {
+  const second = randomUUID();
+  const mixed = {
+    ...input,
+    category_id: undefined,
+    participants: [
+      { ...line, category_id: randomUUID() },
+      { ...line, participant_passport_id: second, category_id: randomUUID() },
+    ],
+  };
+  for (const schema of [edgeSchema, appSchema]) {
+    expect(schema.safeParse(mixed).success).toBe(true);
+    expect(schema.safeParse({ ...mixed, participants: [{ ...line }] }).success).toBe(false);
+    expect(schema.safeParse({ ...input, participants: [{ ...line, category_id: randomUUID() }] }).success).toBe(false);
+  }
+});
 it("freezes saved identity and uses individual kit choices without accepting injected identity", () => {
   const result = prepareGroupLine({ ...line, shirt_size: "XL", custom_data: { first_name: "Forged", blood_type: "Forged", arbitrary: true } }, saved, [], actor, "2026-09-17");
   expect(result.custom_data).toMatchObject({ first_name: "Runner", shirt_size: "XL" });

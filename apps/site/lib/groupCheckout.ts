@@ -9,7 +9,7 @@ export type GroupReservation = {
   status: string;
   expires_at: string;
   entry_total_cents: number;
-  registrations: { registration_id: string; participant_passport_id: string; entry_total_cents: number }[];
+  registrations: { registration_id: string; participant_passport_id: string; category_id: string; entry_total_cents: number }[];
 };
 
 export type GroupAttempt = {
@@ -24,7 +24,7 @@ export type GroupAttempt = {
 };
 
 export class GroupCheckoutError extends Error {
-  constructor(readonly code: string, readonly participantId?: string) {
+  constructor(readonly code: string, readonly participantId?: string, readonly categoryId?: string) {
     super(code.replaceAll("_", " "));
   }
 }
@@ -34,14 +34,16 @@ async function invoke<T>(name: string, body: Record<string, unknown>): Promise<T
   if (error) {
     let code = "request_unavailable";
     let participantId: string | undefined;
+    let categoryId: string | undefined;
     if (error instanceof FunctionsHttpError) {
       try {
         const payload = await error.context.json();
         if (typeof payload?.error === "string") code = payload.error;
         if (typeof payload?.participant_passport_id === "string") participantId = payload.participant_passport_id;
+        if (typeof payload?.category_id === "string") categoryId = payload.category_id;
       } catch { /* Keep the transport error. */ }
     }
-    throw new GroupCheckoutError(code, participantId);
+    throw new GroupCheckoutError(code, participantId, categoryId);
   }
   return data as T;
 }

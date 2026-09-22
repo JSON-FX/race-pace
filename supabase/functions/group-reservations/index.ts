@@ -28,7 +28,7 @@ Deno.serve(async (req) => {
     if (!parsed.success) return json({ error: "invalid_input" }, 400);
     const input = parsed.data;
     const args = { p_actor: auth.user.id, p_request: input };
-    const rpcError = (error: { code?: string; message: string }) => {
+    const rpcError = (error: { code?: string; message: string; details?: string }) => {
       const errors: Record<string, number> = {
         idempotency_conflict: 409, category_not_found: 404, registration_closed: 409,
         org_suspended: 409, waiver_version_changed: 409, reservation_input_changed: 409,
@@ -36,7 +36,7 @@ Deno.serve(async (req) => {
         participant_already_registered: 409, booking_email_unverified: 403,
         invalid_addons: 422, invalid_input: 400, order_amount_too_large: 422,
       };
-      if (error.message.includes("category_capacity_exhausted")) return json({ error: "sold_out" }, 409);
+      if (error.message.includes("category_capacity_exhausted")) return json({ error: "sold_out", category_id: error.details }, 409);
       if (error.message.includes("registrations_one_live_per_event")) return json({ error: "participant_already_registered" }, 409);
       const status = errors[error.message];
       if (status) return json({ error: error.message }, status);
