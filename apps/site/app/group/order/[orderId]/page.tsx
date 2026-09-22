@@ -29,10 +29,14 @@ export default async function GroupOrderPage({ params, searchParams }: {
     const category = Array.isArray(row.categories) ? row.categories[0] : row.categories;
     return category?.label;
   }).filter((label): label is string => Boolean(label)))].sort((a, b) => a.localeCompare(b));
+  const categoryIds = [...new Set((registrations.data ?? []).map(row => row.category_id).filter(Boolean))];
+  if (!categoryIds[0]) throw new Error("Group booking has no registration category");
   return <><SiteHeader /><main><GroupOrder orderId={order.id} initialStatus={order.status} entryTotal={order.entry_total_cents ?? 0}
     eventName={event.data.name}
     categoryLabel={categoryLabels.join(" · ") || "Selected categories"}
+    categoryCount={categoryIds.length}
     participantCount={(registrations.data ?? []).length}
     feeMode={organization.data.fee_mode === "pass_on" ? "pass_on" : "absorb"}
-    expiresAt={order.expires_at} returnStatus={(await searchParams)?.status} /></main></>;
+    expiresAt={order.expires_at} rosterHref={`/register/${categoryIds[0]}/group`}
+    returnStatus={(await searchParams)?.status} /></main></>;
 }

@@ -25,7 +25,8 @@ let handler: (req: Request) => Promise<Response>;
 let deliveryHandler: (req: Request) => Promise<Response>;
 let refundHandler: (req: Request) => Promise<Response>;
 let groupHandler: (req: Request) => Promise<Response>;
-const settings: Record<string, string> = { SUPABASE_URL: env.url, SUPABASE_SERVICE_ROLE_KEY: env.serviceKey, GROUP_PAYMENT_PREPARATION_ENABLED: "true", GROUP_PAYMENTS_ENABLED: "true", GROUP_REFUNDS_ENABLED: "true", PAYMONGO_SECRET_KEY: "sk_test_mock_only", TICKET_SIGNING_SECRET: "group-test-secret", GROUP_PAYMENT_RETURN_URL: "https://racepace.test/bookings" };
+let cancelHandler: (req: Request) => Promise<Response>;
+const settings: Record<string, string> = { SUPABASE_URL: env.url, SUPABASE_SERVICE_ROLE_KEY: env.serviceKey, GROUP_RESERVATIONS_ENABLED: "true", GROUP_PAYMENT_PREPARATION_ENABLED: "true", GROUP_PAYMENTS_ENABLED: "true", GROUP_REFUNDS_ENABLED: "true", PAYMONGO_SECRET_KEY: "sk_test_mock_only", TICKET_SIGNING_SECRET: "group-test-secret", GROUP_PAYMENT_RETURN_URL: "https://racepace.test/bookings" };
 async function account() {
   const email = `payment-prepare-${randomUUID()}@example.com`;
   const created = await svc.auth.admin.createUser({ email, password: "password123", email_confirm: true });
@@ -72,8 +73,11 @@ beforeAll(async () => {
   await import("../functions/admin-group-refund/index");
   vi.stubGlobal("Deno", { env: { get: (key: string) => settings[key] }, serve: (fn: typeof handler) => { deliveryHandler = fn; } });
   await import("../functions/group-ticket-delivery/index");
+  vi.stubGlobal("Deno", { env: { get: (key: string) => settings[key] }, serve: (fn: typeof handler) => { cancelHandler = fn; } });
+  await import("../functions/group-order-cancel/index");
 });
 beforeEach(async () => {
+  settings.GROUP_RESERVATIONS_ENABLED = "true";
   settings.GROUP_PAYMENT_PREPARATION_ENABLED = "true";
   settings.GROUP_PAYMENTS_ENABLED = "true";
   await db.query("delete from user_roles where user_id=$1 and role='super_admin'", [actor]);
@@ -266,6 +270,50 @@ it("keeps the endpoint disabled by default and validates authentication and meth
   settings.GROUP_PAYMENT_PREPARATION_ENABLED = "true";
   expect((await call(order, randomUUID(), "card", "invalid")).status).toBe(401);
   expect((await call(order, randomUUID(), "unsupported")).status).toBe(400);
+});
+
+async function cancelCall(order: string, bearer = token) {
+  return cancelHandler(new Request("http://localhost/group-order-cancel", { method: "POST", headers: { Authorization: `Bearer ${bearer}`, "content-type": "application/json" }, body: JSON.stringify({ order_id: order }) }));
+}
+it("cancels an unpaid group atomically and is idempotent", async () => {
+  const order = await reserve(true);
+  const response = await cancelCall(order);
+  expect(response.status, await response.clone().text()).toBe(200);
+  expect(await response.json()).toEqual({ order_id: order, status: "cancelled" });
+  expect((await db.query("select status,expires_at from booking_orders where id=$1", [order])).rows[0]).toEqual({ status: "cancelled", expires_at: null });
+  expect((await db.query("select status,expires_at from registrations where booking_order_id=$1 order by id", [order])).rows)
+    .toEqual([{ status: "cancelled", expires_at: null }, { status: "cancelled", expires_at: null }]);
+  expect(await (await cancelCall(order)).json()).toEqual({ order_id: order, status: "cancelled" });
+});
+it("expires a prepared quote during cancellation but blocks after provider dispatch", async () => {
+  const preparedAttempt = await prepared();
+  expect((await cancelCall(preparedAttempt.booking_order_id)).status).toBe(200);
+  expect((await db.query("select status from booking_payment_attempts where id=$1", [preparedAttempt.id])).rows[0].status).toBe("expired");
+
+  const dispatched = await prepared();
+  expect((await groupCall(dispatched.id)).status).toBe(200);
+  const response = await cancelCall(dispatched.booking_order_id);
+  expect(response.status).toBe(409);
+  expect(await response.json()).toEqual({ error: "payment_already_started" });
+  expect((await db.query("select status from booking_orders where id=$1", [dispatched.booking_order_id])).rows[0].status).toBe("pending");
+});
+it("serializes cancellation against the first provider dispatch", async () => {
+  const attempt = await prepared();
+  const [cancelled, dispatched] = await Promise.all([cancelCall(attempt.booking_order_id), groupCall(attempt.id)]);
+  expect([cancelled.status, dispatched.status].sort()).toEqual([200, 409]);
+  const order = (await db.query("select status from booking_orders where id=$1", [attempt.booking_order_id])).rows[0];
+  const dispatch = await db.query("select state from booking_payment_dispatches where attempt_id=$1", [attempt.id]);
+  if (order.status === "cancelled") expect(dispatch.rowCount).toBe(0);
+  else {
+    expect(order.status).toBe("pending");
+    expect(dispatch.rows[0]?.state).toBe("ready");
+  }
+});
+it("denies cancellation to another booker and direct authenticated RPC calls", async () => {
+  const order = await reserve();
+  expect((await cancelCall(order, strangerToken)).status).toBe(404);
+  const strangerClient = createClient(env.url, env.anonKey, { global: { headers: { Authorization: `Bearer ${strangerToken}` } }, auth: { persistSession: false } });
+  expect((await strangerClient.rpc("booking_order_cancel", { p_actor: stranger, p_order: order })).error?.code).toBe("42501");
 });
 
 async function groupCall(attempt: string, action = "session", bearer = token) {
