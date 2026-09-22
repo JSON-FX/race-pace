@@ -99,7 +99,7 @@ Same-category group checkout confirmed by the user. [Architecture baseline](spec
 
 ### 2026-09-22 mixed-category group checkout
 
-The approved [mixed-category extension](specs/2026-09-22-mixed-category-group-checkout.md) keeps one event and one payment while assigning a category to each selected Passport. The [implementation plan](plans/2026-09-22-mixed-category-group-checkout.md) covers atomic category capacity, participant-level refunds, the Trail Roster interface and distinct QR ticket verification. Work is in progress; hosted feature flags remain disabled pending local and staging acceptance.
+The approved [mixed-category extension](specs/2026-09-22-mixed-category-group-checkout.md) keeps one event and one payment while assigning a category to each selected Passport. The [implementation plan](plans/2026-09-22-mixed-category-group-checkout.md) covers atomic category capacity, participant-level refunds, the Trail Roster interface and distinct QR ticket verification. The Trail Roster and Trail Ledger are staging-accepted at merge `3e3fe1b`. One PayMongo test-mode GCash payment fulfilled two Passports in different categories, issued two distinct QR tickets, and supported a participant-only refund that released only the refunded category. Staging flags are enabled; production remains unchanged pending an explicit promotion decision.
 
 
 ### 2026-09-17 group foundation implemented locally

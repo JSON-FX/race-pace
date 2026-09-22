@@ -1,6 +1,6 @@
 # Mixed-category group checkout implementation plan
 
-Status: in progress. Design: [mixed-category group checkout](../specs/2026-09-22-mixed-category-group-checkout.md).
+Status: implemented and accepted on staging. Production promotion is not authorized. Design: [mixed-category group checkout](../specs/2026-09-22-mixed-category-group-checkout.md).
 
 ## Scope
 
@@ -26,6 +26,10 @@ participant. Validate locally before deploying the exact reviewed revision to st
 7. Complete a PayMongo test-mode browser booking with runners in different categories. Read back the
    order, registrations, capture, allocations, unique ticket tokens and QR responses. Record exact
    staging evidence in `docs/operations/launch-progress.md`.
+
+All tasks are complete. Staging acceptance used one self Passport and one managed Passport in two
+categories. The temporary user, Passports, event, order and payment ledger were removed after the
+test; read-back found no residual fixture rows.
 
 ## Release boundary
 
