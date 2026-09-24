@@ -15,6 +15,8 @@ export type EventRow = {
   city_psgc_code: string | null; region_name: string | null; province_name: string | null;
   city_name: string | null; venue: string | null; inclusions?: string[] | null;
   joined_count: number; distances: number[];
+  /** Remaining category capacity; null when category capacity is unavailable. */
+  slots_left?: number | null;
   refundPolicy?: string | null; refundFeeCents?: number | null;
   org_name?: string; org_color?: string | null; org_logo_url?: string | null;
   feeMode?: "absorb" | "pass_on";
@@ -60,12 +62,12 @@ export type FormFieldRow = {
   required: boolean; options: string[] | null; sort_order: number;
 };
 
-// Column lists mirror apps/mobile/lib/events.ts, plus `inclusions` on
-// EVENT_COLS / EventRow (a real array column mobile does not yet select —
-// the pay page here needs it). Don't assume field-for-field parity; check
-// apps/mobile/lib/events.ts directly if reconciling the two.
+// Column lists mirror apps/mobile/lib/events.ts, plus `inclusions` and
+// category `slots_total` on EVENT_COLS / EventRow. The pay page needs
+// inclusions; the catalog needs live remaining capacity. Check the mobile
+// selection directly if reconciling the two.
 const EVENT_COLS =
-  "id,org_id,waiver_version_id,name,slug,place,region,event_date,end_date,elevation_gain_m,cutoff_hours,flag_off,status,hero_image_url,description,gallery,original_date,status_note,city_psgc_code,region_name,province_name,city_name,venue,inclusions,discipline,schedule,start_lat,start_lng,finish_lat,finish_lng,route,registration_closes_at,categories(slots_taken,distance_km)";
+  "id,org_id,waiver_version_id,name,slug,place,region,event_date,end_date,elevation_gain_m,cutoff_hours,flag_off,status,hero_image_url,description,gallery,original_date,status_note,city_psgc_code,region_name,province_name,city_name,venue,inclusions,discipline,schedule,start_lat,start_lng,finish_lat,finish_lng,route,registration_closes_at,categories(slots_total,slots_taken,distance_km)";
 const CAT_COLS =
   "id,event_id,org_id,code,label,distance_km,base_price,slots_total,slots_taken,elevation_gain_m,cutoff_hours,blurb";
 
@@ -81,7 +83,7 @@ function num(v: unknown): number | null {
 }
 
 export function mapEvent(r: any): EventRow {
-  const categories = (r.categories ?? []) as { slots_taken: number; distance_km: number | null }[];
+  const categories = (r.categories ?? []) as { slots_total: number; slots_taken: number; distance_km: number | null }[];
   return {
     ...r,
     gallery: r.gallery ?? [],
@@ -92,6 +94,9 @@ export function mapEvent(r: any): EventRow {
     start_lat: num(r.start_lat), start_lng: num(r.start_lng),
     finish_lat: num(r.finish_lat), finish_lng: num(r.finish_lng),
     joined_count: categories.reduce((sum, c) => sum + c.slots_taken, 0),
+    slots_left: categories.length > 0 && categories.every((c) => Number.isFinite(c.slots_total) && Number.isFinite(c.slots_taken))
+      ? categories.reduce((sum, c) => sum + Math.max(0, c.slots_total - c.slots_taken), 0)
+      : null,
     distances: categories.map((c) => c.distance_km).filter((d): d is number => d != null),
     refundPolicy: r.organizations?.refund_policy ?? null,
     refundFeeCents: r.organizations?.refund_fee_cents ?? null,
