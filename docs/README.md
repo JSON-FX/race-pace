@@ -36,7 +36,7 @@ Platform user administration: [design](./specs/2026-09-20-platform-users-design.
 
 Admin settings Brand Studio: [approved design](./specs/2026-09-22-settings-brand-studio-design.md) and [implementation plan](./plans/2026-09-22-settings-brand-studio.md). The redesign preserves organization settings behavior and adds a shared searchable Popover combobox for form-backed selections.
 
-Fieldnotes event workflow pilot: [design and source sync](./specs/2026-09-25-fieldnotes-event-pilot.md) and [implementation plan](./plans/2026-09-25-fieldnotes-event-pilot.md). The public race list and admin event directory are deployed on staging through PR #120. Runner event detail remains at the staging baseline.
+Fieldnotes event workflow pilot: [design and source sync](./specs/2026-09-25-fieldnotes-event-pilot.md) and [implementation plan](./plans/2026-09-25-fieldnotes-event-pilot.md). The public race list and admin event directory are deployed on staging through PR #120. A catalog spacing, organizer-avatar, and remaining-slots follow-up is ready for staging review. Runner event detail remains at the staging baseline.
 
 Unbound PayMongo checkout review: [implementation plan](./plans/2026-09-18-unbound-paymongo-review.md). The fail-closed payment endpoint and platform alert are deployed to staging. A safe operator review queue and provider-backed resolution are planned; the payment launch gate remains open.
 

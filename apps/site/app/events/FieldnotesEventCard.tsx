@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { formatDateRange, formatAddress } from "@race-pace/shared";
 import { shortDate } from "@/lib/format";
 import { eventPublicPath, type EventRow } from "@/lib/events";
@@ -11,6 +12,7 @@ export function FieldnotesEventCard({ event, index }: { event: EventRow; index?:
   const location = formatAddress({ city_name: event.city_name, province_name: event.province_name });
   const state = eventState(event);
   const badge = state === "open" ? null : STATE_BADGE[state];
+  const organizerInitials = event.org_name?.split(/\s+/).slice(0, 2).map((word) => word[0]).join("").toUpperCase();
 
   return (
     <Link
@@ -38,9 +40,14 @@ export function FieldnotesEventCard({ event, index }: { event: EventRow; index?:
 
       <div className="fieldnotes-race-card__body">
         {event.org_name ? (
-          <p className="fieldnotes-race-card__organizer">
-            {event.org_name}
-          </p>
+          <div className="fieldnotes-race-card__organizer">
+            <span className="fieldnotes-race-card__avatar" aria-hidden="true">
+              {event.org_logo_url ? (
+                <Image src={event.org_logo_url} alt="" width={30} height={30} className="fieldnotes-race-card__avatar-image" />
+              ) : organizerInitials}
+            </span>
+            <span className="fieldnotes-race-card__organizer-name">{event.org_name}</span>
+          </div>
         ) : null}
         <h3 className="fieldnotes-race-card__title">
           {event.name}
@@ -50,6 +57,11 @@ export function FieldnotesEventCard({ event, index }: { event: EventRow; index?:
           {date ? <span>{date}</span> : null}
           {location ? <span>{location}</span> : null}
         </div>
+        {event.slots_left != null ? (
+          <p className="fieldnotes-race-card__slots" data-empty={event.slots_left === 0}>
+            <strong>{event.slots_left.toLocaleString("en-PH")}</strong> {event.slots_left === 1 ? "slot" : "slots"} left
+          </p>
+        ) : null}
 
         {event.distances.length > 0 ? (
           <div className="fieldnotes-race-card__footer">

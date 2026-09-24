@@ -28,6 +28,13 @@ export default async function EventsPage({
 
   const filters = parseFilters(sp);
   const shown = applyFilters(events, filters);
+  const gridVariant = shown.length === 1
+    ? " fieldnotes-events__grid--single"
+    : shown.length % 3 === 2
+      ? " fieldnotes-events__grid--balance-two"
+      : shown.length >= 4 && shown.length % 3 === 1
+        ? " fieldnotes-events__grid--balance-four"
+        : "";
   // Provinces come from the FULL list, not the filtered one — otherwise
   // picking Bukidnon removes every other province chip and there's no way
   // back to them except the All chip.
@@ -80,7 +87,7 @@ export default async function EventsPage({
             ) : null}
           </div>
         ) : (
-          <div className="fieldnotes-events__grid">
+          <div className={`fieldnotes-events__grid${gridVariant}`}>
             {shown.map((e, i) => (
               // Stagger caps at the sixth card: past that the last row would
               // wait most of a second, which reads as the page being slow.

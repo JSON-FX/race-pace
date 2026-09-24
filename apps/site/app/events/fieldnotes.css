@@ -44,7 +44,7 @@
   --fn-danger-soft: 76 48 48;
 }
 
-.fieldnotes-events__inner { width: min(100% - 40px, 1200px); margin: auto; padding: clamp(40px, 6vw, 88px) 0 100px; }
+.fieldnotes-events__inner { width: min(100% - 40px, 1200px); margin: auto; padding: clamp(40px, 6vw, 88px) 0 48px; }
 .fieldnotes-events__intro { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(220px, .6fr); align-items: end; gap: 32px; padding-bottom: clamp(40px, 6vw, 72px); }
 .fieldnotes-events__eyebrow { margin: 0 0 18px; color: rgb(var(--primary)); font-size: 11px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; }
 .fieldnotes-events h1, .fieldnotes-events__empty h2, .fieldnotes-race-card__title { font-family: "New York", "Iowan Old Style", "Baskerville", Georgia, serif; font-weight: 500; }
@@ -77,8 +77,18 @@
 .fieldnotes-events__results { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; margin: 34px 0 18px; color: rgb(var(--muted-foreground)); font-size: 13px; }
 .fieldnotes-events__results p { margin: 0; }
 .fieldnotes-events__results strong { color: rgb(var(--foreground)); font-weight: 700; }
-.fieldnotes-events__grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
+.fieldnotes-events__grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 24px; }
 .fieldnotes-events__grid > * { min-width: 0; }
+.fieldnotes-events__grid > * { grid-column: span 2; }
+.fieldnotes-events__grid--balance-two > :nth-last-child(-n + 2),
+.fieldnotes-events__grid--balance-four > :nth-last-child(-n + 4) { grid-column: span 3; }
+.fieldnotes-events__grid--single > * { grid-column: 1 / -1; }
+.fieldnotes-events__grid--balance-two > :nth-last-child(-n + 2) .fieldnotes-race-card,
+.fieldnotes-events__grid--balance-four > :nth-last-child(-n + 4) .fieldnotes-race-card,
+.fieldnotes-events__grid--single .fieldnotes-race-card { display: grid; grid-template-columns: minmax(0, .82fr) minmax(0, 1fr); }
+.fieldnotes-events__grid--balance-two > :nth-last-child(-n + 2) .fieldnotes-race-card__media,
+.fieldnotes-events__grid--balance-four > :nth-last-child(-n + 4) .fieldnotes-race-card__media,
+.fieldnotes-events__grid--single .fieldnotes-race-card__media { height: 100%; aspect-ratio: auto; }
 .fieldnotes-race-card { display: block; height: 100%; overflow: hidden; border: 1px solid rgb(var(--border)); border-radius: 22px; background: rgb(var(--card)); color: rgb(var(--foreground)); text-decoration: none; transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease; }
 .fieldnotes-race-card:hover { border-color: rgb(var(--primary)); box-shadow: 0 10px 24px rgb(17 52 27 / .11); transform: translateY(-3px); }
 .fieldnotes-race-card__media { position: relative; aspect-ratio: 1.45; overflow: hidden; background: rgb(var(--muted)); }
@@ -91,9 +101,15 @@
 .fieldnotes-race-card__status[data-state="almost_full"], .fieldnotes-race-card__status[data-state="rescheduled"] { background: rgb(var(--fn-warning-soft)); color: rgb(var(--fn-warning)); }
 .fieldnotes-race-card__status[data-state="ongoing"] { background: rgb(var(--fn-success-soft)); color: rgb(var(--fn-success)); }
 .fieldnotes-race-card__body { display: flex; min-height: 245px; flex-direction: column; padding: 20px; }
-.fieldnotes-race-card__organizer { overflow: hidden; margin: 0 0 8px; color: rgb(var(--primary)); font-size: 11px; font-weight: 700; letter-spacing: .12em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
+.fieldnotes-race-card__organizer { display: flex; min-width: 0; align-items: center; gap: 9px; margin: 0 0 10px; color: rgb(var(--primary)); font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.fieldnotes-race-card__avatar { display: inline-flex; width: 30px; height: 30px; flex: none; align-items: center; justify-content: center; overflow: hidden; border: 1px solid rgb(var(--border)); border-radius: 50%; background: rgb(var(--muted)); color: rgb(var(--primary)); font-size: 10px; font-weight: 750; letter-spacing: -.02em; }
+.fieldnotes-race-card__avatar-image { width: 100%; height: 100%; object-fit: cover; }
+.fieldnotes-race-card__organizer-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fieldnotes-race-card__title { margin: 0; font-size: clamp(24px, 2.1vw, 30px); line-height: 1.15; letter-spacing: -.025em; }
 .fieldnotes-race-card__meta { display: grid; gap: 4px; margin-top: 13px; color: rgb(var(--muted-foreground)); font-size: 13px; line-height: 1.4; }
+.fieldnotes-race-card__slots { margin: 12px 0 0; color: rgb(var(--primary)); font-size: 12px; font-weight: 600; }
+.fieldnotes-race-card__slots strong { font-family: "SF Mono", SFMono-Regular, ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+.fieldnotes-race-card__slots[data-empty="true"] { color: rgb(var(--muted-foreground)); }
 .fieldnotes-race-card__footer { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; padding-top: 20px; }
 .fieldnotes-race-card__distance { display: inline-flex; min-height: 27px; align-items: center; padding: 2px 8px; border: 1px solid rgb(var(--border)); border-radius: 8px; font-family: "SF Mono", SFMono-Regular, ui-monospace, monospace; font-size: 11px; font-weight: 600; }
 .fieldnotes-race-card__view { display: flex; justify-content: space-between; gap: 12px; margin-top: 18px; padding-top: 14px; border-top: 1px solid rgb(var(--border)); color: rgb(var(--primary)); font-size: 13px; font-weight: 700; }
@@ -105,6 +121,36 @@
 .fieldnotes-events__clear { display: inline-flex; min-height: 44px; align-items: center; margin-top: 24px; padding: 0 20px; border-radius: 14px; background: rgb(var(--primary)); color: white; font-size: 14px; font-weight: 650; text-decoration: none; }
 .fieldnotes-events__clear:hover { background: rgb(var(--primary-focus)); }
 
-@media (max-width: 900px) { .fieldnotes-events__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 640px) { .fieldnotes-events__inner { width: min(100% - 32px, 480px); padding: 38px 0 72px; } .fieldnotes-events__intro { grid-template-columns: 1fr; gap: 20px; padding-bottom: 44px; } .fieldnotes-events h1 { font-size: clamp(48px, 13vw, 70px); } .fieldnotes-events__lede { max-width: 100%; } .fieldnotes-events__search-row { flex-direction: column; } .fieldnotes-events__search button { width: 100%; } .fieldnotes-events__results p:last-child { display: none; } .fieldnotes-events__grid { grid-template-columns: 1fr; gap: 18px; } .fieldnotes-race-card__media { aspect-ratio: 1.55; } .fieldnotes-race-card__body { min-height: 0; } }
+@media (max-width: 900px) {
+  .fieldnotes-events__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .fieldnotes-events__grid > *,
+  .fieldnotes-events__grid--balance-two > :nth-last-child(-n + 2),
+  .fieldnotes-events__grid--balance-four > :nth-last-child(-n + 4) { grid-column: auto; }
+  .fieldnotes-events__grid--single > * { grid-column: 1 / -1; }
+  .fieldnotes-events__grid > :last-child:nth-child(odd):not(:first-child) { grid-column: 1 / -1; }
+  .fieldnotes-events__grid--balance-two > :nth-last-child(-n + 2) .fieldnotes-race-card,
+  .fieldnotes-events__grid--balance-four > :nth-last-child(-n + 4) .fieldnotes-race-card { display: block; }
+  .fieldnotes-events__grid--balance-two > :nth-last-child(-n + 2) .fieldnotes-race-card__media,
+  .fieldnotes-events__grid--balance-four > :nth-last-child(-n + 4) .fieldnotes-race-card__media { height: auto; aspect-ratio: 1.45; }
+  .fieldnotes-events__grid > :last-child:nth-child(odd):not(:first-child) .fieldnotes-race-card { display: grid; grid-template-columns: minmax(0, .82fr) minmax(0, 1fr); }
+  .fieldnotes-events__grid > :last-child:nth-child(odd):not(:first-child) .fieldnotes-race-card__media { height: 100%; aspect-ratio: auto; }
+}
+@media (max-width: 640px) {
+  .fieldnotes-events__inner { width: min(100% - 32px, 480px); padding: 38px 0 40px; }
+  .fieldnotes-events__intro { grid-template-columns: 1fr; gap: 20px; padding-bottom: 44px; }
+  .fieldnotes-events h1 { font-size: clamp(48px, 13vw, 70px); }
+  .fieldnotes-events__lede { max-width: 100%; }
+  .fieldnotes-events__search-row { flex-direction: column; }
+  .fieldnotes-events__search button { width: 100%; }
+  .fieldnotes-events__results p:last-child { display: none; }
+  .fieldnotes-events__grid { grid-template-columns: 1fr; gap: 18px; }
+  .fieldnotes-events__grid > *,
+  .fieldnotes-events__grid > :last-child:nth-child(odd):not(:first-child) { grid-column: 1; }
+  .fieldnotes-events__grid--single .fieldnotes-race-card,
+  .fieldnotes-events__grid > :last-child:nth-child(odd):not(:first-child) .fieldnotes-race-card { display: block; }
+  .fieldnotes-events__grid--single .fieldnotes-race-card__media,
+  .fieldnotes-events__grid > :last-child:nth-child(odd):not(:first-child) .fieldnotes-race-card__media { height: auto; aspect-ratio: 1.55; }
+  .fieldnotes-race-card__media { aspect-ratio: 1.55; }
+  .fieldnotes-race-card__body { min-height: 0; }
+}
 @media (prefers-reduced-motion: reduce) { .fieldnotes-events__search input, .fieldnotes-events__search button, .fieldnotes-events__chip, .fieldnotes-race-card, .fieldnotes-race-card__image { transition: none; } .fieldnotes-events__search button:hover, .fieldnotes-events__chip:hover, .fieldnotes-race-card:hover, .fieldnotes-race-card:hover .fieldnotes-race-card__image { transform: none; } }
