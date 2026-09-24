@@ -36,6 +36,11 @@ describe("EventsTable", () => {
     expect(screen.getByText(/Manolo Fortich/)).toBeInTheDocument();
   });
 
+  it("gives the horizontally scrollable event table a keyboard-focusable name", () => {
+    render(<EventsTable rows={rows} total={1} page={1} per={25} sort={[]} activeFilters={{}} q="" canWrite />);
+    expect(screen.getByRole("region", { name: "Events table" })).toHaveAttribute("tabindex", "0");
+  });
+
   it("sums slots across categories", () => {
     render(<EventsTable rows={rows} total={1} page={1} per={25} sort={[]} activeFilters={{}} q="" canWrite />);
     expect(screen.getByText("160 / 250")).toBeInTheDocument();
@@ -45,6 +50,11 @@ describe("EventsTable", () => {
     render(<EventsTable rows={[]} total={0} page={1} per={25} sort={[]} activeFilters={{}} q="" canWrite />);
     expect(screen.getByText("No events yet")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /create an event/i })).toBeInTheDocument();
+  });
+
+  it("shows the first-run empty state when the status filter is All", () => {
+    render(<EventsTable rows={[]} total={0} page={1} per={25} sort={[]} activeFilters={{ status: "all" }} q="" canWrite />);
+    expect(screen.getByText("No events yet")).toBeInTheDocument();
   });
 
   it("shows no-match copy (not the first-run copy) when a search is active", () => {

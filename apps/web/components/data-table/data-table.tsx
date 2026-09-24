@@ -46,6 +46,8 @@ export type DataTableProps<TData> = {
    *  showing the admin a filtered list with no visible cause. */
   q: string;
   searchPlaceholder?: string;
+  /** Give a horizontally scrollable table a keyboard-focusable named region. */
+  scrollRegionLabel?: string;
   rowHref?: (row: TData) => string;
   /** Query-param keys "Clear all" must NOT remove, beyond the `sort`/`per`
    *  it already preserves — e.g. Registrations passes `["event"]` so
@@ -64,7 +66,7 @@ export type DataTableProps<TData> = {
 
 export function DataTable<TData>({
   columns, data, total, page, per, sort, filterDefs, activeFilters, q,
-  searchPlaceholder = "Search…", bulkActions = [], preserveOnClear,
+  searchPlaceholder = "Search…", scrollRegionLabel, bulkActions = [], preserveOnClear,
   getRowId, rowHref, emptyState, isError,
 }: DataTableProps<TData>) {
   const params = useTableParams();
@@ -177,7 +179,8 @@ export function DataTable<TData>({
             action={emptyState?.action}
           />
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto" role={scrollRegionLabel ? "region" : undefined}
+            aria-label={scrollRegionLabel} tabIndex={scrollRegionLabel ? 0 : undefined}>
             <Table>
               <TableHeader className="bg-muted/60">
                 {table.getHeaderGroups().map((group) => (

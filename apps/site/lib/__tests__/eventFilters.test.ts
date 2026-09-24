@@ -52,9 +52,9 @@ describe("terrainOf", () => {
 });
 
 describe("parseFilters", () => {
-  it("reads all three axes", () => {
-    expect(parseFilters({ distance: "ultra,half", terrain: "trail", province: "Bukidnon" })).toEqual({
-      bands: ["ultra", "half"], terrain: ["trail"], province: "Bukidnon",
+  it("reads search alongside the existing filters", () => {
+    expect(parseFilters({ distance: "ultra,half", terrain: "trail", province: "Bukidnon", q: "  Pine  " })).toEqual({
+      bands: ["ultra", "half"], terrain: ["trail"], province: "Bukidnon", query: "Pine",
     });
   });
   it("returns empty filters for an empty query", () => {
@@ -72,6 +72,9 @@ describe("parseFilters", () => {
   it("treats a blank province as absent", () => {
     expect(parseFilters({ province: "  " }).province).toBeNull();
   });
+  it("treats a blank search as absent", () => {
+    expect(parseFilters({ q: "  " }).query).toBeNull();
+  });
 });
 
 describe("filtersToQuery", () => {
@@ -79,7 +82,7 @@ describe("filtersToQuery", () => {
     expect(filtersToQuery(EMPTY_FILTERS)).toBe("");
   });
   it("round-trips through parseFilters", () => {
-    const f: EventFilters = { bands: ["ultra"], terrain: ["road"], province: "Davao del Sur" };
+    const f: EventFilters = { bands: ["ultra"], terrain: ["road"], province: "Davao del Sur", query: "Coastal Run" };
     const q = filtersToQuery(f);
     const sp = Object.fromEntries(new URLSearchParams(q.slice(1)));
     expect(parseFilters(sp)).toEqual(f);
@@ -94,6 +97,7 @@ describe("hasAnyFilter", () => {
     expect(hasAnyFilter(EMPTY_FILTERS)).toBe(false);
     expect(hasAnyFilter({ ...EMPTY_FILTERS, bands: ["ultra"] })).toBe(true);
     expect(hasAnyFilter({ ...EMPTY_FILTERS, province: "Davao" })).toBe(true);
+    expect(hasAnyFilter({ ...EMPTY_FILTERS, query: "ridge" })).toBe(true);
   });
 });
 
@@ -137,6 +141,15 @@ describe("applyFilters", () => {
 
   it("filters by province exactly", () => {
     expect(applyFilters(all, { ...EMPTY_FILTERS, province: "Davao" }).map((e) => e.id)).toEqual(["3"]);
+  });
+
+  it("searches race names, organizers and places without changing other filters", () => {
+    const ridge = { ...ultra, name: "Mountain Ridge", org_name: "Peak Club", city_name: "Malaybalay" };
+    const coast = { ...fun, name: "Coastal Run", org_name: "Bay Club", city_name: "Cagayan de Oro" };
+    expect(applyFilters([ridge, coast], { ...EMPTY_FILTERS, query: "ridge" }).map((e) => e.id)).toEqual(["1"]);
+    expect(applyFilters([ridge, coast], { ...EMPTY_FILTERS, query: "bay club" }).map((e) => e.id)).toEqual(["2"]);
+    expect(applyFilters([ridge, coast], { ...EMPTY_FILTERS, query: "MALAYBALAY", terrain: ["trail"] }).map((e) => e.id)).toEqual(["1"]);
+    expect(applyFilters([ridge, coast], { ...EMPTY_FILTERS, query: "Malaybalay", terrain: ["road"] })).toEqual([]);
   });
 
   it("returns nothing when the combination matches no race", () => {
