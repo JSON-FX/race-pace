@@ -69,3 +69,6 @@ Thumbs.db
 !.vscode/extensions.json
 .playwright-mcp/
 .vercel/
+
+# Generated local event fixtures and images stay out of application releases.
+.local/

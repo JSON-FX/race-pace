@@ -1,7 +1,25 @@
 # Web and admin launch progress
 
-Updated: 2026-09-23. Overall: MVP RELEASED; PILOT EVENT DRAFT READY; OWNER CHECKOUT PENDING.
+Updated: 2026-09-25. Overall: MVP RELEASED; FIELDNOTES EVENTS STAGING REQUESTED; PILOT EVENT DRAFT READY; OWNER CHECKOUT PENDING.
 Scope: runner website and admin only. The first release is a controlled pilot with one organizer and PayMongo. Production now contains only the authorized pilot organizer and its draft verification event; add no other synthetic data.
+
+### Current Fieldnotes event workflow pilot
+
+| Work | Status | Blocker | Next task |
+|---|---|---|---|
+| Runner `/events` discovery | **Local validation passed; staging requested** | Exact-commit pull request checks and hosted staging verification remain. | Promote the [runner Storybook context](https://storybook.lan/race-pace/?path=/story/fieldnotes-contexts-event-workflows--runner-race-discovery) through the staging pull request. |
+| Admin `/events` directory | **Local validation passed; staging requested** | Authenticated admin browser review remains; the local route redirects to sign-in. | Promote the [admin Storybook context](https://storybook.lan/race-pace/?path=/story/fieldnotes-contexts-event-workflows--admin-event-directory) and verify the signed-in staging route. |
+| Runner `/events/[id]` | **Canceled and excluded** | None. | Keep the existing staging detail page. |
+| Fieldnotes source sync | **Pinned to local Hub commit `96dba8a`** | The Hub has no configured remote. | Keep the application styles byte-identical to this local source when the catalog evolves. |
+| Local Docker and sample data | **Active in the pilot worktree with local Supabase** | Admin review still needs an authenticated local account. | Use the [local setup guide](local-fieldnotes-workspace.md) and review the [filled sample event](https://racepace.lan/events/fieldnotes-ridge-run-local-demo). |
+
+Local evidence, 2026-09-25: runner 464 tests, admin 910 tests, 13 final focused event-table tests, both typechecks and production builds passed. Storybook typecheck and build passed, and its Docker catalog was rebuilt. Runner and admin stories were inspected at desktop and 320px phone widths, with no page-level horizontal overflow in the runner phone canvas. The light and dark Storybook accessibility scans returned zero violations after giving the admin table a keyboard-focusable scroll region and fixing dark search contrast. The live runner `/events?terrain=trail` route returned HTTP 200 with its URL and result count updated. No application was deployed and no hosted data was changed.
+
+Runner search extension, 2026-09-25: the local `/events` pilot now searches race names, organizers, and places through a shareable `q` parameter. Search combines with distance, terrain, and province chips, and Clear search keeps the other filters. The focused filter suite passed 31 tests; runner typecheck and production build passed. Storybook typecheck and build passed, and Docker was rebuilt. Browser review found one matching race for `Dulang-Dulang`, zero results and an empty state for an unmatched term, and a 375px phone viewport without page overflow. The runner stylesheet matches the Hub source by SHA-256. The pilot remains local and uncommitted.
+
+Staging preparation, 2026-09-25: the event detail worktree was restored clean and its Storybook context removed. The existing runner and admin `/events` pilot passed 466 runner tests, 911 admin tests, 758 backend/shared tests, both typechecks, and both production builds. The backend suite first failed while the local Edge Functions runtime was stopped, then passed with the same fake-provider runtime used by CI. No local database reset was performed, preserving the filled local sample event. The runner and admin styles match the committed Hub source at `96dba8a`. No hosted staging deployment is claimed yet.
+
+Local Docker workspace, 2026-09-25: stopped the old main-checkout site/admin containers and started both app containers from the isolated Fieldnotes pilot worktree. Both containers mount that worktree and use local Supabase through `host.docker.internal:54521` for server requests. The browser uses the local API at `127.0.0.1:54521`. Replaced broken cross-worktree `.env.local` symlinks with private local copies and stopped the standalone port 3100 preview. `https://racepace.lan/events?q=Fieldnotes` and the sample race detail returned HTTP 200; unauthenticated `https://admin.racepace.lan/events` correctly redirected to sign-in. One clearly labeled local-only event has three imagegen-created images in local Storage, three categories, two add-ons, two form questions, a waiver, route points, schedule, description, and complete race details. The event hero and detail were inspected in the browser. Staging and production data and services were not changed.
 
 ### Current single registration redesign
 

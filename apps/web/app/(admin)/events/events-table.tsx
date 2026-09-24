@@ -58,6 +58,7 @@ export function EventsTable({ rows, total, page, per, sort, activeFilters, q, ca
 }) {
   const [cancelTarget, setCancelTarget] = useState<{ id: string; name: string } | null>(null);
   const [rescheduleTarget, setRescheduleTarget] = useState<AdminEventRow | null>(null);
+  const hasSearchOrStatus = !!q || !!(activeFilters.status && activeFilters.status !== "all");
 
   const columns = useMemo<ColumnDef<AdminEventRow, unknown>[]>(() => {
     const base: ColumnDef<AdminEventRow, unknown>[] = [
@@ -163,11 +164,12 @@ export function EventsTable({ rows, total, page, per, sort, activeFilters, q, ca
         columns={columns} data={rows} total={total} page={page} per={per} sort={sort}
         filterDefs={[STATUS_FILTER]} activeFilters={activeFilters} q={q}
         searchPlaceholder="Search events…"
+        scrollRegionLabel="Events table"
         rowHref={(r) => `/events/${r.id}/edit`}
         isError={isError}
         emptyState={{
-          title: q || activeFilters.status ? "No events match" : "No events yet",
-          description: q || activeFilters.status
+          title: hasSearchOrStatus ? "No events match" : "No events yet",
+          description: hasSearchOrStatus
             ? "Try a different search or clear your filters."
             : "Create your first event to start taking registrations.",
           action: <Button asChild size="sm"><Link href="/events/new">Create an event</Link></Button>,

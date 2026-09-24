@@ -8,6 +8,7 @@ import { hasCapability } from "@/lib/capabilities";
 import { listOrgEvents } from "@/lib/queries/events";
 import { NoOrgScope } from "@/components/no-org-scope";
 import { EventsTable } from "./events-table";
+import "./fieldnotes.css";
 
 const DEFAULTS = { sort: [{ id: "event_date", desc: false }], filters: { status: "all" } };
 
@@ -31,11 +32,13 @@ export default async function EventsPage({
 
   if (!orgId) {
     return (
-      <div className="px-4 pb-10 pt-6 md:px-[30px]">
-        <div className="mb-5">
-          <h1 className="text-[21px] font-bold tracking-[-0.02em]">Events</h1>
+      <div className="fieldnotes-admin-events">
+        <div className="fieldnotes-admin-events__inner">
+          <p className="fieldnotes-admin-events__eyebrow">Race control / Events</p>
+          <h1>Events</h1>
+          <p className="fieldnotes-admin-events__description">Plan and manage races for your organization.</p>
+          <div className="fieldnotes-admin-events__content"><NoOrgScope /></div>
         </div>
-        <NoOrgScope />
       </div>
     );
   }
@@ -60,22 +63,31 @@ export default async function EventsPage({
   }
 
   return (
-    <div className="px-4 pb-10 pt-6 md:px-[30px]">
-      <div className="mb-5 flex flex-wrap items-start gap-4">
-        <div>
-          <h1 className="text-[21px] font-bold tracking-[-0.02em]">Events</h1>
-          <p className="mt-0.5 text-[13px] text-muted-foreground">
-            <span className="tabular">{total}</span> event{total === 1 ? "" : "s"} in this organization
-          </p>
+    <div className="fieldnotes-admin-events">
+      <div className="fieldnotes-admin-events__inner">
+        <p className="fieldnotes-admin-events__eyebrow">Race control / Events</p>
+        <div className="fieldnotes-admin-events__heading">
+          <div>
+            <h1>Events</h1>
+            <p className="fieldnotes-admin-events__description">Plan, publish, and manage every race in your organization.</p>
+          </div>
+          <Button asChild className="fieldnotes-admin-events__new">
+            <Link href="/events/new"><Plus className="size-4" />New event</Link>
+          </Button>
         </div>
-        <Button asChild className="ml-auto">
-          <Link href="/events/new"><Plus className="size-4" />New event</Link>
-        </Button>
+        <div className="fieldnotes-admin-events__content">
+          <div className="fieldnotes-admin-events__section-heading">
+            <div>
+              <h2>Event directory</h2>
+              <p><span className="tabular">{total}</span> event{total === 1 ? "" : "s"} in this organization</p>
+            </div>
+            <span aria-hidden="true">01 / Directory</span>
+          </div>
+          <EventsTable rows={rows} total={total} page={params.page} per={params.per}
+            sort={params.sort} activeFilters={params.filters} q={params.q}
+            canWrite={!!roles?.isAdmin} isError={isError} />
+        </div>
       </div>
-
-      <EventsTable rows={rows} total={total} page={params.page} per={params.per}
-        sort={params.sort} activeFilters={params.filters} q={params.q}
-        canWrite={!!roles?.isAdmin} isError={isError} />
     </div>
   );
 }

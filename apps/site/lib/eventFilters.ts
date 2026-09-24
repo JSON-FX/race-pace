@@ -6,11 +6,13 @@ import type { EventRow } from "@/lib/events";
  * set is unit-testable without a request — the page only supplies the parsed
  * search params.
  *
- * One filter object, two axes that behave differently on purpose:
+ * One filter object with independent selection and search rules:
  *  - `bands` and `terrain` are OR-within, AND-across. Picking "Ultra" and
  *    "21K" means "either distance", but adding "Trail" narrows both.
  *  - `province` is a single value. Two provinces at once is a query no runner
  *    has ever wanted, and it would need chips that toggle rather than select.
+ *  - `query` matches a race name, organizer, or place and combines with the
+ *    selected chips.
  */
 
 /** Distance bands, in the order the chips render. Bounds are inclusive-low /
@@ -30,9 +32,10 @@ export type EventFilters = {
   bands: BandKey[];
   terrain: Terrain[];
   province: string | null;
+  query: string | null;
 };
 
-export const EMPTY_FILTERS: EventFilters = { bands: [], terrain: [], province: null };
+export const EMPTY_FILTERS: EventFilters = { bands: [], terrain: [], province: null, query: null };
 
 const BAND_KEYS = new Set<string>(DISTANCE_BANDS.map((b) => b.key));
 
@@ -72,27 +75,30 @@ export function parseFilters(sp: Record<string, string | string[] | undefined>):
     return Array.isArray(v) ? v[0] : v;
   };
   const province = one("province")?.trim();
+  const query = one("q")?.trim().slice(0, 100);
   return {
     bands: parseList<BandKey>(one("distance"), BAND_KEYS),
     terrain: parseList<Terrain>(one("terrain"), new Set(["trail", "road"])),
     province: province || null,
+    query: query || null,
   };
 }
 
 /** Back to a query string, for links the server renders and the chips push.
  *  Empty axes are omitted entirely so the unfiltered view is a bare `/events`
- *  rather than `/events?distance=&terrain=&province=`. */
+ *  rather than `/events?distance=&terrain=&province=&q=`. */
 export function filtersToQuery(f: EventFilters): string {
   const p = new URLSearchParams();
   if (f.bands.length) p.set("distance", f.bands.join(","));
   if (f.terrain.length) p.set("terrain", f.terrain.join(","));
   if (f.province) p.set("province", f.province);
+  if (f.query) p.set("q", f.query);
   const s = p.toString();
   return s ? `?${s}` : "";
 }
 
 export function hasAnyFilter(f: EventFilters): boolean {
-  return f.bands.length > 0 || f.terrain.length > 0 || f.province != null;
+  return f.bands.length > 0 || f.terrain.length > 0 || f.province != null || f.query != null;
 }
 
 /** Toggle one band/terrain value, returning a new filter object. */
@@ -101,6 +107,7 @@ export function toggle<T extends string>(list: T[], value: T): T[] {
 }
 
 export function applyFilters(events: EventRow[], f: EventFilters): EventRow[] {
+  const query = f.query?.toLocaleLowerCase();
   return events.filter((e) => {
     if (f.bands.length) {
       // An event matches a band if ANY of its distances does — a race with a
@@ -111,6 +118,10 @@ export function applyFilters(events: EventRow[], f: EventFilters): EventRow[] {
     }
     if (f.terrain.length && !f.terrain.includes(terrainOf(e))) return false;
     if (f.province && e.province_name !== f.province) return false;
+    if (query) {
+      const searchable = [e.name, e.org_name, e.place, e.venue, e.city_name, e.province_name, e.region_name];
+      if (!searchable.some((value) => value?.toLocaleLowerCase().includes(query))) return false;
+    }
     return true;
   });
 }
