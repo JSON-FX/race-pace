@@ -31,3 +31,12 @@
 ## Status
 
 Implementation, staging verification, and production release are complete. All site, admin, backend, typecheck, build, grant, authorization, and local suspend/restore checks pass. Staging and production CI, both application deployments, the migration, the Edge Function, and read-only smoke checks pass. Production before-and-after counts match exactly, and no synthetic data or live account suspension was used for production verification.
+
+## Passport details follow-up · 2026-09-25
+
+1. Extend the existing super-admin Passport projection with stored identity, contact, kit, legacy, and shipping fields. Resolve shipping location names from the existing PSGC tables.
+2. Replace the nested Passport drill-down with independent disclosure cards in Overview and Race Passports. Keep registrations, events, and payment history inside each card.
+3. Verify one own Passport, multiple managed Passports, missing values, keyboard disclosure, and narrow widths. Run admin tests and typecheck, and validate the database projection locally.
+4. Release only the admin application and the changed `platform-users` Edge Function through staging first. Hosted acceptance remains required before production promotion.
+
+Status: local implementation complete. Admin typecheck and 917 admin tests pass. The expanded database projection succeeds locally. Desktop and 320px phone browser checks found no horizontal overflow or page errors after a mobile tab and footer adjustment. The backend suite passes 691 tests; three suites need local function secrets, and one unrelated Storage test fails with database error `42P10`. No hosted service or data has changed in this follow-up.
