@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { fetchOrganizer } from "@/lib/organizers";
 import { SiteHeader } from "@/components/SiteHeader";
-import { OrganizerEventRow, OrganizerProfileSplitHero } from "@/components/organizers/TrailAtlas";
+import { OrganizerEventRow, OrganizerProfileOpenSpread } from "@/components/organizers/TrailAtlas";
 import "../trail-atlas.css";
 
 export const dynamic = "force-dynamic";
@@ -21,7 +21,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
     title: organizer.name,
     description: organizer.description ?? `See ${organizer.name}'s upcoming races on Race Pace.`,
     alternates: { canonical },
-    openGraph: { title: organizer.name, description: organizer.description ?? undefined, url: canonical, images: organizer.bannerUrl ? [{ url: organizer.bannerUrl }] : undefined },
+    openGraph: { title: organizer.name, description: organizer.description ?? undefined, url: canonical, images: organizer.featuredImageUrl ? [{ url: organizer.featuredImageUrl }] : undefined },
   };
 }
 
@@ -36,7 +36,7 @@ export default async function OrganizerProfilePage({ params }: Params) {
       <main className="trail-atlas">
         <div className="trail-atlas__inner trail-atlas__inner--profile">
           <Link href="/organizers" className="trail-atlas__back">All organizers</Link>
-          <OrganizerProfileSplitHero organizer={organizer} />
+          <OrganizerProfileOpenSpread organizer={organizer} />
           <div className="trail-atlas__profile-columns">
             <div>
               <section aria-labelledby="upcoming-events">

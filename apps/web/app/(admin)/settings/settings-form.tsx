@@ -147,7 +147,7 @@ export function SettingsForm({ org, canEdit }: { org: OrgBranding; canEdit: bool
       <SettingsSection
         id="branding"
         title="Branding"
-        description="Your logo and cover image appear on public event pages."
+        description="Your logo and cover appear on event pages. A featured photo appears on your organizer profile."
         icon={ImageIcon}
         status={org.logo_url && org.banner_url ? "Complete" : "In progress"}
         className="xl:col-span-2"
@@ -174,6 +174,18 @@ export function SettingsForm({ org, canEdit }: { org: OrgBranding; canEdit: bool
                 currentUrl={org.banner_url}
                 onSaved={onImageSaved}
               />
+              <div className="md:col-span-2 max-w-[500px]">
+                <CropUploader
+                  orgId={org.id}
+                  kind="featured"
+                  aspect={7 / 5}
+                  field="featured_image_url"
+                  label="Organizer featured image"
+                  currentUrl={org.featured_image_url}
+                  onSaved={onImageSaved}
+                />
+                <p className="mt-1.5 text-[11px] text-muted-foreground">Optional. Choose a photograph without text or logos for your public organizer profile.</p>
+              </div>
             </div>
           ) : (
             <p className="rounded-xl border bg-muted/40 p-4 text-sm text-muted-foreground">

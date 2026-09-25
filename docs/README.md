@@ -42,6 +42,8 @@ Organizer profile fields in admin Settings: [implementation plan](./plans/2026-0
 
 Trail Atlas organizer directory: [design and data contract](./specs/2026-09-25-trail-atlas-organizers.md) and [implementation plan](./plans/2026-09-25-trail-atlas-organizers.md). The selected directory and profile, with navigation and footer links, are deployed on [staging organizers](https://staging.racepace.com.ph/organizers) through PR #142. Production promotion remains separate.
 
+Organizer profile hero follow-up: [Open spread implementation plan](./plans/2026-09-25-organizer-open-spread-featured-image.md) and [approved visual preview](./previews/organizers/featured-hero-options.html#open-spread). A separate nullable featured image avoids using promotional cover graphics as profile photography.
+
 Fieldnotes event workflow pilot: [design and source sync](./specs/2026-09-25-fieldnotes-event-pilot.md) and [implementation plan](./plans/2026-09-25-fieldnotes-event-pilot.md). The public race list and admin event directory are deployed on staging through PR #120. The catalog spacing, organizer-avatar, and remaining-slots follow-up is deployed through PR #121. Card alignment and the larger image-corner avatar are deployed through PR #123. The long-title alignment correction is deployed through PR #124. Runner event detail remains at the staging baseline.
 
 Unbound PayMongo checkout review: [implementation plan](./plans/2026-09-18-unbound-paymongo-review.md). The fail-closed payment endpoint and platform alert are deployed to staging. A safe operator review queue and provider-backed resolution are planned; the payment launch gate remains open.

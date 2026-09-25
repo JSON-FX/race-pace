@@ -34,7 +34,7 @@ function assertCanEditOrg(roles: Awaited<ReturnType<typeof getMyRoles>>, orgId: 
 
 export async function updateOrgBrandingAction(
   orgId: string,
-  patch: { logo_url?: string; banner_url?: string },
+  patch: { logo_url?: string; banner_url?: string; featured_image_url?: string | null },
 ): Promise<{ ok: boolean; error?: string }> {
   const roles = await getMyRoles();
   const denied = assertCanEditOrg(roles, orgId);

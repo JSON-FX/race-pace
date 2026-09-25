@@ -25,4 +25,10 @@ describe("uploadOrgImage", () => {
     const path = uploadMock.mock.calls.at(-1)![0] as string;
     expect(path).toMatch(/^a1\/cover-.+\.png$/);
   });
+
+  it("uses a distinct prefix for organizer featured photographs", async () => {
+    const blob = new File([new Uint8Array([1])], "c.png", { type: "image/png" });
+    await uploadOrgImage("a1", blob, "featured");
+    expect(uploadMock.mock.calls.at(-1)![0]).toMatch(/^a1\/featured-.+\.png$/);
+  });
 });
