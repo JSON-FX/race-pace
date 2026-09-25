@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import type { PsgcAddress } from "@race-pace/shared";
 import { usePsgcRegions, usePsgcProvinces, usePsgcCities, usePsgcCity } from "../lib/psgc";
 import { Label } from "./ui/label";
@@ -52,6 +52,15 @@ export function PsgcAddressField({ value, onChange, className }: { value: PsgcAd
   function pickCity(code: string) {
     onChange({ city_psgc_code: code || null, city_name: code ? nameOf(cities.data, code) : null, province_name: provinceName, region_name: regionName });
   }
+  // The visible Radix item must commit the city. Its select value can change
+  // without updating a sibling hidden form input in the Settings card.
+  function cityItemHandlers(code: string) {
+    return {
+      onPointerUp: (event: PointerEvent) => { if (event.pointerType === "mouse") pickCity(code); },
+      onClick: () => pickCity(code),
+      onKeyDown: (event: KeyboardEvent) => { if (event.key === "Enter" || event.key === " ") pickCity(code); },
+    };
+  }
 
   return (
     <div className={cn("grid grid-cols-3 gap-3", className)}>
@@ -81,13 +90,13 @@ export function PsgcAddressField({ value, onChange, className }: { value: PsgcAd
       </div>
       <div>
         <Label className={fieldLabel}>CITY / MUNICIPALITY</Label>
-        <Select value={value?.city_psgc_code ?? undefined} onValueChange={(v) => pickCity(v === CLEAR ? "" : v)} disabled={!(provinceCode || noProvinces)}>
+        <Select value={value?.city_psgc_code ?? ""} onValueChange={(v) => { if (v && v !== CLEAR) pickCity(v); }} disabled={!(provinceCode || noProvinces)}>
           <SelectTrigger aria-label="City" className="w-full">
             <SelectValue placeholder="— Select —" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={CLEAR}>— None —</SelectItem>
-            {(cities.data ?? []).map((c) => <SelectItem key={c.code} value={c.code}>{c.name}</SelectItem>)}
+            <SelectItem value={CLEAR} {...cityItemHandlers("")}>— None —</SelectItem>
+            {(cities.data ?? []).map((c) => <SelectItem key={c.code} value={c.code} {...cityItemHandlers(c.code)}>{c.name}</SelectItem>)}
           </SelectContent>
         </Select>
       </div>
