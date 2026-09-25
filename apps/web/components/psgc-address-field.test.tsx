@@ -130,7 +130,7 @@ it("keeps a stored city while the edit-seed lookup resolves", async () => {
   expect(screen.getByLabelText("City")).toHaveTextContent("City of Digos");
 });
 
-it("ignores a transient empty native select value while a stored city loads", () => {
+it("ignores native select changes until the visible picker opens", () => {
   regions = { data: undefined };
   provinces = { data: undefined, isSuccess: false };
   cities = { data: undefined };
@@ -150,5 +150,6 @@ it("ignores a transient empty native select value while a stored city loads", ()
   const nativeCitySelect = container.querySelectorAll("select")[2];
   expect(nativeCitySelect).toBeDefined();
   fireEvent.change(nativeCitySelect, { target: { value: "" } });
+  fireEvent.change(nativeCitySelect, { target: { value: "__none__" } });
   expect(screen.getByTestId("stored-city")).toHaveValue("112603");
 });
