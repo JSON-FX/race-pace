@@ -28,7 +28,7 @@ export default async function TeamPage({
 
   if (!orgId) {
     return (
-      <div className="px-4 pb-10 pt-6 md:px-[30px]">
+      <div className="fieldnotes-admin-workspace" data-fieldnotes-section="Organization / People">
         <div className="mb-5">
           <h1 className="text-[21px] font-bold tracking-[-0.02em]">Team</h1>
         </div>
@@ -48,7 +48,7 @@ export default async function TeamPage({
   // explanatory notice, not a crash.
   if (!hasCapability(roles!.capabilities, "manage_team")) {
     return (
-      <div className="px-4 pb-10 pt-6 md:px-[30px]">
+      <div className="fieldnotes-admin-workspace" data-fieldnotes-section="Organization / People">
         <div className="mb-5">
           <h1 className="text-[21px] font-bold tracking-[-0.02em]">Team</h1>
         </div>
@@ -63,7 +63,7 @@ export default async function TeamPage({
   ]);
 
   return (
-    <div className="px-4 pb-10 pt-6 md:px-[30px]">
+    <div className="fieldnotes-admin-workspace" data-fieldnotes-section="Organization / People">
       <div className="mb-5 flex flex-wrap items-start gap-4">
         <div>
           <h1 className="text-[21px] font-bold tracking-[-0.02em]">Team</h1>

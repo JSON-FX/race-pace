@@ -22,6 +22,8 @@ ultra-trail event platform (Mindanao, Philippines).
 
 **Required release path:** [Staging-first workflow](./operations/release-workflow.md). Every application and backend change must pass the exact staging revision before promotion into `main`.
 
+Fieldnotes admin workspaces: [design and source sync](./specs/2026-09-25-fieldnotes-admin-workspaces.md) and [implementation plan](./plans/2026-09-25-fieldnotes-admin-workspaces.md). Dashboard, Registrations, Payments, Race kits, Check-in, Team, and Settings use the selected Fieldnotes treatment. The annotation follow-up adds white-default admin canvas choices, clearer Check-in searches and safeguards, and a redesigned Dashboard capacity panel. The matching examples live in the local Storybook Hub.
+
 Active verification ledger: [end-to-end checklist](./plans/2026-09-15-web-admin-e2e-checklist.md). Local refund ownership and durable callback reconciliation are implemented under [this plan](./plans/2026-09-16-durable-refund-requests.md). Staff invitation redirects, event restrictions and SMTP resend are implemented locally under [this plan](./plans/2026-09-16-staff-invitation-fixes.md). Hosted rollout and production readiness remain pending. The historical roadmap below records earlier checkpoints.
 
 Fixed-price pilot payment work: [PayMongo fee contract](./specs/paymongo-provider-fees.md), [implementation plan](./plans/2026-09-18-paymongo-provider-fees.md), and [review findings](../.claude/code-reviews/2026-09-18-fixed-price-paymongo.md). Staging code and price disclosure are deployed; a fresh sandbox capture, session expiry, and durable reconciliation remain before production.

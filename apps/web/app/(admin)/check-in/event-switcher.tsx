@@ -33,13 +33,13 @@ export function EventSwitcher({
 
   if (!mounted) {
     return (
-      <form method="get" className="flex items-center gap-1.5">
+      <form method="get" className="flex w-full min-w-0 items-center gap-1.5 sm:w-auto">
         <label htmlFor="event" className="sr-only">Switch event</label>
         <select
           id="event"
           name="event"
           defaultValue={value}
-          className="rounded-lg border bg-card px-2.5 py-[5px] text-[12.5px] font-semibold"
+          className="min-w-0 flex-1 rounded-lg border bg-card px-2.5 py-[5px] text-[12.5px] font-semibold"
         >
           {events.map((e) => (
             <option key={e.id} value={e.id}>{e.name}</option>
@@ -47,7 +47,7 @@ export function EventSwitcher({
         </select>
         <button
           type="submit"
-          className="cursor-pointer rounded-lg border bg-card px-2.5 py-[5px] text-[12.5px] font-semibold hover:bg-muted"
+          className="shrink-0 cursor-pointer rounded-lg border bg-card px-2.5 py-[5px] text-[12.5px] font-semibold hover:bg-muted"
         >
           Switch
         </button>
@@ -60,7 +60,7 @@ export function EventSwitcher({
       events={events}
       value={value}
       label="Switch event"
-      className="w-[260px]"
+      className="w-full max-w-[260px]"
       onSelect={(id) => {
         // Same target the no-JS form posts to, so the two paths cannot diverge.
         router.push(`?event=${id}`, { scroll: false });

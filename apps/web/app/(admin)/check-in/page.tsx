@@ -1,4 +1,4 @@
-import { CalendarDays } from "lucide-react";
+import { CalendarDays, ChevronDown, ShieldCheck } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { TableEmptyState } from "@/components/data-table";
 import { createClient } from "@/lib/supabase/server";
@@ -29,7 +29,7 @@ function dateLabel(e: CheckinEvent): string {
 }
 
 function Shell({ children }: { children: React.ReactNode }) {
-  return <div className="px-4 pb-10 pt-6 md:px-[30px]">{children}</div>;
+  return <div className="fieldnotes-admin-workspace" data-fieldnotes-section="Race day / Start line">{children}</div>;
 }
 
 /**
@@ -127,15 +127,13 @@ export default async function CheckInPage({
         </>
       )}
 
-      {required && <div className="mt-[13px] rounded-[9px] border border-l-[3px] border-l-amber bg-card px-3.5 py-[11px] text-[13px] text-muted-foreground">
-        <b className="font-semibold text-foreground">Two rules the server enforces.</b>{" "}
-        An unpaid entry shows as <b className="font-semibold text-foreground">Blocked</b> rather than
-        checkable — the check-in function returns <code>not_paid</code> (409) and refuses it, so the
-        row reflects a rule the server owns rather than one this page invented. And a re-scan of
-        someone already in returns <code>already: true</code>, which surfaces as an amber
-        &ldquo;already checked in&rdquo; instead of a green tick, so a double-scan never reads as a
-        fresh success.
-      </div>}
+      {required && <details className="fieldnotes-rules">
+        <summary><ShieldCheck className="size-4 text-primary" aria-hidden /><span>Check-in safeguards</span><ChevronDown className="size-4 text-muted-foreground" aria-hidden /></summary>
+        <div className="fieldnotes-rules__content">
+          <div><strong>Unpaid entries stay blocked</strong><p>The server refuses check-in with <code>not_paid</code> (409). Take payment before checking the runner in.</p></div>
+          <div><strong>Repeat scans stay distinct</strong><p>The server returns <code>already: true</code>. The station shows &ldquo;already checked in&rdquo; instead of a new success.</p></div>
+        </div>
+      </details>}
     </Shell>
   );
 }
