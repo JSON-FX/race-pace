@@ -7,9 +7,11 @@ Scope: runner website and admin only. The first release is a controlled pilot wi
 
 | Work | Status | Blocker | Next task |
 |---|---|---|---|
-| Organizer directory, profiles, navigation and footer | **Implemented and browser-reviewed locally; staging release pending** | Owner visual acceptance and staging release checks remain. No production route exists yet. | Review the local Trail Atlas directory and profile, then open a scoped pull request to `staging`. |
+| Organizer directory, profiles, navigation and footer | **Released and browser-verified on staging** | Owner visual acceptance before any production promotion. | Review [staging organizers](https://staging.racepace.com.ph/organizers), then decide on a separate production release. |
 
 Local implementation, 2026-09-25: the selected Trail Atlas layout now reads active organizers, nullable admin profile details, public event disciplines, and future event capacity from the local Supabase stack. Search, dynamic region filters, profile navigation, event links, and 320px phone layout were checked in the browser. Active organizers with blank optional fields remain visible; those with upcoming events sort first. The runner site suite passed 473 tests, typecheck, and production build. No hosted environment or production data changed.
+
+Staging release, 2026-09-25: PR #142 merged at `ad98edc366593be314214e71d06cbf4b1ca313eb` after both required PR CI runs and Vercel previews passed. Exact-merge CI run `36105531605` passed migration replay, both typechecks, all three test suites, and both builds. Runner deployment `dpl_4QpLM6oYbutyNCE8gKAwKkQ7jh6r` and admin deployment `dpl_5nchhNkmykE6EkHFXkTaXdre7jqm` are Ready at that revision and own the custom staging aliases. No migration, Edge Function, provider setting, or synthetic data change was included. The hosted runner directory displayed two active staging organizations, with seven upcoming events for the QA organizer and a second organization with no events. Search reduced the list to one result. The QA profile displayed seven linked future events, remaining-slot labels, the derived race type, and the event count. Optional description and Home Base sections stayed hidden because those staging values are null. The signed-in navigation and footer included the Organizers link. Production was untouched.
 
 ### Admin user Passport details
 
