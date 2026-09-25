@@ -72,14 +72,13 @@ export function SettingsForm({ org, canEdit }: { org: OrgBranding; canEdit: bool
                 />
                 <p className="mt-1.5 text-[11px] text-muted-foreground">Optional. This will appear on your public organizer profile.</p>
               </div>
-              {canEdit ? <input type="hidden" name="homeCityPsgcCode" value={homeBase.city_psgc_code ?? ""} /> : null}
             </form>
             <div className="mt-5">
               <p id="home-base-label" className="mb-1.5 text-[12px] font-bold">Home Base</p>
               {canEdit ? (
                 <>
                   <QueryClientProvider client={queryClient}>
-                    <PsgcAddressField value={homeBase} onChange={setHomeBase} className="grid-cols-1 sm:grid-cols-3" />
+                    <PsgcAddressField value={homeBase} onChange={setHomeBase} nativeCitySelect cityForm="org-profile-form" cityName="homeCityPsgcCode" className="grid-cols-1 sm:grid-cols-3" />
                   </QueryClientProvider>
                   <p className="mt-1.5 text-[11px] text-muted-foreground">Optional. Choose a city or municipality for your public organizer profile.</p>
                 </>

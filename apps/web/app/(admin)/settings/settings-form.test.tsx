@@ -20,10 +20,11 @@ vi.mock("react-easy-crop", async () => {
 });
 vi.mock("@/lib/cropImage", () => ({ getCroppedBlob: () => Promise.resolve(new Blob([""], { type: "image/png" })) }));
 vi.mock("@/components/PsgcAddressField", () => ({
-  PsgcAddressField: ({ onChange }: { onChange: (address: PsgcAddress) => void }) => (
-    <button type="button" onClick={() => onChange({ city_psgc_code: "112603000", city_name: "Digos", province_name: "Davao del Sur", region_name: "Davao Region" })}>
-      Choose city
-    </button>
+  PsgcAddressField: ({ onChange, cityForm, cityName }: { onChange: (address: PsgcAddress) => void; cityForm?: string; cityName?: string }) => (
+    <select aria-label="City" form={cityForm} name={cityName} onChange={(event) => onChange({ city_psgc_code: event.target.value, city_name: "Digos", province_name: "Davao del Sur", region_name: "Davao Region" })}>
+      <option value="">— Select —</option>
+      <option value="112603000">Digos</option>
+    </select>
   ),
 }));
 
@@ -81,11 +82,11 @@ describe("SettingsForm", () => {
 
   it("submits the name, description, and home base in the profile form", async () => {
     render(<SettingsForm org={org} canEdit />);
-    expect(screen.getByRole("button", { name: "Choose city" }).closest("form")).toBeNull();
-    expect(document.querySelector('input[name="homeCityPsgcCode"]')?.closest("form")).toHaveAttribute("id", "org-profile-form");
+    expect(screen.getByRole("combobox", { name: "City" }).closest("form")).toBeNull();
+    expect(screen.getByRole("combobox", { name: "City" })).toHaveAttribute("form", "org-profile-form");
     fireEvent.change(screen.getByLabelText("Organization name"), { target: { value: "Renamed Org" } });
     fireEvent.change(screen.getByLabelText("Organizer Description"), { target: { value: "Our local running club." } });
-    fireEvent.click(screen.getByRole("button", { name: "Choose city" }));
+    fireEvent.change(screen.getByRole("combobox", { name: "City" }), { target: { value: "112603000" } });
     fireEvent.click(screen.getByRole("button", { name: "Save profile" }));
     await waitFor(() => expect(updateOrgProfileAction).toHaveBeenCalled());
     const submitted = updateOrgProfileAction.mock.calls.at(-1)?.[1] as FormData;

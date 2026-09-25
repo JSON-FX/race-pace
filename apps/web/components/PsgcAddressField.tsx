@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { useEffect, useRef, useState } from "react";
+import { ChevronDownIcon } from "lucide-react";
 import type { PsgcAddress } from "@race-pace/shared";
 import { usePsgcRegions, usePsgcProvinces, usePsgcCities, usePsgcCity } from "../lib/psgc";
 import { Label } from "./ui/label";
@@ -17,7 +18,7 @@ const CLEAR = "__none__";
 /** Cascading Region → Province → City selects. Emits a full PsgcAddress on each
  *  change (partial until a city is chosen). NCR-style regions with no provinces
  *  skip the Province step and filter cities by region. */
-export function PsgcAddressField({ value, onChange, className }: { value: PsgcAddress | null; onChange: (a: PsgcAddress) => void; className?: string }) {
+export function PsgcAddressField({ value, onChange, className, nativeCitySelect = false, cityForm, cityName }: { value: PsgcAddress | null; onChange: (a: PsgcAddress) => void; className?: string; nativeCitySelect?: boolean; cityForm?: string; cityName?: string }) {
   const [regionCode, setRegionCode] = useState("");
   const [provinceCode, setProvinceCode] = useState("");
   const seeded = useRef(false);
@@ -40,6 +41,8 @@ export function PsgcAddressField({ value, onChange, className }: { value: PsgcAd
   const nameOf = (rows: { code: string; name: string }[] | undefined, code: string) => (rows ?? []).find((r) => r.code === code)?.name ?? null;
   const regionName = nameOf(regions.data, regionCode) ?? value?.region_name ?? null;
   const provinceName = nameOf(provinces.data, provinceCode) ?? value?.province_name ?? null;
+  const nativeCityReady = !!(provinceCode || noProvinces) && !!cities.data &&
+    (!value?.city_psgc_code || cities.data.some((city) => city.code === value.city_psgc_code));
 
   function pickRegion(code: string) {
     setRegionCode(code); setProvinceCode("");
@@ -52,16 +55,6 @@ export function PsgcAddressField({ value, onChange, className }: { value: PsgcAd
   function pickCity(code: string) {
     onChange({ city_psgc_code: code || null, city_name: code ? nameOf(cities.data, code) : null, province_name: provinceName, region_name: regionName });
   }
-  // The visible Radix item must commit the city. Its select value can change
-  // without updating a sibling hidden form input in the Settings card.
-  function cityItemHandlers(code: string) {
-    return {
-      onPointerUp: (event: PointerEvent) => { if (event.pointerType === "mouse") pickCity(code); },
-      onClick: () => pickCity(code),
-      onKeyDown: (event: KeyboardEvent) => { if (event.key === "Enter" || event.key === " ") pickCity(code); },
-    };
-  }
-
   return (
     <div className={cn("grid grid-cols-3 gap-3", className)}>
       <div>
@@ -90,15 +83,34 @@ export function PsgcAddressField({ value, onChange, className }: { value: PsgcAd
       </div>
       <div>
         <Label className={fieldLabel}>CITY / MUNICIPALITY</Label>
-        <Select value={value?.city_psgc_code ?? ""} onValueChange={(v) => { if (v && v !== CLEAR) pickCity(v); }} disabled={!(provinceCode || noProvinces)}>
-          <SelectTrigger aria-label="City" className="w-full">
-            <SelectValue placeholder="— Select —" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={CLEAR} {...cityItemHandlers("")}>— None —</SelectItem>
-            {(cities.data ?? []).map((c) => <SelectItem key={c.code} value={c.code} {...cityItemHandlers(c.code)}>{c.name}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        {nativeCitySelect ? (
+          <div className="relative">
+            {!nativeCityReady && cityName ? <input type="hidden" form={cityForm} name={cityName} value={value?.city_psgc_code ?? ""} /> : null}
+            <select
+              aria-label="City"
+              form={cityForm}
+              name={nativeCityReady ? cityName : undefined}
+              value={value?.city_psgc_code ?? ""}
+              onChange={(event) => pickCity(event.target.value)}
+              disabled={!nativeCityReady}
+              className="h-9 w-full appearance-none rounded-md border border-input bg-transparent py-2 pr-8 pl-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <option value="">— Select —</option>
+              {(cities.data ?? []).map((city) => <option key={city.code} value={city.code}>{city.name}</option>)}
+            </select>
+            <ChevronDownIcon aria-hidden="true" className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-muted-foreground" />
+          </div>
+        ) : (
+          <Select value={value?.city_psgc_code ?? undefined} onValueChange={(v) => pickCity(v === CLEAR ? "" : v)} disabled={!(provinceCode || noProvinces)}>
+            <SelectTrigger aria-label="City" className="w-full">
+              <SelectValue placeholder="— Select —" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={CLEAR}>— None —</SelectItem>
+              {(cities.data ?? []).map((city) => <SelectItem key={city.code} value={city.code}>{city.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        )}
       </div>
     </div>
   );
