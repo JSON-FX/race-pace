@@ -81,6 +81,8 @@ describe("SettingsForm", () => {
 
   it("submits the name, description, and home base in the profile form", async () => {
     render(<SettingsForm org={org} canEdit />);
+    expect(screen.getByRole("button", { name: "Choose city" }).closest("form")).toBeNull();
+    expect(document.querySelector('input[name="homeCityPsgcCode"]')?.closest("form")).toHaveAttribute("id", "org-profile-form");
     fireEvent.change(screen.getByLabelText("Organization name"), { target: { value: "Renamed Org" } });
     fireEvent.change(screen.getByLabelText("Organizer Description"), { target: { value: "Our local running club." } });
     fireEvent.click(screen.getByRole("button", { name: "Choose city" }));

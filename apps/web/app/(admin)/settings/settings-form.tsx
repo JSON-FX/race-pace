@@ -41,40 +41,43 @@ export function SettingsForm({ org, canEdit }: { org: OrgBranding; canEdit: bool
         status="Public"
         className="h-full"
       >
-        <form action={formAction} className="flex flex-1 flex-col">
+        {/* Radix mounts native selects inside forms. Async PSGC options once cleared a saved city on hydration. */}
+        <div className="flex flex-1 flex-col">
           <div className="flex-1 px-4 pb-5 md:px-5">
-            <input type="hidden" name="orgId" value={org.id} />
-            <Label htmlFor="org-name" className="mb-1.5 block text-[12px] font-bold">Organization name</Label>
-            <Input
-              id="org-name"
-              name="name"
-              defaultValue={org.name}
-              required
-              disabled={!canEdit}
-              className="h-11 rounded-[10px] bg-background"
-            />
-            <p className="mt-1.5 text-[11px] text-muted-foreground">
-              Use the full registered or public-facing organization name.
-            </p>
-            <div className="mt-5">
-              <Label htmlFor="org-description" className="mb-1.5 block text-[12px] font-bold">Organizer Description</Label>
-              <Textarea
-                id="org-description"
-                name="description"
-                defaultValue={org.description ?? ""}
-                maxLength={2000}
-                rows={4}
+            <form id="org-profile-form" action={formAction}>
+              <input type="hidden" name="orgId" value={org.id} />
+              <Label htmlFor="org-name" className="mb-1.5 block text-[12px] font-bold">Organization name</Label>
+              <Input
+                id="org-name"
+                name="name"
+                defaultValue={org.name}
+                required
                 disabled={!canEdit}
-                placeholder="Tell runners what your organization is about."
-                className="min-h-28 rounded-[10px] bg-background"
+                className="h-11 rounded-[10px] bg-background"
               />
-              <p className="mt-1.5 text-[11px] text-muted-foreground">Optional. This will appear on your public organizer profile.</p>
-            </div>
+              <p className="mt-1.5 text-[11px] text-muted-foreground">
+                Use the full registered or public-facing organization name.
+              </p>
+              <div className="mt-5">
+                <Label htmlFor="org-description" className="mb-1.5 block text-[12px] font-bold">Organizer Description</Label>
+                <Textarea
+                  id="org-description"
+                  name="description"
+                  defaultValue={org.description ?? ""}
+                  maxLength={2000}
+                  rows={4}
+                  disabled={!canEdit}
+                  placeholder="Tell runners what your organization is about."
+                  className="min-h-28 rounded-[10px] bg-background"
+                />
+                <p className="mt-1.5 text-[11px] text-muted-foreground">Optional. This will appear on your public organizer profile.</p>
+              </div>
+              {canEdit ? <input type="hidden" name="homeCityPsgcCode" value={homeBase.city_psgc_code ?? ""} /> : null}
+            </form>
             <div className="mt-5">
               <p id="home-base-label" className="mb-1.5 text-[12px] font-bold">Home Base</p>
               {canEdit ? (
                 <>
-                  <input type="hidden" name="homeCityPsgcCode" value={homeBase.city_psgc_code ?? ""} />
                   <QueryClientProvider client={queryClient}>
                     <PsgcAddressField value={homeBase} onChange={setHomeBase} className="grid-cols-1 sm:grid-cols-3" />
                   </QueryClientProvider>
@@ -90,11 +93,11 @@ export function SettingsForm({ org, canEdit }: { org: OrgBranding; canEdit: bool
             {state.success ? <p role="status" className="mt-2 text-[13px] text-muted-foreground">{state.success}</p> : null}
           </div>
           <SettingsSectionFooter helper="Updates the public organization profile.">
-            <Button type="submit" disabled={!canEdit || pending} className="h-10 rounded-[10px] px-4">
+            <Button type="submit" form="org-profile-form" disabled={!canEdit || pending} className="h-10 rounded-[10px] px-4">
               {pending ? "Saving…" : "Save profile"}
             </Button>
           </SettingsSectionFooter>
-        </form>
+        </div>
       </SettingsSection>
 
       <SettingsSection
