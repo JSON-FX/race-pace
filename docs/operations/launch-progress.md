@@ -1,15 +1,26 @@
 # Web and admin launch progress
 
-Updated: 2026-09-25. Overall: MVP RELEASED; FIELDNOTES EVENTS AND ORGANIZER PROFILE FIELDS IN PRODUCTION; OWNER CHECKOUT PENDING.
+Updated: 2026-09-25. Overall: MVP RELEASED; FIELDNOTES ADMIN AND TRAIL ATLAS ORGANIZERS IN PRODUCTION; OWNER CHECKOUT PENDING.
 Scope: runner website and admin only. The first release is a controlled pilot with one organizer and PayMongo. Production contains real organizer and event data; add no synthetic data.
+
+### Fieldnotes and Trail Atlas production release
+
+| Work | Status | Blocker | Next task |
+|---|---|---|---|
+| Staging-to-production source | **Merged** | None. | Keep `main` synchronized into `staging` before the next feature. |
+| Runner and admin applications | **Ready and browser-verified** | None for this release. | Monitor the production aliases and error logs. |
+| Organizer featured-image schema | **Applied and read back** | None for the nullable field. | Add a genuine organizer photograph only when one is available. |
+| Live payment and refund acceptance | **Owner-led** | No automated live money test was run. | Owner performs any payment, refund, or finance review. |
+
+Production promotion, 2026-09-25: the owner accepted the Dashboard spacing fix and requested all current staging changes. PR #151 merged `staging` commit `125948b569c4a767d71f5cc248bb86d9535e4d2f` into `main` at `1744c7543d30fee8eb4cdcf80168be725e04760e`. Its checks passed before merge. The runner deployment `dpl_Fp7ABbAabQ1AuqbYqBfKWy8V3dMm` and admin deployment `dpl_CexTnydQepdxXqyqfN8AEWLqwGwu` are Ready and own `www.racepace.com.ph` and `admin.racepace.com.ph`. The reviewed migration `20260925085305` was applied before the application deployments. Production has 149 migration versions, matching staging. Readback found the nullable featured-image column, authenticated column UPDATE grant, service-role-only guard function execution, and one profile guard trigger. Organizations, events, registrations, and payments remained at 2, 1, 23, and 19 before and after the migration. No Edge Function, provider setting, synthetic record, or live payment changed. A production browser loaded the organizer directory, a real organizer profile and its event link. Signed-in admin review found the compact Dashboard chart, production race capacity, white Settings canvas, three background choices, and the featured-image control. No profile image was added to real production data.
 
 ### Fieldnotes admin workspaces
 
 | Work | Status | Blocker | Next task |
 |---|---|---|---|
-| Dashboard, Registrations, Payments, Race kits, Check-in, Team, and Settings | **Released and signed-in reviewed on staging** | Owner visual acceptance before a separate production release. | Review [staging Settings](https://staging-admin.racepace.com.ph/settings), [Check-in](https://staging-admin.racepace.com.ph/check-in), and [Dashboard](https://staging-admin.racepace.com.ph/dashboard). |
+| Dashboard, Registrations, Payments, Race kits, Check-in, Team, and Settings | **Released to production** | None for the design rollout. | Monitor the [production Dashboard](https://admin.racepace.com.ph/dashboard) and [Settings](https://admin.racepace.com.ph/settings). |
 | Shared Fieldnotes style source | **App and local Hub `d2a671b` are synchronized** | The Hub has no configured remote and is hosted locally. | Keep the [canvas choices](https://storybook.lan/race-pace/?path=/story/fieldnotes-contexts-admin-workspaces--canvas-options), [Check-in controls](https://storybook.lan/race-pace/?path=/story/fieldnotes-contexts-admin-workspaces--check-in-controls), and [Dashboard capacity](https://storybook.lan/race-pace/?path=/story/fieldnotes-contexts-admin-workspaces--dashboard-capacity) aligned with the app. |
-| Dashboard chart card spacing | **Released and signed-in reviewed on staging** | Owner visual acceptance before any production release. | Review the [staging Dashboard](https://staging-admin.racepace.com.ph/dashboard) and [five-race Storybook layout](https://storybook.lan/race-pace/?path=/story/fieldnotes-contexts-admin-workspaces--dashboard-five-race-layout). |
+| Dashboard chart card spacing | **Released to production and browser-verified** | None for this layout. | Keep the [five-race Storybook layout](https://storybook.lan/race-pace/?path=/story/fieldnotes-contexts-admin-workspaces--dashboard-five-race-layout) aligned with the app. |
 
 Dashboard annotation follow-up, 2026-09-25: the sign-up SVG is 130px high while the adjacent five-race capacity list is much taller. The grid had stretched both cards to equal height, leaving a large empty area inside the chart card. The shared Fieldnotes grid now aligns its cards to the top, preserving the chart card's natural height. The new five-race Storybook story measured the chart card at about 229px beside a 596px capacity card. Its 390px phone, 768px tablet, and 1280px desktop layouts had no page overflow. The application stylesheet matches local Hub commit `d2a671b` at SHA-256 `c5b9059d16710decd5286ec781391cf4f2c8088231d5858db45e38bd96c42382`. The Hub typecheck, build, and Docker rebuild passed; the admin typecheck and 918 tests passed. PR #148 merged at `5ffed927b87478cef58fc5ce85ccdfb12acc1a5a` after both pull-request checks passed on rerun. Their first builds failed in the unchanged runner `next/font` Google loader; the successful reruns passed migration replay, both typechecks, all three test suites, and both builds. Exact-merge CI run `36127392264` passed the same gates. Runner deployment `dpl_5V3Jg2VJLXEezoZrBECCDkXABrpT` and admin deployment `dpl_2ysYqRVf86KVhHySmpyA7YqtKV2F` are Ready at that merge and own the staging aliases. Signed-in browser review of the populated organizer measured a 216px chart card beside a 586px capacity card, both top-aligned, with no page overflow at 2,138px. The source adds no migration, Edge Function, provider setting, or data mutation. Production was untouched.
 
@@ -24,8 +35,8 @@ Settings placement refinement, 2026-09-25: Workspace background moved below the 
 
 | Work | Status | Blocker | Next task |
 |---|---|---|---|
-| Organizer directory, profiles, navigation and footer | **Released and browser-verified on staging** | Owner visual acceptance before any production promotion. | Review [staging organizers](https://staging.racepace.com.ph/organizers), then decide on a separate production release. |
-| Open spread profile hero and organizer featured image | **Released and browser-verified on staging** | Owner visual acceptance before production promotion. | Review the [test organizer profile](https://staging.racepace.com.ph/organizers/staging-scope-qa-20260918) and the featured image control in [staging admin Settings](https://staging-admin.racepace.com.ph/settings). |
+| Organizer directory, profiles, navigation and footer | **Released and browser-verified on production** | None for this release. | Monitor [production organizers](https://www.racepace.com.ph/organizers). |
+| Open spread profile hero and organizer featured image | **Released and browser-verified on production** | Production organizers have no featured image yet. | Add a real organizer photograph when the owner provides one. |
 
 Local implementation, 2026-09-25: the selected Trail Atlas layout now reads active organizers, nullable admin profile details, public event disciplines, and future event capacity from the local Supabase stack. Search, dynamic region filters, profile navigation, event links, and 320px phone layout were checked in the browser. Active organizers with blank optional fields remain visible; those with upcoming events sort first. The runner site suite passed 473 tests, typecheck, and production build. No hosted environment or production data changed.
 
