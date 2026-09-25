@@ -32,7 +32,7 @@ Protected production runner smoke: [provider fix plan](./plans/2026-09-18-produc
 
 Super-admin organization scope: [selection fix plan](./plans/2026-09-18-super-admin-org-scope.md). The validated organization selected in the console must be the one used by org-scoped queries, even when the super admin also holds an org admin role.
 
-Platform user administration: [design](./specs/2026-09-20-platform-users-design.md) and [implementation plan](./plans/2026-09-20-platform-users.md). The approved table and inspector provide platform account, event, payment and Race Passport visibility, with protected Supabase Auth suspension staged before production.
+Platform user administration: [design](./specs/2026-09-20-platform-users-design.md) and [implementation plan](./plans/2026-09-20-platform-users.md). The approved table and inspector provide platform account, event, payment and Race Passport visibility. Full own and managed Passport details in independent disclosure cards are live on staging; production promotion remains separate.
 
 Admin settings Brand Studio: [approved design](./specs/2026-09-22-settings-brand-studio-design.md) and [implementation plan](./plans/2026-09-22-settings-brand-studio.md). The redesign preserves organization settings behavior and adds a shared searchable Popover combobox for form-backed selections.
 

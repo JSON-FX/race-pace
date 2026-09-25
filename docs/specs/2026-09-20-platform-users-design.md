@@ -10,7 +10,15 @@ The approved direction is a searchable table with a right-side inspector.
 
 The table shows the account identity, site registration date, sign-up provider, current events, managed Race Passports, and latest payment. The inspector keeps dense history out of the table and provides three views: Overview, All events, and Race Passports.
 
-Race Passport rows open an embedded detail view. It shows the participant avatar when a claimed account has one, current registrations, all registered events, and the latest payment.
+Race Passport rows show the participant avatar when a claimed account has one. They expand in place to show current registrations, all registered events, and the latest payment.
+
+## Passport details follow-up · 2026-09-25
+
+The Overview and Race Passports views show the account's own Passport and every Passport it manages. Each Passport expands independently in place. The first Passport starts open so an operator sees details immediately, while the remaining rows remain compact.
+
+Expanded details show saved identity, contact, safety, kit, and shipping fields. Empty fields say “Not provided.” Legacy values remain visible when the newer field is empty. The participant email on a managed Passport is labeled unverified; it is not an account sign-in identity. Location names come from the stored Philippine Standard Geographic Code tables, with the saved barangay code as a fallback.
+
+The existing registration, event, and latest-payment sections stay with their Passport. The list remains read-only and available only through the super-admin-checked platform-users Edge Function.
 
 ## Account state
 

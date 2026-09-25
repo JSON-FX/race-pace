@@ -1,9 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import {
-  ArrowLeft, CalendarDays, ChevronRight, Search, UserRoundCheck,
-} from "lucide-react";
+import { CalendarDays, ChevronDown, ChevronRight, Search, UserRoundCheck } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { initials, peso } from "@/lib/format";
@@ -92,34 +90,6 @@ function PaymentCard({ payment }: { payment: PlatformPayment | null }) {
   );
 }
 
-function PassportLine({ passport, onOpen }: { passport: PlatformPassport; onOpen: () => void }) {
-  return (
-    <button
-      type="button"
-      className="flex w-full items-center gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      onClick={onOpen}
-    >
-      <PhotoAvatar
-        url={passport.avatarUrl}
-        fallback={initials(passport.name)}
-        className="size-9"
-        fallbackClassName="bg-violet-50 text-violet-700"
-      />
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-[13px] font-semibold">{passport.name}</p>
-        <p className="truncate text-xs text-muted-foreground">
-          {passport.relationship === "own" ? "Own Race Passport" : "Managed participant"}
-          {passport.currentRegistrations[0] ? ` · ${passport.currentRegistrations[0].eventName}` : " · No current event"}
-        </p>
-      </div>
-      <StatusBadge tone={passport.claimed ? "paid" : "neutral"}>
-        {passport.claimed ? "Claimed" : "Managed"}
-      </StatusBadge>
-      <ChevronRight className="size-4 text-muted-foreground" aria-hidden />
-    </button>
-  );
-}
-
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="space-y-2.5">
@@ -129,42 +99,108 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function PassportDetail({ passport, onBack }: { passport: PlatformPassport; onBack: () => void }) {
+function PassportField({ label, value }: { label: string; value: string | null }) {
   return (
-    <div className="space-y-6">
-      <Button variant="ghost" size="sm" className="-ms-2" onClick={onBack}>
-        <ArrowLeft className="size-4" />All Race Passports
-      </Button>
-      <div className="flex items-center gap-3">
+    <div className="min-w-0">
+      <dt className="text-[11px] font-medium text-muted-foreground">{label}</dt>
+      <dd className="mt-0.5 break-words text-[13px] font-medium text-foreground">{value || "Not provided"}</dd>
+    </div>
+  );
+}
+
+function PassportCard({ passport, accountEmail, defaultOpen = false }: {
+  passport: PlatformPassport;
+  accountEmail: string;
+  defaultOpen?: boolean;
+}) {
+  const birthDate = passport.dateOfBirth && /^\d{4}-\d{2}-\d{2}$/.test(passport.dateOfBirth)
+    ? date(`${passport.dateOfBirth}T12:00:00`)
+    : passport.dateOfBirth;
+  const barangay = passport.shippingBarangay ?? (passport.shippingBarangayCode ? `${passport.shippingBarangayCode} (code)` : null);
+  return (
+    <details className="group overflow-hidden rounded-lg border bg-card" open={defaultOpen || undefined}>
+      <summary className="flex min-h-16 cursor-pointer list-none items-center gap-3 p-3 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring motion-reduce:transition-none [&::-webkit-details-marker]:hidden">
         <PhotoAvatar
           url={passport.avatarUrl}
           fallback={initials(passport.name)}
-          className="size-14"
-          fallbackClassName="bg-violet-50 text-base font-bold text-violet-700"
+          className="size-9"
+          fallbackClassName="bg-violet-50 text-violet-700"
         />
-        <div>
-          <p className="text-base font-bold">{passport.name}</p>
-          <p className="text-[13px] text-muted-foreground">
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[13px] font-semibold">{passport.name}</span>
+          <span className="block text-xs leading-4 text-muted-foreground">
             {passport.relationship === "own" ? "Own Race Passport" : "Managed Race Passport"}
-          </p>
-        </div>
+          </span>
+          {passport.currentRegistrations[0] ? <span className="block truncate text-xs text-muted-foreground">{passport.currentRegistrations[0].eventName}</span> : null}
+        </span>
+        <StatusBadge tone={passport.claimed ? "paid" : "neutral"}>
+          {passport.claimed ? "Claimed" : "Managed"}
+        </StatusBadge>
+        <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180 motion-reduce:transition-none" aria-hidden />
+      </summary>
+      <div className="space-y-5 border-t px-3 pb-4 pt-4">
+        <Section title="Participant details">
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
+            <PassportField label="First name" value={passport.firstName} />
+            <PassportField label="Last name" value={passport.lastName} />
+            <PassportField label="Date of birth" value={birthDate} />
+            <PassportField label="Gender" value={passport.gender ?? passport.legacyGender} />
+            <PassportField label="Team" value={passport.teamName} />
+            <PassportField label="Shirt size" value={passport.shirtSize} />
+            <PassportField label="Blood type" value={passport.bloodType} />
+            {passport.legacyFullName && !passport.firstName ? <PassportField label="Previously saved name" value={passport.legacyFullName} /> : null}
+            {passport.legacyBibName ? <PassportField label="Previously saved bib name" value={passport.legacyBibName} /> : null}
+          </dl>
+        </Section>
+        <Section title="Contact and safety">
+          <dl className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
+            <PassportField label={passport.relationship === "own" ? "Account email" : "Participant email (unverified)"} value={passport.relationship === "own" ? accountEmail : passport.participantEmail} />
+            <PassportField label="Contact number" value={passport.contactNumber} />
+            <PassportField label="Emergency contact" value={passport.emergencyContactName} />
+            <PassportField label="Emergency number" value={passport.emergencyContactNumber} />
+            <PassportField label="Emergency relationship" value={passport.emergencyContactRelationship} />
+            {passport.legacyEmergencyContact && !passport.emergencyContactName ? <PassportField label="Previously saved emergency contact" value={passport.legacyEmergencyContact} /> : null}
+          </dl>
+        </Section>
+        <Section title="Shipping address">
+          <dl className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
+            <PassportField label="Address line" value={passport.shippingAddressLine} />
+            <PassportField label="Barangay" value={barangay} />
+            <PassportField label="City or municipality" value={passport.shippingCity} />
+            <PassportField label="Province" value={passport.shippingProvince} />
+            <PassportField label="Region" value={passport.shippingRegion} />
+            <PassportField label="ZIP code" value={passport.shippingZipCode} />
+          </dl>
+        </Section>
+        <Section title="Current registrations">
+          <div className="space-y-2">
+            {passport.currentRegistrations.length
+              ? passport.currentRegistrations.map((registration) => <RegistrationLine key={registration.id} registration={registration} />)
+              : <p className="rounded-lg border px-3 py-4 text-[13px] text-muted-foreground">No current event registration.</p>}
+          </div>
+        </Section>
+        <Section title="Most recent payment"><PaymentCard payment={passport.latestPayment} /></Section>
+        <Section title="All registered events">
+          <div className="space-y-2">
+            {passport.registrations.length
+              ? passport.registrations.map((registration) => <RegistrationLine key={registration.id} registration={registration} />)
+              : <p className="rounded-lg border px-3 py-4 text-[13px] text-muted-foreground">No event registrations yet.</p>}
+          </div>
+        </Section>
       </div>
-      <Section title="Current registrations">
-        <div className="space-y-2">
-          {passport.currentRegistrations.length
-            ? passport.currentRegistrations.map((registration) => <RegistrationLine key={registration.id} registration={registration} />)
-            : <p className="rounded-lg border px-3 py-4 text-[13px] text-muted-foreground">No current event registration.</p>}
-        </div>
-      </Section>
-      <Section title="Most recent payment"><PaymentCard payment={passport.latestPayment} /></Section>
-      <Section title="All registered events">
-        <div className="space-y-2">
-          {passport.registrations.length
-            ? passport.registrations.map((registration) => <RegistrationLine key={registration.id} registration={registration} />)
-            : <p className="rounded-lg border px-3 py-4 text-[13px] text-muted-foreground">No event registrations yet.</p>}
-        </div>
-      </Section>
-    </div>
+    </details>
+  );
+}
+
+function PassportList({ user }: { user: PlatformUser }) {
+  return (
+    <Section title={`Race Passports managed (${user.passports.length})`}>
+      <div className="space-y-2">
+        {user.passports.length
+          ? user.passports.map((passport, index) => <PassportCard key={passport.id} passport={passport} accountEmail={user.email} defaultOpen={index === 0} />)
+          : <p className="rounded-lg border px-3 py-4 text-[13px] text-muted-foreground">No Race Passports found.</p>}
+      </div>
+    </Section>
   );
 }
 
@@ -177,7 +213,6 @@ function UserInspector({
   onStatusChange: (id: string, status: PlatformUser["status"]) => void;
 }) {
   const [tab, setTab] = useState<Tab>("overview");
-  const [passport, setPassport] = useState<PlatformPassport | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   if (!user) return null;
@@ -212,7 +247,7 @@ function UserInspector({
     <>
       <Sheet open={open} onOpenChange={(next) => {
         onOpenChange(next);
-        if (!next) { setTab("overview"); setPassport(null); }
+        if (!next) setTab("overview");
       }}>
         <SheetContent className="w-full gap-0 p-0 sm:max-w-[620px]" showCloseButton>
           <SheetHeader className="border-b px-6 pb-5 pt-6 pr-14 text-left">
@@ -237,24 +272,23 @@ function UserInspector({
             </div>
           </SheetHeader>
 
-          <nav aria-label="User details" className="flex gap-1 border-b px-6 py-3">
+          <nav aria-label="User details" className="flex gap-0 border-b px-2 py-2 sm:gap-1 sm:px-6 sm:py-3">
             {(["overview", "events", "passports"] as const).map((item) => (
               <Button
                 key={item}
                 type="button"
                 size="sm"
                 variant={tab === item ? "secondary" : "ghost"}
-                onClick={() => { setTab(item); setPassport(null); }}
+                className="h-11 px-2 text-xs sm:h-8 sm:px-3 sm:text-sm"
+                onClick={() => setTab(item)}
               >
                 {item === "overview" ? "Overview" : item === "events" ? "All events" : "Race Passports"}
               </Button>
             ))}
           </nav>
 
-          <div className="flex-1 overflow-y-auto px-6 py-6">
-            {passport ? <PassportDetail passport={passport} onBack={() => setPassport(null)} /> : null}
-
-            {!passport && tab === "overview" ? (
+          <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-6">
+            {tab === "overview" ? (
               <div className="space-y-6">
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                   <div className="rounded-lg bg-muted/60 p-3">
@@ -270,6 +304,7 @@ function UserInspector({
                     <p className="mt-1 text-[13px] font-semibold">{registrations.length}</p>
                   </div>
                 </div>
+                <PassportList user={user} />
                 <Section title="Current registrations">
                   <div className="space-y-2">
                     {current.length
@@ -278,17 +313,10 @@ function UserInspector({
                   </div>
                 </Section>
                 <Section title="Most recent payment"><PaymentCard payment={payment} /></Section>
-                <Section title="Race Passports managed">
-                  <div className="space-y-2">
-                    {user.passports.length
-                      ? user.passports.map((item) => <PassportLine key={item.id} passport={item} onOpen={() => setPassport(item)} />)
-                      : <p className="rounded-lg border px-3 py-4 text-[13px] text-muted-foreground">No Race Passports found.</p>}
-                  </div>
-                </Section>
               </div>
             ) : null}
 
-            {!passport && tab === "events" ? (
+            {tab === "events" ? (
               <Section title="All registered events">
                 <div className="space-y-2">
                   {registrations.length
@@ -298,23 +326,16 @@ function UserInspector({
               </Section>
             ) : null}
 
-            {!passport && tab === "passports" ? (
-              <Section title="Race Passports managed">
-                <div className="space-y-2">
-                  {user.passports.length
-                    ? user.passports.map((item) => <PassportLine key={item.id} passport={item} onOpen={() => setPassport(item)} />)
-                    : <p className="rounded-lg border px-3 py-4 text-[13px] text-muted-foreground">No Race Passports found.</p>}
-                </div>
-              </Section>
-            ) : null}
+            {tab === "passports" ? <PassportList user={user} /> : null}
           </div>
 
-          <div className="flex items-center justify-between gap-3 border-t bg-muted/30 px-6 py-4">
+          <div className="flex flex-col items-stretch gap-2 border-t bg-muted/30 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-6 sm:py-4">
             <p className="max-w-[360px] text-xs text-muted-foreground">
               Account status changes do not alter registrations, payments, or Race Passports.
             </p>
             <Button
               variant={user.status === "active" ? "destructive" : "default"}
+              className="w-full sm:w-auto"
               disabled={user.protectedAccount}
               title={user.protectedAccount ? "Super admin accounts are protected" : undefined}
               onClick={() => setConfirming(true)}

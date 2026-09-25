@@ -38,6 +38,29 @@ type PassportSnapshot = {
   avatarUrl: string | null;
   relationship: "own" | "managed";
   claimed: boolean;
+  firstName: string | null;
+  lastName: string | null;
+  legacyFullName: string | null;
+  legacyBibName: string | null;
+  legacyGender: string | null;
+  legacyEmergencyContact: string | null;
+  teamName: string | null;
+  dateOfBirth: string | null;
+  gender: string | null;
+  contactNumber: string | null;
+  participantEmail: string | null;
+  emergencyContactName: string | null;
+  emergencyContactNumber: string | null;
+  emergencyContactRelationship: string | null;
+  shirtSize: string | null;
+  bloodType: string | null;
+  shippingAddressLine: string | null;
+  shippingBarangayCode: string | null;
+  shippingBarangay: string | null;
+  shippingCity: string | null;
+  shippingProvince: string | null;
+  shippingRegion: string | null;
+  shippingZipCode: string | null;
   registrations: RegistrationSnapshot[];
   currentRegistrations: RegistrationSnapshot[];
   latestPayment: PaymentSnapshot | null;
@@ -61,6 +84,7 @@ type PlatformUserSnapshot = {
 
 const BAN_DURATION = "876000h";
 const CHUNK_SIZE = 100;
+const PASSPORT_SELECT = "id,claimed_user_id,created_by_user_id,first_name,last_name,legacy_full_name,legacy_bib_name,legacy_gender,legacy_emergency_contact,team_name,date_of_birth,gender,contact_number,participant_email,emergency_contact_name,emergency_contact_number,emergency_contact_relationship,shirt_size,blood_type,shipping_address_line,shipping_barangay_code,shipping_zip_code,created_at,psgc_barangays(name,psgc_cities(name,psgc_provinces(name),psgc_regions(name)))";
 
 function chunks<T>(values: T[], size = CHUNK_SIZE): T[][] {
   const result: T[][] = [];
@@ -108,7 +132,7 @@ async function readRows(db: Db, userIds: string[]) {
       db.from("user_roles").select("user_id,role").in("user_id", ids),
       db.from("passport_managers").select("user_id,passport_id").in("user_id", ids),
       db.from("runner_passports")
-        .select("id,claimed_user_id,created_by_user_id,first_name,last_name,legacy_full_name,created_at")
+        .select(PASSPORT_SELECT)
         .in("claimed_user_id", ids),
       db.from("registrations")
         .select("id,user_id,booked_by_user_id,participant_passport_id,booking_order_id,status,total_amount,created_at,events(name,event_date,status),categories(label),payments(method,amount,status,paid_at,created_at)")
@@ -128,7 +152,7 @@ async function readRows(db: Db, userIds: string[]) {
   for (const ids of chunks(managedIds)) {
     const [passportRes, registrationRes] = await Promise.all([
       db.from("runner_passports")
-        .select("id,claimed_user_id,created_by_user_id,first_name,last_name,legacy_full_name,created_at")
+        .select(PASSPORT_SELECT)
         .in("id", ids),
       db.from("registrations")
         .select("id,user_id,booked_by_user_id,participant_passport_id,booking_order_id,status,total_amount,created_at,events(name,event_date,status),categories(label),payments(method,amount,status,paid_at,created_at)")
@@ -245,12 +269,37 @@ function buildSnapshots(users: User[], rows: Awaited<ReturnType<typeof readRows>
       const payments = passportRegistrations.flatMap((registration) => registration.payment ? [registration.payment] : []);
       const claimedUserId = str(passport.claimed_user_id);
       const claimedProfile = claimedUserId ? profiles.get(claimedUserId) : null;
+      const barangay = one(passport.psgc_barangays);
+      const city = one(barangay?.psgc_cities);
       return {
         id: passportId,
         name: passportDisplayName(passport),
         avatarUrl: str(claimedProfile?.avatar_url),
         relationship: claimedUserId === user.id ? "own" : "managed",
         claimed: Boolean(claimedUserId),
+        firstName: str(passport.first_name),
+        lastName: str(passport.last_name),
+        legacyFullName: str(passport.legacy_full_name),
+        legacyBibName: str(passport.legacy_bib_name),
+        legacyGender: str(passport.legacy_gender),
+        legacyEmergencyContact: str(passport.legacy_emergency_contact),
+        teamName: str(passport.team_name),
+        dateOfBirth: str(passport.date_of_birth),
+        gender: str(passport.gender),
+        contactNumber: str(passport.contact_number),
+        participantEmail: str(passport.participant_email),
+        emergencyContactName: str(passport.emergency_contact_name),
+        emergencyContactNumber: str(passport.emergency_contact_number),
+        emergencyContactRelationship: str(passport.emergency_contact_relationship),
+        shirtSize: str(passport.shirt_size),
+        bloodType: str(passport.blood_type),
+        shippingAddressLine: str(passport.shipping_address_line),
+        shippingBarangayCode: str(passport.shipping_barangay_code),
+        shippingBarangay: str(barangay?.name),
+        shippingCity: str(city?.name),
+        shippingProvince: str(one(city?.psgc_provinces)?.name),
+        shippingRegion: str(one(city?.psgc_regions)?.name),
+        shippingZipCode: str(passport.shipping_zip_code),
         registrations: passportRegistrations,
         currentRegistrations: passportRegistrations.filter((registration) => isCurrentRegistration({ status: registration.status, eventDate: registration.eventDate, eventStatus: registration.eventStatus })),
         latestPayment: latestByDate(payments, (payment) => payment.paidAt),
