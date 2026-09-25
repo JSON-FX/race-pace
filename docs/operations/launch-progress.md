@@ -7,9 +7,9 @@ Scope: runner website and admin only. The first release is a controlled pilot wi
 
 | Work | Status | Blocker | Next task |
 |---|---|---|---|
-| Organizer Description and Home Base | **Implemented locally in the existing Settings design** | The branch has not been published or merged into staging. | Review the [updated Settings preview](../previews/organizers/admin-settings-profile-fields.html), then sync with current staging and prepare the scoped release. |
+| Organizer Description and Home Base | **Deployed and verified on staging in the existing Settings design** | None for the admin Settings scope. Production promotion and the public organizer directory are separate decisions. | Review [staging admin Settings](https://staging-admin.racepace.com.ph/settings); plan the Trail Atlas directory separately. |
 
-The local admin suite passed 913 tests, and admin TypeScript passed. The new nullable columns, update grants, and admin-only database guard passed a local transaction check that rolled back all schema and fixture changes. Hosted staging and production remain unchanged.
+Staging Settings release, 2026-09-25: PRs #126–#132 added the optional Organizer Description and Home Base fields to the existing Organization profile card, with no page redesign. The nullable Home Base columns, column-scoped grants, and admin-only database guard are applied to staging in migration `20260925000644_organizer_profile_home_base.sql`. The final application merge is `77a231b9cff199603fc2443a2d65e47b841a1434`; exact-merge CI run `36090968043` passed on its second attempt after an intermittent `next/font` error in the unchanged runner build. Admin deployment `dpl_3de3LV14pizRgWY5StD1dnJdXo7o` is Ready on `staging-admin.racepace.com.ph` at that revision. The final local admin suite passed 916 tests, typecheck, and production build. The hosted QA organizer saved a temporary description and City of Digos (`112403000`); database readback matched the city, province, and region labels. The page reloaded with both fields intact. Both values were then cleared through Settings, and database readback confirmed all five profile fields are null. Production application and database were not changed.
 
 ### Current Fieldnotes event workflow pilot
 
