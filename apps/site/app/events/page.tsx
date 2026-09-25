@@ -92,7 +92,7 @@ export default async function EventsPage({
               // Stagger caps at the sixth card: past that the last row would
               // wait most of a second, which reads as the page being slow.
               <Reveal key={e.id} delay={Math.min(i, 5) * 0.05}>
-                <FieldnotesEventCard event={e} index={i + 1} />
+                <FieldnotesEventCard event={e} />
               </Reveal>
             ))}
           </div>
