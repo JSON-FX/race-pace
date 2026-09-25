@@ -9,7 +9,7 @@ import { EVENT_DISCIPLINES, DISCIPLINE_LABELS, disciplineLayout } from "@race-pa
 import type { EditorData } from "@/lib/queries/event-editor";
 import { saveEventAction, type CategoryDraft, type AddonDraft, type EventDraft, type EditorState } from "@/lib/actions/events";
 import { toLocalInput, fromLocalInput } from "@/lib/deadlines";
-import { eventInputSchema, categoryInputSchema, addonInputSchema, sanitizeListFields, coordPairError, kitCutoffError, comingSoonPublicationError, EVENT_STATUSES } from "@/lib/validation";
+import { eventInputSchema, categoryInputSchema, addonInputSchema, sanitizeListFields, coordPairError, kitCutoffError, comingSoonPublicationError, eventCapacityError, EVENT_STATUSES } from "@/lib/validation";
 import { CategoryEditor, addCategory } from "@/components/CategoryEditor";
 import { AddonEditor } from "@/components/AddonEditor";
 import { ScheduleEditor } from "@/components/ScheduleEditor";
@@ -147,9 +147,18 @@ export function EventEditorForm({ initial, orgId, checkInDefault = true, canEdit
     const kitError = kitCutoffError(event);
     if (kitError) return kitError;
     for (const c of cats) if (!categoryInputSchema.safeParse(c).success) return "Fix the category rows (code, label, non-negative price/slots, gain 0-30000m, cut-off 0-240h).";
+    const capacityError = eventCapacityError(event, cats);
+    if (capacityError) return capacityError;
+    if ((event.status === "open" || event.status === "almost_full") && event.total_event_slots === null &&
+      (!initial || initial.event.status === "coming_soon")) {
+      return "Set total event slots before opening registration.";
+    }
+    if (initial?.event.total_event_slots != null && event.total_event_slots === null && event.status !== "draft") {
+      return "A published event must keep its total event slots.";
+    }
     for (const a of addons) if (!addonInputSchema.safeParse(a).success) return "Fix the add-on rows (name, non-negative price).";
     return null;
-  }, [event, cats, addons]);
+  }, [event, cats, addons, initial]);
 
   function onSave() {
     if (invalid) { setError(invalid); return; }
@@ -208,6 +217,7 @@ export function EventEditorForm({ initial, orgId, checkInDefault = true, canEdit
   // Same check `invalid` runs (via kitCutoffError) — kept separately here so the warning
   // renders under the Kit edits close field itself, not just in the Save-bar error banner.
   const kitBeforeReg = !!kitCutoffError(event);
+  const allocatedSlots = cats.reduce((sum, category) => sum + category.slots_total, 0);
 
   return (
     <div className="px-4 pb-4 pt-6 md:px-[30px]">
@@ -363,16 +373,11 @@ export function EventEditorForm({ initial, orgId, checkInDefault = true, canEdit
                     <span><strong className="block">Reserve now</strong><span className="text-muted-foreground">A separate, nonrefundable charge holds one event place.</span></span>
                   </label>
                   {event.coming_soon_reserve_enabled ? (
-                    <div className="grid gap-3 sm:grid-cols-3">
+                    <div className="grid gap-3 sm:grid-cols-2">
                       <Field label="Reservation fee (₱)" required hint="Runner also pays Platform Fees and PayMongo processing.">
                         <Input aria-label="Reservation fee in pesos" type="number" min="0.01" step="0.01" className={inputCls}
                           value={event.reservation_fee_cents == null ? "" : (event.reservation_fee_cents / 100).toFixed(2)}
                           onChange={(e) => set({ reservation_fee_cents: e.target.value === "" ? null : Math.round(Number(e.target.value) * 100) })} />
-                      </Field>
-                      <Field label="Total event slots" required hint="Capacity is never shown on the coming soon page.">
-                        <Input aria-label="Total event slots" type="number" min="1" step="1" className={inputCls}
-                          value={event.total_event_slots ?? ""}
-                          onChange={(e) => set({ total_event_slots: e.target.value === "" ? null : Number(e.target.value) })} />
                       </Field>
                       <Field label="Entry payment due" required hint="Reservations expire if registration remains unpaid.">
                         <Input aria-label="Reservation entry payment deadline" type="datetime-local" className={inputCls}
@@ -440,7 +445,21 @@ export function EventEditorForm({ initial, orgId, checkInDefault = true, canEdit
               </Button>
             }
           >
-            <CategoryEditor rows={cats} onChange={setCats} />
+            <div className="space-y-4">
+              <Field label="Total event slots" required={event.coming_soon_reserve_enabled || cats.length > 0}
+                hint="Event-wide capacity. Category slots divide this total; the coming soon page never shows remaining places.">
+                <Input aria-label="Total event slots" type="number" min="1" step="1" className={`${inputCls} max-w-48`}
+                  value={event.total_event_slots ?? ""}
+                  onChange={(e) => set({ total_event_slots: e.target.value === "" ? null : Number(e.target.value) })} />
+              </Field>
+              {event.total_event_slots !== null ? (
+                <p className="text-[12px] text-muted-foreground" aria-live="polite">
+                  {allocatedSlots} of {event.total_event_slots} slots allocated to categories
+                  {allocatedSlots <= event.total_event_slots ? ` · ${event.total_event_slots - allocatedSlots} unallocated` : " · over capacity"}
+                </p>
+              ) : null}
+              <CategoryEditor rows={cats} onChange={setCats} />
+            </div>
           </FormSection>
 
           <FormSection id="sec-images" title="Images" hideTitle>

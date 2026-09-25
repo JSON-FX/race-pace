@@ -70,6 +70,20 @@ it("explains that price edits refresh unpaid checkouts", () => {
   expect(screen.getByText(/Paid registrations keep their accepted prices/)).toBeInTheDocument();
 });
 
+it("keeps event capacity outside Coming Soon and blocks category over-allocation", () => {
+  const data = editorData({ status: "draft", total_event_slots: 4 });
+  data.categories = [{ id: "c1", code: "21k", label: "21K", distance_km: 21,
+    base_price: 10000, slots_total: 3, slots_taken: 0, elevation_gain_m: null,
+    cutoff_hours: null, blurb: null }];
+  render(<EventEditorForm initial={data} orgId="a1" />);
+  expect(screen.getByLabelText("Total event slots")).toHaveValue(4);
+  expect(screen.getByText(/3 of 4 slots allocated to categories/)).toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText("Slots"), { target: { value: "5" } });
+  fireEvent.click(screen.getByText("Save event"));
+  expect(screen.getByText(/Category slots \(5\) exceed total event slots \(4\)/)).toBeInTheDocument();
+  expect(mockSaveEventAction).not.toHaveBeenCalled();
+});
+
 it("blocks save on an empty name, then saves a valid new event", async () => {
   render(<EventEditorForm initial={null} orgId="a1" />);
   fireEvent.click(screen.getByText("Save event"));

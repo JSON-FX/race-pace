@@ -9,7 +9,7 @@ The organizer may enable either or both calls to action:
 - **Notify me** records a runner email and sends one message when registration first opens.
 - **Reserve now** charges a nonrefundable reservation fee. The runner also pays the method-dependent PayMongo processing fee and a separate Platform Fees charge. This reservation fee is never credited toward later registration.
 
-The organizer supplies the event's total capacity, the reservation fee, and the registration-payment deadline when reservations are enabled. The platform operator sets a distinct reservation commission on `/commission`. The runner receives one event place; they select an available category during registration. No public coming-soon surface displays the number of remaining places.
+The organizer supplies the event's total capacity in the Categories section. Reserve now also requires a reservation fee and registration-payment deadline. The platform operator sets a distinct reservation commission on `/commission`. The runner receives one event place; they select an available category during registration. Category slots can remain unassigned while Coming Soon, but must sum to the event total before registration opens. No public coming-soon surface displays the number of remaining places.
 
 A booker may select one to ten accessible own or managed Race Passports in one reservation checkout. Each selected Passport receives one event place. The own Passport is optional. The reservation fee and Platform Fees apply for each selected place, while PayMongo calculates one fee for the shared checkout. The later registration still requires a separate entry payment for each participant.
 

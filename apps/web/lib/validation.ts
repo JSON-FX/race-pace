@@ -99,6 +99,25 @@ export function comingSoonPublicationError(e: z.infer<typeof eventInputSchema>):
   return null;
 }
 
+/** Category places partition the event total; a teaser may leave them unassigned. */
+export function eventCapacityError(
+  event: { status: string; total_event_slots: number | null },
+  categories: { slots_total: number }[],
+): string | null {
+  const allocated = categories.reduce((sum, category) => sum + category.slots_total, 0);
+  if (categories.length > 0 && event.total_event_slots === null) {
+    return "Set total event slots before adding category slots.";
+  }
+  if (event.total_event_slots !== null && allocated > event.total_event_slots) {
+    return `Category slots (${allocated}) exceed total event slots (${event.total_event_slots}).`;
+  }
+  if ((event.status === "open" || event.status === "almost_full") &&
+    event.total_event_slots !== null && allocated !== event.total_event_slots) {
+    return `Allocate all ${event.total_event_slots} event slots across categories before opening registration.`;
+  }
+  return null;
+}
+
 /**
  * Mirrors events_start_coords_paired / events_finish_coords_paired
  * (supabase/migrations/20260806160000_event_course_coordinates.sql:

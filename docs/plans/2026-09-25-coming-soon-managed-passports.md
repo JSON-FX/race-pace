@@ -93,6 +93,5 @@ environment, away from the Docker bind-mounted `.next` directories.
 
 - The user's selected direction is one checkout for multiple Passports.
 - Own Passport participation is optional, matching current group entry.
-- A follow-up may move event capacity to a general editor section and make
-  category allocations sum exactly to it. That broader migration is not
-  needed to secure multiple Coming Soon places safely.
+- The event-capacity follow-up is tracked in
+  [2026-09-26-event-capacity-allocation.md](2026-09-26-event-capacity-allocation.md).

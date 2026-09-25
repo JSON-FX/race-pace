@@ -89,7 +89,7 @@ export function EventsTable({ rows, total, page, per, sort, activeFilters, q, ca
             return <span className="tabular">{row.original.total_event_slots} total</span>;
           }
           const taken = row.original.categories.reduce((n, c) => n + c.slots_taken, 0);
-          const totalSlots = row.original.categories.reduce((n, c) => n + c.slots_total, 0);
+          const totalSlots = row.original.total_event_slots ?? row.original.categories.reduce((n, c) => n + c.slots_total, 0);
           return <span className="tabular">{taken} / {totalSlots}</span>;
         },
       },
