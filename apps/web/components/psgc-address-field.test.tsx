@@ -87,13 +87,13 @@ it("clears a selected city, keeping the region/province, same as the old empty o
   expect(onChange).toHaveBeenLastCalledWith({ city_psgc_code: null, city_name: null, province_name: "Davao del Sur", region_name: "Davao Region" });
 });
 
-it("commits city selection to a sibling profile form input", async () => {
+it("commits a native city selection to a sibling profile form input", async () => {
   const user = userEvent.setup();
   function ProfileAddress() {
     const [address, setAddress] = useState<PsgcAddress | null>(null);
     return <>
-      <form><input type="hidden" data-testid="home-city-code" value={address?.city_psgc_code ?? ""} readOnly /></form>
-      <PsgcAddressField value={address} onChange={setAddress} />
+      <form id="profile-form" data-testid="profile-form" />
+      <PsgcAddressField value={address} onChange={setAddress} nativeCitySelect cityForm="profile-form" cityName="homeCityPsgcCode" />
     </>;
   }
 
@@ -102,13 +102,27 @@ it("commits city selection to a sibling profile form input", async () => {
   await user.click(await screen.findByRole("option", { name: "Davao Region" }));
   await user.click(screen.getByLabelText("Province"));
   await user.click(await screen.findByRole("option", { name: "Davao del Sur" }));
-  await user.click(screen.getByLabelText("City"));
-  await user.click(await screen.findByRole("option", { name: "City of Digos" }));
-  expect(screen.getByTestId("home-city-code")).toHaveValue("112603");
+  await user.selectOptions(screen.getByLabelText("City"), "112603");
+  expect(new FormData(screen.getByTestId("profile-form") as HTMLFormElement).get("homeCityPsgcCode")).toBe("112603");
 
-  await user.click(screen.getByLabelText("City"));
-  await user.click(await screen.findByRole("option", { name: "— None —" }));
-  expect(screen.getByTestId("home-city-code")).toHaveValue("");
+  await user.selectOptions(screen.getByLabelText("City"), "");
+  expect(new FormData(screen.getByTestId("profile-form") as HTMLFormElement).get("homeCityPsgcCode")).toBe("");
+});
+
+it("preserves a stored native city code while address options load", () => {
+  regions = { data: undefined };
+  provinces = { data: undefined, isSuccess: false };
+  cities = { data: undefined };
+  render(<>
+    <form id="profile-form" data-testid="profile-form" />
+    <PsgcAddressField
+      value={{ city_psgc_code: "112603", city_name: "City of Digos", province_name: "Davao del Sur", region_name: "Davao Region" }}
+      onChange={vi.fn()}
+      nativeCitySelect cityForm="profile-form" cityName="homeCityPsgcCode"
+    />
+  </>);
+  expect(screen.getByLabelText("City")).toBeDisabled();
+  expect(new FormData(screen.getByTestId("profile-form") as HTMLFormElement).get("homeCityPsgcCode")).toBe("112603");
 });
 
 it("pre-selects region/province/city from a stored city code (edit-seed)", async () => {
