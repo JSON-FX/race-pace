@@ -10,6 +10,8 @@ import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { peso } from "@/lib/format";
 import { FeeTermsTable, RefundTermsTable } from "./terms-row";
+import { ReservationTermsTable } from "./reservation-terms-table";
+import { listReservationPayoutRows } from "@/lib/queries/reservation-payouts";
 
 const TH = "h-9 px-[14px] text-[10.5px] font-bold uppercase tracking-[0.05em] text-muted-foreground";
 
@@ -34,9 +36,10 @@ export default async function CommissionPage() {
   // underneath — this is the UI half, not the boundary.
   if (!hasCapability(roles?.capabilities ?? [], "manage_platform")) notFound();
 
-  const [{ orgs, events, totals }, drift] = await Promise.all([
+  const [{ orgs, events, totals }, drift, reservationRows] = await Promise.all([
     getCommissionOverview(),
     getRateDrift(),
+    listReservationPayoutRows(),
   ]);
 
   // charged_gross, NOT gross. A rate is struck on what the runner was charged, so
@@ -63,7 +66,7 @@ export default async function CommissionPage() {
         <div>
           <h1 className="text-[21px] font-bold tracking-[-0.02em]">Commission</h1>
           <p className="mt-0.5 text-[13px] text-muted-foreground">
-            What Race Pace charges each organizer, and what a cancelling runner gets back.
+            Registration commission, reservation Platform Fees, and refund policies by organizer.
           </p>
         </div>
       </div>
@@ -148,7 +151,12 @@ export default async function CommissionPage() {
           <Card className="gap-0 overflow-hidden rounded-xl border py-0 shadow-card">
             <CardHead title="Rate per organization" aside="Applies to future registrations only" />
             <FeeTermsTable orgs={orgs} />
-          </Card>
+        </Card>
+
+        <Card className="gap-0 overflow-hidden rounded-xl border py-0 shadow-card">
+          <CardHead title="Reservation Platform Fees" aside="Separate from registration commission" />
+          <ReservationTermsTable orgs={orgs} />
+        </Card>
 
           {/* Refund policy sits on THIS page, under the fee table: one org's
               commercial terms belong on one screen, or an operator negotiating
@@ -204,6 +212,25 @@ export default async function CommissionPage() {
             </TableBody>
           </Table>
         )}
+      </Card>
+
+      <Card className="mt-3 gap-0 overflow-hidden rounded-xl border py-0 shadow-card">
+        <CardHead title="Reservation Platform Fees earned" aside="Separate from registration commission" />
+        {reservationRows.length ? <Table>
+          <TableHeader><TableRow>
+            <TableHead className={TH}>Event</TableHead><TableHead className={TH}>Organization</TableHead>
+            <TableHead className={`${TH} text-right`}>Paid reservations</TableHead>
+            <TableHead className={`${TH} text-right`}>Charged gross</TableHead>
+            <TableHead className={`${TH} text-right`}>Platform Fees</TableHead>
+          </TableRow></TableHeader>
+          <TableBody>{reservationRows.map((row) => <TableRow key={row.eventId}>
+            <TableCell className="px-[14px] font-semibold">{row.eventName}</TableCell>
+            <TableCell className="px-[14px]">{row.orgName}</TableCell>
+            <TableCell className="px-[14px] text-right">{row.paidCount}</TableCell>
+            <TableCell className="px-[14px] text-right">{peso(row.grossCents)}</TableCell>
+            <TableCell className="px-[14px] text-right font-semibold">{peso(row.platformFeeCents)}</TableCell>
+          </TableRow>)}</TableBody>
+        </Table> : <div className="px-4 py-6 text-sm text-muted-foreground">No paid reservations yet.</div>}
       </Card>
     </div>
   );

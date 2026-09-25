@@ -180,11 +180,7 @@ export function FeaturedRace({
               />
             )}
             <Stat label="Distances" dark={dark} value={<CountUp value={distanceCount} />} />
-            <Stat
-              label="Slots left"
-              dark={dark}
-              value={slotsLeft != null ? <CountUp value={slotsLeft} /> : <>—</>}
-            />
+            {slotsLeft != null ? <Stat label="Slots left" dark={dark} value={<CountUp value={slotsLeft} />} /> : null}
           </dl>
 
           <Link

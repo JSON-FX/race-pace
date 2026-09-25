@@ -27,6 +27,7 @@ const STATUS_FILTER: FilterDef = {
   label: "Status",
   options: [
     { value: "draft", label: "Draft" },
+    { value: "coming_soon", label: "Coming soon" },
     { value: "open", label: "Open" },
     { value: "almost_full", label: "Almost full" },
     { value: "closed", label: "Closed" },
@@ -84,6 +85,9 @@ export function EventsTable({ rows, total, page, per, sort, activeFilters, q, ca
         header: "Slots",
         enableSorting: false,
         cell: ({ row }) => {
+          if (row.original.status === "coming_soon" && row.original.total_event_slots) {
+            return <span className="tabular">{row.original.total_event_slots} total</span>;
+          }
           const taken = row.original.categories.reduce((n, c) => n + c.slots_taken, 0);
           const totalSlots = row.original.categories.reduce((n, c) => n + c.slots_total, 0);
           return <span className="tabular">{taken} / {totalSlots}</span>;
@@ -125,6 +129,9 @@ export function EventsTable({ rows, total, page, per, sort, activeFilters, q, ca
             <DropdownMenuContent align="end">
               <DropdownMenuItem asChild>
                 <Link href={`/events/${row.original.id}/edit`}>Edit</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href={`/events/${row.original.id}/reservations`}>Early reservations</Link>
               </DropdownMenuItem>
               {row.original.slug ? (
                 <DropdownMenuItem

@@ -27,9 +27,10 @@ import { RaceBib, RaceBibHeading } from "@/components/registration/RaceBib";
 import { cn } from "@/lib/utils";
 import styles from "./RegisterWizard.module.css";
 
-export function RegisterWizard({ userId, category, event, addons, formFields, passport, email, waiver, participantId, assisted = false }: {
+export function RegisterWizard({ userId, category, event, addons, formFields, passport, email, waiver, participantId, assisted = false, reservationId }: {
   participantId?: string;
   assisted?: boolean;
+  reservationId?: string;
   waiver?: { id: string; title: string; body: string } | null;
   userId: string;
   passport?: PassportInput;
@@ -191,6 +192,7 @@ export function RegisterWizard({ userId, category, event, addons, formFields, pa
         waiver_accepted: true,
         waiver_version_id: waiver?.id,
         idempotency_key: draft.idempotencyKey,
+        ...(reservationId ? { event_reservation_id: reservationId } : {}),
       });
 
       clearDraft(draftKey);

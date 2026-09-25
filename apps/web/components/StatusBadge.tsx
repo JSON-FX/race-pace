@@ -71,6 +71,7 @@ export function RegistrationStatusBadge({ status }: { status: string | null }) {
 }
 
 const EVENT: Record<string, { label: string; tone: BadgeTone }> = {
+  coming_soon: { label: "Coming soon", tone: "info" },
   open: { label: "Open", tone: "highlight" },
   almost_full: { label: "Almost full", tone: "pending" },
   cancelled: { label: "Cancelled", tone: "danger" },

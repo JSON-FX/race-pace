@@ -114,7 +114,7 @@ export async function pmCreateCheckoutSession(input: CreateSessionInput): Promis
             cancel_url: input.cancelUrl,
             metadata: input.metadata,
             billing: input.billing,
-            ...(input.passOnFees ? { pass_on_fees: true, reference_number: input.metadata?.registration_id } : {}),
+            ...(input.passOnFees ? { pass_on_fees: true, reference_number: input.metadata?.registration_id ?? input.metadata?.reservation_id } : {}),
           },
         },
       }),

@@ -92,6 +92,29 @@ export async function saveFeeTermsAction(_prev: TermsState, formData: FormData):
   return write(orgId, patch, "Fee terms saved. Entries paid from now on use them.");
 }
 
+/** Reservation Platform Fees are independent of the normal registration commission. */
+export async function saveReservationFeeTermsAction(_prev: TermsState, formData: FormData): Promise<TermsState> {
+  const orgId = String(formData.get("orgId") ?? "");
+  const type = String(formData.get("reservation_commission_type") ?? "");
+  if (!orgId) return { error: "Missing organization." };
+  if (type !== "percent" && type !== "fixed") return { error: "Choose a percentage or a flat fee." };
+  const roles = await getMyRoles();
+  const denied = assertSuperAdmin(roles);
+  if (denied) return { error: denied };
+  const raw = String(formData.get("reservation_commission_percent") ?? "").trim();
+  const percent = Number(raw);
+  if (!raw || !Number.isFinite(percent) || percent < 0 || percent > 100 || Math.round(percent * 100) !== percent * 100) {
+    return { error: "Enter a percentage from 0 to 100 with at most two decimals." };
+  }
+  const flat = parsePesos(String(formData.get("reservation_commission_flat_pesos") ?? ""));
+  if ("error" in flat) return { error: flat.error };
+  return write(orgId, {
+    reservation_commission_type: type,
+    reservation_commission_rate: percentToRate(percent),
+    reservation_commission_flat_cents: flat.cents,
+  }, "Reservation Platform Fees saved. Existing reservations keep their original fee.");
+}
+
 /** Save one organization's REFUND policy. Same split-write reasoning as
  *  `saveFeeTermsAction`. */
 export async function saveRefundTermsAction(_prev: TermsState, formData: FormData): Promise<TermsState> {

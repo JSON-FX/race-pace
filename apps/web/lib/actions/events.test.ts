@@ -42,6 +42,8 @@ function baseEvent(overrides: Partial<EventDraft> = {}): EventDraft {
   return {
     org_id: "a1", name: "Apo Sky Ultra", slug: "apo-sky-ultra", city_psgc_code: null, region_name: null, province_name: null, city_name: null, venue: null,
     event_date: null, end_date: null, flag_off: null, status: "draft", discipline: "trail",
+    coming_soon_notify_enabled: false, coming_soon_reserve_enabled: false,
+    reservation_fee_cents: null, reservation_deadline_at: null, total_event_slots: null,
     check_in_required: true,
     registration_closes_at: null, kit_edit_closes_at: null,
     elevation_gain_m: null, cutoff_hours: null, start_lat: null, start_lng: null, finish_lat: null, finish_lng: null,

@@ -14,6 +14,7 @@ import { PaymentsEventPicker } from "./event-picker";
 import { ALL_EVENTS } from "./constants";
 import { PaymentsKpiSection } from "./kpi-section";
 import { PaymentsTableSection } from "./table-section";
+import { ReservationPaymentSection } from "./reservation-section";
 
 const DEFAULTS = {
   sort: [{ id: "created_at", desc: true }],
@@ -87,7 +88,7 @@ export default async function PaymentsPage({
         <Button variant="outline" asChild>
           <Link href={exportHref}>
             <Download />
-            Export CSV
+            Export registration CSV
           </Link>
         </Button>
         </div>
@@ -99,6 +100,9 @@ export default async function PaymentsPage({
 
       <Suspense key={`table-${sectionKey}`} fallback={<DataTableSkeleton rows={8} columns={6} />}>
         <PaymentsTableSection orgId={orgId} params={params} />
+      </Suspense>
+      <Suspense key={`reservations-${sectionKey}`} fallback={<DataTableSkeleton rows={3} columns={6} />}>
+        <ReservationPaymentSection orgId={orgId} eventId={activeEvent === ALL_EVENTS ? undefined : activeEvent} />
       </Suspense>
     </div>
   );

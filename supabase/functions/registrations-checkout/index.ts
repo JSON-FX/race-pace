@@ -91,6 +91,25 @@ Deno.serve(async (req) => {
       if (!event.waiver_version_id || input.waiver_acceptance_method !== "participant_on_helper_device") return json({ error: "participant_acceptance_required" }, 422);
     }
 
+    if (input.event_reservation_id) {
+      const { data: held } = await db.from("event_reservations")
+        .select("id,event_id,org_id,user_id,status,registration_deadline_at")
+        .eq("id", input.event_reservation_id).maybeSingle();
+      if (!held || held.event_id !== input.event_id || held.org_id !== category.org_id ||
+          held.user_id !== userId || held.status !== "paid" ||
+          Date.parse(held.registration_deadline_at) <= Date.now()) {
+        return json({ error: "invalid_event_reservation" }, 409);
+      }
+      const { data: places, error: placesError } = await db.from("event_reservation_places")
+        .select("participant_passport_id,status").eq("reservation_id", held.id);
+      if (placesError) return json({ error: "reservation_unavailable" }, 503);
+      if (places?.length
+        ? !places.some((place) => place.participant_passport_id === passport.id && place.status === "held")
+        : assisted) {
+        return json({ error: "invalid_event_reservation" }, 409);
+      }
+    }
+
     // One live entry per event. The partial unique index
     // registrations_one_live_per_event is the real enforcement -- this read
     // races by nature (two concurrent calls both see zero rows) and the 23505
@@ -213,6 +232,7 @@ Deno.serve(async (req) => {
         waiver_version_id: input.waiver_version_id ?? null,
         custom_data: input.custom_data, waiver_accepted_at: new Date().toISOString(),
         idempotency_key: input.idempotency_key,
+        event_reservation_id: input.event_reservation_id ?? null,
       }).select().single();
 
     const idempotentEntryQuery = () =>
@@ -229,6 +249,8 @@ Deno.serve(async (req) => {
     let { data: reg, error: regErr } = await insertRegistration();
 
     if (regErr?.message?.includes("category_capacity_exhausted")) return json({ error: "sold_out" }, 409);
+    if (regErr?.message?.includes("event_capacity_exhausted")) return json({ error: "sold_out" }, 409);
+    if (regErr?.message?.includes("invalid_event_reservation")) return json({ error: "invalid_event_reservation" }, 409);
     if (regErr?.message?.includes("waiver_version_changed")) return json({ error: "waiver_version_changed" }, 409);
 
     if ((regErr || !reg) && regErr?.code === "23505" && !isLiveGateViolation(regErr)) {
@@ -259,6 +281,7 @@ Deno.serve(async (req) => {
         await expireLapsedRow(winner.id);
         const retry = await insertRegistration();
         if (retry.error?.message?.includes("category_capacity_exhausted")) return json({ error: "sold_out" }, 409);
+        if (retry.error?.message?.includes("event_capacity_exhausted")) return json({ error: "sold_out" }, 409);
         if (!retry.error && retry.data) {
           reg = retry.data;
           regErr = null;

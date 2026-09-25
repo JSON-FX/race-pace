@@ -460,3 +460,18 @@ verify_jwt = false
 
 [functions.expire-paymongo-checkouts]
 verify_jwt = false
+
+[functions.reservation-checkout]
+verify_jwt = true
+
+[functions.reservation-verify]
+verify_jwt = true
+
+[functions.coming-soon-subscribe]
+verify_jwt = true
+
+[functions.coming-soon-delivery]
+verify_jwt = false
+
+[functions.expire-coming-soon-reservations]
+verify_jwt = false

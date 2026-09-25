@@ -4,6 +4,7 @@ import { render, screen } from "@testing-library/react";
 const getMyRoles = vi.fn();
 const getCommissionOverview = vi.fn();
 const getRateDrift = vi.fn();
+const listReservationPayoutRows = vi.fn();
 const notFound = vi.fn(() => {
   throw new Error("NEXT_NOT_FOUND");
 });
@@ -18,6 +19,7 @@ vi.mock("@/lib/queries/commission", async (importOriginal) => {
   };
 });
 vi.mock("next/navigation", () => ({ notFound: () => notFound() }));
+vi.mock("@/lib/queries/reservation-payouts", () => ({ listReservationPayoutRows: () => listReservationPayoutRows() }));
 
 import CommissionPage from "./page";
 
@@ -42,6 +44,7 @@ beforeEach(() => {
   getMyRoles.mockReset();
   getCommissionOverview.mockReset().mockResolvedValue(emptyOverview);
   getRateDrift.mockReset().mockResolvedValue([]);
+  listReservationPayoutRows.mockReset().mockResolvedValue([]);
   notFound.mockClear();
 });
 

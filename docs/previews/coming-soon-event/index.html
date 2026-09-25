@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Coming Soon event · Race Pace prototype</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="prototype.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <div class="prototype-bar">
+    <div class="prototype-inner">
+      <span class="prototype-label">Race Pace / design prototype</span>
+      <span class="prototype-note">Illustrative event and prices · no data is saved or payment taken</span>
+      <a class="prototype-options-link" href="runner-options.html">See 4 more runner designs <span aria-hidden="true">→</span></a>
+    </div>
+  </div>
+
+  <nav class="view-nav" aria-label="Prototype views">
+    <div class="view-nav-inner" role="tablist" aria-label="Prototype views">
+      <button class="view-tab" type="button" role="tab" id="tab-runner" aria-controls="view-runner" aria-selected="true" data-view="runner">Runner page</button>
+      <button class="view-tab" type="button" role="tab" id="tab-editor" aria-controls="view-editor" aria-selected="false" tabindex="-1" data-view="editor">Event editor</button>
+      <button class="view-tab" type="button" role="tab" id="tab-commission" aria-controls="view-commission" aria-selected="false" tabindex="-1" data-view="commission">Commission</button>
+    </div>
+  </nav>
+
+  <main id="main">
+    <section class="view" id="view-runner" role="tabpanel" aria-labelledby="tab-runner">
+      <header class="site-header">
+        <div class="site-header-inner">
+          <a class="brand" href="#view-runner" aria-label="Race Pace prototype home">
+            <img src="../../../apps/site/public/topnav-logo.png" width="42" height="42" alt="">
+            <span>Race Pace</span>
+          </a>
+          <span class="site-header-context">Find your next start line</span>
+          <span class="site-header-link">Events <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg> Coming soon</span>
+        </div>
+      </header>
+
+      <div class="runner-shell" id="runner-content">
+        <section class="hero" aria-label="Event introduction">
+          <img id="hero-photo" src="ridgeline-runners.webp" width="1536" height="1024" alt="Trail runners following a green mountain ridge above a misty forest at dawn">
+          <div class="hero-shade"></div>
+          <span class="hero-status"><span class="status-dot"></span> Coming soon</span>
+          <div class="hero-copy">
+            <p class="hero-discipline" id="runner-discipline">Trail running</p>
+            <h1 id="runner-title">Highland Traverse</h1>
+            <p class="hero-subline">A new trail event is on its way.</p>
+          </div>
+          <span class="hero-image-credit">Concept event · generated preview imagery</span>
+        </section>
+
+        <div class="runner-grid">
+          <div class="story-column">
+            <div class="event-facts" aria-label="Known event details">
+              <div><span>Discipline</span><strong id="fact-discipline">Trail running</strong></div>
+              <div><span>Registration</span><strong>Not open yet</strong></div>
+              <div><span>Event date</span><strong>To be announced</strong></div>
+            </div>
+            <section class="story-section">
+              <h2>An event in the making.</h2>
+              <p id="runner-description">Follow the next trail story as it takes shape. The route, date, and race categories will be shared when registration opens.</p>
+              <p class="story-caveat">Full event details and registration will appear here when the organizer opens entries.</p>
+            </section>
+            <div class="story-rule"></div>
+            <section class="what-next">
+              <h2>What happens next</h2>
+              <ol>
+                <li><span class="step-number">1</span><div><strong>Choose your place</strong><p>Reserve a slot now, or ask for an email when registration opens.</p></div></li>
+                <li><span class="step-number">2</span><div><strong>Watch for registration</strong><p>The organizer will publish the full race details before entries open.</p></div></li>
+                <li><span class="step-number">3</span><div><strong>Complete and pay by the deadline</strong><p>When entries open, finish your registration and pay for it by the stated deadline. After that, the reservation expires and its place returns to event inventory.</p></div></li>
+              </ol>
+            </section>
+          </div>
+
+          <aside class="action-column" aria-label="Early interest options">
+            <section class="reserve-panel" id="reserve-panel">
+              <div class="panel-heading"><span class="panel-graphic" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M4 25 12 7l6 10 4-6 6 14H4Z"/><path d="M11 25c3-6 7-5 10-1"/></svg></span><span>Early access</span></div>
+              <h2>Make room for the next adventure.</h2>
+              <p>Pay a separate reservation fee to secure one place before registration opens.</p>
+              <div class="deadline-box"><span>Complete registration and payment by</span><strong id="runner-deadline">15 October 2026 · 11:59 PM PHT</strong><small>After this deadline, the reservation expires and the place becomes available again.</small></div>
+              <div class="reserve-base"><span>Reservation fee set by organizer</span><strong id="reserve-base">₱500.00</strong></div>
+              <div class="method-field">
+                <label for="payment-method">Payment method</label>
+                <select id="payment-method">
+                  <option value="gcash">GCash</option>
+                  <option value="maya">Maya</option>
+                  <option value="card">Card</option>
+                  <option value="qrph">QR Ph</option>
+                </select>
+              </div>
+              <dl class="fee-lines">
+                <div><dt>Reservation fee</dt><dd id="fee-base">₱500.00</dd></div>
+                <div><dt>Platform Fees</dt><dd id="fee-platform">₱15.00</dd></div>
+                <div><dt>PayMongo processing fee <span class="fee-help">estimated</span></dt><dd id="fee-processor">₱13.21</dd></div>
+                <div class="fee-total"><dt>Pay today</dt><dd id="fee-total">₱528.21</dd></div>
+              </dl>
+              <p class="fee-detail">Processing is calculated from the selected payment method and the final charged amount. The payment page will confirm the exact total.</p>
+              <button class="button button-light" type="button" id="reserve-button">Continue to reservation</button>
+              <p class="reserve-small"><strong>No refunds for the reservation fee.</strong> A confirmed payment secures a place until the deadline. It does not create a race ticket or pay the later registration fee.</p>
+            </section>
+
+            <section class="notify-panel" id="notify-panel">
+              <div class="notify-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg></div>
+              <div>
+                <h2>Prefer to wait?</h2>
+                <p>Get one email when this event opens for registration.</p>
+                <form id="notify-form">
+                  <label for="notify-email">Email address</label>
+                  <div class="notify-fields"><input id="notify-email" type="email" autocomplete="email" placeholder="you@example.com" required><button class="button button-green" type="submit">Notify me</button></div>
+                  <p class="form-feedback" id="notify-feedback" role="status" aria-live="polite"></p>
+                </form>
+              </div>
+            </section>
+          </aside>
+        </div>
+      </div>
+      <div class="unpublished" id="unpublished-state" hidden><h1>This preview is off.</h1><p>Turn on “Display as coming soon” in the event editor to make the event page available.</p><button class="button button-green" type="button" data-open-view="editor">Open event editor</button></div>
+      <footer class="site-footer"><span>Race Pace</span><span>A place for every start line.</span></footer>
+    </section>
+
+    <section class="view admin-view" id="view-editor" role="tabpanel" aria-labelledby="tab-editor" hidden>
+      <div class="admin-topline"><span>Race Pace Admin</span><span>Events / New event</span><span class="admin-persona">Organizer view</span></div>
+      <div class="admin-shell">
+        <div class="admin-heading"><div><p class="admin-path">Events / Create event</p><h1>Create an event</h1><p>Start with a public preview. Add the full race details when you are ready to open registration.</p></div><button class="button button-green" type="button" id="save-preview">Save preview</button></div>
+        <div class="editor-layout">
+          <div class="editor-main">
+            <section class="editor-section">
+              <div class="editor-section-head"><h2>Event basics</h2><p>These five details are enough for an information-only coming soon page.</p></div>
+              <div class="editor-fields">
+                <div class="field"><label for="event-name">Event name <span>*</span></label><input id="event-name" value="Highland Traverse" required></div>
+                <div class="field"><label for="event-link">Public event link <span>*</span></label><div class="prefix-field"><span>racepace.com.ph/events/</span><input id="event-link" value="highland-traverse" required aria-label="Public event link slug"></div><small>Generated from the name. This link becomes fixed when published.</small></div>
+                <div class="field"><label for="event-discipline">Discipline <span>*</span></label><select id="event-discipline"><option>Trail running</option><option>Ultramarathon</option><option>Road running</option><option>Fun run</option></select></div>
+                <div class="field field-full"><label for="event-image">Cover image <span>*</span></label><div class="upload-row"><img id="editor-cover" src="ridgeline-runners.webp" width="180" height="110" alt="Current event cover preview"><div><input id="event-image" type="file" accept="image/*"><small>Upload a landscape image. This preview uses generated concept photography.</small></div></div></div>
+                <div class="field field-full"><label for="event-description">Description <span>*</span></label><textarea id="event-description" rows="4" required>Follow the next trail story as it takes shape. The route, date, and race categories will be shared when registration opens.</textarea></div>
+              </div>
+            </section>
+
+            <section class="editor-section publish-section">
+              <div class="editor-section-head"><h2>Public preview</h2><p>Control how runners can respond before registration starts.</p></div>
+              <label class="choice-row" for="coming-soon-toggle"><span><strong>Display as coming soon</strong><small>Publish this preview without a date, location, categories, or entry price.</small></span><input class="toggle" type="checkbox" id="coming-soon-toggle" checked></label>
+              <div id="preview-options">
+                <label class="choice-row" for="reserve-toggle"><span><strong>Reserve now</strong><small>Paid reservations draw from total event capacity. The reservation fee is not refundable.</small></span><input class="toggle" type="checkbox" id="reserve-toggle" checked></label>
+                <div class="nested-fields" id="reserve-options">
+                  <div class="field"><label for="reservation-fee">Reservation fee <span>*</span></label><div class="peso-field"><span>₱</span><input id="reservation-fee" type="number" min="1" step="0.01" value="500.00" inputmode="decimal"></div><small>Set by the organizer. Fees below are passed to the runner.</small></div>
+                  <div class="field"><label for="total-event-slots">Total event slots <span>*</span></label><input id="total-event-slots" type="number" min="1" step="1" value="50" inputmode="numeric"><small>Reservations use this event capacity. Slot counts stay off the public preview.</small></div>
+                  <div class="field field-full"><label for="reservation-deadline">Registration payment deadline for reserved runners <span>*</span></label><input id="reservation-deadline" type="datetime-local" value="2026-10-15T23:59" required><small>Philippine time. If the runner does not complete registration and secure payment by this date, the reservation expires and its place returns to event inventory. The reservation fee is not refunded.</small></div>
+                  <div class="terms-note"><strong>Runner pays</strong><span>Reservation fee + Platform Fees + method-based PayMongo fee. No reservation-fee refund.</span></div>
+                </div>
+                <label class="choice-row" for="notify-toggle"><span><strong>Notify me by email</strong><small>Let runners request one email when registration opens.</small></span><input class="toggle" type="checkbox" id="notify-toggle" checked></label>
+              </div>
+            </section>
+            <div class="later-band"><strong>Next, when registration opens</strong><span>Add the date, venue, distances, prices, waiver, and remaining event details.</span></div>
+          </div>
+          <aside class="editor-aside"><span class="aside-caption">PUBLIC PAGE PREVIEW</span><img id="aside-cover" src="ridgeline-runners.webp" width="560" height="330" alt="Event preview cover"><div class="aside-details"><span class="aside-status">Coming soon</span><h2 id="aside-title">Highland Traverse</h2><p id="aside-discipline">Trail running</p><div class="aside-actions"><span id="aside-reserve">Reserve a place · ₱500.00</span><span id="aside-notify">Notify me when registration opens</span></div></div><p class="aside-foot">Preview only. The public page discloses the payment deadline and no-refund terms.</p></aside>
+        </div>
+        <p class="admin-feedback" id="admin-feedback" role="status" aria-live="polite"></p>
+      </div>
+    </section>
+
+    <section class="view admin-view" id="view-commission" role="tabpanel" aria-labelledby="tab-commission" hidden>
+      <div class="admin-topline"><span>Race Pace Admin</span><span>Platform / Commission</span><span class="admin-persona">Super admin view</span></div>
+      <div class="admin-shell commission-shell">
+        <div class="platform-band"><strong>Platform scope</strong><span>Terms for all organizations · super admin</span></div>
+        <div class="admin-heading"><div><p class="admin-path">Platform / Commission</p><h1>Commission</h1><p>Set registration and reservation terms separately for each organizer.</p></div></div>
+        <section class="commission-section"><div class="commission-head"><h2>Reservation commission</h2><span>Applies to future reservations only</span></div><p class="commission-intro">This fee is charged to the runner in addition to the organizer’s reservation fee. Processing is grossed up by payment method.</p>
+          <div class="commission-table-wrap"><table><thead><tr><th>Organization</th><th>Registration commission</th><th>Reservation commission</th><th>Example on ₱500</th></tr></thead><tbody><tr><td><strong>North Ridge Running</strong><small>Illustrative organization</small></td><td>3.0% <small>Existing event term</small></td><td><div class="inline-controls"><select id="commission-type" aria-label="Reservation commission type"><option value="percent">Percent</option><option value="fixed">Fixed amount</option></select><div class="inline-value"><input id="commission-value" aria-label="Reservation commission value" type="number" min="0" step="0.1" value="3"><span id="commission-unit">%</span></div></div><small>Separate from the registration commission.</small></td><td><strong id="commission-example">₱15.00</strong><small>Before PayMongo processing</small></td></tr></tbody></table></div>
+          <div class="commission-footer"><p>Changes here would be platform controlled. Existing paid reservations keep their original terms.</p><button class="button button-green" type="button" id="save-commission">Save reservation terms</button></div>
+          <p class="admin-feedback" id="commission-feedback" role="status" aria-live="polite"></p>
+        </section>
+        <section class="commission-secondary"><h2>Registration commission</h2><p>The existing event commission terms continue to apply when the runner later registers.</p><div class="secondary-line"><span>North Ridge Running</span><strong>3.0% per registration</strong><span>Existing term shown for context</span></div></section>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

@@ -17,7 +17,7 @@ export function isRegistrationClosed(
   status: string,
   registrationClosesAt: string | null,
 ): boolean {
-  if (["cancelled", "closed", "completed"].includes(status)) return true;
+  if (["coming_soon", "cancelled", "closed", "completed"].includes(status)) return true;
   if (!registrationClosesAt) return false;
   return new Date(registrationClosesAt).getTime() <= Date.now();
 }

@@ -19,5 +19,5 @@ import type { EventRow } from "@/lib/events";
  */
 export function homeMode(events: Pick<EventRow, "status" | "registration_closes_at">[]): "multi" | "empty" {
   const registerable = events.filter((e) => !isRegistrationClosed(e.status, e.registration_closes_at));
-  return registerable.length > 0 ? "multi" : "empty";
+  return registerable.length > 0 || events.some((e) => e.status === "coming_soon") ? "multi" : "empty";
 }

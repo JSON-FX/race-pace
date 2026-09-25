@@ -6,13 +6,14 @@ export type OrganizerEvent = {
   id: string;
   name: string;
   slug: string | null;
-  eventDate: string;
+  eventDate: string | null;
   imageUrl: string | null;
   place: string | null;
   distances: number[];
   discipline: string | null;
   slotsLeft: number | null;
   registrationClosed: boolean;
+  comingSoon: boolean;
 };
 
 export type Organizer = {
@@ -49,20 +50,21 @@ type EventRecord = {
   org_id: string;
   name: string;
   slug: string | null;
-  event_date: string;
+  event_date: string | null;
   hero_image_url: string | null;
   city_name: string | null;
   place: string | null;
   discipline: string | null;
   status: string;
   registration_closes_at: string | null;
+  total_event_slots?: number | null;
   categories: { distance_km: number | string | null; slots_total: number; slots_taken: number }[] | null;
 };
 
 const ORGANIZATION_COLUMNS = "id,slug,name,logo_url,banner_url,featured_image_url,description,home_city_name,home_province_name,home_region_name";
-const EVENT_COLUMNS = "id,org_id,name,slug,event_date,hero_image_url,city_name,place,discipline,status,registration_closes_at,categories(distance_km,slots_total,slots_taken)";
+const EVENT_COLUMNS = "id,org_id,name,slug,event_date,hero_image_url,city_name,place,discipline,status,registration_closes_at,total_event_slots,categories(distance_km,slots_total,slots_taken)";
 const PAGE_SIZE = 500;
-const PUBLIC_UPCOMING_STATUSES = ["open", "almost_full", "closed"];
+const PUBLIC_UPCOMING_STATUSES = ["coming_soon", "open", "almost_full", "closed"];
 
 export function philippineToday(now = new Date()): string {
   const parts = new Intl.DateTimeFormat("en-US", {
@@ -96,10 +98,10 @@ export function filterOrganizers(organizers: Organizer[], query: string, region:
 export function mapOrganizer(org: OrganizationRecord, events: EventRecord[], disciplines?: string[]): Organizer {
   const upcoming = events
     .filter((event) => event.org_id === org.id)
-    .sort((a, b) => a.event_date.localeCompare(b.event_date))
+    .sort((a, b) => (a.event_date ?? "9999-12-31").localeCompare(b.event_date ?? "9999-12-31"))
     .map((event): OrganizerEvent => {
       const categories = event.categories ?? [];
-      const slotsLeft = categories.length > 0 && categories.every((category) =>
+      const slotsLeft = event.status !== "coming_soon" && event.total_event_slots == null && categories.length > 0 && categories.every((category) =>
         Number.isFinite(category.slots_total) && Number.isFinite(category.slots_taken))
         ? categories.reduce((sum, category) => sum + Math.max(0, category.slots_total - category.slots_taken), 0)
         : null;
@@ -114,6 +116,7 @@ export function mapOrganizer(org: OrganizationRecord, events: EventRecord[], dis
         discipline: event.discipline,
         slotsLeft,
         registrationClosed: isRegistrationClosed(event.status, event.registration_closes_at),
+        comingSoon: event.status === "coming_soon",
       };
     });
   const homeCity = org.home_city_name?.trim() || null;
@@ -143,7 +146,7 @@ async function fetchUpcomingEvents(db: SupabaseClient, orgId?: string): Promise<
     let query = db.from("events")
       .select(EVENT_COLUMNS)
       .in("status", PUBLIC_UPCOMING_STATUSES)
-      .gte("event_date", philippineToday())
+      .or(`status.eq.coming_soon,event_date.gte.${philippineToday()}`)
       .order("event_date")
       .range(start, start + PAGE_SIZE - 1);
     if (orgId) query = query.eq("org_id", orgId);
@@ -160,7 +163,7 @@ async function fetchPublicDisciplines(db: SupabaseClient, orgId?: string): Promi
   for (let start = 0; ; start += PAGE_SIZE) {
     let query = db.from("events")
       .select("org_id,discipline")
-      .in("status", ["open", "almost_full", "closed", "completed"])
+      .in("status", ["coming_soon", "open", "almost_full", "closed", "completed"])
       .order("id")
       .range(start, start + PAGE_SIZE - 1);
     if (orgId) query = query.eq("org_id", orgId);

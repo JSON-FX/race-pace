@@ -19,6 +19,7 @@ import type { EventRow } from "@/lib/events";
  */
 export type EventState =
   | "cancelled"
+  | "coming_soon"
   | "ongoing"
   | "rescheduled"
   | "almost_full"
@@ -33,6 +34,7 @@ type StateInput = Pick<EventRow, "status" | "event_date" | "end_date" | "origina
  *  it avoids the timezone shift a Date round-trip would introduce. */
 export function eventState(event: StateInput, today = new Date().toISOString().slice(0, 10)): EventState {
   if (event.status === "cancelled") return "cancelled";
+  if (event.status === "coming_soon") return "coming_soon";
 
   const start = event.event_date;
   // A single-day race is its own window: end_date is null for most events, so
@@ -50,6 +52,7 @@ export function eventState(event: StateInput, today = new Date().toISOString().s
 /** Label + tint per state. `open` gets no badge — the absence of a badge is
  *  the signal, and badging every card would flatten the ones that matter. */
 export const STATE_BADGE: Record<Exclude<EventState, "open">, { label: string; className: string }> = {
+  coming_soon: { label: "Coming soon", className: "bg-primary text-primary-foreground" },
   cancelled: { label: "Cancelled", className: "bg-destructive text-destructive-foreground" },
   ongoing: { label: "Happening now", className: "bg-primary text-primary-foreground" },
   rescheduled: { label: "Rescheduled", className: "bg-amber text-white" },

@@ -23,6 +23,9 @@ export * from "@/lib/commission-terms";
 export type OrgCommissionRow = RefundTerms & {
   id: string;
   name: string;
+  reservation_commission_type?: "percent" | "fixed";
+  reservation_commission_rate?: number;
+  reservation_commission_flat_cents?: number;
   /** Who bears the payment processor's cut. A PLATFORM term, editable only by a
    *  super admin — see `setFeeMode` and 20260811097000_org_fee_mode_grant.sql. */
   fee_mode: "absorb" | "pass_on";
@@ -202,7 +205,7 @@ export async function getCommissionOverview(): Promise<CommissionOverview> {
       // list at the type level, and `"a," + "b"` widens to `string`, which it
       // resolves to GenericStringError[] — a type error at the cast below rather
       // than anything wrong at runtime, but a confusing one to land on.
-      .select("id,name,created_at,commission_type,commission_rate,commission_flat_cents,refund_policy,refund_fee_cents,fee_mode")
+      .select("id,name,created_at,commission_type,commission_rate,commission_flat_cents,reservation_commission_type,reservation_commission_rate,reservation_commission_flat_cents,refund_policy,refund_fee_cents,fee_mode")
       .order("name"),
     supabase.from("admin_org_totals_v").select("org_id,paid_count,gross_revenue,charged_gross,platform_fee,net_to_org"),
     supabase.from("events").select("id,name,org_id,status"),
@@ -231,6 +234,9 @@ export async function getCommissionOverview(): Promise<CommissionOverview> {
   const orgRows = (orgsRes.data ?? []) as {
     id: string; name: string; created_at: string | null;
     commission_type: string; commission_rate: number | null; commission_flat_cents: number;
+    reservation_commission_type?: "percent" | "fixed";
+    reservation_commission_rate?: number;
+    reservation_commission_flat_cents?: number;
     refund_policy: string; refund_fee_cents: number; fee_mode: string;
   }[];
   const totals = (totalsRes.data ?? []) as {
@@ -313,6 +319,9 @@ export async function getCommissionOverview(): Promise<CommissionOverview> {
       commission_type: o.commission_type,
       commission_rate: o.commission_rate,
       commission_flat_cents: o.commission_flat_cents,
+      reservation_commission_type: o.reservation_commission_type ?? "fixed",
+      reservation_commission_rate: Number(o.reservation_commission_rate ?? 0),
+      reservation_commission_flat_cents: o.reservation_commission_flat_cents ?? 0,
       refund_policy: o.refund_policy,
       refund_fee_cents: o.refund_fee_cents,
       // Narrowed rather than cast blind. The column is `text` with a check

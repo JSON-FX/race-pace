@@ -21,6 +21,7 @@ import Image from "next/image";
 const MARKS = {
   gcash: { src: "/payments/gcash.png", alt: "GCash" },
   maya: { src: "/payments/maya.png", alt: "Maya" },
+  qrph: { src: "/payments/qr-ph.svg", alt: "QR Ph" },
   visa: { src: "/payments/visa.png", alt: "Visa" },
   mastercard: { src: "/payments/mastercard.png", alt: "Mastercard" },
 } as const;
@@ -50,7 +51,7 @@ const KNOWN: Record<string, { label: string; marks: MarkKey[] }> = {
   // the two it actually was isn't knowable from this row.
   card: { label: "Card", marks: ["visa", "mastercard"] },
   gcash: { label: "GCash", marks: ["gcash"] },
-  qrph: { label: "QR Ph", marks: [] },
+  qrph: { label: "QR Ph", marks: ["qrph"] },
   // PayMongo's source type is "paymaya"; the brand is now "Maya". Both spellings
   // map to the Maya artwork so a rename upstream doesn't blank the column.
   paymaya: { label: "Maya", marks: ["maya"] },
@@ -140,7 +141,7 @@ function Mark({ mark, height }: { mark: MarkKey; height: number }) {
       alt=""
       aria-hidden="true"
       title={alt}
-      width={Math.round((height * 506) / 316)}
+      width={Math.round(height * (mark === "qrph" ? 3000 / 710 : 506 / 316))}
       height={height}
       className="block w-auto"
       style={{ height }}
