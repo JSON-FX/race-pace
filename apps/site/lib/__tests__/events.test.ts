@@ -11,9 +11,9 @@ const raw = {
   hero_image_url: null,
   gallery: null,
   categories: [
-    { slots_taken: 12, distance_km: 100 },
-    { slots_taken: 30, distance_km: 50 },
-    { slots_taken: 5, distance_km: null },
+    { slots_total: 120, slots_taken: 12, distance_km: 100 },
+    { slots_total: 30, slots_taken: 30, distance_km: 50 },
+    { slots_total: 20, slots_taken: 5, distance_km: null },
   ],
   organizations: { name: "Race Pace", brand_color: "#159A55", logo_url: null },
 };
@@ -21,6 +21,16 @@ const raw = {
 describe("mapEvent", () => {
   it("sums slots_taken across categories into joined_count", () => {
     expect(mapEvent(raw).joined_count).toBe(47);
+  });
+
+  it("sums nonnegative remaining slots across categories", () => {
+    expect(mapEvent(raw).slots_left).toBe(123);
+    expect(mapEvent({ ...raw, categories: [{ slots_total: 10, slots_taken: 12, distance_km: 5 }] }).slots_left).toBe(0);
+  });
+
+  it("does not claim availability without capacity data", () => {
+    expect(mapEvent({ ...raw, categories: [] }).slots_left).toBeNull();
+    expect(mapEvent({ ...raw, categories: [{ slots_taken: 2, distance_km: 5 }] }).slots_left).toBeNull();
   });
 
   it("collects distances and drops null ones", () => {

@@ -2,11 +2,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { fetchMarketplaceEvents } from "@/lib/events";
-import { EventCard } from "@/components/EventCard";
+import { FieldnotesEventCard } from "./FieldnotesEventCard";
 import { SiteHeader } from "@/components/SiteHeader";
 import { Reveal } from "@/components/event/motion-primitives";
-import { applyFilters, hasAnyFilter, parseFilters, provincesOf } from "@/lib/eventFilters";
+import { applyFilters, filtersToQuery, hasAnyFilter, parseFilters, provincesOf } from "@/lib/eventFilters";
 import { EventFilters } from "./EventFilters";
+import "./fieldnotes.css";
 
 export const metadata: Metadata = {
   title: "Races",
@@ -27,6 +28,13 @@ export default async function EventsPage({
 
   const filters = parseFilters(sp);
   const shown = applyFilters(events, filters);
+  const gridVariant = shown.length === 1
+    ? " fieldnotes-events__grid--single"
+    : shown.length % 3 === 2
+      ? " fieldnotes-events__grid--balance-two"
+      : shown.length >= 4 && shown.length % 3 === 1
+        ? " fieldnotes-events__grid--balance-four"
+        : "";
   // Provinces come from the FULL list, not the filtered one — otherwise
   // picking Bukidnon removes every other province chip and there's no way
   // back to them except the All chip.
@@ -35,51 +43,61 @@ export default async function EventsPage({
   return (
     <>
       <SiteHeader />
-      <main className="mx-auto w-full max-w-6xl px-5 py-12 sm:px-6 sm:py-14">
-        <Reveal>
-          <p className="font-eyebrow text-[11px] font-bold uppercase tracking-[3px] text-primary">The full field</p>
-          <h1 className="mt-2 font-display text-[clamp(2rem,5vw,3.2rem)] font-black leading-[1.03] tracking-[-1.4px] text-foreground">
-            Races
-          </h1>
-        </Reveal>
+      <main className="fieldnotes-events">
+        <div className="fieldnotes-events__inner">
+          <Reveal>
+            <div className="fieldnotes-events__intro">
+              <div>
+                <p className="fieldnotes-events__eyebrow">Race Pace / The field guide</p>
+                <h1>Find your next trail.</h1>
+              </div>
+              <p className="fieldnotes-events__lede">Discover races across the Philippines. Find a distance, follow the terrain, and make the start line yours.</p>
+            </div>
+          </Reveal>
 
-        <div className="mt-7">
-          <EventFilters filters={filters} provinces={provinces} />
-        </div>
+          <section className="fieldnotes-events__filters" aria-label="Filter races">
+            <div className="fieldnotes-events__section-top">
+              <h2>Explore the calendar</h2>
+              <span>01 / Races</span>
+            </div>
+            <EventFilters key={filtersToQuery(filters)} filters={filters} provinces={provinces} />
+          </section>
 
-        <p className="font-mono-race mt-5 text-[10.5px] uppercase tracking-[1.2px] text-muted-foreground">
-          {shown.length} {shown.length === 1 ? "race" : "races"}
-          {hasAnyFilter(filters) ? ` of ${events.length}` : ""} · filters live in the URL, so a filtered view is
-          shareable
-        </p>
+          <div className="fieldnotes-events__results">
+            <p role="status">Showing <strong>{shown.length}</strong> {shown.length === 1 ? "race" : "races"}{hasAnyFilter(filters) ? ` of ${events.length}` : ""}</p>
+            <p>Choose a race to see its routes and details.</p>
+          </div>
 
         {shown.length === 0 ? (
-          <div className="mt-14 rounded-xl border border-dashed border-border py-16 text-center">
-            <p className="text-[16px] text-muted-foreground">
+          <div className="fieldnotes-events__empty">
+            <span aria-hidden="true">✳</span>
+            <h2>No race in this view</h2>
+            <p>
               {events.length === 0
                 ? "No races are listed right now. Check back soon."
-                : "No races match those filters."}
+                : "No races match your search or filters."}
             </p>
             {hasAnyFilter(filters) ? (
               <Link
                 href="/events"
-                className="mt-6 inline-flex rounded-pill bg-primary px-6 py-3 text-[14px] font-semibold text-primary-foreground transition-colors hover:bg-primary-focus"
+                className="fieldnotes-events__clear"
               >
                 Clear filters
               </Link>
             ) : null}
           </div>
         ) : (
-          <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-5">
+          <div className={`fieldnotes-events__grid${gridVariant}`}>
             {shown.map((e, i) => (
               // Stagger caps at the sixth card: past that the last row would
               // wait most of a second, which reads as the page being slow.
               <Reveal key={e.id} delay={Math.min(i, 5) * 0.05}>
-                <EventCard event={e} index={i + 1} />
+                <FieldnotesEventCard event={e} />
               </Reveal>
             ))}
           </div>
         )}
+        </div>
       </main>
     </>
   );

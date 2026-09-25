@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { SettingsForm } from "./settings-form";
 import type { OrgBranding } from "@/lib/queries/org";
+import type { PsgcAddress } from "@race-pace/shared";
 
 const refresh = vi.fn();
 vi.mock("next/navigation", () => ({
@@ -18,6 +19,14 @@ vi.mock("react-easy-crop", async () => {
   };
 });
 vi.mock("@/lib/cropImage", () => ({ getCroppedBlob: () => Promise.resolve(new Blob([""], { type: "image/png" })) }));
+vi.mock("@/components/PsgcAddressField", () => ({
+  PsgcAddressField: ({ onChange, cityForm, cityName }: { onChange: (address: PsgcAddress) => void; cityForm?: string; cityName?: string }) => (
+    <select aria-label="City" form={cityForm} name={cityName} onChange={(event) => onChange({ city_psgc_code: event.target.value, city_name: "Digos", province_name: "Davao del Sur", region_name: "Davao Region" })}>
+      <option value="">— Select —</option>
+      <option value="112603000">Digos</option>
+    </select>
+  ),
+}));
 
 const uploadOrgImage = vi.fn(async () => Promise.resolve("https://cdn/org-images/a1/avatar-x.png"));
 vi.mock("@/lib/org-upload", () => ({
@@ -25,16 +34,20 @@ vi.mock("@/lib/org-upload", () => ({
 }));
 
 const updateOrgBrandingAction = vi.fn(async () => Promise.resolve({ ok: true }));
-const updateOrgNameAction = vi.fn(async () => Promise.resolve({ success: "Organization name updated." }));
+const updateOrgProfileAction = vi.fn(async (_prev: unknown, _formData: FormData) => Promise.resolve({ success: "Organization profile updated." }));
 const updateOrgCheckInDefaultAction = vi.fn(async (_prev: unknown, _formData: FormData) => Promise.resolve({ success: "Default check-in setting updated." }));
 vi.mock("@/lib/actions/settings", () => ({
   updateOrgBrandingAction: (...args: unknown[]) =>
     updateOrgBrandingAction(...(args as Parameters<typeof updateOrgBrandingAction>)),
-  updateOrgNameAction: (...args: unknown[]) => updateOrgNameAction(...(args as Parameters<typeof updateOrgNameAction>)),
+  updateOrgProfileAction: (...args: unknown[]) => updateOrgProfileAction(...(args as Parameters<typeof updateOrgProfileAction>)),
   updateOrgCheckInDefaultAction: (...args: unknown[]) => updateOrgCheckInDefaultAction(...(args as Parameters<typeof updateOrgCheckInDefaultAction>)),
 }));
 
-const org: OrgBranding = { id: "a1", name: "TrailNorth", logo_url: null, banner_url: null, check_in_required_default: true };
+const org: OrgBranding = {
+  id: "a1", name: "TrailNorth", description: "Runs rooted in the community.",
+  home_city_psgc_code: null, home_city_name: null, home_province_name: null, home_region_name: null,
+  logo_url: null, banner_url: null, check_in_required_default: true,
+};
 
 beforeEach(() => {
   (URL as unknown as { createObjectURL: (b: unknown) => string }).createObjectURL = () => "blob:mock";
@@ -42,7 +55,7 @@ beforeEach(() => {
   refresh.mockClear();
   uploadOrgImage.mockClear();
   updateOrgBrandingAction.mockClear();
-  updateOrgNameAction.mockClear();
+  updateOrgProfileAction.mockClear();
   updateOrgCheckInDefaultAction.mockClear();
 });
 
@@ -67,11 +80,19 @@ describe("SettingsForm", () => {
     await waitFor(() => expect(refresh).toHaveBeenCalled());
   });
 
-  it("submits the org name to updateOrgNameAction", async () => {
+  it("submits the name, description, and home base in the profile form", async () => {
     render(<SettingsForm org={org} canEdit />);
+    expect(screen.getByRole("combobox", { name: "City" }).closest("form")).toBeNull();
+    expect(screen.getByRole("combobox", { name: "City" })).toHaveAttribute("form", "org-profile-form");
     fireEvent.change(screen.getByLabelText("Organization name"), { target: { value: "Renamed Org" } });
+    fireEvent.change(screen.getByLabelText("Organizer Description"), { target: { value: "Our local running club." } });
+    fireEvent.change(screen.getByRole("combobox", { name: "City" }), { target: { value: "112603000" } });
     fireEvent.click(screen.getByRole("button", { name: "Save profile" }));
-    await waitFor(() => expect(updateOrgNameAction).toHaveBeenCalled());
+    await waitFor(() => expect(updateOrgProfileAction).toHaveBeenCalled());
+    const submitted = updateOrgProfileAction.mock.calls.at(-1)?.[1] as FormData;
+    expect(submitted.get("name")).toBe("Renamed Org");
+    expect(submitted.get("description")).toBe("Our local running club.");
+    expect(submitted.get("homeCityPsgcCode")).toBe("112603000");
   });
 
   it("hides the branding upload controls and disables the name field when canEdit is false", () => {
@@ -79,6 +100,8 @@ describe("SettingsForm", () => {
     expect(screen.queryByText("Choose Avatar")).not.toBeInTheDocument();
     expect(screen.getByText(/only organization admins can update branding/i)).toBeInTheDocument();
     expect(screen.getByLabelText("Organization name")).toBeDisabled();
+    expect(screen.getByLabelText("Organizer Description")).toBeDisabled();
+    expect(screen.getByText("Not set")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save profile" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Save default" })).toBeDisabled();
   });

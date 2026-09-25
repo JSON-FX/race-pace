@@ -1,0 +1,90 @@
+/* Scoped admin event pilot. RGB roles map from the selected Storybook Fieldnotes design. */
+.fieldnotes-admin-events {
+  --background: 245 245 237;
+  --foreground: 29 56 41;
+  --card: 255 255 255;
+  --card-foreground: 29 56 41;
+  --muted: 232 238 227;
+  --muted-foreground: 80 103 85;
+  --secondary: 211 227 191;
+  --secondary-foreground: 29 56 41;
+  --accent: 232 238 227;
+  --accent-foreground: 29 56 41;
+  --primary: 23 99 65;
+  --primary-foreground: 255 255 255;
+  --primary-focus: 42 128 86;
+  --border: 196 208 193;
+  --divider: 196 208 193;
+  --input: 145 172 150;
+  --ring: 23 99 65;
+  --paid: 23 99 65;
+  --paid-tint: 225 240 221;
+  --amber: 133 75 20;
+  --amber-tint: 251 237 215;
+  --destructive: 162 46 49;
+  --destructive-tint: 249 232 229;
+  --info: 22 93 112;
+  --info-tint: 221 238 241;
+  min-height: 100%;
+  background: rgb(var(--background));
+  color: rgb(var(--foreground));
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Segoe UI", sans-serif;
+}
+
+.dark .fieldnotes-admin-events {
+  --background: 17 36 25;
+  --foreground: 237 245 232;
+  --card: 26 50 35;
+  --card-foreground: 237 245 232;
+  --muted: 39 68 47;
+  --muted-foreground: 196 215 193;
+  --secondary: 56 87 58;
+  --secondary-foreground: 237 245 232;
+  --accent: 39 68 47;
+  --accent-foreground: 237 245 232;
+  --primary: 200 232 167;
+  --primary-foreground: 24 51 33;
+  --primary-focus: 219 239 188;
+  --border: 72 105 78;
+  --divider: 72 105 78;
+  --input: 120 151 122;
+  --ring: 215 239 187;
+  --paid: 175 224 168;
+  --paid-tint: 40 80 54;
+  --amber: 247 208 153;
+  --amber-tint: 73 59 39;
+  --destructive: 244 175 166;
+  --destructive-tint: 76 48 48;
+  --info: 170 217 214;
+  --info-tint: 35 71 72;
+}
+
+.fieldnotes-admin-events__inner { width: min(100% - 48px, 1380px); margin: 0 auto; padding: 38px 0 72px; }
+.fieldnotes-admin-events__eyebrow { margin: 0 0 14px; color: rgb(var(--primary)); font-size: 11px; font-weight: 700; letter-spacing: .15em; text-transform: uppercase; }
+.fieldnotes-admin-events__heading { display: flex; align-items: end; justify-content: space-between; gap: 20px; }
+.fieldnotes-admin-events h1 { margin: 0; font-size: clamp(30px, 3vw, 40px); font-weight: 650; line-height: 1.1; letter-spacing: -.035em; }
+.fieldnotes-admin-events__description { max-width: 580px; margin: 9px 0 0; color: rgb(var(--muted-foreground)); font-size: 14px; line-height: 1.5; }
+.fieldnotes-admin-events__new { min-height: 44px; border-radius: 14px; padding-inline: 18px; font-weight: 650; transition: background-color 180ms ease, transform 180ms ease; }
+.fieldnotes-admin-events__new:hover { transform: translateY(-1px); }
+.fieldnotes-admin-events__content { margin-top: 42px; }
+.fieldnotes-admin-events__section-heading { display: flex; justify-content: space-between; align-items: end; gap: 20px; margin-bottom: 20px; padding-top: 22px; border-top: 1px solid rgb(var(--border)); }
+.fieldnotes-admin-events__section-heading h2 { margin: 0; font-size: 18px; font-weight: 650; letter-spacing: -.02em; }
+.fieldnotes-admin-events__section-heading p { margin: 4px 0 0; color: rgb(var(--muted-foreground)); font-size: 13px; }
+.fieldnotes-admin-events__section-heading > span { color: rgb(var(--muted-foreground)); font-size: 12px; font-variant-numeric: tabular-nums; }
+.fieldnotes-admin-events input[aria-label="Search"] { min-height: 44px; width: min(100%, 300px); border-color: rgb(var(--input)); border-radius: 14px; background: rgb(var(--card)); color: rgb(var(--foreground)); font-size: 14px; }
+.fieldnotes-admin-events input[aria-label="Search"]::placeholder { color: rgb(var(--muted-foreground)); }
+.fieldnotes-admin-events [data-slot="card"] { border-color: rgb(var(--border)); border-radius: 18px; box-shadow: 0 3px 12px rgb(17 52 27 / .04); }
+.fieldnotes-admin-events [data-slot="table"] { min-width: 640px; }
+.fieldnotes-admin-events [data-slot="table-header"] { background: rgb(var(--muted)); }
+.fieldnotes-admin-events [data-slot="table-head"] { height: 48px; padding-inline: 18px; color: rgb(var(--muted-foreground)); font-size: 12px; font-weight: 650; letter-spacing: .02em; }
+.fieldnotes-admin-events [data-slot="table-cell"] { padding: 16px 18px; color: rgb(var(--foreground)); font-size: 13px; }
+.fieldnotes-admin-events [data-slot="table-row"] { border-color: rgb(var(--divider)); transition: background-color 180ms ease; }
+.fieldnotes-admin-events [data-slot="table-body"] [data-slot="table-row"]:hover { background: rgb(var(--muted) / .65); }
+.fieldnotes-admin-events [data-slot="table-cell"] a:focus-visible, .fieldnotes-admin-events [data-slot="button"]:focus-visible, .fieldnotes-admin-events input:focus-visible { outline: 3px solid rgb(var(--ring)); outline-offset: 2px; }
+.fieldnotes-admin-events [role="region"][aria-label="Events table"]:focus-visible { outline: 3px solid rgb(var(--ring)); outline-offset: -3px; }
+.fieldnotes-admin-events [data-slot="table-cell"] .tabular { font-variant-numeric: tabular-nums; }
+.fieldnotes-admin-events [data-slot="button"] { border-radius: 12px; }
+.fieldnotes-admin-events [data-slot="card"] > [class*="border-t"] { border-color: rgb(var(--divider)); }
+
+@media (max-width: 640px) { .fieldnotes-admin-events__inner { width: min(100% - 32px, 480px); padding: 28px 0 64px; } .fieldnotes-admin-events__heading { align-items: stretch; flex-direction: column; } .fieldnotes-admin-events__new { align-self: flex-start; } .fieldnotes-admin-events__content { margin-top: 34px; } .fieldnotes-admin-events__section-heading > span { display: none; } .fieldnotes-admin-events input[aria-label="Search"] { width: min(100%, 300px); } .fieldnotes-admin-events [data-slot="table-head"], .fieldnotes-admin-events [data-slot="table-cell"] { padding-inline: 14px; } }
+@media (prefers-reduced-motion: reduce) { .fieldnotes-admin-events__new, .fieldnotes-admin-events [data-slot="table-row"] { transition: none; } .fieldnotes-admin-events__new:hover { transform: none; } }

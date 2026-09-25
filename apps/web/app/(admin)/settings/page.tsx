@@ -117,7 +117,7 @@ export default async function SettingsPage() {
         </aside>
 
         <div className="grid min-w-0 gap-4 xl:grid-cols-2">
-          <SettingsForm org={org} canEdit={canEdit} />
+          <SettingsForm key={org.id} org={org} canEdit={canEdit} />
           <WaiverForm orgId={orgId} versions={waivers} events={eventWaivers} canEdit={canEdit} />
         </div>
       </div>

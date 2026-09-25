@@ -36,6 +36,10 @@ Platform user administration: [design](./specs/2026-09-20-platform-users-design.
 
 Admin settings Brand Studio: [approved design](./specs/2026-09-22-settings-brand-studio-design.md) and [implementation plan](./plans/2026-09-22-settings-brand-studio.md). The redesign preserves organization settings behavior and adds a shared searchable Popover combobox for form-backed selections.
 
+Organizer profile fields in admin Settings: [implementation plan](./plans/2026-09-25-organizer-profile-settings-fields.md) and [review preview](./previews/organizers/admin-settings-profile-fields.html). Optional Organizer Description and Home Base fields are deployed and verified in the existing Organization profile card on [staging admin Settings](https://staging-admin.racepace.com.ph/settings). The public organizer directory remains separate.
+
+Fieldnotes event workflow pilot: [design and source sync](./specs/2026-09-25-fieldnotes-event-pilot.md) and [implementation plan](./plans/2026-09-25-fieldnotes-event-pilot.md). The public race list and admin event directory are deployed on staging through PR #120. The catalog spacing, organizer-avatar, and remaining-slots follow-up is deployed through PR #121. Card alignment and the larger image-corner avatar are deployed through PR #123. The long-title alignment correction is deployed through PR #124. Runner event detail remains at the staging baseline.
+
 Unbound PayMongo checkout review: [implementation plan](./plans/2026-09-18-unbound-paymongo-review.md). The fail-closed payment endpoint and platform alert are deployed to staging. A safe operator review queue and provider-backed resolution are planned; the payment launch gate remains open.
 
 ## Production purchasing
