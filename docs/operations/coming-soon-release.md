@@ -1,6 +1,6 @@
 # Coming Soon staging and production checklist
 
-This feature is local code until the staging-first release path completes. No hosted migration, function, worker schedule, PayMongo charge, or email was run as part of the local implementation.
+Coming Soon is on staging. The event-capacity correction has its own staging gate before production promotion. Production data and payments remain untouched by this feature.
 
 ## Deploy together
 
@@ -16,6 +16,7 @@ This feature is local code until the staging-first release path completes. No ho
 - Enable Notify me and Reserve now with one total event place. Check `/commission` terms and the method-specific fee at PayMongo's hosted test checkout. Complete one sandbox payment, then verify one paid reservation, one actual fee, one receipt job, and no ordinary registration or ticket yet.
 - In a separate synthetic event with at least two places, select an own and managed Race Passport for one checkout. Verify both names, the single PayMongo test payment, per-Passport fee multiplication, separate held places, the organizer roster on Registrations, and the filtered reservation ledger and CSV on Payments. Confirm leaving managed Passports unchecked charges only for the own Passport.
 - Try a second hold against the one-place event and confirm refusal without a visible slots-left count. Open registration with a category. Confirm one opening email, category choice, separate entry payment, one conversion, and an ordinary ticket. Check admin reservation roster, Payments CSV, Settlement, Platform Fees, and reservation payout figures.
+- Set Total event slots outside Coming Soon. Leave categories empty while reservations are offered. Then allocate categories below the total, verify over-allocation is rejected, and complete the allocation before opening registration.
 - Exercise an unpaid hosted checkout through provider-confirmed expiry. Confirm the place returns only after the provider session is expired or verified unpaid. Exercise a deadline-past registration payment in sandbox; verify the capture remains under review with no ticket or silent refund.
 - Before production promotion, record the exact commit, both Vercel IDs, all five migration versions, every function version, provider mode, worker schedules, and the observed financial readback in `launch-progress.md`. Production keeps real data only; do not create synthetic events or charges there.
 

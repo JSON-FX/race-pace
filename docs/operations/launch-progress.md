@@ -1,6 +1,6 @@
 # Web and admin launch progress
 
-Updated: 2026-09-25. Overall: MVP RELEASED; FIELDNOTES ADMIN AND TRAIL ATLAS ORGANIZERS IN PRODUCTION; OWNER CHECKOUT PENDING.
+Updated: 2026-09-26. Overall: MVP RELEASED; FIELDNOTES ADMIN AND TRAIL ATLAS ORGANIZERS IN PRODUCTION; OWNER CHECKOUT PENDING.
 Scope: runner website and admin only. The first release is a controlled pilot with one organizer and PayMongo. Production contains real organizer and event data; add no synthetic data.
 
 ### Coming Soon events and paid reservations
@@ -10,6 +10,9 @@ Scope: runner website and admin only. The first release is a controlled pilot wi
 | Source, database, Edge Functions, workers, and both applications | **Deployed on staging at `8910daa`** | Production promotion is pending. | Finish the remaining [hosted staging scenarios](./coming-soon-release.md) before a production pull request. |
 | Local and exact-merge validation | **Site 479/479, admin 927/927, backend 766/766, both typechecks and builds passed locally; both pull-request runs and exact-merge CI passed** | None for these checks. | Keep the exact staging revision in the release record. |
 | Hosted reservation payment | **Two Passports paid in one PayMongo test QR Ph checkout; two places held; admin ledger and email job verified** | Opening notice, category registration conversion, and phone-width hosted review remain. | Complete those scenarios on staging without changing production data. |
+| Event total and category allocation | **Implemented locally; staging release pending** | Needs exact-commit CI and hosted admin verification. | Merge the capacity correction into staging, apply its two migrations, and verify category allocation. |
+
+Capacity correction, 2026-09-26: the organizer editor now places Total event slots with Categories for every event. It shows allocated and unallocated places. A category-free Coming Soon reservation still uses the event total; opening registration requires category slots to sum to it. Server validation and database triggers reject over-allocation and clearing a published total. The additive migration backfills null totals from existing category sums without replacing non-null totals or changing category rows. On the shared local database, 200 legacy events were backfilled; there were no existing category sums above stored totals. The database was backed up before applying both migrations. Focused capacity and grant tests passed, as did 479 runner tests, 932 admin tests, both app typechecks, and both builds. The broad backend run executed 701 passing tests; three suites could not initialize because this isolated worktree lacks the local fake-provider function environment. No hosted or production database changed in this correction yet.
 
 Local implementation, 2026-09-25: `codex/coming-soon-events` adds the approved Dossier runner page, actual payment logos, full-screen image gallery, optional Notify me and Reserve now, a separate nonrefundable reservation charge, and a hidden event-level capacity hold. Admin manages the teaser and reservation terms, with separate reservation charges in Payments, Settlement, Commission, and Payouts. A fresh isolated database clone accepted both migrations; rollback and concurrent-client tests checked capacity, fee ledger, deadline extension, conversion, and payout. Runner and admin tests, typechecks, and production builds pass locally. No hosted service or production data changed.
 

@@ -46,6 +46,11 @@ describe("EventsTable", () => {
     expect(screen.getByText("160 / 250")).toBeInTheDocument();
   });
 
+  it("uses the stored event total when category places are not fully allocated", () => {
+    render(<EventsTable rows={[{ ...rows[0], total_event_slots: 300 }]} total={1} page={1} per={25} sort={[]} activeFilters={{}} q="" canWrite />);
+    expect(screen.getByText("160 / 300")).toBeInTheDocument();
+  });
+
   it("offers a create action from the empty state", () => {
     render(<EventsTable rows={[]} total={0} page={1} per={25} sort={[]} activeFilters={{}} q="" canWrite />);
     expect(screen.getByText("No events yet")).toBeInTheDocument();

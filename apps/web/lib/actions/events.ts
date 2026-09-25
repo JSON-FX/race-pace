@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getMyRoles, type MyRoles } from "@/lib/queries/roles";
 import type { EventDiscipline, RoutePoint } from "@race-pace/shared";
 import type { ScheduleItem } from "@/lib/validation";
-import { eventInputSchema, categoryInputSchema, addonInputSchema, sanitizeListFields, coordPairError, kitCutoffError, comingSoonPublicationError, EVENT_STATUSES } from "@/lib/validation";
+import { eventInputSchema, categoryInputSchema, addonInputSchema, sanitizeListFields, coordPairError, kitCutoffError, comingSoonPublicationError, eventCapacityError, EVENT_STATUSES } from "@/lib/validation";
 import { reconcileChildren } from "@/lib/reconcile-children";
 
 const GENERIC_ERROR = "Something went wrong. Please try again.";
@@ -152,6 +152,8 @@ export async function saveEventAction(_prev: EditorState, formData: FormData): P
       return { error: "Fix the category rows (code, label, non-negative price/slots, gain 0-30000m, cut-off 0-240h)." };
     }
   }
+  const capacityError = eventCapacityError(sanitized, payload.categories.current);
+  if (capacityError) return { error: capacityError };
   for (const a of payload.addons.current) {
     if (!addonInputSchema.safeParse(a).success) return { error: "Fix the add-on rows (name, non-negative price)." };
   }
@@ -169,13 +171,18 @@ export async function saveEventAction(_prev: EditorState, formData: FormData): P
   // "cancelled" is allowed here, and only because it was already true in
   // the database, not because the client claimed it.
   let currentStatus: string | null = null;
+  let currentTotalSlots: number | null = null;
   if (eventId) {
-    const cur = await supabase.from("events").select("status,check_in_required,slug,slug_locked_at").eq("id", eventId).single();
+    const cur = await supabase.from("events").select("status,check_in_required,slug,slug_locked_at,total_event_slots").eq("id", eventId).single();
     if (cur.error) {
       console.error("[events] event status lookup failed", { eventId, error: cur.error });
       return { error: GENERIC_ERROR };
     }
     currentStatus = cur.data.status;
+    currentTotalSlots = cur.data.total_event_slots;
+    if (currentTotalSlots != null && sanitized.total_event_slots === null && sanitized.status !== "draft") {
+      return { error: "A published event must keep its total event slots." };
+    }
     if ((currentStatus !== "draft" || cur.data.slug_locked_at) && cur.data.slug && sanitized.slug !== cur.data.slug) {
       return { error: "The public link cannot be changed after the event is published." };
     }
@@ -194,6 +201,10 @@ export async function saveEventAction(_prev: EditorState, formData: FormData): P
   if (!statusOk) {
     return { error: "Fix the event fields (invalid status)." };
   }
+  if ((sanitized.status === "open" || sanitized.status === "almost_full") &&
+    sanitized.total_event_slots === null && (!eventId || currentStatus === "coming_soon")) {
+    return { error: "Set total event slots before opening registration." };
+  }
 
   const event: EventDraft = { ...sanitized, id: eventId };
   // An early reservation promises an event place, while categories can be
@@ -201,6 +212,8 @@ export async function saveEventAction(_prev: EditorState, formData: FormData): P
   // the database can verify their combined capacity at the status change.
   const deferredOpening = currentStatus === "coming_soon" &&
     (event.status === "open" || event.status === "almost_full");
+  const deferredCapacityUpdate = !!eventId && event.total_event_slots !== null &&
+    (currentTotalSlots === null || event.total_event_slots < currentTotalSlots);
 
   let finalEventId = eventId;
   if (!finalEventId) {
@@ -218,6 +231,7 @@ export async function saveEventAction(_prev: EditorState, formData: FormData): P
     // for when it's ever wrong (stale roles cache, org reassignment, etc.).
     const upd = await supabase.from("events").update(EVENT_COLS({
       ...event, status: deferredOpening ? "coming_soon" : event.status,
+      total_event_slots: deferredCapacityUpdate ? currentTotalSlots : event.total_event_slots,
     })).eq("id", finalEventId).select("id");
     if (upd.error) {
       console.error("[events] event update failed", { eventId: finalEventId, error: upd.error });
@@ -252,30 +266,47 @@ export async function saveEventAction(_prev: EditorState, formData: FormData): P
   // leaves X alone, since tab B never claimed to know about it.
   const childErrors: string[] = [];
   const cat = reconcileChildren(payload.categories.original, payload.categories.current);
-  for (const c of cat.toInsert) {
-    const r = await supabase.from("categories").insert({ org_id: event.org_id, event_id: finalEventId, code: c.code, label: c.label, distance_km: c.distance_km, base_price: c.base_price, slots_total: c.slots_total, elevation_gain_m: c.elevation_gain_m, cutoff_hours: c.cutoff_hours, blurb: c.blurb });
-    // Never surface `r.error.message` (raw Postgres text — table/column/
-    // constraint names) to the UI. Log it server-side with context; the
-    // admin gets a generic, actionable message naming no internals. Matches
-    // lib/actions/settings.ts and the friendly strings already used by the
-    // delete branches below.
-    if (r.error) {
-      console.error("[events] category insert failed", { eventId: finalEventId, code: c.code, error: r.error });
-      childErrors.push(`Category "${c.label}" couldn't be saved.`);
+  // Free places before allocating them elsewhere. The database checks every
+  // intermediate category write against the event total, including direct API writes.
+  for (const id of cat.toDelete) {
+    const r = await supabase.from("categories").delete().eq("id", id).eq("event_id", finalEventId);
+    if (r.error) childErrors.push(`Couldn't remove a category — it has registrations.`);
+  }
+  let currentCategorySlots = new Map<string, number>();
+  if (event.total_event_slots !== null && cat.toUpdate.length) {
+    const rows = await supabase.from("categories").select("id,slots_total").eq("event_id", finalEventId);
+    if (rows.error) {
+      console.error("[events] category capacity lookup failed", { eventId: finalEventId, error: rows.error });
+      childErrors.push("Category capacity could not be checked. Please try again.");
+    } else {
+      currentCategorySlots = new Map((rows.data ?? []).map((row) => [row.id, row.slots_total]));
     }
   }
-  for (const c of cat.toUpdate) {
+  const orderedUpdates = [...cat.toUpdate].sort((a, b) =>
+    (a.slots_total - (currentCategorySlots.get(a.id ?? "") ?? a.slots_total)) -
+    (b.slots_total - (currentCategorySlots.get(b.id ?? "") ?? b.slots_total)));
+  for (const c of childErrors.length ? [] : orderedUpdates) {
     const r = await supabase.from("categories").update({ code: c.code, label: c.label, distance_km: c.distance_km, base_price: c.base_price, slots_total: c.slots_total, elevation_gain_m: c.elevation_gain_m, cutoff_hours: c.cutoff_hours, blurb: c.blurb }).eq("id", c.id).eq("event_id", finalEventId);
     if (r.error) {
       console.error("[events] category update failed", { eventId: finalEventId, categoryId: c.id, error: r.error });
       childErrors.push(`Category "${c.label}" couldn't be saved.`);
     }
   }
-  for (const id of cat.toDelete) {
-    // .eq("event_id", finalEventId) is load-bearing, not redundant with RLS
-    // — see the comment above `cat`.
-    const r = await supabase.from("categories").delete().eq("id", id).eq("event_id", finalEventId);
-    if (r.error) childErrors.push(`Couldn't remove a category — it has registrations.`);
+  for (const c of childErrors.length ? [] : cat.toInsert) {
+    const r = await supabase.from("categories").insert({ org_id: event.org_id, event_id: finalEventId, code: c.code, label: c.label, distance_km: c.distance_km, base_price: c.base_price, slots_total: c.slots_total, elevation_gain_m: c.elevation_gain_m, cutoff_hours: c.cutoff_hours, blurb: c.blurb });
+    if (r.error) {
+      console.error("[events] category insert failed", { eventId: finalEventId, code: c.code, error: r.error });
+      childErrors.push(`Category "${c.label}" couldn't be saved.`);
+    }
+  }
+
+  if (deferredCapacityUpdate && !childErrors.length) {
+    const capacity = await supabase.from("events").update({ total_event_slots: event.total_event_slots })
+      .eq("id", finalEventId).select("id");
+    if (capacity.error || !capacity.data?.length) {
+      console.error("[events] event capacity update failed", { eventId: finalEventId, error: capacity.error });
+      childErrors.push("Categories were saved, but total event slots could not be updated. Please try again.");
+    }
   }
 
   const add = reconcileChildren(payload.addons.original, payload.addons.current);
