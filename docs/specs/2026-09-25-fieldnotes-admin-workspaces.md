@@ -24,6 +24,8 @@ The editable source is `storybook-hub/projects/race-pace/src/pilots/admin-worksp
 
 The Storybook examples use illustrative data. Local application review used Supabase through the Docker stack. This presentation change adds no migration, Edge Function, or provider configuration.
 
+Dashboard chart spacing follow-up: the chart has a fixed 130px plot. Its card now keeps its content height when the adjacent capacity list has five races. The five-race Storybook story demonstrates this layout. Storybook Hub commit `d2a671b` is the source for the application stylesheet, with matching SHA-256 `c5b9059d16710decd5286ec781391cf4f2c8088231d5858db45e38bd96c42382`.
+
 ## Review criteria
 
 Review all seven signed-in pages at desktop and phone widths. Check light and dark mode, focus, table scrolling, search/filter controls, empty states, kit desk, scanner, and Settings form visibility. Validate the application typecheck and admin tests, and build the local Storybook catalog before release planning.
