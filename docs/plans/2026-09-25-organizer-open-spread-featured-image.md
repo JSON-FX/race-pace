@@ -1,12 +1,12 @@
 # Organizer Open spread hero and featured image
 
-Status: implementation in progress. The approved [Open spread preview](../previews/organizers/featured-hero-options.html#open-spread) is the visual reference.
+Status: implemented and verified on staging. The approved [Open spread preview](../previews/organizers/featured-hero-options.html#open-spread) remains the visual reference. Production promotion requires separate acceptance.
 
 ## Goal and scope
 
 As an organizer admin, I can choose a separate featured photograph for my public profile. Runners see that image beside the organizer identity without a cropped promotional cover. Existing organizations with no featured image remain valid and show a text-led profile.
 
-This changes the public organizer profile hero and adds one uploader in the existing admin Settings Branding card. It leaves the directory layout, event rows, cover photo, and Settings page layout in place. The generated preview photograph is illustrative and is never assigned to a real organizer.
+This changes the public organizer profile hero and adds one uploader in the existing admin Settings Branding card. It leaves the directory layout, event rows, cover photo, and Settings page layout in place. The generated preview photograph is illustrative. It was assigned only to a clearly marked staging QA organizer for visual review, never to a real organizer.
 
 ## Existing seams
 

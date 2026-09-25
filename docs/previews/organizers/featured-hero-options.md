@@ -1,6 +1,6 @@
 # Trail Atlas organizer hero directions
 
-Status: Open spread selected for implementation. The other four options remain visual proposals. See the [implementation plan](../../plans/2026-09-25-organizer-open-spread-featured-image.md).
+Status: Open spread implemented and verified on staging. The other four options remain visual proposals. See the [implementation plan](../../plans/2026-09-25-organizer-open-spread-featured-image.md).
 
 The five options use the same 1484 × 1060 generated concept image and the existing Race Pace Fieldnotes palette and type roles. The photograph is illustrative. It does not depict the staging organizer or an actual Race Pace event.
 
@@ -14,7 +14,7 @@ The five options use the same 1484 × 1060 generated concept image and the exist
 
 ## Image and data recommendation
 
-Add an optional organizer featured image separate from the existing cover photo. The cover can remain a promotional banner with embedded copy. A profile featured image should be a photograph near a 7:5 landscape ratio, with important subjects away from the edges. Admin-provided images and null fallbacks need their own implementation and review after a direction is selected. Do not use the generated concept as a public profile claim.
+The optional organizer featured image is separate from the existing cover photo. The cover can remain a promotional banner with embedded copy. A profile featured image should be a photograph near a 7:5 landscape ratio, with important subjects away from the edges. The implemented profile renders an intentional text-led state when the featured image is null. The generated concept is assigned only to a clearly marked staging QA organizer for visual review; it is not a claim about any real organizer or event.
 
 ## Research adaptation
 
