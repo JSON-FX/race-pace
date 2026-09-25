@@ -39,7 +39,7 @@ export default async function PaymentsPage({
 
   if (!orgId) {
     return (
-      <div className="px-4 pb-10 pt-6 md:px-[30px]">
+      <div className="fieldnotes-admin-workspace" data-fieldnotes-section="Race control / Finance">
         <div className="mb-5">
           <h1 className="text-[21px] font-bold tracking-[-0.02em]">Payments</h1>
         </div>
@@ -67,7 +67,7 @@ export default async function PaymentsPage({
   const sectionKey = serializeTableParams({ ...params }, DEFAULTS).toString();
 
   return (
-    <div className="px-4 pb-10 pt-6 md:px-[30px]">
+    <div className="fieldnotes-admin-workspace" data-fieldnotes-section="Race control / Finance">
       <div className="mb-5 flex items-start justify-between gap-4">
         <div>
           <h1 className="text-[21px] font-bold tracking-[-0.02em]">Payments</h1>

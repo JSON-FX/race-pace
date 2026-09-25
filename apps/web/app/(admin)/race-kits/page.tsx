@@ -30,7 +30,7 @@ export default async function RaceKitsPage({
       ? events.find((e) => e.id === params.event)
       : events[0];
   return (
-    <div className="px-4 py-6 md:px-[30px]">
+    <div className="fieldnotes-admin-workspace" data-fieldnotes-section="Race day / Kit desk">
       <h1 className="text-[21px] font-bold">Race kits</h1>
       <p className="mt-1 text-sm text-muted-foreground">
         Review the runner’s kit before handing it over. One complete kit per

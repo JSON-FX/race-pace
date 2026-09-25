@@ -3,6 +3,7 @@ import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 import { NavProgressProvider, NavProgressBar } from "./NavProgress";
 import { BottomNav } from "./BottomNav";
+import { AdminCanvasController } from "./AdminCanvasPreference";
 import type { MyRoles } from "@/lib/queries/roles";
 import type { OrgContext } from "@/lib/org-context";
 // Re-exported for callers that historically imported NavCounts from here;
@@ -24,6 +25,7 @@ export function AppShell({
 }) {
   return (
     <SidebarProvider>
+      <AdminCanvasController />
       {/* The provider wraps BOTH the sidebar (where links report pending) and
           the inset (where the bar renders) — a shared ancestor is required, and
           putting it lower would leave the bar unable to see the links. */}
