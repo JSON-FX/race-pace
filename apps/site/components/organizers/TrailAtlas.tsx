@@ -24,14 +24,18 @@ export function OrganizerDirectoryRow({ organizer }: { organizer: Organizer }) {
   );
 }
 
-export function OrganizerProfileSplitHero({ organizer }: { organizer: Organizer }) {
+export function OrganizerProfileOpenSpread({ organizer }: { organizer: Organizer }) {
   return (
-    <section className="trail-atlas__profile-hero" aria-labelledby="organizer-name">
-      <OrganizerPhoto src={organizer.bannerUrl ?? organizer.events[0]?.imageUrl ?? null} className="trail-atlas__hero-photo" />
+    <section className={`trail-atlas__profile-hero${organizer.featuredImageUrl ? "" : " trail-atlas__profile-hero--text-only"}`} aria-labelledby="organizer-name">
+      {organizer.featuredImageUrl ? <OrganizerPhoto src={organizer.featuredImageUrl} className="trail-atlas__hero-photo" /> : null}
       <div className="trail-atlas__profile-summary">
         <OrganizerMark organizer={organizer} large />
         <h1 id="organizer-name">{organizer.name}</h1>
         {organizer.description ? <p>{organizer.description}</p> : null}
+        <div className="trail-atlas__hero-facts">
+          <span>{organizer.events.length} upcoming {organizer.events.length === 1 ? "event" : "events"}</span>
+          {organizer.homeBase ? <span>{organizer.homeBase}</span> : null}
+        </div>
       </div>
     </section>
   );

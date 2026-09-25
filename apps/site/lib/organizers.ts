@@ -21,6 +21,7 @@ export type Organizer = {
   name: string;
   logoUrl: string | null;
   bannerUrl: string | null;
+  featuredImageUrl: string | null;
   description: string | null;
   homeCity: string | null;
   homeProvince: string | null;
@@ -36,6 +37,7 @@ type OrganizationRecord = {
   name: string;
   logo_url: string | null;
   banner_url: string | null;
+  featured_image_url: string | null;
   description: string | null;
   home_city_name: string | null;
   home_province_name: string | null;
@@ -57,7 +59,7 @@ type EventRecord = {
   categories: { distance_km: number | string | null; slots_total: number; slots_taken: number }[] | null;
 };
 
-const ORGANIZATION_COLUMNS = "id,slug,name,logo_url,banner_url,description,home_city_name,home_province_name,home_region_name";
+const ORGANIZATION_COLUMNS = "id,slug,name,logo_url,banner_url,featured_image_url,description,home_city_name,home_province_name,home_region_name";
 const EVENT_COLUMNS = "id,org_id,name,slug,event_date,hero_image_url,city_name,place,discipline,status,registration_closes_at,categories(distance_km,slots_total,slots_taken)";
 const PAGE_SIZE = 500;
 const PUBLIC_UPCOMING_STATUSES = ["open", "almost_full", "closed"];
@@ -123,6 +125,7 @@ export function mapOrganizer(org: OrganizationRecord, events: EventRecord[], dis
     name: org.name,
     logoUrl: org.logo_url,
     bannerUrl: org.banner_url,
+    featuredImageUrl: org.featured_image_url,
     description: org.description?.trim() || null,
     homeCity,
     homeProvince,

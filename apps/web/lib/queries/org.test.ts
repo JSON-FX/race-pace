@@ -16,7 +16,7 @@ describe("getOrg", () => {
   it("returns the org branding row for the given id", async () => {
     const org = await getOrg("a1");
     expect(org).toMatchObject({ id: "a1", name: "TrailNorth", logo_url: null, banner_url: null });
-    expect(selectMock).toHaveBeenCalledWith("id,name,description,home_city_psgc_code,home_city_name,home_province_name,home_region_name,logo_url,banner_url,check_in_required_default");
+    expect(selectMock).toHaveBeenCalledWith("id,name,description,home_city_psgc_code,home_city_name,home_province_name,home_region_name,logo_url,banner_url,featured_image_url,check_in_required_default");
     expect(eqMock).toHaveBeenCalledWith("id", "a1");
   });
 

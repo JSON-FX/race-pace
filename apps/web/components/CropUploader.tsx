@@ -15,7 +15,7 @@ export function CropUploader({ orgId, kind, aspect, field, label, currentUrl, ro
   orgId: string;
   kind: OrgImageKind;
   aspect: number;
-  field: "logo_url" | "banner_url";
+  field: "logo_url" | "banner_url" | "featured_image_url";
   label: string;
   currentUrl: string | null;
   round?: boolean;
@@ -67,10 +67,25 @@ export function CropUploader({ orgId, kind, aspect, field, label, currentUrl, ro
     }
   }
 
+  async function remove() {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await updateOrgBrandingAction(orgId, { [field]: null });
+      if (!res.ok) throw new Error(res.error);
+      toast.success("Featured image removed");
+      onSaved();
+    } catch (e) {
+      setError((e as Error).message || "Remove failed. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="min-w-0">
       <div className="mb-2 text-[12px] font-bold">{label}</div>
-      <div className="relative grid h-40 place-items-center overflow-hidden rounded-[13px] border border-dashed border-primary/35 bg-gradient-to-br from-secondary to-muted">
+      <div className={cn("relative grid place-items-center overflow-hidden rounded-[13px] border border-dashed border-primary/35 bg-gradient-to-br from-secondary to-muted", kind === "featured" ? "aspect-[7/5] max-h-[360px]" : "h-40")}>
         {currentUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -78,7 +93,7 @@ export function CropUploader({ orgId, kind, aspect, field, label, currentUrl, ro
             alt={`Current ${label.toLowerCase()}`}
             className={cn(
               "object-cover",
-              round ? "m-auto size-24 rounded-full border-4 border-card shadow-lg" : "size-full",
+              round ? "m-auto size-24 rounded-full border-4 border-card shadow-lg" : kind === "featured" ? "size-full object-contain" : "size-full",
             )}
           />
         ) : round ? (
@@ -96,9 +111,11 @@ export function CropUploader({ orgId, kind, aspect, field, label, currentUrl, ro
           <input type="file" accept="image/*" aria-label={`Choose ${label}`} onChange={onFile} className="hidden" />
         </label>
         <span className="text-[10.5px] text-muted-foreground">
-          {round ? "Square image" : "Recommended 13:5 ratio"}
+          {round ? "Square image" : kind === "featured" ? "Recommended 7:5 landscape photo" : "Recommended 13:5 ratio"}
         </span>
+        {kind === "featured" && currentUrl ? <Button type="button" variant="ghost" size="sm" onClick={remove} disabled={busy}>Remove image</Button> : null}
       </div>
+      {error && !src ? <p role="alert" className="mt-2 text-[13px] text-destructive">{error}</p> : null}
 
       <Dialog open={!!src} onOpenChange={(open) => { if (!open) close(); }}>
         <DialogContent aria-label={`Crop ${label}`} className="w-auto max-w-none gap-3 p-6">

@@ -38,6 +38,13 @@ beforeEach(() => {
 });
 
 describe("updateOrgBrandingAction", () => {
+  it("saves and clears the optional featured image for an org admin", async () => {
+    getMyRoles.mockResolvedValue(roles({}));
+    expect((await updateOrgBrandingAction("a1", { featured_image_url: "https://x/photo.png" })).ok).toBe(true);
+    expect(updateMock).toHaveBeenCalledWith({ featured_image_url: "https://x/photo.png" });
+    expect((await updateOrgBrandingAction("a1", { featured_image_url: null })).ok).toBe(true);
+    expect(updateMock).toHaveBeenCalledWith({ featured_image_url: null });
+  });
   it("writes the patch and revalidates /settings for an org admin", async () => {
     getMyRoles.mockResolvedValue(roles({}));
     const res = await updateOrgBrandingAction("a1", { logo_url: "https://x/a.png" });

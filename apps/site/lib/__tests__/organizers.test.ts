@@ -3,7 +3,7 @@ import { filterOrganizers, homeBaseOf, mapOrganizer, philippineToday, regionsOf 
 
 const org = {
   id: "org-1", slug: "ridge-river", name: "Ridge & River Collective",
-  logo_url: null, banner_url: null, description: "  Trail days in Bukidnon.  ",
+  logo_url: null, banner_url: null, featured_image_url: null, description: "  Trail days in Bukidnon.  ",
   home_city_name: "Malaybalay", home_province_name: "Bukidnon", home_region_name: "Northern Mindanao",
 };
 const event = {
@@ -20,9 +20,16 @@ describe("Trail Atlas organizer data", () => {
   it("keeps nullable profile fields blank and derives home base from admin location", () => {
     const mapped = mapOrganizer({ ...org, description: null, home_city_name: null, home_province_name: null, home_region_name: null }, []);
     expect(mapped.description).toBeNull();
+    expect(mapped.featuredImageUrl).toBeNull();
     expect(mapped.homeBase).toBeNull();
     expect(mapped.events).toEqual([]);
     expect(homeBaseOf({ homeCity: "Baguio", homeProvince: null, homeRegion: "Cordillera Administrative Region" })).toBe("Baguio");
+  });
+
+  it("keeps the featured photograph separate from the promotional cover", () => {
+    const mapped = mapOrganizer({ ...org, banner_url: "https://example.test/banner.png", featured_image_url: "https://example.test/photo.png" }, []);
+    expect(mapped.featuredImageUrl).toBe("https://example.test/photo.png");
+    expect(mapped.bannerUrl).toBe("https://example.test/banner.png");
   });
 
   it("derives event counts, disciplines, and slots from the organizer's events", () => {

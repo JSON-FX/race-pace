@@ -11,6 +11,7 @@ export type OrgBranding = {
   home_region_name: string | null;
   logo_url: string | null;
   banner_url: string | null;
+  featured_image_url: string | null;
   check_in_required_default: boolean;
 };
 
@@ -22,7 +23,7 @@ export const getOrg = cache(async (orgId: string): Promise<OrgBranding> => {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("organizations")
-    .select("id,name,description,home_city_psgc_code,home_city_name,home_province_name,home_region_name,logo_url,banner_url,check_in_required_default")
+    .select("id,name,description,home_city_psgc_code,home_city_name,home_province_name,home_region_name,logo_url,banner_url,featured_image_url,check_in_required_default")
     .eq("id", orgId)
     .single();
   if (error) throw error;
