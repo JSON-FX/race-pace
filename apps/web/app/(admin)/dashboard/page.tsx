@@ -17,7 +17,7 @@ import { peso, fmtDate } from "@/lib/format";
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="px-4 pb-10 pt-6 md:px-[30px]">
+    <div className="fieldnotes-admin-workspace" data-fieldnotes-section="Race control / Overview">
       <h1 className="mb-5 text-[21px] font-bold tracking-[-0.02em]">Dashboard</h1>
       {children}
     </div>
@@ -149,11 +149,7 @@ export default async function DashboardPage() {
           <SignupsChart points={data.signups} />
         </Card>
         <Card className="gap-0 overflow-hidden rounded-xl border py-0 shadow-card">
-          {/* "Top N by fill", not "N open events" as the mockup captions it:
-              getOrgDashboard slices to the five fullest capped events, so a
-              plain count would understate an org with more than five and
-              silently mislabel the draft/closed ones it does include. */}
-          <CardHead title="Fill rate" note={`Top ${data.fill.length} by fill`} />
+          <CardHead title="Race capacity" note="Up to 5 capped races" />
           <FillRatePanel rows={data.fill} />
         </Card>
       </div>

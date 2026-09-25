@@ -41,7 +41,7 @@ export default async function RegistrationsPage({
 
   if (!orgId) {
     return (
-      <div className="px-4 pb-10 pt-6 md:px-[30px]">
+      <div className="fieldnotes-admin-workspace" data-fieldnotes-section="Race control / Participants">
         <div className="mb-5">
           <h1 className="text-[21px] font-bold tracking-[-0.02em]">Registrations</h1>
         </div>
@@ -69,7 +69,7 @@ export default async function RegistrationsPage({
 
   if (!eventId) {
     return (
-      <div className="px-4 pb-10 pt-6 md:px-[30px]">
+      <div className="fieldnotes-admin-workspace" data-fieldnotes-section="Race control / Participants">
         <h1 className="mb-5 text-[21px] font-bold tracking-[-0.02em]">Registrations</h1>
         <Card className="gap-0 overflow-hidden rounded-xl border py-0 shadow-card">
           <TableEmptyState title="No events yet" description="Create an event before you can take registrations." />
@@ -103,7 +103,7 @@ export default async function RegistrationsPage({
   );
 
   return (
-    <div className="px-4 pb-10 pt-6 md:px-[30px]">
+    <div className="fieldnotes-admin-workspace" data-fieldnotes-section="Race control / Participants">
       <div className="mb-5 flex items-start justify-between gap-4">
         <div>
           <h1 className="text-[21px] font-bold tracking-[-0.02em]">Registrations</h1>
