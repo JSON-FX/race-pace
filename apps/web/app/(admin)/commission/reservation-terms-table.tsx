@@ -19,7 +19,7 @@ function ReservationTermRow({ org }: { org: OrgCommissionRow }) {
       <input type="hidden" name="reservation_commission_flat_pesos" value={flat} />
       <div>
         <p className="text-sm font-bold">{org.name}</p>
-        <p className="text-xs text-muted-foreground">Charged once for each paid reservation.</p>
+        <p className="text-xs text-muted-foreground">Charged for each reserved Race Passport when the reservation is paid.</p>
       </div>
       <fieldset className="flex items-center gap-3 text-sm" aria-label={`Reservation Platform Fees type for ${org.name}`}>
         <label className="flex items-center gap-1"><input type="radio" checked={type === "fixed"} onChange={() => setType("fixed")} /> Fixed</label>
