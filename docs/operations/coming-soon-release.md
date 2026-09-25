@@ -4,7 +4,7 @@ Coming Soon is on staging. The event-capacity correction has its own staging gat
 
 ## Deploy together
 
-1. Merge the reviewed feature into `staging` after the local and pull-request checks pass. Apply migrations `20260925082111`, `20260925082112`, `20260925141000`, `20260925150000`, and `20260925160000` to the **staging** Supabase project only. Check their recorded versions, grants, row-level security, and event status enum.
+1. Merge the reviewed feature into `staging` after the local and pull-request checks pass. Apply migrations `20260925082111`, `20260925082112`, `20260925141000`, `20260925150000`, and `20260925160000` to the **staging** Supabase project only. The capacity correction adds `20260926090000` and `20260926091000`. Check their recorded versions, grants, row-level security, and event status enum.
 2. Deploy the changed functions `registrations-checkout`, `payment-session`, and `payments-webhook`. Deploy the new functions `reservation-checkout`, `reservation-verify`, `coming-soon-subscribe`, `coming-soon-delivery`, and `expire-coming-soon-reservations`. Verify the JWT settings in `supabase/config.toml` against each deployed bundle.
 3. Set the correct staging `PUBLIC_SITE_URL`, PayMongo test secret, webhook secret, Resend sender, `TICKET_EMAIL_SECRET`, and `PAYMENT_EXPIRY_WORKER_SECRET` on the function project. Reuse the staging webhook endpoint; the handler routes reservation metadata to provider readback. Keep every secret inside its environment.
 4. Schedule `coming-soon-delivery` with the existing ticket email worker bearer secret, and `expire-coming-soon-reservations` with the existing payment expiry worker bearer secret. A one-minute email drain and five-minute expiry sweep are suitable. Use the hosted scheduler's stored secret references; never paste bearer values into migration source. Read back both jobs and make one unauthorized request to each function to confirm rejection.
@@ -18,7 +18,7 @@ Coming Soon is on staging. The event-capacity correction has its own staging gat
 - Try a second hold against the one-place event and confirm refusal without a visible slots-left count. Open registration with a category. Confirm one opening email, category choice, separate entry payment, one conversion, and an ordinary ticket. Check admin reservation roster, Payments CSV, Settlement, Platform Fees, and reservation payout figures.
 - Set Total event slots outside Coming Soon. Leave categories empty while reservations are offered. Then allocate categories below the total, verify over-allocation is rejected, and complete the allocation before opening registration.
 - Exercise an unpaid hosted checkout through provider-confirmed expiry. Confirm the place returns only after the provider session is expired or verified unpaid. Exercise a deadline-past registration payment in sandbox; verify the capture remains under review with no ticket or silent refund.
-- Before production promotion, record the exact commit, both Vercel IDs, all five migration versions, every function version, provider mode, worker schedules, and the observed financial readback in `launch-progress.md`. Production keeps real data only; do not create synthetic events or charges there.
+- Before production promotion, record the exact commit, both Vercel IDs, all seven migration versions, every function version, provider mode, worker schedules, and the observed financial readback in `launch-progress.md`. Production keeps real data only; do not create synthetic events or charges there.
 
 ## Operational review
 
