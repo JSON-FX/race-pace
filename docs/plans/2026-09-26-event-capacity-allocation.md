@@ -1,6 +1,6 @@
 # Event total and category allocation
 
-Status: implemented locally; staging verification pending.
+Status: deployed and verified on staging; production promotion pending with the parent Coming Soon feature.
 
 The event's `total_event_slots` is the capacity source for reservations and registrations. Organizers set it in the Categories section for every event. Coming Soon can leave category slots unassigned. Before registration opens, category slots must sum exactly to the event total. The public Coming Soon page continues to hide capacity counts.
 
