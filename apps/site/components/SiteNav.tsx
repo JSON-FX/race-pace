@@ -39,10 +39,12 @@ type Item = { href: string; label: string };
 const PUBLIC_ITEMS: Item[] = [
   { href: "/home", label: "Home" },
   { href: "/events", label: "Races" },
+  { href: "/organizers", label: "Organizers" },
 ];
 const RUNNER_ITEMS: Item[] = [
   { href: "/home", label: "Home" },
   { href: "/events", label: "Races" },
+  { href: "/organizers", label: "Organizers" },
   { href: "/races", label: "My Races" },
   { href: "/profile", label: "Profile" },
 ];
@@ -72,7 +74,10 @@ export function SiteNav({ signedIn }: { signedIn: boolean }) {
   }, []);
 
   return (
-      <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between gap-4 px-5 sm:px-6">
+      <div className={cn(
+        "mx-auto flex h-16 w-full max-w-6xl items-center justify-between gap-4 px-5 sm:px-6",
+        !signedIn && "max-[370px]:h-auto max-[370px]:flex-wrap max-[370px]:gap-y-1 max-[370px]:py-2",
+      )}>
         <Link href="/" aria-label="Race Pace home" className="flex shrink-0 items-center">
           {/* The mark alone — the asset's own wordmark is the footer's job.
               Explicit width/height keep the box reserved so the header never
@@ -98,8 +103,8 @@ export function SiteNav({ signedIn }: { signedIn: boolean }) {
             //
             // Signed OUT there is no bar (two tabs reads as broken, and Sign in
             // is a call to action rather than a destination) — so the pills stay
-            // visible. Home + Races fit a 375px row comfortably.
-            signedIn ? "hidden" : "flex",
+            // visible. Keep each target compact enough for the three public links.
+            signedIn ? "hidden" : "flex max-[370px]:order-3 max-[370px]:w-full max-[370px]:justify-center",
           )}
         >
           {items.map((item) => {
@@ -110,7 +115,7 @@ export function SiteNav({ signedIn }: { signedIn: boolean }) {
                 href={item.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "relative rounded-pill px-4 py-2 text-[13px] font-semibold transition-colors",
+                  "relative rounded-pill px-2.5 py-2 text-[11px] font-semibold transition-colors sm:px-4 sm:text-[13px]",
                   active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
                 )}
               >
@@ -151,7 +156,7 @@ export function SiteNav({ signedIn }: { signedIn: boolean }) {
           ) : (
             <Link
               href="/sign-in"
-              className="rounded-pill bg-primary px-4 py-2.5 text-[13px] font-semibold text-primary-foreground transition-colors hover:bg-primary-focus sm:px-5"
+              className="rounded-pill bg-primary px-2.5 py-2.5 text-[11px] font-semibold text-primary-foreground transition-colors hover:bg-primary-focus sm:px-5 sm:text-[13px]"
             >
               Sign in
             </Link>
