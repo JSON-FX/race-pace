@@ -43,6 +43,7 @@ export const registrationInputSchema = z.object({
   waiver_accepted: z.boolean(),
   waiver_version_id: z.string().uuid().optional(),
   waiver_acceptance_method: z.enum(["signed_in_self", "participant_on_helper_device"]).optional(),
+  event_reservation_id: z.string().uuid().optional(),
   idempotency_key: z.string().min(8),
 });
 

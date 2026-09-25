@@ -17,6 +17,8 @@ import {
 import { peso, fmtDate, initials } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { OpenStatementControl, SettleStatementButton, RefreshStatementButton } from "./statement-actions";
+import { listReservationPayoutRows } from "@/lib/queries/reservation-payouts";
+import { ReservationPayoutControls } from "./reservation-payout-controls";
 
 /** U+2212 MINUS SIGN, not a hyphen. It is the same width as a digit, so a
  *  column of `tabular-nums` figures stays aligned whether or not a row's
@@ -60,7 +62,9 @@ export default async function PayoutsPage() {
   // this guard is what stops the URL from being a directory of what exists.
   if (!hasCapability(roles?.capabilities ?? [], "manage_platform")) notFound();
 
-  const [rows, openable] = await Promise.all([listPayoutStatements(), listOpenableEvents()]);
+  const [rows, openable, reservationRows] = await Promise.all([
+    listPayoutStatements(), listOpenableEvents(), listReservationPayoutRows(),
+  ]);
   const kpis = payoutKpis(rows);
   // Statements whose own printed terms do not explain their net owed. Expected
   // to be empty — `statementResidual` documents why the five columns below are
@@ -292,6 +296,35 @@ export default async function PayoutsPage() {
           they are never deducted twice.
         </p>
       ) : null}
+
+      <section className="mt-8" aria-labelledby="reservation-payouts-heading">
+        <h2 id="reservation-payouts-heading" className="text-lg font-bold">Early reservation payouts</h2>
+        <p className="mt-1 text-sm text-muted-foreground">These separate charges are settled after the event finishes.</p>
+        <Card className="mt-4 gap-0 overflow-x-auto rounded-xl border py-0 shadow-card">
+          {reservationRows.length ? <Table>
+            <TableHeader><TableRow>
+              <TableHead>Event</TableHead><TableHead className="text-right">Paid</TableHead>
+              <TableHead className="text-right">Gross</TableHead><TableHead className="text-right">Platform Fees</TableHead>
+              <TableHead className="text-right">PayMongo</TableHead><TableHead className="text-right">To organizer</TableHead>
+              <TableHead>Statement</TableHead>
+            </TableRow></TableHeader>
+            <TableBody>{reservationRows.map((row) => {
+              const amount = row.statement ?? row;
+              return <TableRow key={row.eventId}>
+                <TableCell><span className="font-semibold">{row.eventName}</span><span className="block text-xs text-muted-foreground">{row.orgName}</span></TableCell>
+                <TableCell className="text-right tabular-nums">{row.statement?.payment_count ?? row.paidCount}</TableCell>
+                <TableCell className="text-right tabular-nums">{peso("gross_cents" in amount ? amount.gross_cents : amount.grossCents)}</TableCell>
+                <TableCell className="text-right tabular-nums">{peso("platform_fee_cents" in amount ? amount.platform_fee_cents : amount.platformFeeCents)}</TableCell>
+                <TableCell className="text-right tabular-nums">{peso("processor_fee_cents" in amount ? amount.processor_fee_cents : amount.processorFeeCents)}</TableCell>
+                <TableCell className="text-right font-semibold tabular-nums">{peso("net_to_org_cents" in amount ? amount.net_to_org_cents : amount.netToOrgCents)}</TableCell>
+                <TableCell>{row.statement?.status === "paid" ? <span className="text-xs">Paid · {row.statement.reference}</span>
+                  : row.eventFinished ? <ReservationPayoutControls eventId={row.eventId} statement={row.statement} />
+                  : <span className="text-xs text-muted-foreground">After event end</span>}</TableCell>
+              </TableRow>;
+            })}</TableBody>
+          </Table> : <div className="p-6 text-sm text-muted-foreground">No paid early reservations yet.</div>}
+        </Card>
+      </section>
     </div>
   );
 }

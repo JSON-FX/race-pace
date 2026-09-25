@@ -72,6 +72,7 @@ export function reportedSessionId(raw: unknown): string | null {
 export function reportedPaidCaptures(raw: unknown): Array<{
   id: string; currency: string; livemode: boolean;
   amount: number | null; fee: number | null; netAmount: number | null;
+  paidAt: string | null;
 }> {
   // deno-lint-ignore no-explicit-any
   const attrs = paymentAttributes(raw);
@@ -86,6 +87,8 @@ export function reportedPaidCaptures(raw: unknown): Array<{
         id: p?.id, currency: p?.attributes?.currency, livemode: p?.attributes?.livemode,
         amount: amounts?.amount ?? null, fee: amounts?.fee ?? null,
         netAmount: amounts?.netAmount ?? null,
+        paidAt: typeof p?.attributes?.paid_at === "number" && Number.isFinite(p.attributes.paid_at)
+          ? new Date(p.attributes.paid_at * 1000).toISOString() : null,
       };
     });
 }
@@ -113,7 +116,7 @@ export async function confirmPayment(
     // the type level, and `a + b` is `string` to TypeScript — which erases every
     // column type on `reg` (this file used to do exactly that, and typed `reg`
     // as an error object for its whole length).
-    .select("id,event_id,total_amount,status,organizations(commission_type,commission_rate,commission_flat_cents),payments(amount,provider,provider_ref,raw,checkout_fee_mode,checkout_platform_fee,checkout_provider_managed_fee)")
+    .select("id,event_id,event_reservation_id,total_amount,status,organizations(commission_type,commission_rate,commission_flat_cents),payments(amount,provider,provider_ref,raw,checkout_fee_mode,checkout_platform_fee,checkout_provider_managed_fee)")
     .eq("id", registrationId)
     .single();
   if (!reg) return { ok: false, error: "not_found", status: 404 };
@@ -376,7 +379,7 @@ export async function confirmPayment(
     secret,
   );
 
-  const { data: result, error } = await db.rpc("confirm_payment_tx", {
+  const rpcArgs = {
     p_registration_id: reg.id,
     p_method: method,
     p_fee: fee,
@@ -386,7 +389,15 @@ export async function confirmPayment(
     p_processor_fee: processorFee,
     p_processor_fee_predicted: processorFeePredicted,
     p_processor_fee_source: processorFeeSource,
-  });
+  };
+  const { data: result, error } = reg.event_reservation_id
+    ? await db.rpc("confirm_reserved_registration_tx", {
+      ...rpcArgs,
+      p_provider_paid_at: paymentTerms?.provider === "paymongo"
+        ? reportedPaidCaptures(raw)[0]?.paidAt ?? null
+        : new Date().toISOString(),
+    })
+    : await db.rpc("confirm_payment_tx", rpcArgs);
   if (error) {
     console.error("[confirm] confirm_payment_tx failed", { registrationId: reg.id, error });
     return { ok: false, error: "confirm_write_failed", status: 500 };
@@ -408,6 +419,14 @@ export async function confirmPayment(
     }
     // No ticket was created. The capture remains in the inbox and blocks
     // payout until staff resolves the refund or fulfillment conflict.
+    return { ok: false, error: "capture_review_required", status: 503 };
+  }
+  if (result === "reservation_deadline_passed") {
+    if (observedPaymentId) {
+      await db.from("single_payment_captures")
+        .update({ state: "reconciliation_required", reason: "reservation_deadline_passed" })
+        .eq("provider_payment_id", observedPaymentId).eq("registration_id", reg.id);
+    }
     return { ok: false, error: "capture_review_required", status: 503 };
   }
   const already = result === "already" || result === "not_pending";

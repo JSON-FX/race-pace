@@ -177,10 +177,12 @@ describe("processor fee columns", () => {
        *  branding (20260724130000), rename (20260806180000), commercial terms
        *  (20260807090600), fee mode (20260811097000), check-in default
        *  (20260918100000), public organizer profile (20260925000644),
-       *  organizer featured photograph (20260925085305). */
+       *  organizer featured photograph (20260925085305), and reservation terms
+       *  (20260925082112). */
       const GRANTED = [
         "logo_url", "banner_url", "name",
         "commission_type", "commission_rate", "commission_flat_cents",
+        "reservation_commission_type", "reservation_commission_rate", "reservation_commission_flat_cents",
         "refund_policy", "refund_fee_cents",
         "fee_mode",
         "check_in_required_default",
@@ -417,8 +419,8 @@ describe("reportedProcessorFee — what the provider actually reported", () => {
       amount: 10000, fee: 300, net_amount: 9700,
     } };
     const expected = [
-      { id: "pay_first", currency: "PHP", livemode: false, amount: 10000, fee: 250, netAmount: 9750 },
-      { id: "pay_extra", currency: "PHP", livemode: false, amount: 10000, fee: 300, netAmount: 9700 },
+      { id: "pay_first", currency: "PHP", livemode: false, amount: 10000, fee: 250, netAmount: 9750, paidAt: null },
+      { id: "pay_extra", currency: "PHP", livemode: false, amount: 10000, fee: 300, netAmount: 9700, paidAt: null },
     ];
     expect(reportedPaidCaptures(verifyRaw([first, extra]))).toEqual(expected);
     expect(reportedPaidCaptures(webhookRaw([first, extra]))).toEqual(expected);

@@ -21,12 +21,14 @@ export function ParticipantPicker({
   participants,
   userId,
   groupCheckoutEnabled,
+  reservationId,
 }: {
   category: CategoryRow;
   event: EventRow;
   participants: ParticipantSummary[];
   userId: string;
   groupCheckoutEnabled: boolean;
+  reservationId?: string | null;
 }) {
   const eligibleParticipants = participants.filter(
     (participant) => !participant.claimed_user_id || participant.claimed_user_id === userId,
@@ -61,7 +63,7 @@ export function ParticipantPicker({
           </header>
 
           <div className="p-5 sm:p-8">
-            {groupCheckoutEnabled ? (
+            {groupCheckoutEnabled && !reservationId ? (
               <Link
                 href={`/register/${category.id}/group`}
                 className="group flex min-h-16 items-center gap-4 rounded-xl bg-primary px-4 py-3.5 text-primary-foreground transition-colors hover:bg-primary-focus focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:px-5"
@@ -77,7 +79,7 @@ export function ParticipantPicker({
               </Link>
             ) : null}
 
-            <div className={groupCheckoutEnabled ? "mt-7" : ""}>
+            <div className={groupCheckoutEnabled && !reservationId ? "mt-7" : ""}>
               <div className="flex items-end justify-between gap-4">
                 <div>
                   <p className="font-eyebrow text-[10px] font-bold uppercase tracking-[2px] text-primary">Race Passports</p>
@@ -94,7 +96,7 @@ export function ParticipantPicker({
                     return (
                       <li key={participant.id}>
                         <Link
-                          href={`/register/${category.id}?participant=${participant.id}`}
+                          href={`/register/${category.id}?participant=${participant.id}${reservationId ? `&reservation_id=${reservationId}` : ""}`}
                           className={`group flex min-h-28 h-full items-center gap-4 rounded-xl border p-4 transition-[border-color,background-color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
                             isSelf
                               ? "border-primary/35 bg-secondary/70 hover:border-primary"

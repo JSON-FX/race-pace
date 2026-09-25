@@ -11,6 +11,10 @@ export type EventRow = {
   cutoff_hours: number | null; flag_off?: string | null;
   waiver_version_id?: string | null;
   status: string; hero_image_url: string | null; description: string | null;
+  coming_soon_notify_enabled?: boolean; coming_soon_reserve_enabled?: boolean;
+  reservation_fee_cents?: number | null; reservation_deadline_at?: string | null;
+  total_event_slots?: number | null;
+  reservation_platform_fee_cents?: number | null;
   gallery: string[]; original_date: string | null; status_note: string | null;
   city_psgc_code: string | null; region_name: string | null; province_name: string | null;
   city_name: string | null; venue: string | null; inclusions?: string[] | null;
@@ -67,7 +71,7 @@ export type FormFieldRow = {
 // inclusions; the catalog needs live remaining capacity. Check the mobile
 // selection directly if reconciling the two.
 const EVENT_COLS =
-  "id,org_id,waiver_version_id,name,slug,place,region,event_date,end_date,elevation_gain_m,cutoff_hours,flag_off,status,hero_image_url,description,gallery,original_date,status_note,city_psgc_code,region_name,province_name,city_name,venue,inclusions,discipline,schedule,start_lat,start_lng,finish_lat,finish_lng,route,registration_closes_at,categories(slots_total,slots_taken,distance_km)";
+  "id,org_id,waiver_version_id,name,slug,place,region,event_date,end_date,elevation_gain_m,cutoff_hours,flag_off,status,hero_image_url,description,gallery,original_date,status_note,city_psgc_code,region_name,province_name,city_name,venue,inclusions,discipline,schedule,start_lat,start_lng,finish_lat,finish_lng,route,registration_closes_at,coming_soon_notify_enabled,coming_soon_reserve_enabled,reservation_fee_cents,reservation_deadline_at,total_event_slots,categories(slots_total,slots_taken,distance_km)";
 const CAT_COLS =
   "id,event_id,org_id,code,label,distance_km,base_price,slots_total,slots_taken,elevation_gain_m,cutoff_hours,blurb";
 
@@ -94,7 +98,7 @@ export function mapEvent(r: any): EventRow {
     start_lat: num(r.start_lat), start_lng: num(r.start_lng),
     finish_lat: num(r.finish_lat), finish_lng: num(r.finish_lng),
     joined_count: categories.reduce((sum, c) => sum + c.slots_taken, 0),
-    slots_left: categories.length > 0 && categories.every((c) => Number.isFinite(c.slots_total) && Number.isFinite(c.slots_taken))
+    slots_left: r.status !== "coming_soon" && r.total_event_slots == null && categories.length > 0 && categories.every((c) => Number.isFinite(c.slots_total) && Number.isFinite(c.slots_taken))
       ? categories.reduce((sum, c) => sum + Math.max(0, c.slots_total - c.slots_taken), 0)
       : null,
     distances: categories.map((c) => c.distance_km).filter((d): d is number => d != null),
@@ -103,6 +107,9 @@ export function mapEvent(r: any): EventRow {
     org_name: r.organizations?.name,
     org_color: r.organizations?.brand_color,
     org_logo_url: r.organizations?.logo_url,
+    reservation_platform_fee_cents: r.organizations?.reservation_commission_type === "fixed"
+      ? r.organizations.reservation_commission_flat_cents
+      : Math.round((r.reservation_fee_cents ?? 0) * Number(r.organizations?.reservation_commission_rate ?? 0)),
     feeMode: r.organizations?.fee_mode,
     commissionTerms: r.organizations ? {
       commission_type: r.organizations.commission_type,
@@ -116,7 +123,7 @@ export function mapEvent(r: any): EventRow {
 export async function fetchMarketplaceEvents(db: SupabaseClient): Promise<EventRow[]> {
   const { data, error } = await db
     .from("events")
-    .select(`${EVENT_COLS},organizations(name,brand_color,logo_url,refund_policy,refund_fee_cents,fee_mode,commission_type,commission_rate,commission_flat_cents)`)
+    .select(`${EVENT_COLS},organizations(name,brand_color,logo_url,refund_policy,refund_fee_cents,fee_mode,commission_type,commission_rate,commission_flat_cents,reservation_commission_type,reservation_commission_rate,reservation_commission_flat_cents)`)
     .order("event_date");
   if (error) throw error;
   return (data ?? []).map(mapEvent);
@@ -131,7 +138,7 @@ export function eventPublicPath(event: Pick<EventRow, "id" | "slug">): string {
 export async function fetchEvent(db: SupabaseClient, identifier: string): Promise<EventRow | null> {
   const { data, error } = await db
     .from("events")
-    .select(`${EVENT_COLS},organizations(name,brand_color,logo_url,refund_policy,refund_fee_cents,fee_mode,commission_type,commission_rate,commission_flat_cents)`)
+    .select(`${EVENT_COLS},organizations(name,brand_color,logo_url,refund_policy,refund_fee_cents,fee_mode,commission_type,commission_rate,commission_flat_cents,reservation_commission_type,reservation_commission_rate,reservation_commission_flat_cents)`)
     .eq(UUID.test(identifier) ? "id" : "slug", identifier)
     .maybeSingle();
   if (error) throw error;

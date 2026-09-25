@@ -30,6 +30,8 @@ function editorData(orgId: string): EditorData {
     event: {
       id: "e1", org_id: orgId, name: "Apo", slug: "apo", slug_locked_at: "2026-09-20T00:00:00Z", city_psgc_code: null, region_name: null, province_name: null,
       city_name: null, venue: null, event_date: null, end_date: null, flag_off: null, status: "open",
+      coming_soon_notify_enabled: false, coming_soon_reserve_enabled: false,
+      reservation_fee_cents: null, reservation_deadline_at: null, total_event_slots: null,
       registration_closes_at: null, kit_edit_closes_at: null,
       discipline: "trail", check_in_required: true, elevation_gain_m: null, cutoff_hours: null, start_lat: null, start_lng: null,
       finish_lat: null, finish_lng: null, route: null, description: null, hero_image_url: null,

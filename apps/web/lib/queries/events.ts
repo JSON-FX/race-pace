@@ -13,11 +13,12 @@ export type AdminEventRow = {
   end_date: string | null;
   status: string;
   original_date: string | null;
+  total_event_slots?: number | null;
   categories: { slots_taken: number; slots_total: number }[];
 };
 
 const SELECT =
-  "id,name,slug,place,city_name,province_name,event_date,end_date,status,original_date,categories(slots_taken,slots_total)";
+  "id,name,slug,place,city_name,province_name,event_date,end_date,status,original_date,total_event_slots,categories(slots_taken,slots_total)";
 
 /**
  * PostgREST's `.or()` filter string is a structural mini-language where

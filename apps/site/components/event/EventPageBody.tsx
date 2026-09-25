@@ -43,6 +43,8 @@ export function EventPageBody({
   closed,
   myEntry = null,
   registrationClosesAt,
+  reservationId = null,
+  reservationRemaining = 0,
 }: {
   event: EventRow;
   categories: CategoryRow[];
@@ -56,6 +58,8 @@ export function EventPageBody({
   /** Presentational only — deadlineNotice() returns null once this has passed,
    *  because the `closed` state above already says so more clearly. */
   registrationClosesAt: string | null;
+  reservationId?: string | null;
+  reservationRemaining?: number;
 }) {
   const layout = disciplineLayout(event.discipline);
   const trail = layout === "profile";
@@ -174,7 +178,7 @@ export function EventPageBody({
                 }
                 dark={trail}
               />
-              <Stat label="Slots left" value={<CountUp value={slotsLeft} />} dark={trail} />
+              {event.total_event_slots == null ? <Stat label="Slots left" value={<CountUp value={slotsLeft} />} dark={trail} /> : null}
             </dl>
           </Reveal>
 
@@ -224,6 +228,18 @@ export function EventPageBody({
       ) : null}
 
       {/* ── Distances ──────────────────────────────────────────────── */}
+      {reservationId && reservationRemaining > 0 ? (
+        <section className={trail ? "border-t border-white/10 bg-white/[0.04]" : "border-t border-black/10 bg-primary/5"}>
+          <div className="mx-auto max-w-6xl px-5 py-5 text-sm sm:px-8">
+            <strong>Your early reservation has {reservationRemaining} {reservationRemaining === 1 ? "place" : "places"} awaiting entry payment.</strong> Choose an available category for each Race Passport before the reservation deadline. The reservation fee remains a separate charge.
+            <div className="mt-3 flex flex-wrap gap-2">{categories.filter((category) => category.slots_taken < category.slots_total).map((category) =>
+              <Link key={category.id} href={`/register/${category.id}?reservation_id=${reservationId}`} className="rounded-full border border-current px-3 py-2 text-xs font-bold">
+                Register for {category.label}
+              </Link>
+            )}</div>
+          </div>
+        </section>
+      ) : null}
       <section
         id="distances"
         className={trail ? "border-t border-white/10 scroll-mt-16" : "border-t border-black/10 scroll-mt-16"}
@@ -237,7 +253,7 @@ export function EventPageBody({
 
           <ul className="mt-10">
             {categories.map((c, i) => (
-              <DistanceRow key={c.id} category={c} index={i} trail={trail} closed={closed} myEntry={myEntry} />
+              <DistanceRow key={c.id} category={c} index={i} trail={trail} closed={closed} myEntry={myEntry} reservationId={reservationId} hideCapacity={event.total_event_slots != null} />
             ))}
           </ul>
         </div>
@@ -321,6 +337,8 @@ function DistanceRow({
   trail,
   closed,
   myEntry,
+  reservationId,
+  hideCapacity,
 }: {
   category: CategoryRow;
   index: number;
@@ -328,6 +346,8 @@ function DistanceRow({
   closed: boolean;
   /** The runner's existing entry for THIS event, on any distance. */
   myEntry: MyEntry | null;
+  reservationId: string | null;
+  hideCapacity: boolean;
 }) {
   const remaining = Math.max(0, category.slots_total - category.slots_taken);
   const soldOut = remaining === 0;
@@ -337,7 +357,7 @@ function DistanceRow({
   // the one the runner picked — leaving "Join" live on the other distances
   // would walk them into a 409 they could have been told about here.
   const enterable = !soldOut && !closed && !myEntry;
-  const scarce = !soldOut && remaining <= 15;
+  const scarce = !hideCapacity && !soldOut && remaining <= 15;
   const pct = Math.min(100, Math.round((category.slots_taken / Math.max(1, category.slots_total)) * 100));
   // The distance the runner actually holds reads as "here is your entry"; any
   // other distance of the same event reads as "you already have an entry,
@@ -406,9 +426,9 @@ function DistanceRow({
 
           {/* Fill bar doubles as scarcity signal without relying on colour
               alone — the width itself carries the message. */}
-          <div className={`mt-4 h-[3px] w-full max-w-xs overflow-hidden rounded-full ${trail ? "bg-white/12" : "bg-black/10"}`}>
+          {!hideCapacity ? <div className={`mt-4 h-[3px] w-full max-w-xs overflow-hidden rounded-full ${trail ? "bg-white/12" : "bg-black/10"}`}>
             <div className="h-full rounded-full bg-primary" style={{ width: `${pct}%` }} />
-          </div>
+          </div> : null}
         </div>
 
         {/* Archivo, not the mono race face: JetBrains Mono has no PESO SIGN
@@ -484,7 +504,7 @@ function DistanceRow({
             </span>
           ) : (
             <RainbowButton asChild className="h-auto w-full rounded-pill px-6 py-3 text-[14.5px] font-semibold">
-              <Link href={`/register/${category.id}`} aria-label={`Join ${category.label} — ${formatPeso(category.base_price)}`}>
+              <Link href={`/register/${category.id}${reservationId ? `?reservation_id=${reservationId}` : ""}`} aria-label={`Join ${category.label} — ${formatPeso(category.base_price)}`}>
                 Join
               </Link>
             </RainbowButton>

@@ -9,6 +9,7 @@ import {
 import { TableEmptyState } from "@/components/data-table";
 import { peso, fmtDate } from "@/lib/format";
 import { ExportSettlementButton } from "./export-button";
+import { ReservationPaymentSection } from "@/app/(admin)/payments/reservation-section";
 
 const MINUS = "−";
 const money = (c: number | null) => c === null ? "Unknown" : peso(c);
@@ -53,7 +54,7 @@ export default async function SettlementPage({
         <div>
           <h1 className="text-[21px] font-bold tracking-[-0.02em]">Settlement · {s.event_name}</h1>
           <p className="mt-0.5 text-[13px] text-muted-foreground">
-            Gross → Race Pace commission → payment processing → refunds → net to you
+            Gross → Platform Fees → payment processing → refunds → net to you
           </p>
         </div>
         <ExportSettlementButton eventId={id} />
@@ -63,7 +64,7 @@ export default async function SettlementPage({
         <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-[13px] sm:grid-cols-5">
           <div><dt className="text-muted-foreground">Gross collected</dt>
             <dd className="font-bold tabular-nums">{peso(s.totals.gross)}</dd></div>
-          <div><dt className="text-muted-foreground">Race Pace commission</dt>
+          <div><dt className="text-muted-foreground">Platform Fees</dt>
             <dd className="font-bold tabular-nums">{deduction(s.totals.commission)}</dd></div>
           <div><dt className="text-muted-foreground">Payment processing</dt>
             <dd className="font-bold tabular-nums">{deduction(s.totals.processing)}</dd></div>
@@ -147,6 +148,7 @@ export default async function SettlementPage({
           </Table>
         )}
       </Card>
+      <ReservationPaymentSection orgId={s.org_id} eventId={id} />
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { refundResourcesFromEvent, verifyWebhookSignature } from "../_shared/pay
 import { pmMethodFromAttributes } from "../_shared/paymongo.ts";
 import { applyGroupRefundWebhook } from "../_shared/groupRefund.ts";
 import { verifyGroupPayment } from "../_shared/groupPaymentService.ts";
+import { verifyReservationPayment } from "../_shared/reservationPayment.ts";
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -26,6 +27,15 @@ Deno.serve(async (req) => {
     const db = serviceClient();
 
     if (type === "checkout_session.payment.paid" || type === "payment.paid") {
+      const reservationId = resource?.attributes?.metadata?.reservation_id;
+      if (reservationId) {
+        if (typeof reservationId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(reservationId)) {
+          return json({ error: "invalid_reservation" }, 400);
+        }
+        const result = await verifyReservationPayment(reservationId);
+        if (result.status === "error" || result.status === "pending") return json({ error: "reservation_capture_not_visible" }, 503);
+        return json({ ok: true, reservation_id: reservationId, status: result.status });
+      }
       const attemptId = resource?.attributes?.metadata?.payment_attempt_id;
       if (attemptId) {
         if (Deno.env.get("GROUP_PAYMENTS_ENABLED") !== "true") return json({ error: "group_checkout_not_available" }, 503);

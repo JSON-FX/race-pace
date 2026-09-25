@@ -6,7 +6,7 @@ describe("methodPresentation", () => {
   it("maps each instrument our own code writes to its marks and label", () => {
     expect(methodPresentation("gcash")).toEqual({ kind: "known", label: "GCash", marks: ["gcash"] });
     expect(methodPresentation("paymaya")).toEqual({ kind: "known", label: "Maya", marks: ["maya"] });
-    expect(methodPresentation("qrph")).toEqual({ kind: "known", label: "QR Ph", marks: [] });
+    expect(methodPresentation("qrph")).toEqual({ kind: "known", label: "QR Ph", marks: ["qrph"] });
   });
 
   // Not cosmetic: "Card" alone doesn't tell an organizer whether a runner's

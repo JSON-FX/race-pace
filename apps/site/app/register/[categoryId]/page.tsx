@@ -11,8 +11,10 @@ import { ParticipantPicker, type ParticipantSummary } from "./ParticipantPicker"
 
 export const dynamic = "force-dynamic";
 
-export default async function RegisterPage({ params, searchParams }: { params: Promise<{ categoryId: string }>; searchParams?: Promise<{ participant?: string }> }) {
-  const selectedParticipant = (await searchParams)?.participant;
+export default async function RegisterPage({ params, searchParams }: { params: Promise<{ categoryId: string }>; searchParams?: Promise<{ participant?: string; reservation_id?: string }> }) {
+  const query = await searchParams;
+  const selectedParticipant = query?.participant;
+  const reservationId = query?.reservation_id;
   const { categoryId } = await params;
   const db = await createClient();
 
@@ -29,6 +31,25 @@ export default async function RegisterPage({ params, searchParams }: { params: P
   ]);
   if (!event) notFound();
 
+  let reservedPassportIds: string[] | null = null;
+  if (reservationId) {
+    const { data: held } = await db.from("event_reservations")
+      .select("id,event_id,user_id,status,registration_deadline_at")
+      .eq("id", reservationId).maybeSingle();
+    if (!held || held.event_id !== event.id || held.user_id !== user.id || held.status !== "paid" ||
+        Date.parse(held.registration_deadline_at) <= Date.now()) {
+      redirect(`/events/${event.slug ?? event.id}`);
+    }
+    const { data: places, error: placesError } = await db.from("event_reservation_places")
+      .select("participant_passport_id,status").eq("reservation_id", reservationId);
+    if (placesError) throw placesError;
+    reservedPassportIds = (places ?? []).filter((place) => place.status === "held")
+      .map((place) => place.participant_passport_id);
+    if (selectedParticipant && !reservedPassportIds.includes(selectedParticipant)) {
+      redirect(`/events/${event.slug ?? event.id}`);
+    }
+  }
+
   // Authoritative check lives in registrations-checkout (server, at submit
   // time) — this is a UX nicety so a runner with a stale/direct link to a
   // cancelled or closed event doesn't get walked through three steps just
@@ -43,15 +64,16 @@ export default async function RegisterPage({ params, searchParams }: { params: P
     redirect(`/events/${category.event_id}?soldout=${categoryId}`);
   }
 
-  if (!selectedParticipant && event.waiver_version_id) {
+  if (!selectedParticipant && event.waiver_version_id && (!reservationId || reservedPassportIds?.length)) {
     const { data: participants, error } = await db.from("runner_passports").select("id,claimed_user_id,first_name,last_name").order("created_at");
     if (error) throw error;
     return <><SiteHeader /><ParticipantPicker
       category={category}
       event={event}
-      participants={(participants ?? []) as ParticipantSummary[]}
+      participants={((participants ?? []) as ParticipantSummary[]).filter((participant) => !reservedPassportIds || reservedPassportIds.includes(participant.id))}
       userId={user.id}
       groupCheckoutEnabled={process.env.GROUP_CHECKOUT_ENABLED === "true"}
+      reservationId={reservationId}
     /></>;
   }
 
@@ -105,6 +127,7 @@ export default async function RegisterPage({ params, searchParams }: { params: P
           event={event}
           addons={addons}
           formFields={formFields}
+          reservationId={reservationId}
         />
       </main>
     </>

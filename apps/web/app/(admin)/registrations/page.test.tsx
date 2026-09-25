@@ -28,8 +28,10 @@ vi.mock("next/navigation", () => ({
 // which live one level down and are covered elsewhere.
 const RegistrationsKpiSection = vi.hoisted(() => vi.fn(() => null));
 const RegistrationsTableSection = vi.hoisted(() => vi.fn(() => null));
+const ReservationRosterSection = vi.hoisted(() => vi.fn(() => null));
 vi.mock("./kpi-section", () => ({ RegistrationsKpiSection }));
 vi.mock("./table-section", () => ({ RegistrationsTableSection }));
+vi.mock("./reservation-section", () => ({ ReservationRosterSection }));
 
 const {
   listOrgEventOptions, getOrgRegistrationCount, getOrgPendingRegistrationCount, getMyRoles,
@@ -89,6 +91,7 @@ describe("RegistrationsPage", () => {
     resetTableParamsSpies();
     RegistrationsKpiSection.mockClear();
     RegistrationsTableSection.mockClear();
+    ReservationRosterSection.mockClear();
   });
 
   // Fix 2 regression test: Registrations asserted no capability before this
@@ -159,6 +162,9 @@ describe("RegistrationsPage", () => {
       }),
       undefined,
     );
+    expect(ReservationRosterSection).toHaveBeenCalledWith(
+      expect.objectContaining({ eventId: "event-1", orgId: "org-1" }), undefined,
+    );
     // The subtitle's figures each live in their own `<span>` (for
     // `font-mono tabular`), so its full text is split across sibling nodes —
     // match against the header <p>'s own textContent rather than
@@ -220,7 +226,8 @@ describe("RegistrationsPage", () => {
 
     for (const [searchParams, suffix] of cases) {
       const ui = await RegistrationsPage({ searchParams: Promise.resolve(searchParams) });
-      expect(findSuspenseKeys(ui)).toEqual([`kpi-${suffix}`, `table-${suffix}`]);
+      const eventId = searchParams.event ?? "event-1";
+      expect(findSuspenseKeys(ui)).toEqual([`kpi-${suffix}`, `table-${suffix}`, `reservations-${eventId}`]);
     }
   });
 

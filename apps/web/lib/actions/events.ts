@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getMyRoles, type MyRoles } from "@/lib/queries/roles";
 import type { EventDiscipline, RoutePoint } from "@race-pace/shared";
 import type { ScheduleItem } from "@/lib/validation";
-import { eventInputSchema, categoryInputSchema, addonInputSchema, sanitizeListFields, coordPairError, kitCutoffError, EVENT_STATUSES } from "@/lib/validation";
+import { eventInputSchema, categoryInputSchema, addonInputSchema, sanitizeListFields, coordPairError, kitCutoffError, comingSoonPublicationError, EVENT_STATUSES } from "@/lib/validation";
 import { reconcileChildren } from "@/lib/reconcile-children";
 
 const GENERIC_ERROR = "Something went wrong. Please try again.";
@@ -28,6 +28,8 @@ export type EventDraft = {
   id?: string; org_id: string; name: string; slug: string;
   city_psgc_code: string | null; region_name: string | null; province_name: string | null; city_name: string | null; venue: string | null;
   event_date: string | null; end_date: string | null; flag_off: string | null; status: string; discipline: EventDiscipline;
+  coming_soon_notify_enabled: boolean; coming_soon_reserve_enabled: boolean;
+  reservation_fee_cents: number | null; reservation_deadline_at: string | null; total_event_slots: number | null;
   check_in_required: boolean;
   registration_closes_at: string | null; kit_edit_closes_at: string | null;
   elevation_gain_m: number | null; cutoff_hours: number | null; description: string | null;
@@ -40,6 +42,9 @@ const EVENT_COLS = (e: EventDraft) => ({
   org_id: e.org_id, name: e.name, slug: e.slug,
   city_psgc_code: e.city_psgc_code, region_name: e.region_name, province_name: e.province_name, city_name: e.city_name, venue: e.venue,
   event_date: e.event_date, end_date: e.end_date, flag_off: e.flag_off, status: e.status, discipline: e.discipline,
+  coming_soon_notify_enabled: e.coming_soon_notify_enabled, coming_soon_reserve_enabled: e.coming_soon_reserve_enabled,
+  reservation_fee_cents: e.reservation_fee_cents, reservation_deadline_at: e.reservation_deadline_at,
+  total_event_slots: e.total_event_slots,
   check_in_required: e.check_in_required,
   registration_closes_at: e.registration_closes_at, kit_edit_closes_at: e.kit_edit_closes_at,
   elevation_gain_m: e.elevation_gain_m, cutoff_hours: e.cutoff_hours,
@@ -133,6 +138,8 @@ export async function saveEventAction(_prev: EditorState, formData: FormData): P
   if (!parsed.success) {
     return { error: "Fix the event fields (name is required, valid date/time, schedule times as HH:MM, inclusion lines under 140 characters)." };
   }
+  const comingSoonError = comingSoonPublicationError({ ...parsed.data, status: sanitized.status as "coming_soon" });
+  if (comingSoonError) return { error: comingSoonError };
   const coordError = coordPairError(parsed.data);
   if (coordError) return { error: coordError };
   if (sanitized.end_date && sanitized.event_date && sanitized.end_date < sanitized.event_date) {
@@ -189,6 +196,11 @@ export async function saveEventAction(_prev: EditorState, formData: FormData): P
   }
 
   const event: EventDraft = { ...sanitized, id: eventId };
+  // An early reservation promises an event place, while categories can be
+  // configured only when registration opens. Save the category rows first so
+  // the database can verify their combined capacity at the status change.
+  const deferredOpening = currentStatus === "coming_soon" &&
+    (event.status === "open" || event.status === "almost_full");
 
   let finalEventId = eventId;
   if (!finalEventId) {
@@ -204,7 +216,9 @@ export async function saveEventAction(_prev: EditorState, formData: FormData): P
     // silently affects zero rows. assertCanWriteEvent above is what actually
     // prevents that in the normal case; this is the honest-response check
     // for when it's ever wrong (stale roles cache, org reassignment, etc.).
-    const upd = await supabase.from("events").update(EVENT_COLS(event)).eq("id", finalEventId).select("id");
+    const upd = await supabase.from("events").update(EVENT_COLS({
+      ...event, status: deferredOpening ? "coming_soon" : event.status,
+    })).eq("id", finalEventId).select("id");
     if (upd.error) {
       console.error("[events] event update failed", { eventId: finalEventId, error: upd.error });
       return { error: eventSaveError(upd.error) };
@@ -282,6 +296,15 @@ export async function saveEventAction(_prev: EditorState, formData: FormData): P
   for (const id of add.toDelete) {
     const r = await supabase.from("addons").delete().eq("id", id).eq("event_id", finalEventId);
     if (r.error) childErrors.push(`Couldn't remove an add-on.`);
+  }
+
+  if (deferredOpening && !childErrors.length) {
+    const opened = await supabase.from("events").update({ status: event.status })
+      .eq("id", finalEventId).eq("status", "coming_soon").select("id");
+    if (opened.error || !opened.data?.length) {
+      console.error("[events] coming soon opening failed", { eventId: finalEventId, error: opened.error });
+      childErrors.push("Categories were saved, but registration could not open. Check their total places and try again.");
+    }
   }
 
   // Category and add-on prices are promises to every unpaid runner, not only
