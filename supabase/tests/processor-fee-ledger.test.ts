@@ -176,13 +176,15 @@ describe("processor fee columns", () => {
       /** Every column `authenticated` is deliberately allowed to write, and why:
        *  branding (20260724130000), rename (20260806180000), commercial terms
        *  (20260807090600), fee mode (20260811097000), check-in default
-       *  (20260918100000). */
+       *  (20260918100000), public organizer profile (20260925000644). */
       const GRANTED = [
         "logo_url", "banner_url", "name",
         "commission_type", "commission_rate", "commission_flat_cents",
         "refund_policy", "refund_fee_cents",
         "fee_mode",
         "check_in_required_default",
+        "description", "home_city_psgc_code", "home_city_name",
+        "home_province_name", "home_region_name",
       ];
 
       async function withPg<T>(fn: (c: Client) => Promise<T>): Promise<T> {
@@ -206,7 +208,7 @@ describe("processor fee columns", () => {
         }
       });
 
-      it("keeps the write set to exactly the columns four migrations granted", async () => {
+      it("keeps the write set to exactly the documented columns", async () => {
         // Enumerated, not spot-checked. A table-level grant makes this list the
         // whole table and fails loudly; a NEW column added to the grant without
         // a decision fails here too, which is the point — every entry above is

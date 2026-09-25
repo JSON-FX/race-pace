@@ -11,6 +11,11 @@ const { getOrg, getMyRoles, getWaiverVersions, getEventWaiverSettings } = vi.hoi
   getOrg: vi.fn(async (_orgId: string): Promise<{
     id: string;
     name: string;
+    description: string | null;
+    home_city_psgc_code: string | null;
+    home_city_name: string | null;
+    home_province_name: string | null;
+    home_region_name: string | null;
     logo_url: string | null;
     banner_url: string | null;
     check_in_required_default: boolean;
@@ -74,6 +79,7 @@ describe("SettingsPage", () => {
     });
     getOrg.mockResolvedValue({
       id: "org-1", name: "Yalabyalam Trail Runners", logo_url: null, banner_url: null,
+      description: null, home_city_psgc_code: null, home_city_name: null, home_province_name: null, home_region_name: null,
       check_in_required_default: true,
     });
     getWaiverVersions.mockResolvedValue([]);

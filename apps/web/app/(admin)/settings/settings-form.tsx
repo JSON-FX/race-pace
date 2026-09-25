@@ -1,20 +1,31 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { useRouter } from "next/navigation";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { formatAddress, type PsgcAddress } from "@race-pace/shared";
 import { Building2, ImageIcon, ScanLine } from "lucide-react";
-import { updateOrgNameAction, updateOrgCheckInDefaultAction, type SettingsState } from "@/lib/actions/settings";
+import { updateOrgProfileAction, updateOrgCheckInDefaultAction, type SettingsState } from "@/lib/actions/settings";
 import type { OrgBranding } from "@/lib/queries/org";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { CropUploader } from "@/components/CropUploader";
+import { PsgcAddressField } from "@/components/PsgcAddressField";
 import { SettingsSection, SettingsSectionFooter } from "./settings-section";
 
 export function SettingsForm({ org, canEdit }: { org: OrgBranding; canEdit: boolean }) {
   const router = useRouter();
-  const [state, formAction, pending] = useActionState<SettingsState, FormData>(updateOrgNameAction, {});
+  const [state, formAction, pending] = useActionState<SettingsState, FormData>(updateOrgProfileAction, {});
   const [checkInState, checkInAction, checkInPending] = useActionState<SettingsState, FormData>(updateOrgCheckInDefaultAction, {});
+  const [homeBase, setHomeBase] = useState<PsgcAddress>({
+    city_psgc_code: org.home_city_psgc_code,
+    city_name: org.home_city_name,
+    province_name: org.home_province_name,
+    region_name: org.home_region_name,
+  });
+  const [queryClient] = useState(() => new QueryClient());
   // uploadOrgImage + updateOrgBrandingAction write straight to Postgres/Storage
   // and revalidatePath only affects the *next* server render — refresh so the
   // just-saved image shows without a manual reload.
@@ -45,10 +56,40 @@ export function SettingsForm({ org, canEdit }: { org: OrgBranding; canEdit: bool
             <p className="mt-1.5 text-[11px] text-muted-foreground">
               Use the full registered or public-facing organization name.
             </p>
+            <div className="mt-5">
+              <Label htmlFor="org-description" className="mb-1.5 block text-[12px] font-bold">Organizer Description</Label>
+              <Textarea
+                id="org-description"
+                name="description"
+                defaultValue={org.description ?? ""}
+                maxLength={2000}
+                rows={4}
+                disabled={!canEdit}
+                placeholder="Tell runners what your organization is about."
+                className="min-h-28 rounded-[10px] bg-background"
+              />
+              <p className="mt-1.5 text-[11px] text-muted-foreground">Optional. This will appear on your public organizer profile.</p>
+            </div>
+            <div className="mt-5">
+              <p id="home-base-label" className="mb-1.5 text-[12px] font-bold">Home Base</p>
+              {canEdit ? (
+                <>
+                  <input type="hidden" name="homeCityPsgcCode" value={homeBase.city_psgc_code ?? ""} />
+                  <QueryClientProvider client={queryClient}>
+                    <PsgcAddressField value={homeBase} onChange={setHomeBase} className="grid-cols-1 sm:grid-cols-3" />
+                  </QueryClientProvider>
+                  <p className="mt-1.5 text-[11px] text-muted-foreground">Optional. Choose a city or municipality for your public organizer profile.</p>
+                </>
+              ) : (
+                <p aria-labelledby="home-base-label" className="rounded-[10px] border bg-background px-3 py-2.5 text-[13px]">
+                  {formatAddress(homeBase) || "Not set"}
+                </p>
+              )}
+            </div>
             {state.error ? <p role="alert" className="mt-2 text-[13px] text-destructive">{state.error}</p> : null}
             {state.success ? <p role="status" className="mt-2 text-[13px] text-muted-foreground">{state.success}</p> : null}
           </div>
-          <SettingsSectionFooter helper="Updates the public organization name.">
+          <SettingsSectionFooter helper="Updates the public organization profile.">
             <Button type="submit" disabled={!canEdit || pending} className="h-10 rounded-[10px] px-4">
               {pending ? "Saving…" : "Save profile"}
             </Button>
