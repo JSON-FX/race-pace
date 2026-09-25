@@ -7,7 +7,7 @@ Scope: runner website and admin only. The first release is a controlled pilot wi
 
 | Work | Status | Blocker | Next task |
 |---|---|---|---|
-| Staging-to-production source | **Merged** | None. | Keep `main` synchronized into `staging` before the next feature. |
+| Staging-to-production source | **Merged and synchronized** | None. | Start the next feature from current `staging`. |
 | Runner and admin applications | **Ready and browser-verified** | None for this release. | Monitor the production aliases and error logs. |
 | Organizer featured-image schema | **Applied and read back** | None for the nullable field. | Add a genuine organizer photograph only when one is available. |
 | Live payment and refund acceptance | **Owner-led** | No automated live money test was run. | Owner performs any payment, refund, or finance review. |
