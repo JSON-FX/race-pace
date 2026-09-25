@@ -13,8 +13,8 @@ const fieldLabel = "mb-1.5 block text-[11px] font-semibold tracking-wide text-mu
 // stands in for that empty option and is translated back to "" before it ever reaches
 // pickRegion/pickProvince/pickCity. Real PSGC codes are digit strings, so this can never collide.
 const CLEAR = "__none__";
-// Radix can emit "" while its native select mirrors a value before async items load.
-// Only the explicit sentinel is a user request to clear a saved address.
+// Radix's native select can emit a value while async options load. Only a choice
+// made while the visible menu is open may change the address.
 
 /** Cascading Region → Province → City selects. Emits a full PsgcAddress on each
  *  change (partial until a city is chosen). NCR-style regions with no provinces
@@ -23,6 +23,9 @@ export function PsgcAddressField({ value, onChange, className }: { value: PsgcAd
   const [regionCode, setRegionCode] = useState("");
   const [provinceCode, setProvinceCode] = useState("");
   const seeded = useRef(false);
+  const regionOpen = useRef(false);
+  const provinceOpen = useRef(false);
+  const cityOpen = useRef(false);
 
   const regions = usePsgcRegions();
   const provinces = usePsgcProvinces(regionCode || undefined);
@@ -61,7 +64,7 @@ export function PsgcAddressField({ value, onChange, className }: { value: PsgcAd
     <div className={cn("grid grid-cols-3 gap-3", className)}>
       <div>
         <Label className={fieldLabel}>REGION</Label>
-        <Select value={regionCode} onValueChange={(v) => { if (v) pickRegion(v === CLEAR ? "" : v); }}>
+        <Select value={regionCode} onOpenChange={(open) => { regionOpen.current = open; }} onValueChange={(v) => { if (regionOpen.current && v) pickRegion(v === CLEAR ? "" : v); }}>
           <SelectTrigger aria-label="Region" className="w-full">
             <SelectValue placeholder="— Select —" />
           </SelectTrigger>
@@ -76,7 +79,7 @@ export function PsgcAddressField({ value, onChange, className }: { value: PsgcAd
       </div>
       <div>
         <Label className={fieldLabel}>PROVINCE</Label>
-        <Select value={provinceCode} onValueChange={(v) => { if (v) pickProvince(v === CLEAR ? "" : v); }} disabled={!regionCode || noProvinces}>
+        <Select value={provinceCode} onOpenChange={(open) => { provinceOpen.current = open; }} onValueChange={(v) => { if (provinceOpen.current && v) pickProvince(v === CLEAR ? "" : v); }} disabled={!regionCode || noProvinces}>
           <SelectTrigger aria-label="Province" className="w-full">
             <SelectValue placeholder={noProvinces ? "— None —" : "— Select —"} />
           </SelectTrigger>
@@ -91,7 +94,7 @@ export function PsgcAddressField({ value, onChange, className }: { value: PsgcAd
       </div>
       <div>
         <Label className={fieldLabel}>CITY / MUNICIPALITY</Label>
-        <Select value={value?.city_psgc_code ?? ""} onValueChange={(v) => { if (v) pickCity(v === CLEAR ? "" : v); }} disabled={!(provinceCode || noProvinces)}>
+        <Select value={value?.city_psgc_code ?? ""} onOpenChange={(open) => { cityOpen.current = open; }} onValueChange={(v) => { if (cityOpen.current && v) pickCity(v === CLEAR ? "" : v); }} disabled={!(provinceCode || noProvinces)}>
           <SelectTrigger aria-label="City" className="w-full">
             <SelectValue placeholder="— Select —" />
           </SelectTrigger>
