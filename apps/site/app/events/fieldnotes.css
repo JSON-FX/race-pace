@@ -151,5 +151,6 @@
   .fieldnotes-events__grid > :last-child:nth-child(odd):not(:first-child) .fieldnotes-race-card__media { height: auto; aspect-ratio: 1.55; }
   .fieldnotes-race-card__media { aspect-ratio: 1.55; }
   .fieldnotes-race-card__body { min-height: 0; }
+  .fieldnotes-race-card__title, .fieldnotes-race-card__meta { min-height: 0; }
 }
 @media (prefers-reduced-motion: reduce) { .fieldnotes-events__search input, .fieldnotes-events__search button, .fieldnotes-events__chip, .fieldnotes-race-card, .fieldnotes-race-card__image { transition: none; } .fieldnotes-events__search button:hover, .fieldnotes-events__chip:hover, .fieldnotes-race-card:hover, .fieldnotes-race-card:hover .fieldnotes-race-card__image { transform: none; } }

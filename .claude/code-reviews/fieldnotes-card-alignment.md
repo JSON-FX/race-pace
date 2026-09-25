@@ -9,6 +9,6 @@ Stats:
 
 Code review passed. No technical issues detected.
 
-The card keeps the organizer name in text while moving its decorative logo or monogram onto the image. The numbered badge and its unused prop are removed. Every card reserves the distance row, so the action can share the row baseline even when a race has no distance chip. The Storybook CSS is byte-identical to the application CSS. The seven-card Storybook context measured matching organizer, title, metadata, slot, distance, and action positions within both the three-card row and a two-card row. Local site typecheck, 468 runner tests, Storybook typecheck, build, and Docker rebuild passed.
+The card keeps the organizer name in text while moving its decorative logo or monogram onto the image. The numbered badge and its unused prop are removed. Every card reserves the distance row, so the action can share the row baseline even when a race has no distance chip. The Storybook CSS is byte-identical to the application CSS. The seven-card Storybook context measured matching organizer, title, metadata, slot, distance, and action positions within both the three-card row and a two-card row. Phone cards use their content height and showed no horizontal overflow at 390px. Local site typecheck, 468 runner tests, Storybook typecheck, build, and Docker rebuild passed.
 
 Hosted staging review remains a release gate.
