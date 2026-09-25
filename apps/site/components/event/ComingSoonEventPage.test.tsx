@@ -4,6 +4,9 @@ import { ComingSoonEventPage } from "./ComingSoonEventPage";
 import type { EventRow } from "@/lib/events";
 import type { RunnerPassport } from "@/lib/passports";
 
+const { from, invoke } = vi.hoisted(() => ({ from: vi.fn(), invoke: vi.fn() }));
+vi.mock("@/lib/supabase/client", () => ({ createClient: () => ({ from, functions: { invoke } }) }));
+
 vi.mock("@/lib/passports", () => ({ listPassports: vi.fn(async () => [
   { id: "own", claimed_user_id: "runner", first_name: "E2E", last_name: "Runner" },
   { id: "managed", claimed_user_id: null, first_name: "E2E", last_name: "Companion" },
@@ -21,6 +24,30 @@ const event = {
 } satisfies EventRow;
 
 describe("ComingSoonEventPage Passport selection", () => {
+  it.each([
+    ["expired", false],
+    ["pending", true],
+    ["review_required", true],
+  ])("uses a safe idempotency key when the prior reservation is %s", async (status, reuseKey) => {
+    const oldKey = "00000000-0000-4000-8000-000000000001";
+    sessionStorage.setItem("coming-soon-reservation:event:own", oldKey);
+    const query = { select: vi.fn(), eq: vi.fn(), maybeSingle: vi.fn(async () => ({ data: { status }, error: null })) };
+    query.select.mockReturnValue(query);
+    query.eq.mockReturnValue(query);
+    from.mockReturnValue(query);
+    invoke.mockResolvedValue({ data: { error: "event_capacity_exhausted" }, error: null });
+    render(<ComingSoonEventPage event={event} userEmail="runner@example.test" reservation={null} />);
+    await screen.findByRole("checkbox", { name: /E2E Runner/ });
+    fireEvent.click(screen.getByRole("button", { name: "Reserve now" }));
+    await waitFor(() => expect(invoke).toHaveBeenCalled());
+    if (reuseKey) expect(invoke.mock.calls[0][1].body.idempotency_key).toBe(oldKey);
+    else expect(invoke.mock.calls[0][1].body.idempotency_key).not.toBe(oldKey);
+    expect(sessionStorage.getItem("coming-soon-reservation:event:own"))
+      .toBe(invoke.mock.calls[0][1].body.idempotency_key);
+    sessionStorage.clear();
+    from.mockReset();
+    invoke.mockReset();
+  });
   it("defaults to the runner only and changes the fee when a managed Passport is selected", async () => {
     render(<ComingSoonEventPage event={event} userEmail="runner@example.test" reservation={null} />);
     const own = await screen.findByRole("checkbox", { name: /E2E Runner/ });

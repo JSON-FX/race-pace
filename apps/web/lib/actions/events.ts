@@ -334,7 +334,9 @@ export async function saveEventAction(_prev: EditorState, formData: FormData): P
       .eq("id", finalEventId).eq("status", "coming_soon").select("id");
     if (opened.error || !opened.data?.length) {
       console.error("[events] coming soon opening failed", { eventId: finalEventId, error: opened.error });
-      childErrors.push("Categories were saved, but registration could not open. Check their total places and try again.");
+      childErrors.push(opened.error?.message?.includes("event_waiver_required_for_publishing")
+        ? WAIVER_PUBLISH_ERROR
+        : "Categories were saved, but registration could not open. Check their total places and try again.");
     }
   }
 

@@ -211,6 +211,22 @@ describe("saveEventAction", () => {
     expect(res.error).not.toContain("event_waiver_required_for_publishing");
   });
 
+  it("explains a missing waiver after saving categories for a coming soon event", async () => {
+    getMyRoles.mockResolvedValue(roles());
+    from.mockReturnValueOnce(chain({ data: { status: "coming_soon", check_in_required: true,
+      slug: "apo-sky-ultra", slug_locked_at: null, total_event_slots: 2 }, error: null }))
+      .mockReturnValueOnce(chain({ data: [{ id: "e1" }], error: null }))
+      .mockReturnValueOnce(chain({ data: null, error: null }))
+      .mockReturnValueOnce(chain({ data: null, error: { message: "event_waiver_required_for_publishing" } }));
+    const res = await saveEventAction({}, savePayload({ id: "e1", status: "open",
+      event_date: "2026-12-12", total_event_slots: 2 }, {
+      categories: { original: [], current: [{ code: "21k", label: "21K", distance_km: 21,
+        base_price: 10000, slots_total: 2, elevation_gain_m: null, cutoff_hours: null, blurb: null }] },
+    }));
+    expect(res.error).toMatch(/Publish an organizer waiver/);
+    expect(res.error).not.toContain("event_waiver_required_for_publishing");
+  });
+
   // EVENT_COLS is a hand-maintained object builder (not a type-checked
   // pass-through of EventDraft), so nothing but a runtime assertion on the
   // actual payload handed to `.insert(...)`/`.update(...)` would catch

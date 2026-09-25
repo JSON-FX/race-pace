@@ -177,7 +177,13 @@ export function ComingSoonEventPage({ event, userEmail, reservation, reservedPas
     const db = createClient();
     const passportIds = [...selectedPassportIds].sort();
     const keyName = `coming-soon-reservation:${event.id}:${passportIds.join(",")}`;
-    const idempotencyKey = sessionStorage.getItem(keyName) ?? crypto.randomUUID();
+    const storedKey = sessionStorage.getItem(keyName);
+    let idempotencyKey = storedKey ?? crypto.randomUUID();
+    if (storedKey) {
+      const previous = await db.from("event_reservations").select("status")
+        .eq("event_id", event.id).eq("idempotency_key", storedKey).maybeSingle();
+      if (previous.data?.status === "expired") idempotencyKey = crypto.randomUUID();
+    }
     sessionStorage.setItem(keyName, idempotencyKey);
     const { data, error } = await db.functions.invoke("reservation-checkout", {
       body: {
