@@ -3,6 +3,14 @@
 Updated: 2026-09-25. Overall: MVP RELEASED; FIELDNOTES EVENTS AND ORGANIZER PROFILE FIELDS IN PRODUCTION; OWNER CHECKOUT PENDING.
 Scope: runner website and admin only. The first release is a controlled pilot with one organizer and PayMongo. Production contains real organizer and event data; add no synthetic data.
 
+### Admin user Passport details
+
+| Work | Status | Blocker | Next task |
+|---|---|---|---|
+| Own and managed Passport details in `/users` | **Locally implemented and validated; staging release pending** | One unrelated Storage upload test fails with `42P10` in the shared local stack. Staging has not received the admin or Edge Function change. | Review the scoped pull request and use its isolated CI run as the release gate before staging deployment. |
+
+Local work, 2026-09-25: the super-admin `platform-users` response now includes stored Passport identity, contact, safety, kit, legacy, and shipping details. Overview and Race Passports use independent disclosure cards for the account Passport and any number of managed Passports. The existing registration, event, and payment history stays inside each card. The local database accepted the expanded projection, including PSGC location joins. Runner and admin typechecks, 468 runner tests, 917 admin tests, and both production builds pass. Desktop and 320px phone browser checks found no page errors or horizontal overflow after a mobile tab and footer adjustment. With CI-style fake function secrets, backend tests pass 757 of 758 cases; one unrelated Storage upload test fails with database error `42P10` in the shared local stack. Local migration replay confirms all 148 versions. No hosted service or data changed.
+
 ### Organizer profile fields in admin Settings
 
 | Work | Status | Blocker | Next task |
