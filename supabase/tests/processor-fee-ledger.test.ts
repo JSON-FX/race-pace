@@ -176,7 +176,8 @@ describe("processor fee columns", () => {
       /** Every column `authenticated` is deliberately allowed to write, and why:
        *  branding (20260724130000), rename (20260806180000), commercial terms
        *  (20260807090600), fee mode (20260811097000), check-in default
-       *  (20260918100000), public organizer profile (20260925000644). */
+       *  (20260918100000), public organizer profile (20260925000644),
+       *  organizer featured photograph (20260925085305). */
       const GRANTED = [
         "logo_url", "banner_url", "name",
         "commission_type", "commission_rate", "commission_flat_cents",
@@ -184,7 +185,7 @@ describe("processor fee columns", () => {
         "fee_mode",
         "check_in_required_default",
         "description", "home_city_psgc_code", "home_city_name",
-        "home_province_name", "home_region_name",
+        "home_province_name", "home_region_name", "featured_image_url",
       ];
 
       async function withPg<T>(fn: (c: Client) => Promise<T>): Promise<T> {

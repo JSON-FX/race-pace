@@ -3,7 +3,7 @@
 import imageCompression from "browser-image-compression";
 import { createClient } from "@/lib/supabase/client";
 
-export type OrgImageKind = "avatar" | "cover";
+export type OrgImageKind = "avatar" | "cover" | "featured";
 
 const BUCKET = "org-images";
 const EXT: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };

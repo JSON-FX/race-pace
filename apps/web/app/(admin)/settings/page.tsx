@@ -10,6 +10,7 @@ import { initials } from "@/lib/format";
 import { WaiverForm } from "./waiver-form";
 import { getWaiverVersions, getEventWaiverSettings } from "@/lib/queries/waivers";
 import { SettingsForm } from "./settings-form";
+import { AdminCanvasPreference } from "@/components/AdminCanvasPreference";
 
 export default async function SettingsPage() {
   const roles = await getMyRoles();
@@ -25,10 +26,11 @@ export default async function SettingsPage() {
 
   if (!orgId) {
     return (
-      <div className="px-4 pb-10 pt-6 md:px-[30px]">
+      <div className="fieldnotes-admin-workspace" data-fieldnotes-section="Organization / Settings">
         <div className="mb-5">
           <h1 className="text-[21px] font-bold tracking-[-0.02em]">Settings</h1>
         </div>
+        <AdminCanvasPreference />
         <NoOrgScope />
       </div>
     );
@@ -45,10 +47,9 @@ export default async function SettingsPage() {
   ];
 
   return (
-    <div className="mx-auto w-full max-w-[1280px] px-4 pb-12 pt-6 md:px-[30px]">
+    <div className="fieldnotes-admin-workspace" data-fieldnotes-section="Organization / Settings">
       <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.1em] text-primary-focus">Brand studio</p>
           <h1 className="text-[clamp(23px,2.2vw,30px)] font-bold tracking-[-0.035em]">Organization settings</h1>
           <p className="mt-1.5 max-w-2xl text-[13px] text-muted-foreground">
             Manage your public identity, event defaults, and participant waiver policy.
@@ -92,8 +93,8 @@ export default async function SettingsPage() {
       </section>
 
       <div className="grid gap-4 lg:grid-cols-[208px_minmax(0,1fr)]">
-        <aside className="hidden self-start lg:sticky lg:top-20 lg:block">
-          <Card className="gap-0 rounded-xl p-2.5 shadow-card">
+        <aside className="self-start lg:sticky lg:top-20">
+          <Card className="hidden gap-0 rounded-xl p-2.5 shadow-card lg:block">
             <p className="px-2.5 pb-1.5 pt-2 text-[9px] font-extrabold uppercase tracking-[0.1em] text-muted-foreground">
               Organization
             </p>
@@ -114,6 +115,7 @@ export default async function SettingsPage() {
               Only {org.name} is affected.
             </div>
           </Card>
+          <AdminCanvasPreference compact />
         </aside>
 
         <div className="grid min-w-0 gap-4 xl:grid-cols-2">

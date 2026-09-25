@@ -22,6 +22,8 @@ ultra-trail event platform (Mindanao, Philippines).
 
 **Required release path:** [Staging-first workflow](./operations/release-workflow.md). Every application and backend change must pass the exact staging revision before promotion into `main`.
 
+Fieldnotes admin workspaces: [design and source sync](./specs/2026-09-25-fieldnotes-admin-workspaces.md) and [implementation plan](./plans/2026-09-25-fieldnotes-admin-workspaces.md). Dashboard, Registrations, Payments, Race kits, Check-in, Team, and Settings use the selected Fieldnotes treatment. The annotation follow-up adds white-default admin canvas choices, clearer Check-in searches and safeguards, and a redesigned Dashboard capacity panel. The matching examples live in the local Storybook Hub.
+
 Active verification ledger: [end-to-end checklist](./plans/2026-09-15-web-admin-e2e-checklist.md). Local refund ownership and durable callback reconciliation are implemented under [this plan](./plans/2026-09-16-durable-refund-requests.md). Staff invitation redirects, event restrictions and SMTP resend are implemented locally under [this plan](./plans/2026-09-16-staff-invitation-fixes.md). Hosted rollout and production readiness remain pending. The historical roadmap below records earlier checkpoints.
 
 Fixed-price pilot payment work: [PayMongo fee contract](./specs/paymongo-provider-fees.md), [implementation plan](./plans/2026-09-18-paymongo-provider-fees.md), and [review findings](../.claude/code-reviews/2026-09-18-fixed-price-paymongo.md). Staging code and price disclosure are deployed; a fresh sandbox capture, session expiry, and durable reconciliation remain before production.
@@ -32,11 +34,15 @@ Protected production runner smoke: [provider fix plan](./plans/2026-09-18-produc
 
 Super-admin organization scope: [selection fix plan](./plans/2026-09-18-super-admin-org-scope.md). The validated organization selected in the console must be the one used by org-scoped queries, even when the super admin also holds an org admin role.
 
-Platform user administration: [design](./specs/2026-09-20-platform-users-design.md) and [implementation plan](./plans/2026-09-20-platform-users.md). The approved table and inspector provide platform account, event, payment and Race Passport visibility. Full own and managed Passport details in independent disclosure cards are live on staging; production promotion remains separate.
+Platform user administration: [design](./specs/2026-09-20-platform-users-design.md) and [implementation plan](./plans/2026-09-20-platform-users.md). The approved table and inspector provide platform account, event, payment and Race Passport visibility. Full own and managed Passport details in independent disclosure cards are live on production.
 
 Admin settings Brand Studio: [approved design](./specs/2026-09-22-settings-brand-studio-design.md) and [implementation plan](./plans/2026-09-22-settings-brand-studio.md). The redesign preserves organization settings behavior and adds a shared searchable Popover combobox for form-backed selections.
 
 Organizer profile fields in admin Settings: [implementation plan](./plans/2026-09-25-organizer-profile-settings-fields.md) and [review preview](./previews/organizers/admin-settings-profile-fields.html). Optional Organizer Description and Home Base fields are deployed and verified in the existing Organization profile card on [staging admin Settings](https://staging-admin.racepace.com.ph/settings). The public organizer directory remains separate.
+
+Trail Atlas organizer directory: [design and data contract](./specs/2026-09-25-trail-atlas-organizers.md) and [implementation plan](./plans/2026-09-25-trail-atlas-organizers.md). The selected directory and profile, with navigation and footer links, are deployed on [staging organizers](https://staging.racepace.com.ph/organizers) through PR #142. Production promotion remains separate.
+
+Organizer profile hero follow-up: [Open spread implementation plan](./plans/2026-09-25-organizer-open-spread-featured-image.md) and [approved visual preview](./previews/organizers/featured-hero-options.html#open-spread). A separate nullable featured image avoids using promotional cover graphics as profile photography.
 
 Fieldnotes event workflow pilot: [design and source sync](./specs/2026-09-25-fieldnotes-event-pilot.md) and [implementation plan](./plans/2026-09-25-fieldnotes-event-pilot.md). The public race list and admin event directory are deployed on staging through PR #120. The catalog spacing, organizer-avatar, and remaining-slots follow-up is deployed through PR #121. Card alignment and the larger image-corner avatar are deployed through PR #123. The long-title alignment correction is deployed through PR #124. Runner event detail remains at the staging baseline.
 

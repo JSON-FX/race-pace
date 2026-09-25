@@ -1,3 +1,4 @@
+import "./fieldnotes-workspaces.css";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getMyRoles, requireOrgId } from "@/lib/queries/roles";
@@ -6,6 +7,8 @@ import { getOrg } from "@/lib/queries/org";
 import { getOrgEventCount } from "@/lib/queries/events";
 import { getOrgRegistrationCount } from "@/lib/queries/registrations";
 import { AppShell } from "@/components/AppShell";
+
+const canvasBoot = `try{var c=localStorage.getItem("racepace-admin-canvas");if(c==="white-gray"||c==="fieldnotes")document.documentElement.dataset.adminCanvas=c}catch(e){}`;
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
@@ -46,15 +49,18 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     : null;
 
   return (
-    <AppShell
-      roles={roles}
-      email={user.email ?? ""}
-      orgName={orgName}
-      orgLogoUrl={org?.logo_url ?? null}
-      counts={counts}
-      orgContext={orgContext}
-    >
-      {children}
-    </AppShell>
+    <>
+      <script dangerouslySetInnerHTML={{ __html: canvasBoot }} />
+      <AppShell
+        roles={roles}
+        email={user.email ?? ""}
+        orgName={orgName}
+        orgLogoUrl={org?.logo_url ?? null}
+        counts={counts}
+        orgContext={orgContext}
+      >
+        {children}
+      </AppShell>
+    </>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Search } from "lucide-react";
+import { Search, X } from "lucide-react";
 import { PhotoAvatar } from "@/components/PhotoAvatar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -50,18 +50,19 @@ function Filters({
   categories: string[]; label: string;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-[7px] border-b px-3.5 py-2.5">
-      <div className="flex min-w-[130px] flex-1 items-center gap-[7px] rounded-lg border bg-muted px-2.5 py-1.5">
-        <Search className="size-[13px] shrink-0 text-muted-foreground" aria-hidden />
+    <div className="fieldnotes-roster-filters">
+      <div className="fieldnotes-roster-search">
+        <Search className="size-4" aria-hidden />
         <input
+          type="search"
           value={q}
           onChange={(e) => onQ(e.target.value)}
-          placeholder="Search name or bib"
+          placeholder="Name or bib number"
           aria-label={label}
-          className="w-full bg-transparent text-[12.5px] outline-none placeholder:text-muted-foreground"
         />
+        {q && <button type="button" className="fieldnotes-roster-search__clear" onClick={() => onQ("")} aria-label={`Clear ${label.toLowerCase()}`}><X className="size-3.5" aria-hidden /></button>}
       </div>
-      {["all", ...categories].map((c) => (
+      <div className="fieldnotes-roster-categories" aria-label="Filter by category">{["all", ...categories].map((c) => (
         <button
           key={c}
           type="button"
@@ -76,7 +77,7 @@ function Filters({
         >
           {c === "all" ? "All" : c}
         </button>
-      ))}
+      ))}</div>
     </div>
   );
 }
