@@ -1,6 +1,6 @@
 # Organizer profile fields in Settings
 
-Status: local implementation on `codex/organizer-settings-fields` from `origin/staging`.
+Status: deployed and verified on staging at `77a231b9cff199603fc2443a2d65e47b841a1434` through PRs #126–#132. Production promotion is outside this Settings task.
 
 ## Scope
 
