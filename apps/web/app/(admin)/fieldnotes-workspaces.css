@@ -69,6 +69,9 @@ html:not(.dark)[data-admin-canvas="fieldnotes"] .fieldnotes-admin-events,
 .fieldnotes-rules__content strong { display: block; color: rgb(var(--foreground)); font-size: 12px; }
 .fieldnotes-rules__content p { margin: 2px 0 0; }
 
+.fieldnotes-dashboard-panels { display: grid; align-items: start; gap: 12px; }
+@media (min-width: 900px) { .fieldnotes-dashboard-panels { grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); } }
+
 .fieldnotes-capacity { display: grid; gap: 16px; padding: 16px; }
 .fieldnotes-capacity__row { display: grid; gap: 12px; }
 .fieldnotes-capacity__top { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }

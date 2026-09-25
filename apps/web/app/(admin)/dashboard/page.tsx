@@ -143,7 +143,7 @@ export default async function DashboardPage() {
         />
       </KpiRow>
 
-      <div className="grid gap-3 min-[900px]:grid-cols-[1.55fr_1fr]">
+      <div className="fieldnotes-dashboard-panels">
         <Card className="gap-0 overflow-hidden rounded-xl border py-0 shadow-card">
           <CardHead title="Sign-ups over time" note="Daily · 30d" />
           <SignupsChart points={data.signups} />
