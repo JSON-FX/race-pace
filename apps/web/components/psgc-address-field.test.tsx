@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { PsgcAddressField } from "./PsgcAddressField";
@@ -128,4 +128,27 @@ it("keeps a stored city while the edit-seed lookup resolves", async () => {
   expect(screen.getByTestId("stored-city")).toHaveValue("112603");
   expect(screen.getByLabelText("Province")).toHaveTextContent("Davao del Sur");
   expect(screen.getByLabelText("City")).toHaveTextContent("City of Digos");
+});
+
+it("ignores a transient empty native select value while a stored city loads", () => {
+  regions = { data: undefined };
+  provinces = { data: undefined, isSuccess: false };
+  cities = { data: undefined };
+  const saved: PsgcAddress = {
+    city_psgc_code: "112603", city_name: "City of Digos",
+    province_name: "Davao del Sur", region_name: "Davao Region",
+  };
+  function ControlledAddress() {
+    const [value, setValue] = useState(saved);
+    return <form>
+      <input type="hidden" data-testid="stored-city" value={value.city_psgc_code ?? ""} readOnly />
+      <PsgcAddressField value={value} onChange={setValue} />
+    </form>;
+  }
+
+  const { container } = render(<ControlledAddress />);
+  const nativeCitySelect = container.querySelectorAll("select")[2];
+  expect(nativeCitySelect).toBeDefined();
+  fireEvent.change(nativeCitySelect, { target: { value: "" } });
+  expect(screen.getByTestId("stored-city")).toHaveValue("112603");
 });
