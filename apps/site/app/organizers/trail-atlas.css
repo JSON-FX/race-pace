@@ -1,0 +1,134 @@
+/* Trail Atlas. The scoped roles match the Race Pace Fieldnotes library. */
+.trail-atlas {
+  --atlas-canvas: #f2f3ea;
+  --atlas-surface: #fff;
+  --atlas-soft: #e8eee3;
+  --atlas-ink: #1d3829;
+  --atlas-muted: #506755;
+  --atlas-action: #176341;
+  --atlas-line: #c4d0c1;
+  --atlas-signal: #d3e3bf;
+  min-height: 65vh;
+  background: var(--atlas-canvas);
+  color: var(--atlas-ink);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+}
+.dark .trail-atlas {
+  --atlas-canvas: #112419;
+  --atlas-surface: #1a3223;
+  --atlas-soft: #27442f;
+  --atlas-ink: #edf5e8;
+  --atlas-muted: #c4d7c1;
+  --atlas-action: #c8e8a7;
+  --atlas-line: #48694e;
+  --atlas-signal: #284f36;
+}
+.trail-atlas * { box-sizing: border-box; }
+.trail-atlas :is(a, button, input):focus-visible { outline: 3px solid var(--atlas-action); outline-offset: 3px; }
+.trail-atlas__inner { width: min(100% - 56px, 1220px); margin: 0 auto; padding: 44px 0 90px; }
+.trail-atlas__heading { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 360px); align-items: end; gap: 50px; border-bottom: 1px solid var(--atlas-line); padding: 20px 0 40px; }
+.trail-atlas h1, .trail-atlas__org-copy h2, .trail-atlas__section-title { font-family: "New York", "Iowan Old Style", Baskerville, Georgia, serif; font-weight: 500; letter-spacing: -.03em; }
+.trail-atlas__heading h1 { max-width: 720px; margin: 0 0 14px; font-size: clamp(52px, 6vw, 82px); line-height: 1.03; }
+.trail-atlas__heading p { margin: 0; color: var(--atlas-muted); font-size: 15px; }
+.trail-atlas__search { display: flex; min-height: 54px; align-items: center; gap: 10px; border: 1px solid var(--atlas-line); border-radius: 14px; background: var(--atlas-surface); padding: 0 17px; }
+.trail-atlas__search svg { flex: none; }
+.trail-atlas__search:focus-within { outline: 3px solid var(--atlas-action); outline-offset: 2px; }
+.trail-atlas__search input { width: 100%; min-width: 0; min-height: 50px; border: 0; outline: 0; background: transparent; color: var(--atlas-ink); font-size: 14px; }
+.trail-atlas__search input::placeholder { color: var(--atlas-muted); opacity: 1; }
+.trail-atlas__directory-layout { display: grid; grid-template-columns: 225px minmax(0, 1fr); gap: 42px; padding-top: 30px; }
+.trail-atlas__region-rail { position: sticky; top: 95px; align-self: start; }
+.trail-atlas__region-rail h2 { margin: 0 0 12px; font-size: 15px; font-weight: 700; }
+.trail-atlas__region-options { display: grid; gap: 6px; }
+.trail-atlas__region-filter { min-height: 44px; border: 1px solid var(--atlas-line); border-radius: 10px; background: var(--atlas-surface); padding: 8px 12px; color: var(--atlas-ink); text-align: left; font-size: 13px; font-weight: 650; cursor: pointer; }
+.trail-atlas__region-filter:hover { border-color: var(--atlas-action); }
+.trail-atlas__region-filter[aria-pressed="true"] { border-color: var(--atlas-action); background: var(--atlas-action); color: var(--atlas-surface); }
+.dark .trail-atlas__region-filter[aria-pressed="true"] { color: #112419; }
+.trail-atlas__results { min-width: 0; }
+.trail-atlas__results-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 10px; margin: 0 0 12px; color: var(--atlas-muted); font-size: 13px; }
+.trail-atlas__results-head span:first-child { font-weight: 650; }
+.trail-atlas__org-row { display: grid; grid-template-columns: 145px minmax(0, 1fr) auto; align-items: center; gap: 22px; min-width: 0; border-bottom: 1px solid var(--atlas-line); padding: 18px 0; }
+.trail-atlas__photo { position: relative; overflow: hidden; background: var(--atlas-soft); }
+.trail-atlas__photo-image { object-fit: cover; }
+.trail-atlas__photo-fallback { position: absolute; inset: 0; display: grid; place-items: center; background: linear-gradient(155deg, var(--atlas-soft), var(--atlas-signal)); color: var(--atlas-action); font-family: "New York", Georgia, serif; font-size: 31px; font-weight: 600; letter-spacing: -.08em; }
+.trail-atlas__row-photo { height: 112px; border-radius: 14px; }
+.trail-atlas__org-copy { min-width: 0; }
+.trail-atlas__row-meta { color: var(--atlas-muted); font-size: 12px; font-weight: 700; }
+.trail-atlas__org-copy h2 { margin: 2px 0 3px; font-size: clamp(26px, 2.5vw, 34px); line-height: 1.12; }
+.trail-atlas__org-copy p { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; margin: 6px 0 8px; color: var(--atlas-muted); font-size: 14px; line-height: 1.45; }
+.trail-atlas__next { color: var(--atlas-muted); font-size: 13px; }
+.trail-atlas__action { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; border: 1px solid var(--atlas-action); border-radius: 13px; padding: 9px 15px; background: var(--atlas-action); color: #fff; text-decoration: none; white-space: nowrap; font-size: 13px; font-weight: 700; cursor: pointer; }
+.trail-atlas__action--secondary { background: var(--atlas-surface); color: var(--atlas-action); }
+.trail-atlas__action:hover { filter: brightness(.92); }
+.trail-atlas__empty { margin-top: 20px; border: 1px dashed var(--atlas-line); border-radius: 18px; background: var(--atlas-surface); padding: 28px; }
+.trail-atlas__empty h2, .trail-atlas__empty h3 { margin: 0 0 6px; font-size: 20px; font-weight: 650; }
+.trail-atlas__empty p { margin: 0 0 16px; color: var(--atlas-muted); }
+.trail-atlas__empty p:last-child { margin-bottom: 0; }
+.trail-atlas__inner--profile { padding-top: 36px; }
+.trail-atlas__back { display: inline-flex; min-height: 44px; align-items: center; margin-bottom: 18px; color: var(--atlas-action); font-size: 14px; font-weight: 700; text-decoration: none; }
+.trail-atlas__back:hover { text-decoration: underline; text-underline-offset: 4px; }
+.trail-atlas__profile-hero { display: grid; grid-template-columns: .95fr 1.05fr; min-height: 420px; overflow: hidden; border-radius: 22px; background: #1d3829; color: white; }
+.trail-atlas__hero-photo { min-height: 420px; }
+.trail-atlas__profile-summary { display: flex; flex-direction: column; justify-content: center; align-items: flex-start; min-width: 0; padding: 48px; }
+.trail-atlas__mark { position: relative; display: grid; flex: none; width: 52px; height: 52px; overflow: hidden; place-items: center; border-radius: 14px; background: var(--atlas-signal); color: #1d3829; font-size: 15px; font-weight: 800; }
+.trail-atlas__mark--large { width: 76px; height: 76px; margin-bottom: 16px; border: 1px solid var(--atlas-line); border-radius: 18px; background: white; font-size: 21px; }
+.trail-atlas__mark-image { object-fit: cover; }
+.trail-atlas__profile-summary h1 { overflow-wrap: anywhere; margin: 0 0 15px; font-size: clamp(44px, 5vw, 72px); line-height: 1.02; }
+.trail-atlas__profile-summary p { max-width: 56ch; margin: 0; color: #d8e7dc; font-size: 14px; line-height: 1.55; }
+.trail-atlas__profile-columns { display: grid; grid-template-columns: minmax(0, 1fr) 240px; gap: 48px; margin-top: 48px; }
+.trail-atlas__section-title { margin: 0 0 16px; font-size: clamp(30px, 3vw, 42px); line-height: 1.15; }
+.trail-atlas__event-list { display: grid; gap: 12px; }
+.trail-atlas__event-row { display: flex; min-width: 0; align-items: center; gap: 16px; border: 1px solid var(--atlas-line); border-radius: 16px; background: var(--atlas-surface); padding: 14px; color: var(--atlas-ink); text-decoration: none; transition: border-color 150ms ease, transform 150ms ease; }
+.trail-atlas__event-row:hover { border-color: var(--atlas-action); transform: translateY(-2px); }
+.trail-atlas__event-photo { width: 100px; min-width: 100px; height: 78px; border-radius: 11px; }
+.trail-atlas__event-photo .trail-atlas__photo-fallback { font-size: 20px; }
+.trail-atlas__event-copy { flex: 1; min-width: 0; }
+.trail-atlas__event-copy h3 { margin: 0 0 4px; font-size: 16px; font-weight: 700; line-height: 1.3; }
+.trail-atlas__event-copy p { margin: 0; color: var(--atlas-muted); font-size: 12px; line-height: 1.45; }
+.trail-atlas__availability { display: inline-block; margin-top: 7px; color: var(--atlas-action); font-size: 12px; font-weight: 700; }
+.trail-atlas__event-date { flex: none; margin-left: auto; color: var(--atlas-action); font-size: 12px; font-weight: 700; white-space: nowrap; }
+.trail-atlas__profile-facts { margin: 0; }
+.trail-atlas__profile-facts > div { border-top: 1px solid var(--atlas-line); padding: 16px 0; }
+.trail-atlas__profile-facts dt { margin-bottom: 4px; color: var(--atlas-muted); font-size: 12px; }
+.trail-atlas__profile-facts dd { margin: 0; font-size: 14px; font-weight: 650; }
+.trail-atlas__about { margin-top: 42px; }
+.trail-atlas__about p { max-width: 65ch; margin: 0; color: var(--atlas-muted); font-size: 15px; line-height: 1.6; white-space: pre-line; }
+.trail-atlas__empty--events { margin: 0; }
+@media (max-width: 950px) {
+  .trail-atlas__heading { grid-template-columns: 1fr; gap: 24px; }
+  .trail-atlas__search { max-width: 520px; }
+  .trail-atlas__directory-layout { grid-template-columns: 170px minmax(0, 1fr); gap: 24px; }
+  .trail-atlas__org-row { grid-template-columns: 120px minmax(0, 1fr); }
+  .trail-atlas__org-row .trail-atlas__action { grid-column: 2; justify-self: start; }
+  .trail-atlas__profile-columns { gap: 28px; }
+}
+@media (max-width: 700px) {
+  .trail-atlas__inner { width: min(100% - 36px, 520px); padding: 30px 0 70px; }
+  .trail-atlas__heading { padding: 10px 0 28px; }
+  .trail-atlas__heading h1 { font-size: clamp(49px, 12vw, 68px); }
+  .trail-atlas__search { max-width: none; }
+  .trail-atlas__directory-layout { grid-template-columns: 1fr; gap: 12px; padding-top: 20px; }
+  .trail-atlas__region-rail { position: static; }
+  .trail-atlas__region-rail h2 { margin-bottom: 8px; }
+  .trail-atlas__region-options { display: flex; flex-wrap: wrap; gap: 6px; }
+  .trail-atlas__region-filter { border-radius: 999px; padding: 8px 13px; }
+  .trail-atlas__results-head { margin-top: 8px; }
+  .trail-atlas__org-row { grid-template-columns: 100px minmax(0, 1fr); gap: 14px; }
+  .trail-atlas__row-photo { height: 100px; }
+  .trail-atlas__org-copy h2 { font-size: 25px; }
+  .trail-atlas__org-row .trail-atlas__action { grid-column: 2; }
+  .trail-atlas__profile-hero { display: block; }
+  .trail-atlas__hero-photo { min-height: 210px; }
+  .trail-atlas__profile-summary { padding: 27px; }
+  .trail-atlas__profile-summary h1 { font-size: clamp(40px, 10vw, 56px); }
+  .trail-atlas__profile-columns { grid-template-columns: 1fr; gap: 30px; margin-top: 34px; }
+  .trail-atlas__event-row { flex-wrap: wrap; align-items: flex-start; }
+  .trail-atlas__event-photo { width: 82px; min-width: 82px; height: 82px; }
+  .trail-atlas__event-date { margin-left: 98px; }
+}
+@media (max-width: 420px) {
+  .trail-atlas__org-row { grid-template-columns: 82px minmax(0, 1fr); }
+  .trail-atlas__row-photo { height: 90px; }
+  .trail-atlas__org-copy h2 { font-size: 23px; }
+  .trail-atlas__profile-summary h1 { font-size: 34px; }
+}
+@media (prefers-reduced-motion: reduce) { .trail-atlas__event-row { transition: none; } .trail-atlas__event-row:hover { transform: none; } }

@@ -44,6 +44,7 @@ const COLUMNS: { heading: string; links: { href: string; label: string }[] }[] =
   {
     heading: "Organizers",
     links: [
+      { href: "/organizers", label: "Explore organizers" },
       { href: "/inquiry", label: "List a race" },
       { href: "/inquiry", label: "Send an inquiry" },
     ],

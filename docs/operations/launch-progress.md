@@ -3,6 +3,14 @@
 Updated: 2026-09-25. Overall: MVP RELEASED; FIELDNOTES EVENTS AND ORGANIZER PROFILE FIELDS IN PRODUCTION; OWNER CHECKOUT PENDING.
 Scope: runner website and admin only. The first release is a controlled pilot with one organizer and PayMongo. Production contains real organizer and event data; add no synthetic data.
 
+### Public Trail Atlas organizers
+
+| Work | Status | Blocker | Next task |
+|---|---|---|---|
+| Organizer directory, profiles, navigation and footer | **Implemented and browser-reviewed locally; staging release pending** | Owner visual acceptance and staging release checks remain. No production route exists yet. | Review the local Trail Atlas directory and profile, then open a scoped pull request to `staging`. |
+
+Local implementation, 2026-09-25: the selected Trail Atlas layout now reads active organizers, nullable admin profile details, public event disciplines, and future event capacity from the local Supabase stack. Search, dynamic region filters, profile navigation, event links, and 320px phone layout were checked in the browser. Active organizers with blank optional fields remain visible; those with upcoming events sort first. The runner site suite passed 473 tests, typecheck, and production build. No hosted environment or production data changed.
+
 ### Admin user Passport details
 
 | Work | Status | Blocker | Next task |

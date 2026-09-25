@@ -27,6 +27,7 @@ it("keeps the brand on the landing page while Home opens the race-browsing route
   expect(screen.getByRole("link", { name: "Race Pace home" })).toHaveAttribute("href", "/");
   expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute("href", "/home");
   expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute("aria-current", "page");
+  expect(screen.getByRole("link", { name: "Organizers" })).toHaveAttribute("href", "/organizers");
 });
 
 it("uses /home for the signed-in runner tab", () => {
@@ -34,4 +35,5 @@ it("uses /home for the signed-in runner tab", () => {
 
   expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute("href", "/home");
   expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute("aria-current", "page");
+  expect(screen.getByRole("link", { name: "Organizers" })).toHaveAttribute("href", "/organizers");
 });

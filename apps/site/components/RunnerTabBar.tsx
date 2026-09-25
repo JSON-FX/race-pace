@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Mountain, Ticket, User } from "lucide-react";
+import { Home, Mountain, Ticket, User, UsersRound } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LinkPending } from "./NavProgress";
 
@@ -15,9 +15,7 @@ import { LinkPending } from "./NavProgress";
  * ticket are the two things runners do on a phone, and both cost a stretch plus
  * an extra tap.
  *
- * Four destinations, so unlike the admin console there is no "More" tab and
- * every page is exactly one tap. Five is the documented maximum; this fits with
- * room spare.
+ * Five destinations keep the organizer directory one tap away without a More tab.
  *
  * SIGNED OUT it renders nothing. The public nav is Home and Races only, which
  * already fits the header comfortably — and a two-item bar reads as broken,
@@ -30,6 +28,7 @@ import { LinkPending } from "./NavProgress";
 const TABS = [
   { href: "/home", label: "Home", icon: Home },
   { href: "/events", label: "Races", icon: Mountain },
+  { href: "/organizers", label: "Organizers", icon: UsersRound },
   { href: "/races", label: "My Races", icon: Ticket },
   { href: "/profile", label: "Profile", icon: User },
 ] as const;
