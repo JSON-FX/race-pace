@@ -7,7 +7,7 @@ import { eventState, STATE_BADGE } from "@/lib/eventState";
 import { FieldnotesHero } from "./FieldnotesHero";
 
 /** Fieldnotes catalog card, scoped to the runner event discovery pilot. */
-export function FieldnotesEventCard({ event, index }: { event: EventRow; index?: number }) {
+export function FieldnotesEventCard({ event }: { event: EventRow }) {
   const date = event.event_date ? formatDateRange(event.event_date, event.end_date, shortDate) : null;
   const location = formatAddress({ city_name: event.city_name, province_name: event.province_name });
   const state = eventState(event);
@@ -22,9 +22,11 @@ export function FieldnotesEventCard({ event, index }: { event: EventRow; index?:
       <div className="fieldnotes-race-card__media">
         <FieldnotesHero src={event.hero_image_url} />
 
-        {index != null ? (
-          <span className="fieldnotes-race-card__number">
-            {String(index).padStart(2, "0")}
+        {event.org_name ? (
+          <span className="fieldnotes-race-card__avatar" aria-hidden="true">
+            {event.org_logo_url ? (
+              <Image src={event.org_logo_url} alt="" width={48} height={48} className="fieldnotes-race-card__avatar-image" />
+            ) : organizerInitials}
           </span>
         ) : null}
 
@@ -41,11 +43,6 @@ export function FieldnotesEventCard({ event, index }: { event: EventRow; index?:
       <div className="fieldnotes-race-card__body">
         {event.org_name ? (
           <div className="fieldnotes-race-card__organizer">
-            <span className="fieldnotes-race-card__avatar" aria-hidden="true">
-              {event.org_logo_url ? (
-                <Image src={event.org_logo_url} alt="" width={30} height={30} className="fieldnotes-race-card__avatar-image" />
-              ) : organizerInitials}
-            </span>
             <span className="fieldnotes-race-card__organizer-name">{event.org_name}</span>
           </div>
         ) : null}
@@ -63,18 +60,16 @@ export function FieldnotesEventCard({ event, index }: { event: EventRow; index?:
           </p>
         ) : null}
 
-        {event.distances.length > 0 ? (
-          <div className="fieldnotes-race-card__footer">
-            {event.distances.map((d) => (
-              <span
-                key={d}
-                className="fieldnotes-race-card__distance"
-              >
-                {d}K
-              </span>
-            ))}
-          </div>
-        ) : null}
+        <div className="fieldnotes-race-card__footer">
+          {event.distances.map((d) => (
+            <span
+              key={d}
+              className="fieldnotes-race-card__distance"
+            >
+              {d}K
+            </span>
+          ))}
+        </div>
         <span className="fieldnotes-race-card__view">View race <span aria-hidden="true">↗</span></span>
       </div>
     </Link>
