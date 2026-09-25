@@ -1,27 +1,29 @@
 # Web and admin launch progress
 
-Updated: 2026-09-25. Overall: MVP RELEASED; FIELDNOTES EVENTS ON STAGING; PILOT EVENT DRAFT READY; OWNER CHECKOUT PENDING.
+Updated: 2026-09-25. Overall: MVP RELEASED; FIELDNOTES EVENTS RELEASED; PILOT EVENT DRAFT READY; OWNER CHECKOUT PENDING.
 Scope: runner website and admin only. The first release is a controlled pilot with one organizer and PayMongo. Production now contains only the authorized pilot organizer and its draft verification event; add no other synthetic data.
 
 ### Organizer profile fields in admin Settings
 
 | Work | Status | Blocker | Next task |
 |---|---|---|---|
-| Organizer Description and Home Base | **Deployed and verified on staging in the existing Settings design; owner approved production promotion** | Production migration and deployment remain. The public organizer directory is a separate task. | Promote the reviewed staging revision through `staging` → `main`; plan Trail Atlas separately. |
+| Organizer Description and Home Base | **Production deployed in the existing Settings design** | Signed-in production admin review remains. The public organizer directory is a separate task. | Review [production Settings](https://admin.racepace.com.ph/settings) as an organizer admin; plan Trail Atlas separately. |
 
 Staging Settings release, 2026-09-25: PRs #126–#132 added the optional Organizer Description and Home Base fields to the existing Organization profile card, with no page redesign. The nullable Home Base columns, column-scoped grants, and admin-only database guard are applied to staging in migration `20260925000644_organizer_profile_home_base.sql`. The final application merge is `77a231b9cff199603fc2443a2d65e47b841a1434`; exact-merge CI run `36090968043` passed on its second attempt after an intermittent `next/font` error in the unchanged runner build. Admin deployment `dpl_3de3LV14pizRgWY5StD1dnJdXo7o` is Ready on `staging-admin.racepace.com.ph` at that revision. The final local admin suite passed 916 tests, typecheck, and production build. The hosted QA organizer saved a temporary description and City of Digos (`112403000`); database readback matched the city, province, and region labels. The page reloaded with both fields intact. Both values were then cleared through Settings, and database readback confirmed all five profile fields are null. Production application and database were not changed.
 
 Combined release readiness, 2026-09-25: the owner approved promoting Organizer Description and Home Base together with the staged Fieldnotes runner and admin event directories. The exact combined staging revision is `99c5d51f43c4fe966a9bb19f8b4fc71d4d619d9b`; CI run `36092523620` passed. Runner deployment `dpl_AijRxrUsMbvzvzUHSrztbRMTdDTo` and admin deployment `dpl_Fz746ofagU9qBmD3PRSVLsfLjEwm` are Ready at that revision. Staging has the nullable profile migration; production does not. The Fieldnotes changes add no migration, Edge Function, or provider configuration. Authenticated admin event-directory review and the first owner-led live payment remain open and are not counted as completed checks.
 
+Combined production release, 2026-09-25: PR #134 promoted staging source `b959cf809723903ff7e6bd2897de837a527d5b31` to main commit `28d3117523ee0d3f9ccdb5b87fa5be345ddc9a85`. The required pull-request checks passed after a retry of the intermittent external `next/font` download; exact-main CI run `36099429776` passed. Production migration `20260925000644` was applied before the app merge; readback found 148 migration versions, all five nullable profile columns, the admin guard trigger, and the intended column grants. No Edge Function or provider configuration changed. Runner deployment `dpl_9LPsPEE16LDaF8cZirpwhm3Tvr98` and admin deployment `dpl_76kG7ZtXoWbP6A4HhGqHuGu48vdN` are Ready at the main merge and own `www.racepace.com.ph` and `admin.racepace.com.ph`. The public `/events` route returned HTTP 200 with the Fieldnotes heading; unauthenticated admin `/settings` and `/events` redirected to login. A signed-in staging admin review displayed seven events with slot counts, and search narrowed to one matching event before being cleared. Production read-only counts remained two organizations, one event, 23 registrations, and 19 payments before and after deployment verification. No production sample data or payment was created. Signed-in production admin review, the first owner-led live payment, and main-to-staging history sync remain open.
+
 ### Current Fieldnotes event workflow pilot
 
 | Work | Status | Blocker | Next task |
 |---|---|---|---|
-| Runner `/events` discovery | **Deployed on staging; owner approved production promotion** | Signed-in journey remains for owner review. | Promote the staged directory, then review [production runner `/events`](https://www.racepace.com.ph/events). |
-| Admin `/events` directory | **Deployed on staging; owner approved production promotion** | Authenticated admin browser review remains; unauthenticated access correctly redirects to sign-in. | Promote the staged directory, then review the signed-in production admin page. |
+| Runner `/events` discovery | **Production deployed** | Signed-in journey remains for owner review. | Review [production runner `/events`](https://www.racepace.com.ph/events). |
+| Admin `/events` directory | **Production deployed** | Signed-in production admin browser review remains; unauthenticated access redirects to sign-in. | Review the signed-in [production admin directory](https://admin.racepace.com.ph/events). |
 | Runner `/events/[id]` | **Canceled and excluded** | None. | Keep the existing staging detail page. |
-| Catalog cards and shared footer spacing | **Deployed and verified on staging; owner approved production promotion** | None for the release decision. | Verify the production catalog after deployment. |
-| Catalog card alignment and avatar placement | **Deployed and verified on staging; owner approved production promotion** | None for the release decision. | Verify the production cards after deployment. |
+| Catalog cards and shared footer spacing | **Production deployed** | None for the release decision. | Review the production catalog with live event data as it becomes available. |
+| Catalog card alignment and avatar placement | **Production deployed** | None for the release decision. | Review the production cards with live event data as it becomes available. |
 | Fieldnotes source sync | **Pinned to local Hub commit `5f803e6`** | The Hub has no configured remote. | Keep the application styles byte-identical to this local source when the catalog evolves. |
 | Local Docker and sample data | **Active in the staging-record worktree with local Supabase** | Admin review still needs an authenticated local account. | Use the [local setup guide](local-fieldnotes-workspace.md) and review the [filled sample event](https://racepace.lan/events/fieldnotes-ridge-run-local-demo). |
 
