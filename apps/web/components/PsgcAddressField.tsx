@@ -5,6 +5,7 @@ import type { PsgcAddress } from "@race-pace/shared";
 import { usePsgcRegions, usePsgcProvinces, usePsgcCities, usePsgcCity } from "../lib/psgc";
 import { Label } from "./ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
+import { cn } from "@/lib/utils";
 
 const fieldLabel = "mb-1.5 block text-[11px] font-semibold tracking-wide text-muted-foreground";
 // Radix Select items can't carry an empty string value, but "nothing selected" is a
@@ -16,7 +17,7 @@ const CLEAR = "__none__";
 /** Cascading Region → Province → City selects. Emits a full PsgcAddress on each
  *  change (partial until a city is chosen). NCR-style regions with no provinces
  *  skip the Province step and filter cities by region. */
-export function PsgcAddressField({ value, onChange }: { value: PsgcAddress | null; onChange: (a: PsgcAddress) => void }) {
+export function PsgcAddressField({ value, onChange, className }: { value: PsgcAddress | null; onChange: (a: PsgcAddress) => void; className?: string }) {
   const [regionCode, setRegionCode] = useState("");
   const [provinceCode, setProvinceCode] = useState("");
   const seeded = useRef(false);
@@ -53,7 +54,7 @@ export function PsgcAddressField({ value, onChange }: { value: PsgcAddress | nul
   }
 
   return (
-    <div className="grid grid-cols-3 gap-3">
+    <div className={cn("grid grid-cols-3 gap-3", className)}>
       <div>
         <Label className={fieldLabel}>REGION</Label>
         <Select value={regionCode || undefined} onValueChange={(v) => pickRegion(v === CLEAR ? "" : v)}>

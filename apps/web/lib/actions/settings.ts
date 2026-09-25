@@ -66,31 +66,63 @@ export async function updateOrgBrandingAction(
   return { ok: true };
 }
 
-export async function updateOrgNameAction(_prev: SettingsState, formData: FormData): Promise<SettingsState> {
+export async function updateOrgProfileAction(_prev: SettingsState, formData: FormData): Promise<SettingsState> {
   const orgId = String(formData.get("orgId") ?? "");
   const name = String(formData.get("name") ?? "").trim();
+  const description = String(formData.get("description") ?? "").trim();
+  const homeCityCode = String(formData.get("homeCityPsgcCode") ?? "").trim();
 
   if (!orgId) return { error: "Missing organization." };
   if (!name) return { error: "Enter an organization name." };
+  if (description.length > 2000) return { error: "Keep the organizer description within 2,000 characters." };
+  if (homeCityCode && !/^\d{9}$/.test(homeCityCode)) return { error: "Choose a valid home base." };
 
   const roles = await getMyRoles();
   const denied = assertCanEditOrg(roles, orgId);
   if (denied) return { error: denied };
 
   const supabase = await createClient();
+  let homeBase = {
+    home_city_psgc_code: null as string | null,
+    home_city_name: null as string | null,
+    home_province_name: null as string | null,
+    home_region_name: null as string | null,
+  };
+  if (homeCityCode) {
+    const { data: city, error: cityError } = await supabase.from("psgc_cities")
+      .select("name,province_code,region_code").eq("code", homeCityCode).maybeSingle();
+    if (cityError || !city) return { error: "Choose a valid home base." };
+
+    const [provinceResult, regionResult] = await Promise.all([
+      city.province_code
+        ? supabase.from("psgc_provinces").select("name").eq("code", city.province_code).maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
+      supabase.from("psgc_regions").select("name").eq("code", city.region_code).maybeSingle(),
+    ]);
+    if (provinceResult.error || regionResult.error || !regionResult.data || (city.province_code && !provinceResult.data)) {
+      return { error: "Choose a valid home base." };
+    }
+    homeBase = {
+      home_city_psgc_code: homeCityCode,
+      home_city_name: city.name,
+      home_province_name: provinceResult.data?.name ?? null,
+      home_region_name: regionResult.data.name,
+    };
+  }
   // See updateOrgBrandingAction's comment: .select("id") + the empty-result
-  // check are what stop this from reporting "Organization name updated."
+  // check are what stop this from reporting a saved profile
   // when an RLS-blocked write silently changed zero rows. Never surface
   // `error.message` (raw Postgres text) to the UI — log it server-side instead.
-  const { data, error } = await supabase.from("organizations").update({ name }).eq("id", orgId).select("id");
+  const { data, error } = await supabase.from("organizations")
+    .update({ name, description: description || null, ...homeBase }).eq("id", orgId).select("id");
   if (error) {
-    console.error("[settings] organizations name update failed", { orgId, error });
+    console.error("[settings] organizations profile update failed", { orgId, error });
     return { error: GENERIC_ERROR };
   }
   if (!data || data.length === 0) return { error: GENERIC_ERROR };
 
   revalidatePath("/settings");
-  return { success: "Organization name updated." };
+  return { success: "Organization profile updated." };
 }
 
 export async function updateOrgCheckInDefaultAction(_prev: SettingsState, formData: FormData): Promise<SettingsState> {

@@ -3,6 +3,14 @@
 Updated: 2026-09-25. Overall: MVP RELEASED; FIELDNOTES EVENTS ON STAGING; PILOT EVENT DRAFT READY; OWNER CHECKOUT PENDING.
 Scope: runner website and admin only. The first release is a controlled pilot with one organizer and PayMongo. Production now contains only the authorized pilot organizer and its draft verification event; add no other synthetic data.
 
+### Organizer profile fields in admin Settings
+
+| Work | Status | Blocker | Next task |
+|---|---|---|---|
+| Organizer Description and Home Base | **Implemented locally in the existing Settings design** | The branch has not been published or merged into staging. | Review the [updated Settings preview](../previews/organizers/admin-settings-profile-fields.html), then sync with current staging and prepare the scoped release. |
+
+The local admin suite passed 913 tests, and admin TypeScript passed. The new nullable columns, update grants, and admin-only database guard passed a local transaction check that rolled back all schema and fixture changes. Hosted staging and production remain unchanged.
+
 ### Current Fieldnotes event workflow pilot
 
 | Work | Status | Blocker | Next task |
