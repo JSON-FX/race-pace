@@ -12,6 +12,7 @@ export function CallbackPanel() {
   const params = useSearchParams();
   const [rid, setRid] = useState<string | null | undefined>(() => params.get("rid") || undefined);
   const [timedOut, setTimedOut] = useState(false);
+  const [reviewRequired, setReviewRequired] = useState(false);
   const cancelled = params.get("status") === "cancel";
 
   // PayMongo returns with our rid, but recover from sessionStorage if it is
@@ -22,7 +23,7 @@ export function CallbackPanel() {
     try { setRid(sessionStorage.getItem("rp:paying")); } catch { setRid(null); }
   }, [params]);
 
-  const reg = useRegistration(rid ?? "", { poll: !!rid && !cancelled });
+  const reg = useRegistration(rid ?? "", { poll: !!rid && !cancelled && !reviewRequired });
   const verified = useRef(false);
 
   // Confirm server-side. The redirect itself is never trusted — payment-verify
@@ -30,7 +31,10 @@ export function CallbackPanel() {
   useEffect(() => {
     if (!rid || cancelled || verified.current) return;
     verified.current = true;
-    verifyPayment(rid).then(() => reg.refetch());
+    verifyPayment(rid).then((result) => {
+      if (result.status === "review_required") setReviewRequired(true);
+      return reg.refetch();
+    });
   }, [rid, cancelled, reg]);
 
   useEffect(() => {
@@ -71,6 +75,19 @@ export function CallbackPanel() {
     );
   }
 
+  if (reviewRequired) {
+    return (
+      <Panel
+        title="Payment needs review"
+        body={`PayMongo reported your payment, but your race entry needs manual review. No race pass has been issued. Please do not pay again. Contact Race Pace support with registration reference ${rid}.`}
+      >
+        <Button asChild className="h-auto rounded-pill px-8 py-4 text-[16px] font-semibold">
+          <Link href="/races">View My Races</Link>
+        </Button>
+      </Panel>
+    );
+  }
+
   return (
     <Panel
       title="Confirming your payment…"
@@ -82,7 +99,10 @@ export function CallbackPanel() {
     >
       <Button
         type="button"
-        onClick={() => verifyPayment(rid).then(() => reg.refetch())}
+        onClick={() => verifyPayment(rid).then((result) => {
+          if (result.status === "review_required") setReviewRequired(true);
+          return reg.refetch();
+        })}
         className="h-auto rounded-pill px-8 py-4 text-[16px] font-semibold"
       >
         Check again
