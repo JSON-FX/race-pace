@@ -3,11 +3,15 @@ import { render, screen } from "@testing-library/react";
 
 const getMyRoles = vi.fn();
 const listUnboundCheckoutReviews = vi.fn();
+const listSingleCaptureReviews = vi.fn();
 const notFound = vi.fn(() => { throw new Error("NEXT_NOT_FOUND"); });
 
 vi.mock("@/lib/queries/roles", () => ({ getMyRoles: () => getMyRoles() }));
 vi.mock("@/lib/queries/unbound-checkouts", () => ({
   listUnboundCheckoutReviews: () => listUnboundCheckoutReviews(),
+}));
+vi.mock("@/lib/queries/single-capture-reviews", () => ({
+  listSingleCaptureReviews: () => listSingleCaptureReviews(),
 }));
 vi.mock("next/navigation", () => ({ notFound: () => notFound() }));
 
@@ -16,6 +20,7 @@ import CheckoutReviewsPage from "./page";
 beforeEach(() => {
   getMyRoles.mockReset();
   listUnboundCheckoutReviews.mockReset().mockResolvedValue([]);
+  listSingleCaptureReviews.mockReset().mockResolvedValue([]);
   notFound.mockClear();
 });
 
@@ -23,6 +28,7 @@ it("hides the page from an organization admin before querying review data", asyn
   getMyRoles.mockResolvedValue({ capabilities: ["manage_org", "manage_team"] });
   await expect(CheckoutReviewsPage()).rejects.toThrow("NEXT_NOT_FOUND");
   expect(listUnboundCheckoutReviews).not.toHaveBeenCalled();
+  expect(listSingleCaptureReviews).not.toHaveBeenCalled();
 });
 
 it("shows a platform super admin the unresolved count and provider warning", async () => {
@@ -33,12 +39,19 @@ it("shows a platform super admin the unresolved count and provider warning", asy
     expires_at: "2026-09-18T01:00:00Z", latest_outcome: "missing_session_ref",
     attempts: 1, last_attempt_at: "2026-09-18T01:05:00Z", capture_count: 0,
   }]);
+  listSingleCaptureReviews.mockResolvedValue([{
+    provider_payment_id: "pay_review", registration_id: "reg-2", event_name: "Captured Trail",
+    org_name: "Race Club", amount_cents: 10000, reason: "reservation_deadline_passed",
+    first_seen_at: "2026-09-18T01:05:00Z", registration_status: "pending", payment_status: "pending",
+  }]);
 
   render(await CheckoutReviewsPage());
-  expect(screen.getByText("1 unresolved")).toBeInTheDocument();
+  expect(screen.getByText("2 unresolved")).toBeInTheDocument();
   expect(screen.getByText("Provider verification required.")).toBeInTheDocument();
   expect(screen.getByText("Trail 40")).toBeInTheDocument();
   expect(screen.getByText("₱1,250.50")).toBeInTheDocument();
   expect(screen.getByText("reg-1")).toBeInTheDocument();
+  expect(screen.getByText("pay_review")).toBeInTheDocument();
+  expect(screen.getByText("reservation deadline passed")).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: /release|retry|bind/i })).not.toBeInTheDocument();
 });
