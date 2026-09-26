@@ -24,6 +24,7 @@ it("shows only active unbound single checkouts to platform staff without changin
   const runners = Array.from({ length: 6 }, () => randomUUID());
   const org = randomUUID(), event = randomUUID(), category = randomUUID();
   const untried = randomUUID(), attempted = randomUUID(), bound = randomUUID();
+  const providerPaymentId = `pay_${randomUUID().replaceAll("-", "")}`;
   const checkoutReady = randomUUID(), failed = randomUUID(), expired = randomUUID();
   await db.query("begin");
   try {
@@ -67,7 +68,7 @@ it("shows only active unbound single checkouts to platform staff without changin
     await db.query(
       "insert into public.single_payment_captures(provider_payment_id,registration_id,org_id,event_id,provider_resource,state) " +
         "values($1,$2,$3,$4,$5::jsonb,'reconciliation_required')",
-      [`pay_${randomUUID().replaceAll("-", "")}`, attempted, org, event, JSON.stringify({ secret: "never expose" })],
+      [providerPaymentId, attempted, org, event, JSON.stringify({ secret: "never expose" })],
     );
 
     const grants = await db.query(
@@ -75,6 +76,36 @@ it("shows only active unbound single checkouts to platform staff without changin
         "has_function_privilege('anon','public.platform_unbound_checkout_reviews()','execute') as anon",
     );
     expect(grants.rows[0]).toEqual({ authenticated: true, anon: false });
+
+    const captureGrants = await db.query(
+      "select has_function_privilege('authenticated','public.platform_single_capture_reviews()','execute') as authenticated, " +
+        "has_function_privilege('anon','public.platform_single_capture_reviews()','execute') as anon",
+    );
+    expect(captureGrants.rows[0]).toEqual({ authenticated: true, anon: false });
+
+    const captureReviews = await asActor("authenticated", platform, () =>
+      db.query("select * from public.platform_single_capture_reviews() where provider_payment_id=$1", [providerPaymentId]),
+    );
+    expect(captureReviews.rows).toHaveLength(1);
+    expect(captureReviews.rows[0]).toMatchObject({
+      provider_payment_id: providerPaymentId,
+      registration_id: attempted,
+      event_name: "Unbound Race",
+      org_name: "Unbound Org",
+      amount_cents: null,
+      registration_status: "pending",
+      payment_status: "pending",
+    });
+    expect(JSON.stringify(captureReviews.rows)).not.toContain("never expose");
+
+    for (const id of [organizer, runners[0]]) {
+      await expect(asActor("authenticated", id, () =>
+        db.query("select * from public.platform_single_capture_reviews()"),
+      )).rejects.toMatchObject({ code: "42501" });
+    }
+    await expect(asActor("anon", null, () =>
+      db.query("select * from public.platform_single_capture_reviews()"),
+    )).rejects.toMatchObject({ code: "42501" });
 
     const rows = await asActor("authenticated", platform, () =>
       db.query("select * from public.platform_unbound_checkout_reviews()"),
