@@ -65,8 +65,9 @@ export default async function Home() {
   const open = events.filter(
     (e) => !isRegistrationClosed(e.status, e.registration_closes_at) && !ongoingIds.has(e.id),
   );
+  const comingSoon = events.filter((e) => e.status === "coming_soon");
   const past = events.filter(
-    (e) => isRegistrationClosed(e.status, e.registration_closes_at) && !ongoingIds.has(e.id),
+    (e) => e.status !== "coming_soon" && isRegistrationClosed(e.status, e.registration_closes_at) && !ongoingIds.has(e.id),
   );
   const hero = open.find((e) => (e.event_date ?? "") >= today) ?? open[0];
   const rest = open.filter((e) => e.id !== hero?.id);
@@ -74,7 +75,7 @@ export default async function Home() {
   // Slot counts belong to categories, which the marketplace query doesn't
   // join — one extra read, only for the featured race.
   const heroCategories = hero ? await fetchCategories(db, hero.id) : [];
-  const slotsLeft = heroCategories.length
+  const slotsLeft = hero?.total_event_slots == null && heroCategories.length
     ? heroCategories.reduce((n, c) => n + Math.max(0, c.slots_total - c.slots_taken), 0)
     : null;
 
@@ -93,10 +94,12 @@ export default async function Home() {
           </Reveal>
           <Reveal delay={0.06}>
             <p className="mt-4 max-w-[48ch] text-[15px] leading-relaxed text-muted-foreground sm:text-[16px]">
-              {open.length === 1
+              {open.length === 0
+                ? "New races are taking shape. Explore what is coming soon."
+                : open.length === 1
                 ? "One race is open for entry right now."
                 : `${open.length} races open across the island.`}{" "}
-              Pick a distance and claim your slot.
+              {open.length > 0 ? "Pick a distance and claim your slot." : null}
             </p>
           </Reveal>
 
@@ -132,6 +135,28 @@ export default async function Home() {
         ) : null}
 
         {rest.length > 0 ? <RaceRail events={rest} /> : null}
+
+        {comingSoon.length > 0 ? (
+          <section className="mx-auto w-full max-w-6xl px-5 py-16 sm:px-6">
+            <Reveal>
+              <div className="flex items-baseline justify-between gap-6 border-t border-divider pt-8">
+                <h2 className="font-display text-[22px] font-extrabold tracking-[-0.5px] text-foreground sm:text-[26px]">
+                  Coming soon
+                </h2>
+                <Link href="/events" className="text-[13px] font-semibold text-primary hover:text-primary-focus">
+                  View all →
+                </Link>
+              </div>
+            </Reveal>
+            <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-6">
+              {comingSoon.map((event, index) => (
+                <Reveal key={event.id} delay={index * 0.05}>
+                  <EventCard event={event} />
+                </Reveal>
+              ))}
+            </div>
+          </section>
+        ) : null}
 
         <SeasonBand
           races={open.length}

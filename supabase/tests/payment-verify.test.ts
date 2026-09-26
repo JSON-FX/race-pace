@@ -3,14 +3,17 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 const mocks = vi.hoisted(() => ({
   registration: { status: "paid", user_id: "runner-id", booked_by_user_id: "runner-id" },
   providerRef: "cs_test",
+  reviewCaptures: [] as { provider_payment_id: string }[],
   configured: vi.fn(), getSession: vi.fn(), method: vi.fn(), confirm: vi.fn(), captures: vi.fn(),
 }));
 
 vi.mock("../functions/_shared/supabase.ts", () => ({ serviceClient: () => ({
   auth: { getUser: async () => ({ data: { user: { id: "runner-id" } }, error: null }) },
-  from: (table: string) => ({ select: () => ({ eq: () => ({ single: async () => ({
-    data: table === "registrations" ? { id: "registration-id", ...mocks.registration } : { provider_ref: mocks.providerRef },
-  }) }) }) }),
+  from: (table: string) => table === "single_payment_captures"
+    ? { select: () => ({ eq: () => ({ eq: () => ({ limit: async () => ({ data: mocks.reviewCaptures, error: null }) }) }) }) }
+    : { select: () => ({ eq: () => ({ single: async () => ({
+      data: table === "registrations" ? { id: "registration-id", ...mocks.registration } : { provider_ref: mocks.providerRef },
+    }) }) }) },
 }) }));
 vi.mock("../functions/_shared/confirm.ts", () => ({ confirmPayment: mocks.confirm, reportedPaidCaptures: mocks.captures }));
 vi.mock("../functions/_shared/paymongo.ts", () => ({
@@ -28,6 +31,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.registration = { status: "paid", user_id: "runner-id", booked_by_user_id: "runner-id" };
   mocks.providerRef = "cs_test";
+  mocks.reviewCaptures = [];
   mocks.configured.mockReturnValue(true);
   mocks.getSession.mockResolvedValue({ id: "cs_test", paid: true, raw: { data: { id: "cs_test", attributes: { payments: [] } } } });
   mocks.method.mockReturnValue("gcash");
@@ -101,6 +105,24 @@ it("still confirms a pending booking when PayMongo reports a capture", async () 
   const response = await request();
   expect(await response.json()).toEqual({ status: "paid", registration_id: "registration-id" });
   expect(mocks.confirm).toHaveBeenCalledWith("registration-id", "gcash", expect.objectContaining({ session_id: "cs_test" }));
+});
+
+it("reports a captured payment awaiting review even when PayMongo no longer serves the session", async () => {
+  mocks.registration = { ...mocks.registration, status: "pending" };
+  mocks.reviewCaptures = [{ provider_payment_id: "pay_review" }];
+  mocks.getSession.mockRejectedValue(new Error("provider session removed"));
+  const response = await request();
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({ status: "review_required" });
+  expect(mocks.getSession).not.toHaveBeenCalled();
+});
+
+it("reports a newly captured pending payment that confirmation placed under review", async () => {
+  mocks.registration = { ...mocks.registration, status: "pending" };
+  mocks.confirm.mockResolvedValue({ ok: false, error: "capture_review_required", status: 503 });
+  const response = await request();
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({ status: "review_required" });
 });
 
 it("still reports a provider read failure for a pending booking", async () => {

@@ -2,7 +2,7 @@ import { z } from "zod";
 import { EVENT_DISCIPLINES, isValidRoute, type RoutePoint } from "@race-pace/shared";
 
 // 'cancelled' is set via the Cancel modal, not the editor status field.
-export const EVENT_STATUSES = ["draft", "open", "almost_full", "closed", "completed"] as const;
+export const EVENT_STATUSES = ["draft", "coming_soon", "open", "almost_full", "closed", "completed"] as const;
 
 const dateStr = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD").nullable();
 const timeStr = z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/, "Use HH:MM").nullable();
@@ -53,6 +53,11 @@ export const eventInputSchema = z.object({
   end_date: dateStr,
   flag_off: timeStr,
   status: z.enum(EVENT_STATUSES),
+  coming_soon_notify_enabled: z.boolean(),
+  coming_soon_reserve_enabled: z.boolean(),
+  reservation_fee_cents: z.number().int().positive().nullable(),
+  reservation_deadline_at: isoDateTimeStr,
+  total_event_slots: z.number().int().positive().nullable(),
   discipline: z.enum(EVENT_DISCIPLINES),
   check_in_required: z.boolean(),
   registration_closes_at: isoDateTimeStr,
@@ -76,6 +81,42 @@ export const eventInputSchema = z.object({
   schedule: z.array(scheduleItemSchema).default([]),
   inclusions: z.array(inclusionItemSchema).default([]),
 });
+
+/** Publishing a teaser asks for fewer fields than opening registration. */
+export function comingSoonPublicationError(e: z.infer<typeof eventInputSchema>): string | null {
+  if (e.status !== "coming_soon") return null;
+  if (!e.name.trim() || !e.slug || !e.hero_image_url || !e.description?.trim()) {
+    return "Coming soon needs an event name, public link, discipline, image, and description.";
+  }
+  if (e.coming_soon_reserve_enabled) {
+    if (!e.reservation_fee_cents || !e.total_event_slots || !e.reservation_deadline_at) {
+      return "Reserve now needs a fee, total event slots, and a registration payment deadline.";
+    }
+    if (new Date(e.reservation_deadline_at).getTime() <= Date.now()) {
+      return "The reservation payment deadline must be in the future.";
+    }
+  }
+  return null;
+}
+
+/** Category places partition the event total; a teaser may leave them unassigned. */
+export function eventCapacityError(
+  event: { status: string; total_event_slots: number | null },
+  categories: { slots_total: number }[],
+): string | null {
+  const allocated = categories.reduce((sum, category) => sum + category.slots_total, 0);
+  if (categories.length > 0 && event.total_event_slots === null) {
+    return "Set total event slots before adding category slots.";
+  }
+  if (event.total_event_slots !== null && allocated > event.total_event_slots) {
+    return `Category slots (${allocated}) exceed total event slots (${event.total_event_slots}).`;
+  }
+  if ((event.status === "open" || event.status === "almost_full") &&
+    event.total_event_slots !== null && allocated !== event.total_event_slots) {
+    return `Allocate all ${event.total_event_slots} event slots across categories before opening registration.`;
+  }
+  return null;
+}
 
 /**
  * Mirrors events_start_coords_paired / events_finish_coords_paired

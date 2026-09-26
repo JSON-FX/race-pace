@@ -42,6 +42,8 @@ function baseEvent(overrides: Partial<EventDraft> = {}): EventDraft {
   return {
     org_id: "a1", name: "Apo Sky Ultra", slug: "apo-sky-ultra", city_psgc_code: null, region_name: null, province_name: null, city_name: null, venue: null,
     event_date: null, end_date: null, flag_off: null, status: "draft", discipline: "trail",
+    coming_soon_notify_enabled: false, coming_soon_reserve_enabled: false,
+    reservation_fee_cents: null, reservation_deadline_at: null, total_event_slots: null,
     check_in_required: true,
     registration_closes_at: null, kit_edit_closes_at: null,
     elevation_gain_m: null, cutoff_hours: null, start_lat: null, start_lng: null, finish_lat: null, finish_lng: null,
@@ -82,6 +84,43 @@ describe("reconcileChildren", () => {
 });
 
 describe("saveEventAction", () => {
+  it("rejects forged category allocations above the event total before database writes", async () => {
+    getMyRoles.mockResolvedValue(roles());
+    const category: CategoryDraft = { code: "21k", label: "21K", distance_km: 21,
+      base_price: 10000, slots_total: 4, elevation_gain_m: null, cutoff_hours: null, blurb: null };
+    const res = await saveEventAction({}, savePayload({ total_event_slots: 3 }, {
+      categories: { current: [category], original: [] },
+    }));
+    expect(res.error).toMatch(/exceed total event slots/);
+    expect(from).not.toHaveBeenCalled();
+  });
+
+  it("reduces category allocation before lowering the stored event total", async () => {
+    getMyRoles.mockResolvedValue(roles());
+    const existing = chain({ data: { status: "draft", check_in_required: true,
+      slug: "apo-sky-ultra", slug_locked_at: null, total_event_slots: 4 }, error: null });
+    const initialUpdate = chain({ data: [{ id: "e1" }], error: null });
+    const allocation = chain({ data: [{ id: "c1", slots_total: 3 }, { id: "c2", slots_total: 1 }], error: null });
+    const reducedCategory = chain({ data: null, error: null });
+    const otherCategory = chain({ data: null, error: null });
+    const finalUpdate = chain({ data: [{ id: "e1" }], error: null });
+    from.mockReturnValueOnce(existing).mockReturnValueOnce(initialUpdate)
+      .mockReturnValueOnce(allocation).mockReturnValueOnce(reducedCategory)
+      .mockReturnValueOnce(otherCategory).mockReturnValueOnce(finalUpdate);
+    const category = (id: string, code: string, slots_total: number): CategoryDraft => ({
+      id, code, label: code, distance_km: null, base_price: 10000, slots_total,
+      elevation_gain_m: null, cutoff_hours: null, blurb: null,
+    });
+    const res = await saveEventAction({}, savePayload({ id: "e1", total_event_slots: 3 }, {
+      categories: { original: [{ id: "c1" }, { id: "c2" }],
+        current: [category("c1", "A", 2), category("c2", "B", 1)] },
+    }));
+    expect(res.error).toBeUndefined();
+    expect(initialUpdate.update).toHaveBeenCalledWith(expect.objectContaining({ total_event_slots: 4 }));
+    expect(finalUpdate.update).toHaveBeenCalledWith({ total_event_slots: 3 });
+    expect(reducedCategory.update).toHaveBeenCalledWith(expect.objectContaining({ slots_total: 2 }));
+  });
+
   it("refuses a non-admin/editor caller without touching the database", async () => {
     getMyRoles.mockResolvedValue(roles({ isAdmin: false }));
     const res = await saveEventAction({}, savePayload());
@@ -156,7 +195,10 @@ describe("saveEventAction", () => {
   it("explains why an event cannot open before its organizer waiver is assigned", async () => {
     getMyRoles.mockResolvedValue(roles());
     from.mockReturnValueOnce(chain({ data: null, error: { message: "event_waiver_required_for_publishing" } }));
-    const res = await saveEventAction({}, savePayload({ status: "open" }));
+    const res = await saveEventAction({}, savePayload({ status: "open", total_event_slots: 1 }, {
+      categories: { original: [], current: [{ code: "21k", label: "21K", distance_km: 21,
+        base_price: 10000, slots_total: 1, elevation_gain_m: null, cutoff_hours: null, blurb: null }] },
+    }));
     expect(res.error).toMatch(/Publish an organizer waiver/);
   });
 
@@ -165,6 +207,22 @@ describe("saveEventAction", () => {
     from.mockReturnValueOnce(chain({ data: { status: "draft", check_in_required: true }, error: null }))
       .mockReturnValueOnce(chain({ data: null, error: { message: "event_waiver_required_for_publishing" } }));
     const res = await saveEventAction({}, savePayload({ id: "e1", status: "open" }));
+    expect(res.error).toMatch(/Publish an organizer waiver/);
+    expect(res.error).not.toContain("event_waiver_required_for_publishing");
+  });
+
+  it("explains a missing waiver after saving categories for a coming soon event", async () => {
+    getMyRoles.mockResolvedValue(roles());
+    from.mockReturnValueOnce(chain({ data: { status: "coming_soon", check_in_required: true,
+      slug: "apo-sky-ultra", slug_locked_at: null, total_event_slots: 2 }, error: null }))
+      .mockReturnValueOnce(chain({ data: [{ id: "e1" }], error: null }))
+      .mockReturnValueOnce(chain({ data: null, error: null }))
+      .mockReturnValueOnce(chain({ data: null, error: { message: "event_waiver_required_for_publishing" } }));
+    const res = await saveEventAction({}, savePayload({ id: "e1", status: "open",
+      event_date: "2026-12-12", total_event_slots: 2 }, {
+      categories: { original: [], current: [{ code: "21k", label: "21K", distance_km: 21,
+        base_price: 10000, slots_total: 2, elevation_gain_m: null, cutoff_hours: null, blurb: null }] },
+    }));
     expect(res.error).toMatch(/Publish an organizer waiver/);
     expect(res.error).not.toContain("event_waiver_required_for_publishing");
   });

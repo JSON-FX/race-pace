@@ -1,7 +1,7 @@
 import { EVENT_DISCIPLINES } from "@race-pace/shared";
-import { eventInputSchema, categoryInputSchema, addonInputSchema, scheduleItemSchema, inclusionItemSchema, sanitizeListFields, kitCutoffError, INCLUSION_MAX_LEN } from "./validation";
+import { eventInputSchema, categoryInputSchema, addonInputSchema, scheduleItemSchema, inclusionItemSchema, sanitizeListFields, kitCutoffError, eventCapacityError, INCLUSION_MAX_LEN } from "./validation";
 
-const validEvent = { name: "Race", slug: "race", city_psgc_code: null, region_name: null, province_name: null, city_name: null, venue: null, event_date: "2026-10-18", end_date: null, flag_off: "04:00", status: "open", discipline: "trail", check_in_required: true, registration_closes_at: null, kit_edit_closes_at: null, elevation_gain_m: 4300, cutoff_hours: 18, description: null, hero_image_url: null };
+const validEvent = { name: "Race", slug: "race", city_psgc_code: null, region_name: null, province_name: null, city_name: null, venue: null, event_date: "2026-10-18", end_date: null, flag_off: "04:00", status: "open", discipline: "trail", check_in_required: true, registration_closes_at: null, kit_edit_closes_at: null, elevation_gain_m: 4300, cutoff_hours: 18, description: null, hero_image_url: null, coming_soon_notify_enabled: false, coming_soon_reserve_enabled: false, reservation_fee_cents: null, reservation_deadline_at: null, total_event_slots: null };
 
 it("accepts a valid event and rejects an empty name / bad date", () => {
   expect(eventInputSchema.safeParse(validEvent).success).toBe(true);
@@ -14,6 +14,16 @@ it("accepts only stable lowercase event slugs", () => {
   expect(eventInputSchema.safeParse({ ...validEvent, slug: "" }).success).toBe(false);
 });
 const validCategory = { code: "21k", label: "21K", distance_km: 21, base_price: 150000, slots_total: 100, elevation_gain_m: null, cutoff_hours: null, blurb: null };
+
+it("treats the event total as capacity while categories partition it", () => {
+  const categories = [{ slots_total: 2 }, { slots_total: 1 }];
+  expect(eventCapacityError({ status: "coming_soon", total_event_slots: 4 }, categories)).toBeNull();
+  expect(eventCapacityError({ status: "draft", total_event_slots: 2 }, categories)).toMatch(/exceed total event slots/);
+  expect(eventCapacityError({ status: "draft", total_event_slots: null }, categories)).toMatch(/Set total event slots/);
+  expect(eventCapacityError({ status: "open", total_event_slots: 4 }, categories)).toMatch(/Allocate all 4/);
+  expect(eventCapacityError({ status: "open", total_event_slots: 3 }, categories)).toBeNull();
+  expect(eventCapacityError({ status: "coming_soon", total_event_slots: 4 }, [])).toBeNull();
+});
 
 it("category rejects empty code and negative price", () => {
   expect(categoryInputSchema.safeParse(validCategory).success).toBe(true);

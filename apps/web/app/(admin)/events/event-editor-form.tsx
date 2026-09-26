@@ -9,7 +9,7 @@ import { EVENT_DISCIPLINES, DISCIPLINE_LABELS, disciplineLayout } from "@race-pa
 import type { EditorData } from "@/lib/queries/event-editor";
 import { saveEventAction, type CategoryDraft, type AddonDraft, type EventDraft, type EditorState } from "@/lib/actions/events";
 import { toLocalInput, fromLocalInput } from "@/lib/deadlines";
-import { eventInputSchema, categoryInputSchema, addonInputSchema, sanitizeListFields, coordPairError, kitCutoffError, EVENT_STATUSES } from "@/lib/validation";
+import { eventInputSchema, categoryInputSchema, addonInputSchema, sanitizeListFields, coordPairError, kitCutoffError, comingSoonPublicationError, eventCapacityError, EVENT_STATUSES } from "@/lib/validation";
 import { CategoryEditor, addCategory } from "@/components/CategoryEditor";
 import { AddonEditor } from "@/components/AddonEditor";
 import { ScheduleEditor } from "@/components/ScheduleEditor";
@@ -39,6 +39,8 @@ function blankDraft(orgId: string, checkInDefault: boolean): EventDraft {
   return {
     org_id: orgId, name: "", slug: "", city_psgc_code: null, region_name: null, province_name: null, city_name: null, venue: null,
     event_date: null, end_date: null, flag_off: null, status: "draft", discipline: "trail",
+    coming_soon_notify_enabled: false, coming_soon_reserve_enabled: false,
+    reservation_fee_cents: null, reservation_deadline_at: null, total_event_slots: null,
     check_in_required: checkInDefault,
     registration_closes_at: null, kit_edit_closes_at: null,
     elevation_gain_m: null, cutoff_hours: null, start_lat: null, start_lng: null, finish_lat: null, finish_lng: null,
@@ -137,15 +139,26 @@ export function EventEditorForm({ initial, orgId, checkInDefault = true, canEdit
     // past this check into the DB's CHECK constraint.
     const parsed = eventInputSchema.omit({ status: true }).safeParse(sanitizeListFields(event));
     if (!parsed.success) return "Fix the event fields (name is required, valid date/time, schedule times as HH:MM, inclusion lines under 140 characters).";
+    const comingSoonError = comingSoonPublicationError({ ...parsed.data, status: event.status as "coming_soon" });
+    if (comingSoonError) return comingSoonError;
     const coordError = coordPairError(parsed.data);
     if (coordError) return coordError;
     if (event.end_date && event.event_date && event.end_date < event.event_date) return "End date can't be before the start date.";
     const kitError = kitCutoffError(event);
     if (kitError) return kitError;
     for (const c of cats) if (!categoryInputSchema.safeParse(c).success) return "Fix the category rows (code, label, non-negative price/slots, gain 0-30000m, cut-off 0-240h).";
+    const capacityError = eventCapacityError(event, cats);
+    if (capacityError) return capacityError;
+    if ((event.status === "open" || event.status === "almost_full") && event.total_event_slots === null &&
+      (!initial || initial.event.status === "coming_soon")) {
+      return "Set total event slots before opening registration.";
+    }
+    if (initial?.event.total_event_slots != null && event.total_event_slots === null && event.status !== "draft") {
+      return "A published event must keep its total event slots.";
+    }
     for (const a of addons) if (!addonInputSchema.safeParse(a).success) return "Fix the add-on rows (name, non-negative price).";
     return null;
-  }, [event, cats, addons]);
+  }, [event, cats, addons, initial]);
 
   function onSave() {
     if (invalid) { setError(invalid); return; }
@@ -188,7 +201,8 @@ export function EventEditorForm({ initial, orgId, checkInDefault = true, canEdit
   // answer "what still needs doing?" without scrolling — the one thing the old
   // single-scroll form could not tell you at any zoom level.
   const sections: SectionMeta[] = [
-    { id: "sec-basics", label: "Basics", done: !!event.name && !!event.event_date },
+    { id: "sec-basics", label: "Basics", done: !!event.name && (event.status === "coming_soon" || !!event.event_date) },
+    { id: "sec-coming-soon", label: "Coming soon", done: event.status === "coming_soon" && !!event.hero_image_url && !!event.description?.trim() },
     { id: "sec-location", label: "Location", done: !!event.city_psgc_code || !!event.venue },
     { id: "sec-course", label: "Course", done: event.start_lat != null || (event.route?.length ?? 0) > 0 },
     { id: "sec-categories", label: "Categories", count: cats.length, done: cats.length > 0 },
@@ -203,6 +217,7 @@ export function EventEditorForm({ initial, orgId, checkInDefault = true, canEdit
   // Same check `invalid` runs (via kitCutoffError) — kept separately here so the warning
   // renders under the Kit edits close field itself, not just in the Save-bar error banner.
   const kitBeforeReg = !!kitCutoffError(event);
+  const allocatedSlots = cats.reduce((sum, category) => sum + category.slots_total, 0);
 
   return (
     <div className="px-4 pb-4 pt-6 md:px-[30px]">
@@ -264,13 +279,14 @@ export function EventEditorForm({ initial, orgId, checkInDefault = true, canEdit
                   <Select value={event.status} onValueChange={(v) => set({ status: v })}>
                     <SelectTrigger aria-label="Status" className={`w-full ${inputCls}`}><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {EVENT_STATUSES.map((st) => <SelectItem key={st} value={st}>{st}</SelectItem>)}
+                      {EVENT_STATUSES.filter((st) => st !== "coming_soon").map((st) => <SelectItem key={st} value={st}>{st.replaceAll("_", " ")}</SelectItem>)}
+                      {event.status === "coming_soon" ? <SelectItem value="coming_soon">Coming soon</SelectItem> : null}
                     </SelectContent>
                   </Select>
                 </Field>
               </div>
               <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-3">
-                <Field label="Date" required>
+                <Field label="Date" required={event.status !== "coming_soon"}>
                   <Input aria-label="Date" type="date" className={inputCls} value={event.event_date ?? ""} onChange={(e) => set({ event_date: e.target.value || null })} />
                 </Field>
                 <Field label="End date" hint="Only for multi-day races">
@@ -323,9 +339,55 @@ export function EventEditorForm({ initial, orgId, checkInDefault = true, canEdit
                 Times are in {Intl.DateTimeFormat().resolvedOptions().timeZone}. Runners can still
                 fix blood type and emergency contact after the kit cutoff.
               </p>
-              <Field label="Description">
+              <Field label="Description" required={event.status === "coming_soon"}>
                 <Textarea aria-label="Description" className="min-h-[92px] resize-y rounded-lg text-[13.5px]" value={event.description ?? ""} onChange={(e) => set({ description: e.target.value || null })} />
               </Field>
+            </div>
+          </FormSection>
+
+          <FormSection id="sec-coming-soon" title="Coming soon" hint="Publish a teaser before registration details are ready">
+            <div className="space-y-4">
+              <label className="flex items-start gap-3 rounded-lg border p-3 text-sm">
+                <input
+                  type="checkbox"
+                  aria-label="Display as coming soon"
+                  checked={event.status === "coming_soon"}
+                  disabled={event.status !== "draft" && event.status !== "coming_soon"}
+                  onChange={(e) => set({ status: e.target.checked ? "coming_soon" : "draft" })}
+                />
+                <span>
+                  <span className="block font-semibold">Display as coming soon</span>
+                  <span className="block text-muted-foreground">Name, public link, discipline, featured image, and description are enough to publish.</span>
+                </span>
+              </label>
+              {event.status === "coming_soon" ? (
+                <div className="space-y-4 rounded-xl border bg-muted/20 p-4">
+                  <label className="flex items-start gap-3 text-sm">
+                    <input type="checkbox" aria-label="Enable Notify me" checked={event.coming_soon_notify_enabled}
+                      onChange={(e) => set({ coming_soon_notify_enabled: e.target.checked })} />
+                    <span><strong className="block">Notify me</strong><span className="text-muted-foreground">Email followers when registration opens.</span></span>
+                  </label>
+                  <label className="flex items-start gap-3 text-sm">
+                    <input type="checkbox" aria-label="Enable Reserve now" checked={event.coming_soon_reserve_enabled}
+                      onChange={(e) => set({ coming_soon_reserve_enabled: e.target.checked })} />
+                    <span><strong className="block">Reserve now</strong><span className="text-muted-foreground">A separate, nonrefundable charge holds one event place.</span></span>
+                  </label>
+                  {event.coming_soon_reserve_enabled ? (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <Field label="Reservation fee (₱)" required hint="Runner also pays Platform Fees and PayMongo processing.">
+                        <Input aria-label="Reservation fee in pesos" type="number" min="0.01" step="0.01" className={inputCls}
+                          value={event.reservation_fee_cents == null ? "" : (event.reservation_fee_cents / 100).toFixed(2)}
+                          onChange={(e) => set({ reservation_fee_cents: e.target.value === "" ? null : Math.round(Number(e.target.value) * 100) })} />
+                      </Field>
+                      <Field label="Entry payment due" required hint="Reservations expire if registration remains unpaid.">
+                        <Input aria-label="Reservation entry payment deadline" type="datetime-local" className={inputCls}
+                          value={toLocalInput(event.reservation_deadline_at)}
+                          onChange={(e) => set({ reservation_deadline_at: fromLocalInput(e.target.value) })} />
+                      </Field>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
           </FormSection>
 
@@ -383,7 +445,21 @@ export function EventEditorForm({ initial, orgId, checkInDefault = true, canEdit
               </Button>
             }
           >
-            <CategoryEditor rows={cats} onChange={setCats} />
+            <div className="space-y-4">
+              <Field label="Total event slots" required={event.coming_soon_reserve_enabled || cats.length > 0}
+                hint="Event-wide capacity. Category slots divide this total; the coming soon page never shows remaining places.">
+                <Input aria-label="Total event slots" type="number" min="1" step="1" className={`${inputCls} max-w-48`}
+                  value={event.total_event_slots ?? ""}
+                  onChange={(e) => set({ total_event_slots: e.target.value === "" ? null : Number(e.target.value) })} />
+              </Field>
+              {event.total_event_slots !== null ? (
+                <p className="text-[12px] text-muted-foreground" aria-live="polite">
+                  {allocatedSlots} of {event.total_event_slots} slots allocated to categories
+                  {allocatedSlots <= event.total_event_slots ? ` · ${event.total_event_slots - allocatedSlots} unallocated` : " · over capacity"}
+                </p>
+              ) : null}
+              <CategoryEditor rows={cats} onChange={setCats} />
+            </div>
           </FormSection>
 
           <FormSection id="sec-images" title="Images" hideTitle>

@@ -44,6 +44,8 @@ function editorData(overrides: Partial<EditorData["event"]> = {}): EditorData {
       id: "e1", org_id: "a1", name: "Apo", slug: "apo", slug_locked_at: "2026-09-20T00:00:00Z",
       city_psgc_code: null, region_name: null, province_name: null, city_name: null, venue: null,
       event_date: null, end_date: null, flag_off: null, status: "open",
+      coming_soon_notify_enabled: false, coming_soon_reserve_enabled: false,
+      reservation_fee_cents: null, reservation_deadline_at: null, total_event_slots: null,
       registration_closes_at: null, kit_edit_closes_at: null,
       discipline: "trail", check_in_required: true, elevation_gain_m: null, cutoff_hours: null, start_lat: null, start_lng: null,
       finish_lat: null, finish_lng: null, route: null, description: null, hero_image_url: null,
@@ -66,6 +68,20 @@ it("explains that price edits refresh unpaid checkouts", () => {
   render(<EventEditorForm initial={editorData()} orgId="a1" />);
   expect(screen.getByText("Price changes automatically refresh unpaid checkouts")).toBeInTheDocument();
   expect(screen.getByText(/Paid registrations keep their accepted prices/)).toBeInTheDocument();
+});
+
+it("keeps event capacity outside Coming Soon and blocks category over-allocation", () => {
+  const data = editorData({ status: "draft", total_event_slots: 4 });
+  data.categories = [{ id: "c1", code: "21k", label: "21K", distance_km: 21,
+    base_price: 10000, slots_total: 3, slots_taken: 0, elevation_gain_m: null,
+    cutoff_hours: null, blurb: null }];
+  render(<EventEditorForm initial={data} orgId="a1" />);
+  expect(screen.getByLabelText("Total event slots")).toHaveValue(4);
+  expect(screen.getByText(/3 of 4 slots allocated to categories/)).toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText("Slots"), { target: { value: "5" } });
+  fireEvent.click(screen.getByText("Save event"));
+  expect(screen.getByText(/Category slots \(5\) exceed total event slots \(4\)/)).toBeInTheDocument();
+  expect(mockSaveEventAction).not.toHaveBeenCalled();
 });
 
 it("blocks save on an empty name, then saves a valid new event", async () => {

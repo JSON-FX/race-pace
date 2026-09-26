@@ -32,8 +32,10 @@ vi.mock("next/navigation", () => ({
 // are covered elsewhere.
 const PaymentsKpiSection = vi.hoisted(() => vi.fn(() => null));
 const PaymentsTableSection = vi.hoisted(() => vi.fn(() => null));
+const ReservationPaymentSection = vi.hoisted(() => vi.fn(() => null));
 vi.mock("./kpi-section", () => ({ PaymentsKpiSection }));
 vi.mock("./table-section", () => ({ PaymentsTableSection }));
+vi.mock("./reservation-section", () => ({ ReservationPaymentSection }));
 
 const { getMyRoles, listOrgEventOptions } = vi.hoisted(() => ({
   getMyRoles: vi.fn(),
@@ -81,6 +83,7 @@ describe("PaymentsPage", () => {
     resetTableParamsSpies();
     PaymentsKpiSection.mockClear();
     PaymentsTableSection.mockClear();
+    ReservationPaymentSection.mockClear();
   });
 
   // Fix 2 regression test: Payments asserted no capability before this fix,
@@ -149,6 +152,9 @@ describe("PaymentsPage", () => {
       }),
       undefined,
     );
+    expect(ReservationPaymentSection).toHaveBeenCalledWith(
+      expect.objectContaining({ orgId: "org-1", eventId: undefined }), undefined,
+    );
   });
 
   it("keys both Suspense boundaries on the resolved params, so the key changes with every param that changes what a section renders", async () => {
@@ -183,7 +189,7 @@ describe("PaymentsPage", () => {
 
     for (const [searchParams, suffix] of cases) {
       const ui = await PaymentsPage({ searchParams: Promise.resolve(searchParams) });
-      expect(findSuspenseKeys(ui)).toEqual([`kpi-${suffix}`, `table-${suffix}`]);
+      expect(findSuspenseKeys(ui)).toEqual([`kpi-${suffix}`, `table-${suffix}`, `reservations-${suffix}`]);
     }
   });
 });

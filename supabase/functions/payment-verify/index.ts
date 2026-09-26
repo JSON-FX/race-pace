@@ -37,6 +37,19 @@ Deno.serve(async (req) => {
     const alreadyPaid = reg.status === "paid";
     const paidResponse = () => json({ status: "paid", already: true });
 
+    // A captured payment can need manual reconciliation while the registration
+    // remains pending. Keep that state visible even after PayMongo removes the
+    // completed checkout session.
+    if (!alreadyPaid) {
+      const { data: captures, error: captureError } = await db.from("single_payment_captures")
+        .select("provider_payment_id")
+        .eq("registration_id", registrationId)
+        .eq("state", "reconciliation_required")
+        .limit(1);
+      if (captureError) return json({ error: "capture_read_failed" }, 503);
+      if (captures?.length) return json({ status: "review_required" });
+    }
+
     // Without PayMongo configured there's nothing to re-fetch; report current status.
     if (!paymongoConfigured()) return alreadyPaid ? paidResponse() : json({ status: reg.status });
 
@@ -83,7 +96,10 @@ Deno.serve(async (req) => {
       session_id: ref,
       session: session.raw,
     });
-    if (!r.ok) return json({ error: r.error }, r.status);
+    if (!r.ok) {
+      if (!alreadyPaid && r.error === "capture_review_required") return json({ status: "review_required" });
+      return json({ error: r.error }, r.status);
+    }
     return json({ status: "paid", registration_id: r.registration_id, ...(alreadyPaid ? { already: true } : {}) });
   } catch (e) {
     return json({ error: "server_error", details: String(e) }, 500);

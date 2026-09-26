@@ -84,6 +84,11 @@ describe("group PayMongo boundary", () => {
     expect(result).toHaveLength(2);
     expect(result[0]).toMatchObject({ amount: 213214, feeCents: null, livemode: false, attemptId, orderId, invalidReason: null });
   });
+  it("passes the provider payment time for reserved group entries", () => {
+    expect(extractGroupCaptures(session([payment({ paid_at: 1792108800 })]))[0].paidAt)
+      .toBe("2026-10-16T00:00:00.000Z");
+    expect(extractGroupCaptures(session([payment({ paid_at: "1792108800" })]))[0].paidAt).toBeNull();
+  });
   it("accepts a genuine zero fee and balanced ledger", () => {
     expect(extractGroupCaptures(session([payment({ fee: 0, net_amount: 213214 })]))[0]).toMatchObject({ feeCents: 0, invalidReason: null });
   });

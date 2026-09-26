@@ -58,7 +58,11 @@ const AUTHENTICATED_ALLOWLIST = new Set([
   "payout_mark_paid",
   "payout_open_statement",
   "payout_refresh_statement",
+  "reservation_payout_open",
+  "reservation_payout_refresh",
+  "reservation_payout_mark_paid",
   "platform_unbound_checkout_reviews",
+  "platform_single_capture_reviews",
   // 20260811095000_payout_open_statement_v2.sql. Deliberate addition, and it honours the
   // contract above rather than bending it: the function raises 42501 for any caller who is
   // neither a super admin NOR an editor/admin of the event's own org. That is deliberately

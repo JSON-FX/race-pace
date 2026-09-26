@@ -15,7 +15,7 @@ export function OrganizerDirectoryRow({ organizer }: { organizer: Organizer }) {
         </div>
         <h2>{organizer.name}</h2>
         {organizer.description ? <p>{organizer.description}</p> : null}
-        {next ? <span className="trail-atlas__next">Next: {next.name} · {shortDate(next.eventDate)}</span> : null}
+        {next ? <span className="trail-atlas__next">Next: {next.name} · {next.eventDate ? shortDate(next.eventDate) : "Coming soon"}</span> : null}
       </div>
       <Link className="trail-atlas__action trail-atlas__action--secondary" href={`/organizers/${encodeURIComponent(organizer.slug)}`} aria-label={`View ${organizer.name} profile`}>
         View profile
@@ -42,6 +42,7 @@ export function OrganizerProfileOpenSpread({ organizer }: { organizer: Organizer
 }
 
 function availabilityOf(event: OrganizerEvent): string | null {
+  if (event.comingSoon) return "Coming soon";
   if (event.registrationClosed) return "Registration closed";
   if (event.slotsLeft === 0) return "Sold out";
   if (event.slotsLeft != null) return `${event.slotsLeft.toLocaleString("en-PH")} ${event.slotsLeft === 1 ? "slot" : "slots"} left`;
@@ -58,7 +59,8 @@ export function OrganizerEventRow({ event }: { event: OrganizerEvent }) {
         {detail ? <p>{detail}</p> : null}
         {availabilityOf(event) ? <span className="trail-atlas__availability">{availabilityOf(event)}</span> : null}
       </div>
-      <time dateTime={event.eventDate} className="trail-atlas__event-date">{shortDate(event.eventDate)}</time>
+      {event.eventDate ? <time dateTime={event.eventDate} className="trail-atlas__event-date">{shortDate(event.eventDate)}</time>
+        : <span className="trail-atlas__event-date">Coming soon</span>}
     </Link>
   );
 }

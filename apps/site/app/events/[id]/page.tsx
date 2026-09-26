@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { eventPublicPath, fetchEvent, fetchCategories, fetchAddons } from "@/lib/events";
 import { SiteHeader } from "@/components/SiteHeader";
 import { EventPageBody } from "@/components/event/EventPageBody";
+import { ComingSoonEventPage } from "@/components/event/ComingSoonEventPage";
 import { longDate } from "@/lib/format";
 import { isRegistrationClosed } from "@/lib/eventStatus";
 import { fetchMyEntry } from "@/lib/entry";
@@ -34,7 +35,9 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 
   const date = event.event_date ? formatDateRange(event.event_date, event.end_date, longDate) : "";
   const distances = event.distances.length ? `${event.distances.map((d) => `${d}K`).join(" · ")}. ` : "";
-  const description = `${distances}${date}${event.city_name ? ` · ${event.city_name}` : ""}`.trim();
+  const description = event.status === "coming_soon"
+    ? (event.description ?? "Registration opens soon on Race Pace.")
+    : `${distances}${date}${event.city_name ? ` · ${event.city_name}` : ""}`.trim();
   const canonical = new URL(
     eventPublicPath(event),
     process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
@@ -65,13 +68,38 @@ export default async function EventPage({ params, searchParams }: PageParams) {
 
   const { data: { user } } = await db.auth.getUser();
 
+  if (event.status === "coming_soon") {
+    const { data: reservation } = user ? await db.from("event_reservations")
+      .select("id,status,quantity").eq("event_id", event.id).eq("user_id", user.id)
+      .in("status", ["pending", "paid", "review_required"])
+      .order("created_at", { ascending: false }).limit(1).maybeSingle() : { data: null };
+    const [placesResult, paymentResult] = reservation ? await Promise.all([
+      db.from("event_reservation_places").select("participant_name,is_managed")
+        .eq("reservation_id", reservation.id).order("created_at", { ascending: true }),
+      db.from("reservation_payments").select("status,amount_cents,processor_fee_cents")
+        .eq("reservation_id", reservation.id).maybeSingle(),
+    ]) : [{ data: null }, { data: null }];
+    return <><SiteHeader /><main><ComingSoonEventPage
+      event={event} userEmail={user?.email ?? null} reservation={reservation ?? null}
+      reservedPassports={placesResult.data ?? []} reservationPayment={paymentResult.data}
+    /></main></>;
+  }
+
   // Independent reads — sequential awaits would stack round trips before the
   // first byte.
-  const [categories, addons, myEntry] = await Promise.all([
+  const [categories, addons, myEntry, paidReservation] = await Promise.all([
     fetchCategories(db, event.id),
     fetchAddons(db, event.id),
     fetchMyEntry(db, event.id, user?.id ?? null),
+    user ? db.from("event_reservations").select("id,status,quantity,registration_deadline_at")
+      .eq("event_id", event.id).eq("user_id", user.id).eq("status", "paid")
+      .order("created_at", { ascending: false }).limit(1).maybeSingle().then((result) => result.data) : Promise.resolve(null),
   ]);
+  const { data: reservationPlaces } = paidReservation ? await db.from("event_reservation_places")
+    .select("status").eq("reservation_id", paidReservation.id) : { data: null };
+  const reservationRemaining = paidReservation
+    ? reservationPlaces?.length ? reservationPlaces.filter((place) => place.status === "held").length : 1
+    : 0;
   // almost_full is still registerable — see lib/eventStatus.ts, mirrors
   // apps/mobile/app/event/[id].tsx's `registerable` rule.
   const closed = isRegistrationClosed(event.status, event.registration_closes_at);
@@ -87,6 +115,8 @@ export default async function EventPage({ params, searchParams }: PageParams) {
           closed={closed}
           myEntry={myEntry}
           registrationClosesAt={event.registration_closes_at}
+          reservationId={paidReservation && Date.parse(paidReservation.registration_deadline_at) > Date.now() ? paidReservation.id : null}
+          reservationRemaining={reservationRemaining}
         />
       </main>
     </>

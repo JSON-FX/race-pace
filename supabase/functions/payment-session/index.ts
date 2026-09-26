@@ -50,11 +50,18 @@ Deno.serve(async (req) => {
       // One string literal, not a concatenation: supabase-js parses the select
       // at the type level, and `a + b` is `string` to TypeScript — which erases
       // every column type on `reg`.
-      .select("id,user_id,booked_by_user_id,booking_order_id,status,total_amount,category_id,event_id,expires_at,organizations(is_active,fee_mode,commission_type,commission_rate,commission_flat_cents)")
+      .select("id,user_id,booked_by_user_id,booking_order_id,event_reservation_id,status,total_amount,category_id,event_id,expires_at,organizations(is_active,fee_mode,commission_type,commission_rate,commission_flat_cents)")
       .eq("id", registrationId).single();
     if (!reg || !canAccessBooking(userId, reg)) return json({ error: "registration_not_found" }, 404);
     if (reg.booking_order_id) return json({ error: "group_checkout_not_available" }, 409);
     if (reg.status !== "pending") return json({ error: "not_pending" }, 409);
+    if (reg.event_reservation_id) {
+      const { data: held } = await db.from("event_reservations")
+        .select("status,registration_deadline_at").eq("id", reg.event_reservation_id).maybeSingle();
+      if (!held || held.status !== "paid" || Date.parse(held.registration_deadline_at) <= Date.now()) {
+        return json({ error: "reservation_deadline_passed" }, 409);
+      }
+    }
 
     // Same lazy-expiry predicate as registrations-checkout's isLapsedPending.
     // PayMongo checkout sessions do not expire automatically, so minting a

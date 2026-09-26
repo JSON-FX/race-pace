@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-labelledby="title">
+  <title id="title">North Ridge Running sample logo</title>
+  <circle cx="48" cy="48" r="47" fill="#122b20" stroke="#8fd7a8" stroke-width="2"/>
+  <circle cx="66" cy="28" r="8" fill="#d6a965"/>
+  <path d="m12 60 19-23 10 12 18-24 25 35" fill="none" stroke="#f5f7ec" stroke-linecap="round" stroke-linejoin="round" stroke-width="5"/>
+  <path d="M15 67h66" stroke="#8fd7a8" stroke-linecap="round" stroke-width="3"/>
+  <text x="48" y="83" fill="#f5f7ec" font-family="Arial,sans-serif" font-size="11" font-weight="700" letter-spacing="3" text-anchor="middle">NRR</text>
+</svg>

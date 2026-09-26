@@ -19,6 +19,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { EventPicker } from "./event-picker";
 import { RegistrationsKpiSection } from "./kpi-section";
 import { RegistrationsTableSection } from "./table-section";
+import { ReservationRosterSection } from "./reservation-section";
 
 const DEFAULTS = { sort: [{ id: "created_at", desc: true }], filters: { status: "all", category: "all" } };
 
@@ -158,6 +159,9 @@ export default async function RegistrationsPage({
 
       <Suspense key={`table-${sectionKey}`} fallback={<DataTableSkeleton rows={8} columns={6} />}>
         <RegistrationsTableSection eventId={eventId} params={params} />
+      </Suspense>
+      <Suspense key={`reservations-${eventId}`} fallback={<DataTableSkeleton rows={3} columns={5} />}>
+        <ReservationRosterSection eventId={eventId} orgId={orgId} />
       </Suspense>
     </div>
   );

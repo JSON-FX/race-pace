@@ -4,6 +4,7 @@ import { render, screen, within } from "@testing-library/react";
 const getMyRoles = vi.fn();
 const listPayoutStatements = vi.fn();
 const listOpenableEvents = vi.fn();
+const listReservationPayoutRows = vi.fn();
 const notFound = vi.fn(() => {
   throw new Error("NEXT_NOT_FOUND");
 });
@@ -18,6 +19,7 @@ vi.mock("@/lib/queries/payouts", async (importOriginal) => {
   };
 });
 vi.mock("next/navigation", () => ({ notFound: () => notFound() }));
+vi.mock("@/lib/queries/reservation-payouts", () => ({ listReservationPayoutRows: () => listReservationPayoutRows() }));
 
 import PayoutsPage from "./page";
 
@@ -33,6 +35,7 @@ beforeEach(() => {
   getMyRoles.mockReset();
   listPayoutStatements.mockReset().mockResolvedValue([]);
   listOpenableEvents.mockReset().mockResolvedValue([]);
+  listReservationPayoutRows.mockReset().mockResolvedValue([]);
   notFound.mockClear();
 });
 

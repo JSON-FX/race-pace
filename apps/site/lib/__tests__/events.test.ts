@@ -33,6 +33,11 @@ describe("mapEvent", () => {
     expect(mapEvent({ ...raw, categories: [{ slots_taken: 2, distance_km: 5 }] }).slots_left).toBeNull();
   });
 
+  it("hides category-only counts when reservation holds also consume event capacity", () => {
+    expect(mapEvent({ ...raw, total_event_slots: 150 }).slots_left).toBeNull();
+    expect(mapEvent({ ...raw, status: "coming_soon" }).slots_left).toBeNull();
+  });
+
   it("collects distances and drops null ones", () => {
     expect(mapEvent(raw).distances).toEqual([100, 50]);
   });

@@ -60,7 +60,7 @@ export async function retrieveGroupSession(sessionId: string, secret: string): P
 export interface GroupCapture {
   paymentId: string; sessionId: string; amount: number | null; currency: string | null;
   feeCents: number | null; livemode: boolean | null; attemptId: string | null;
-  orderId: string | null; invalidReason: string | null; raw: unknown;
+  orderId: string | null; paidAt: string | null; invalidReason: string | null; raw: unknown;
 }
 export function extractGroupCaptures(raw: unknown): GroupCapture[] {
   const data = object(object(raw).data);
@@ -77,12 +77,15 @@ export function extractGroupCaptures(raw: unknown): GroupCapture[] {
     const amount = cents(a.amount) ? a.amount : null;
     const currency = typeof a.currency === "string" ? a.currency : null;
     const livemode = typeof a.livemode === "boolean" ? a.livemode : null;
+    const paidAt = typeof a.paid_at === "number" && Number.isSafeInteger(a.paid_at) &&
+      a.paid_at >= 946684800 && a.paid_at <= 4102444800
+      ? new Date(a.paid_at * 1000).toISOString() : null;
     let invalidReason = amount === null ? "invalid_amount" : currency !== "PHP" ? "invalid_currency" : livemode === null ? "missing_livemode" : !attemptId || !orderId ? "invalid_metadata" : null;
     let feeCents: number | null = null;
     if (a.fee !== undefined && a.fee !== null || a.net_amount !== undefined && a.net_amount !== null) {
       if (!cents(a.fee) || !cents(a.net_amount) || amount === null || a.fee + a.net_amount !== amount) invalidReason = "invalid_fee";
       else feeCents = a.fee;
     }
-    return [{ paymentId: record.id, sessionId, amount, currency, feeCents, livemode, attemptId, orderId, invalidReason, raw: payment }];
+    return [{ paymentId: record.id, sessionId, amount, currency, feeCents, livemode, attemptId, orderId, paidAt, invalidReason, raw: payment }];
   });
 }
