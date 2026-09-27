@@ -1,6 +1,6 @@
 # Guide: approved Video Library implementation
 
-Status: implemented, deployed to staging, and verified through hosted Browser acceptance. Branch: `codex/org-guide-prototypes`.
+Status: implemented, staging acceptance complete, and deployed to production through PR #168 with read-only Browser verification. Branch: `codex/org-guide-prototypes`.
 
 ## Intent and inherited decisions
 
@@ -65,3 +65,7 @@ Create a dedicated local Supabase stack with distinct project ID and free ports 
 ## Staging delivery
 
 PR #166 merged on 2026-09-27. Hosted upload, publishing, role restrictions, search, playback, responsive layout, and cleanup passed using Browser. See `docs/operations/launch-progress.md` for the exact source, deployments, migration, and CI evidence.
+
+## Production delivery
+
+The owner authorized promotion after staging passed. PR #168 merged staging into main at `ff7d22e8b2d4311c692ffb90b255e821cba50ed0`. Both production deployments, the additive migration, access policies, upload cap, and served Supabase references were verified. Browser checked the existing super-admin Guide page and runner site without creating production data. PR #169 merged main back into staging at `0b6622a63e9c89cbff121733635cd60d5cc99fee`; production CI passed and application/backend content remains identical. Exact deployment IDs and validation evidence are in `docs/operations/launch-progress.md`.
