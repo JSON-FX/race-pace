@@ -1,6 +1,6 @@
 # Organization admin Guide
 
-Status: selected Video Library deployed and verified on staging through PR #166.
+Status: selected Video Library deployed to production through PR #168 after hosted staging acceptance; production read-only checks passed.
 
 ## Approved design
 
@@ -30,4 +30,4 @@ Playback and thumbnails use signed URLs with one-hour lifetimes. Unpublishing pr
 
 No synthetic guide rows or media are inserted by the migration. The real library starts empty until a super admin publishes content. Local QA uses an isolated stack and existing illustrative tutorial media. Abandoned uploads and replaced files remain super-admin-only; automatic deletion is excluded because an uncertain save response must not destroy a successfully saved recording.
 
-Transcoding, video analytics, lessons/progress, caption generation, and hosted deployment are outside this slice. Apply migration `20260927010129` and deploy the reviewed app revision to staging before production promotion. Confirm the hosted Storage global cap supports 50 MiB and complete hosted role/upload/playback checks.
+Transcoding, video analytics, lessons/progress, and caption generation are outside this slice. Migration `20260927010129` and the reviewed application passed staging role/upload/playback acceptance before production promotion. Both hosted Storage global caps support 50 MiB. See the release ledger for production deployments and read-only verification.
