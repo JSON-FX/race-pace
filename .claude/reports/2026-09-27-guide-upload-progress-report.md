@@ -17,7 +17,7 @@ The client, local Storage configuration and additive bucket migration use 100,00
 - Both optimized Next builds passed.
 - Focused boundary/transport/UI coverage: 41 passing tests. Covers exactly 100 MB, one byte above, intermediate percentage, unknown total, HTTP/network/abort failure, expired session, accessible progress and retained metadata retry.
 - Technical review passed with no findings.
-- Canonical Fieldnotes progress inspected through Browser in the existing Storybook catalog. Consuming hosted staging upload/visual acceptance remains pending.
+- Canonical Fieldnotes progress inspected through Browser in the existing Storybook catalog. Local Browser rejected 100,000,001 bytes, accepted 100,000,000 bytes and saved a real draft with thumbnail and measured duration. Computer opened the same fixture in VLC and confirmed native 8:43 playback. Browser found feedback below the dialog fold; the progress block was moved beside the file field. Consuming hosted staging upload/visual acceptance remains pending.
 
 ## Intentional implementation choices
 

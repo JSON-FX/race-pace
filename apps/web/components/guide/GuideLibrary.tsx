@@ -97,15 +97,15 @@ function GuideUpload({ guide, onSaved, onClose, restoreFocus }: { guide: GuideVi
           <Input type="file" aria-label="Video file" accept="video/mp4,video/webm" aria-describedby={error ? "guide-upload-error" : undefined}
             onChange={e => { const next = e.target.files?.[0] ?? null; const invalid = next ? guideFileError(next) : null;
               setError(invalid ?? ""); setFileIssue(invalid ?? ""); setFile(invalid ? null : next); uploaded.current = null; }} /></label>
+        {busy && <div className="gd-upload-status">
+          <p className="gd-upload-note" role="status">{phase === "Uploading video…" && progress === 100 ? "Finishing upload…" : phase}</p>
+          {progress !== null && <div className="gd-upload-progress"><Progress value={progress} aria-label="Video upload progress" /><span aria-hidden="true">{progress}%</span></div>}
+        </div>}
         <p className="gd-upload-note"><ShieldCheck />Drafts are visible only to super admins. Published guides are shared with all org admins.</p>
         {error && <p id="guide-upload-error" className="gd-form-error" role="alert">{error}</p>}
         <div className="gd-form-actions"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
           <Button type="submit" variant="outline" value="draft">Save draft</Button><Button type="submit" value="published">{guide?.is_published ? "Save changes" : "Publish guide"}</Button></div>
       </fieldset>
-      {busy && <div className="gd-upload-status">
-        <p className="gd-upload-note" role="status">{phase === "Uploading video…" && progress === 100 ? "Finishing upload…" : phase}</p>
-        {progress !== null && <div className="gd-upload-progress"><Progress value={progress} aria-label="Video upload progress" /><span aria-hidden="true">{progress}%</span></div>}
-      </div>}
     </form>
   </DialogContent></Dialog>;
 }
