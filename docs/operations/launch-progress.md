@@ -697,3 +697,13 @@ Applied the same additive migration before production application serving. Indep
 Production Browser reloaded Guide, opened the 100 MB upload form, confirmed title focus, then canceled with focus restored and no browser errors. Verification created no records or media. Counts remain two organizations, one event, 23 registrations and 19 payments, with zero Guide rows/objects. Published guides remain shared across organizations; drafts remain super-admin-only. Exact-main CI and sync-back evidence follow below.
 
 Exact production merge CI `36293824812` passed all required checks. Sync-back PR #174 passed CI `36293924644` and merged at `aa1d3c0acbdbed5dfeb949eeecefb63665400b90`. Main is again an ancestor of staging; application/backend/workflow trees are identical. The follow-up is complete.
+
+## Fieldnotes staging delivery — 2026-09-27
+
+| Completed | Blockers | Next task |
+|---|---|---|
+| Committed reviewed UI and annotations; merged current staging; preserved Guide release records; adapted newly added Guide controls and removed duplicate Spinner/Progress implementations | Local checks pass; hosted checks pending | Open PR into staging, then verify exact staging deployment |
+
+Application-only release relative to current staging: no migration, function, provider or hosted data change. Current staging already includes the two Guide migrations. Applied those only to the existing local database after backup so release tests see the current schema. Temporary backend-test fixtures and a local fake-provider runtime are confined to the existing race-pace stack; restore the normal local runtime and remove the owned test fixtures after validation. Local review events and imagery are excluded from Git and will not be seeded into staging.
+
+Local release checks: shared UI 13 tests, Runner 483, Admin 1003, backend/shared 777 covered with corrected temporary fixtures and focused reruns. Typechecks, both isolated builds and the 303-module source audit pass. Guide browser review confirms forest green actions, topic selection and Cancel focus; no captured console errors. Temporary test data removed; both local review events and the pending reservation retained. Normal local Edge runtime restored.

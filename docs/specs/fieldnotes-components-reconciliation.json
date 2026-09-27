@@ -17039,6 +17039,33 @@
       "consumers": []
     },
     {
+      "file": "apps/web/app/(admin)/guide/error.tsx",
+      "owner": "admin",
+      "sha256": "11d49685b16f6869b8f3731cfdf435c0806a0533144aa6b7fda49ac66c275786",
+      "candidates": [],
+      "disposition": "preserve-domain-or-route-wrapper",
+      "verification": "Existing route/flow checks",
+      "consumers": []
+    },
+    {
+      "file": "apps/web/app/(admin)/guide/loading.tsx",
+      "owner": "admin",
+      "sha256": "f252b079d2edb89f06e1508fee276fc91d1b8fc471afb44fab2cf6fd7dc56e11",
+      "candidates": [],
+      "disposition": "preserve-domain-or-route-wrapper",
+      "verification": "Existing route/flow checks",
+      "consumers": []
+    },
+    {
+      "file": "apps/web/app/(admin)/guide/page.tsx",
+      "owner": "admin",
+      "sha256": "a9ef10e7f7f3fe0a377dcee77d9204c2db0aec9fda1d8e4675dd02cf5ffdfbdf",
+      "candidates": [],
+      "disposition": "preserve-domain-or-route-wrapper",
+      "verification": "Existing route/flow checks",
+      "consumers": []
+    },
+    {
       "file": "apps/web/app/(admin)/layout.tsx",
       "owner": "admin",
       "sha256": "03e0df47c58fc312bd74337e0074248f2a26a14373a41234ad50840d7603e22f",
@@ -26133,7 +26160,7 @@
     {
       "file": "apps/web/components/AppShell.tsx",
       "owner": "admin",
-      "sha256": "9de1b734d528a0cca4767f02846a7ab8d7789744832e213991da58af870f1813",
+      "sha256": "5809208a5d18dd1528d3a2c518778cb4e00fd0153b9fbba1ad4f2e23933c816c",
       "candidates": [
         {
           "line": 27,
@@ -26154,7 +26181,7 @@
           "element": "SidebarInset",
           "target": "sidebar",
           "attributes": {
-            "className": "relative bg-muted"
+            "className": "relative min-w-0 bg-muted"
           },
           "finding": "Existing primitive: consolidate and apply Fieldnotes component tokens",
           "compatibility": "Preserve handlers, controlled state, names, validation, refs and structural classes",
@@ -29382,7 +29409,7 @@
     {
       "file": "apps/web/components/TopBar.tsx",
       "owner": "admin",
-      "sha256": "ba66caf168c56818bf63b192a28c0f094606afb35b8f963bdf06b41e598bf96f",
+      "sha256": "8d6af9d8cfc26682636987a857fe7af24258f8d95adfcef6ccc11cb3a7623955",
       "candidates": [
         {
           "line": 36,
@@ -30673,6 +30700,127 @@
       ]
     },
     {
+      "file": "apps/web/components/fieldnotes/button.tsx",
+      "owner": "admin",
+      "sha256": "f18ceaa06ad10c51c5e2c13aa194d4d7369713b1ba5767f175e2e80e080d5947",
+      "candidates": [
+        {
+          "line": 27,
+          "element": "Primitive",
+          "target": "button",
+          "attributes": {
+            "ref": "{ref}",
+            "variant": "{\n          variant === \"primary\"\n            ? \"default\"\n            : variant === \"danger\"\n              ? \"destructive\"\n              : variant\n        }",
+            "size": "{\n          size === \"compact\" ? \"sm\" : size === \"prominent\" ? \"lg\" : \"default\"\n        }",
+            "className": "{[\"rp-fn-button\", className].filter(Boolean).join(\" \")}",
+            "data-variant": "{variant}",
+            "data-size": "{size}",
+            "disabled": "{disabled || loading}",
+            "aria-busy": "{loading || undefined}"
+          },
+          "finding": "Existing primitive: consolidate and apply Fieldnotes component tokens",
+          "compatibility": "Preserve handlers, controlled state, names, validation, refs and structural classes",
+          "verification": [
+            "typecheck",
+            "existing flow tests",
+            "keyboard and responsive application review"
+          ],
+          "disposition": "shared-primitive"
+        },
+        {
+          "line": 46,
+          "element": "Spinner",
+          "target": "spinner",
+          "attributes": {
+            "aria-hidden": "true"
+          },
+          "finding": "Existing primitive: consolidate and apply Fieldnotes component tokens",
+          "compatibility": "Preserve handlers, controlled state, names, validation, refs and structural classes",
+          "verification": [
+            "typecheck",
+            "existing flow tests",
+            "keyboard and responsive application review"
+          ],
+          "disposition": "shared-primitive"
+        }
+      ],
+      "disposition": "migrate-primitives-preserve-composition",
+      "verification": "Application types/tests plus responsive and keyboard review",
+      "consumers": [
+        "apps/web/app/(admin)/guide/error.tsx",
+        "apps/web/components/guide/GuideLibrary.tsx"
+      ]
+    },
+    {
+      "file": "apps/web/components/fieldnotes/field.tsx",
+      "owner": "admin",
+      "sha256": "ede10a29cf00226db166d7f93d700490580bc4b2b0edbdddcd23a35722d7addc",
+      "candidates": [
+        {
+          "line": 31,
+          "element": "Label",
+          "target": "label",
+          "attributes": {
+            "htmlFor": "{fieldId}"
+          },
+          "finding": "Existing primitive: consolidate and apply Fieldnotes component tokens",
+          "compatibility": "Preserve handlers, controlled state, names, validation, refs and structural classes",
+          "verification": [
+            "typecheck",
+            "existing flow tests",
+            "keyboard and responsive application review"
+          ],
+          "disposition": "shared-primitive"
+        },
+        {
+          "line": 35,
+          "element": "Input",
+          "target": "input",
+          "attributes": {
+            "ref": "{ref}",
+            "id": "{fieldId}",
+            "required": "{required}",
+            "aria-invalid": "{error ? true : props[\"aria-invalid\"]}",
+            "aria-describedby": "{describedBy}",
+            "className": "rp-fn-input"
+          },
+          "finding": "Existing primitive: consolidate and apply Fieldnotes component tokens",
+          "compatibility": "Preserve handlers, controlled state, names, validation, refs and structural classes",
+          "verification": [
+            "typecheck",
+            "existing flow tests",
+            "keyboard and responsive application review"
+          ],
+          "disposition": "shared-primitive"
+        }
+      ],
+      "disposition": "migrate-primitives-preserve-composition",
+      "verification": "Application types/tests plus responsive and keyboard review",
+      "consumers": [
+        "apps/web/components/guide/GuideLibrary.tsx"
+      ]
+    },
+    {
+      "file": "apps/web/components/fieldnotes/progress.tsx",
+      "owner": "admin",
+      "sha256": "7990b31b17af2f0e522d96a73f1dadbb0612da350c7d080e0b5d13dc9c3c8ca7",
+      "candidates": [],
+      "disposition": "preserve-domain-or-route-wrapper",
+      "verification": "Existing route/flow checks",
+      "consumers": [
+        "apps/web/components/guide/GuideLibrary.tsx"
+      ]
+    },
+    {
+      "file": "apps/web/components/fieldnotes/spinner.tsx",
+      "owner": "admin",
+      "sha256": "c35bb8d276a54e47c98427ab95d618993d6d677b66ef6a6c5b785a6164309bcd",
+      "candidates": [],
+      "disposition": "preserve-domain-or-route-wrapper",
+      "verification": "Existing route/flow checks",
+      "consumers": []
+    },
+    {
       "file": "apps/web/components/form-section.tsx",
       "owner": "admin",
       "sha256": "3e9091fa59f7acb30e71bda08587b978990e54617f40e3a2a29daad3b8d3bb1e",
@@ -30810,6 +30958,438 @@
       "consumers": [
         "apps/web/app/(admin)/events/event-editor-form.tsx",
         "apps/web/components/CategoryEditor.tsx"
+      ]
+    },
+    {
+      "file": "apps/web/components/guide/GuideLibrary.tsx",
+      "owner": "admin",
+      "sha256": "96edd66037c440fc1021f8793fb04bce80b3e72415e4ca7c5aea85a688f02c70",
+      "candidates": [
+        {
+          "line": 88,
+          "element": "Dialog",
+          "target": "dialog",
+          "attributes": {
+            "open": true,
+            "onOpenChange": "{open => { if (!open && !busy) onClose(); }}"
+          },
+          "finding": "Existing primitive: consolidate and apply Fieldnotes component tokens",
+          "compatibility": "Preserve handlers, controlled state, names, validation, refs and structural classes",
+          "verification": [
+            "typecheck",
+            "existing flow tests",
+            "keyboard and responsive application review"
+          ],
+          "disposition": "shared-primitive"
+        },
+        {
+          "line": 88,
+          "element": "DialogContent",
+          "target": "dialog",
+          "attributes": {
+            "className": "gd-dialog gd-upload-dialog",
+            "showCloseButton": "{!busy}",
+            "onCloseAutoFocus": "{e => { e.preventDefault(); restoreFocus(); }}",
+            "onOpenAutoFocus": "{e => { e.preventDefault(); titleInput.current?.focus(); }}",
+            "onEscapeKeyDown": "{e => { if (busy) e.preventDefault(); }}",
+            "onInteractOutside": "{e => e.preventDefault()}"
+          },
+          "finding": "Existing primitive: consolidate and apply Fieldnotes component tokens",
+          "compatibility": "Preserve handlers, controlled state, names, validation, refs and structural classes",
+          "verification": [
+            "typecheck",
+            "existing flow tests",
+            "keyboard and responsive application review"
+          ],
+          "disposition": "shared-primitive"
+        },
+        {
+          "line": 92,
+          "element": "DialogHeader",
+          "target": "dialog",
+          "attributes": {},
+          "finding": "Existing primitive: consolidate and apply Fieldnotes component tokens",
+          "compatibility": "Preserve handlers, controlled state, names, validation, refs and structural classes",
+          "verification": [
+            "typecheck",
+            "existing flow tests",
+            "keyboard and responsive application review"
+          ],
+          "disposition": "shared-primitive"
+        },
+        {
+          "line": 92,
+          "element": "DialogTitle",
+          "target": "dialog",
+          "attributes": {},
+          "finding": "Existing primitive: consolidate and apply Fieldnotes component tokens",
+          "compatibility": "Preserve handlers, controlled state, names, validation, refs and structural classes",
+          "verification": [
+            "typecheck",
+            "existing flow tests",
+            "keyboard and responsive application review"
+          ],
+          "disposition": "shared-primitive"
+        },
+        {
+          "line": 93,
+          "element": "DialogDescription",
+          "target": "dialog",
+          "attributes": {},
+          "finding": "Existing primitive: consolidate and apply Fieldnotes component tokens",
+          "compatibility": "Preserve handlers, controlled state, names, validation, refs and structural classes",
+          "verification": [
+            "typecheck",
+            "existing flow tests",
+            "keyboard and responsive application review"
+          ],
+          "disposition": "shared-primitive"
+        },
+        {
+          "line": 96,
+          "element": "Field",
+          "target": "field",
+          "attributes": {
+            "ref": "{titleInput}",
+            "className": "gd-field",
+            "name": "title",
+            "label": "Title",
+            "required": true,
+            "maxLength": "{160}",
+            "defaultValue": "{guide?.title}",
+            "placeholder": "e.g. Create and publish your event"
+          },
+          "finding": "Native or dedicated UI: adopt matching canonical primitive",
+          "compatibility": "Preserve handlers, controlled state, names, validation, refs and structural classes",
+          "verification": [
+            "typecheck",
+            "existing flow tests",
+            "keyboard and responsive application review"
+          ],
+          "disposition": "dedicated-shared-composition"
+        },
+        {
+          "line": 97,
+          "element": "Textarea",
+          "target": "textarea",
+          "attributes": {
+            "name": "description",
+            "required": true,
+            "maxLength": "{2000}",
+            "rows": "{3}",
+            "defaultValue": "{guide?.description}",
+            "placeholder": "What will an org admin learn?"
+          },
+          "finding": "Existing primitive: consolidate and apply Fieldnotes component tokens",
+          "compatibility": "Preserve handlers, controlled state, names, validation, refs and structural classes",
+          "verification": [
+            "typecheck",
+            "existing flow tests",
+            "keyboard and responsive application review"
+          ],
+          "disposition": "shared-primitive"
+        },
+        {
+          "line": 98,
+          "element": "FormSelect",
+          "target": "select",
+          "attributes": {
+            "name": "topic",
+            "defaultValue": "{guide?.topic ?? GUIDE_TOPICS[0]}"
+          },
+          "finding": "Native or dedicated UI: adopt matching canonical primitive",
+          "compatibility": "Preserve handlers, controlled state, names, validation, refs and structural classes",
+          "verification": [
+            "typecheck",
+            "existing flow tests",
+            "keyboard and responsive application review"
+          ],
+          "disposition": "dedicated-shared-composition"
+        },
+        {
+          "line": 100,
+          "element": "Input",
+          "target": "input",
+          "attributes": {
+            "type": "file",
+            "aria-label": "Video file",
+            "accept": "video/mp4,video/webm",
+            "aria-describedby": "{error ? \"guide-upload-error\" : undefined}",
+            "onChange": "{e => { const next = e.target.files?.[0] ?? null; const invalid = next ? guideFileError(next) : null;\n              setError(invalid ?? \"\"); setFileIssue(invalid ?? \"\"); setFile(invalid ? null : next); uploaded.current = null; }}"
+          },
+          "finding": "Existing primitive: consolidate and apply Fieldnotes component tokens",
+          "compatibility": "Preserve handlers, controlled state, names, validation, refs and structural classes",
+          "verification": [
+            "typecheck",
+            "existing flow tests",
+            "keyboard and responsive application review"
+          ],
+          "disposition": "shared-primitive"
+        },
+        {
+          "line": 108,
+          "element": "Alert",
+          "target": "alert",
+          "attributes": {
+            "id": "guide-upload-error",
+            "variant": "destructive",
+            "className": "gd-form-error",
+            "role": "alert"
+          },
+          "finding": "Existing primitive: consolidate and apply Fieldnotes component tokens",
+          "compatibility": "Preserve handlers, controlled state, names, validation, refs and structural classes",
+          "verification": [
+            "typecheck",
+            "existing flow tests",
+            "keyboard and responsive application review"
+          ],
+          "disposition": "shared-primitive"
+        },
+        {
+          "line": 108,
+          "element": "AlertDescription",
+          "target": "alert",
+          "attributes": {},
+          "finding": "Existing primitive: consolidate and apply Fieldnotes component tokens",
+          "compatibility": "Preserve handlers, controlled state, names, validation, refs and structural classes",
+          "verification": [
+            "typecheck",
+            "existing flow tests",
+            "keyboard and responsive application review"
+          ],
+          "disposition": "shared-primitive"
+        },
+        {
+          "line": 140,
+          "element": "PrimitiveButton",
+          "target": "button",
+          "attributes": {
+            "variant": "ghost",
+            "onClick": "{() => setNotice(\"\")}",
+            "aria-label": "Dismiss notification"
+          },
+          "finding": "Existing primitive: consolidate and apply Fieldnotes component tokens",
+          "compatibility": "Preserve handlers, controlled state, names, validation, refs and structural classes",
+          "verification": [
+            "typecheck",
+            "existing flow tests",
+            "keyboard and responsive application review"
+          ],
+          "disposition": "shared-primitive"
+        },
+        {
+          "line": 141,
+          "element": "Input",
+          "target": "input",
+          "attributes": {
+            "ref": "{search}",
+            "type": "search",
+            "aria-label": "Search guides",
+            "placeholder": "Search by title, topic, or description…",
+            "value": "{query}",
+            "onChange": "{e => setQuery(e.target.value)}"
+          },
+          "finding": "Existing primitive: consolidate and apply Fieldnotes component tokens",
+          "compatibility": "Preserve handlers, controlled state, names, validation, refs and structural classes",
+          "verification": [
+            "typecheck",
+            "existing flow tests",
+            "keyboard and responsive application review"
+          ],
+          "disposition": "shared-primitive"
+        },
+        {
+          "line": 142,
+          "element": "PrimitiveButton",
+          "target": "button",
+          "attributes": {
+            "variant": "ghost",
+            "className": "gd-clear",
+            "onClick": "{() => { setQuery(\"\"); search.current?.focus(); }}",
+            "aria-label": "Clear search"
+          },
+          "finding": "Existing primitive: consolidate and apply Fieldnotes component tokens",
+          "compatibility": "Preserve handlers, controlled state, names, validation, refs and structural classes",
+          "verification": [
+            "typecheck",
+            "existing flow tests",
+            "keyboard and responsive application review"
+          ],
+          "disposition": "shared-primitive"
+        },
+        {
+          "line": 143,
+          "element": "FormSelect",
+          "target": "select",
+          "attributes": {
+            "value": "{sort}",
+            "onChange": "{e => setSort(e.target.value)}"
+          },
+          "finding": "Native or dedicated UI: adopt matching canonical primitive",
+          "compatibility": "Preserve handlers, controlled state, names, validation, refs and structural classes",
+          "verification": [
+            "typecheck",
+            "existing flow tests",
+            "keyboard and responsive application review"
+          ],
+          "disposition": "dedicated-shared-composition"
+        },
+        {
+          "line": 144,
+          "element": "PrimitiveButton",
+          "target": "button",
+          "attributes": {
+            "variant": "ghost",
+            "key": "{t}",
+            "aria-pressed": "{topic === t}",
+            "onClick": "{() => setTopic(t)}"
+          },
+          "finding": "Existing primitive: consolidate and apply Fieldnotes component tokens",
+          "compatibility": "Preserve handlers, controlled state, names, validation, refs and structural classes",
+          "verification": [
+            "typecheck",
+            "existing flow tests",
+            "keyboard and responsive application review"
+          ],
+          "disposition": "shared-primitive"
+        },
+        {
+          "line": 153,
+          "element": "PrimitiveButton",
+          "target": "button",
+          "attributes": {
+            "variant": "ghost",
+            "className": "gd-feature-image",
+            "onClick": "{() => openWatch(featured.id)}",
+            "aria-label": "{`Watch ${featured.title}`}"
+          },
+          "finding": "Existing primitive: consolidate and apply Fieldnotes component tokens",
+          "compatibility": "Preserve handlers, controlled state, names, validation, refs and structural classes",
+          "verification": [
+            "typecheck",
+            "existing flow tests",
+            "keyboard and responsive application review"
+          ],
+          "disposition": "shared-primitive"
+        },
+        {
+          "line": 156,
+          "element": "PrimitiveButton",
+          "target": "button",
+          "attributes": {
+            "variant": "ghost",
+            "className": "gd-video-card",
+            "key": "{g.id}",
+            "onClick": "{() => openWatch(g.id)}"
+          },
+          "finding": "Existing primitive: consolidate and apply Fieldnotes component tokens",
+          "compatibility": "Preserve handlers, controlled state, names, validation, refs and structural classes",
+          "verification": [
+            "typecheck",
+            "existing flow tests",
+            "keyboard and responsive application review"
+          ],
+          "disposition": "shared-primitive"
+        },
+        {
+          "line": 159,
+          "element": "Dialog",
+          "target": "dialog",
+          "attributes": {
+            "open": "{!!watch}",
+            "onOpenChange": "{open => { if (!open) setWatchId(null); }}"
+          },
+          "finding": "Existing primitive: consolidate and apply Fieldnotes component tokens",
+          "compatibility": "Preserve handlers, controlled state, names, validation, refs and structural classes",
+          "verification": [
+            "typecheck",
+            "existing flow tests",
+            "keyboard and responsive application review"
+          ],
+          "disposition": "shared-primitive"
+        },
+        {
+          "line": 159,
+          "element": "DialogContent",
+          "target": "dialog",
+          "attributes": {
+            "className": "gd-dialog gd-watch-dialog",
+            "onCloseAutoFocus": "{e => { e.preventDefault(); restoreFocus(); }}"
+          },
+          "finding": "Existing primitive: consolidate and apply Fieldnotes component tokens",
+          "compatibility": "Preserve handlers, controlled state, names, validation, refs and structural classes",
+          "verification": [
+            "typecheck",
+            "existing flow tests",
+            "keyboard and responsive application review"
+          ],
+          "disposition": "shared-primitive"
+        },
+        {
+          "line": 160,
+          "element": "DialogHeader",
+          "target": "dialog",
+          "attributes": {},
+          "finding": "Existing primitive: consolidate and apply Fieldnotes component tokens",
+          "compatibility": "Preserve handlers, controlled state, names, validation, refs and structural classes",
+          "verification": [
+            "typecheck",
+            "existing flow tests",
+            "keyboard and responsive application review"
+          ],
+          "disposition": "shared-primitive"
+        },
+        {
+          "line": 160,
+          "element": "DialogTitle",
+          "target": "dialog",
+          "attributes": {},
+          "finding": "Existing primitive: consolidate and apply Fieldnotes component tokens",
+          "compatibility": "Preserve handlers, controlled state, names, validation, refs and structural classes",
+          "verification": [
+            "typecheck",
+            "existing flow tests",
+            "keyboard and responsive application review"
+          ],
+          "disposition": "shared-primitive"
+        },
+        {
+          "line": 160,
+          "element": "DialogDescription",
+          "target": "dialog",
+          "attributes": {},
+          "finding": "Existing primitive: consolidate and apply Fieldnotes component tokens",
+          "compatibility": "Preserve handlers, controlled state, names, validation, refs and structural classes",
+          "verification": [
+            "typecheck",
+            "existing flow tests",
+            "keyboard and responsive application review"
+          ],
+          "disposition": "shared-primitive"
+        },
+        {
+          "line": 163,
+          "element": "PrimitiveButton",
+          "target": "button",
+          "attributes": {
+            "variant": "ghost",
+            "key": "{g.id}",
+            "onClick": "{() => setWatchId(g.id)}"
+          },
+          "finding": "Existing primitive: consolidate and apply Fieldnotes component tokens",
+          "compatibility": "Preserve handlers, controlled state, names, validation, refs and structural classes",
+          "verification": [
+            "typecheck",
+            "existing flow tests",
+            "keyboard and responsive application review"
+          ],
+          "disposition": "shared-primitive"
+        }
+      ],
+      "disposition": "migrate-primitives-preserve-composition",
+      "verification": "Application types/tests plus responsive and keyboard review",
+      "consumers": [
+        "apps/web/app/(admin)/guide/page.tsx"
       ]
     },
     {
@@ -31006,7 +31586,8 @@
         "apps/web/components/RescheduleModal.tsx",
         "apps/web/components/TurnstileWidget.tsx",
         "apps/web/components/data-table/data-table.tsx",
-        "apps/web/components/form-section.tsx"
+        "apps/web/components/form-section.tsx",
+        "apps/web/components/guide/GuideLibrary.tsx"
       ]
     },
     {
@@ -31128,7 +31709,9 @@
         "apps/web/components/data-table/faceted-filter.tsx",
         "apps/web/components/data-table/pagination.tsx",
         "apps/web/components/data-table/toolbar.tsx",
+        "apps/web/components/fieldnotes/button.tsx",
         "apps/web/components/form-section.tsx",
+        "apps/web/components/guide/GuideLibrary.tsx",
         "apps/web/components/ui/searchable-combobox.tsx"
       ]
     },
@@ -31238,7 +31821,8 @@
         "apps/web/components/CourseDrawEditor.tsx",
         "apps/web/components/CropUploader.tsx",
         "apps/web/components/RegistrationDetail.tsx",
-        "apps/web/components/RescheduleModal.tsx"
+        "apps/web/components/RescheduleModal.tsx",
+        "apps/web/components/guide/GuideLibrary.tsx"
       ]
     },
     {
@@ -31322,7 +31906,9 @@
         "apps/web/components/RescheduleModal.tsx",
         "apps/web/components/RouteEditor.tsx",
         "apps/web/components/ScheduleEditor.tsx",
-        "apps/web/components/data-table/toolbar.tsx"
+        "apps/web/components/data-table/toolbar.tsx",
+        "apps/web/components/fieldnotes/field.tsx",
+        "apps/web/components/guide/GuideLibrary.tsx"
       ]
     },
     {
@@ -31365,6 +31951,7 @@
         "apps/web/components/PsgcAddressField.tsx",
         "apps/web/components/RouteEditor.tsx",
         "apps/web/components/data-table/toolbar.tsx",
+        "apps/web/components/fieldnotes/field.tsx",
         "apps/web/components/form-section.tsx"
       ]
     },
@@ -31757,7 +32344,8 @@
         "apps/web/app/(auth)/login/google-button.tsx",
         "apps/web/app/(auth)/login/login-form.tsx",
         "apps/web/components/CourseDrawEditor.tsx",
-        "apps/web/components/NavProgress.tsx"
+        "apps/web/components/NavProgress.tsx",
+        "apps/web/components/fieldnotes/button.tsx"
       ]
     },
     {
@@ -31817,7 +32405,8 @@
         "apps/web/app/(admin)/events/event-editor-form.tsx",
         "apps/web/app/(admin)/race-kits/station.tsx",
         "apps/web/app/(admin)/settings/settings-form.tsx",
-        "apps/web/app/(admin)/settings/waiver-form.tsx"
+        "apps/web/app/(admin)/settings/waiver-form.tsx",
+        "apps/web/components/guide/GuideLibrary.tsx"
       ]
     },
     {

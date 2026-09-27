@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Button as Primitive } from "@/components/ui/button";
-import { Spinner } from "./spinner";
+import { Spinner } from "@/components/ui/spinner";
 
 export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: "primary" | "secondary" | "outline" | "ghost" | "danger";
