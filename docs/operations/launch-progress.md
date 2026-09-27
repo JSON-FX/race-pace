@@ -640,6 +640,14 @@ After cutover, production is real-data-only; never insert sample/demo/QA data. S
 
 | Completed | Blockers | Next task |
 | --- | --- | --- |
-| Native transfer progress, accessible Fieldnotes bar, decimal 100 MB validation, additive bucket cap migration, isolated replay of 159 versions, 2,255 tests, both typechecks/builds and technical review | Hosted changes remain pending | Complete reviewed staging release; validate an actual 100 MB upload before production |
+| Native transfer progress, accessible Fieldnotes bar, decimal 100 MB validation, additive bucket cap migration, isolated replay of 159 versions, 2,255 tests, both typechecks/builds and technical review | None on staging | Promote reviewed staging into main; verify production without synthetic data |
 
 Branch `codex/guide-upload-progress` starts at staging `f6cd6d6e6f18834e20c8f8702e805de703b87817`. Both hosted global caps are currently 52,428,800 bytes. The migration pins previously uncapped non-Guide buckets to that existing limit; explicit lower caps remain unchanged. Hosted global caps must be raised only after migration readback. Production content remains untouched.
+
+### Follow-up hosted staging acceptance
+
+PR #171 merged at `0e857509f4fe919b64b5d943d1f7f0801d0c626e`; exact staging CI `36292046851` passed. Both matching staging aliases point to Ready deployments: admin `dpl_5u9nqxmpwrPXsnKXTPBUeU92iQE8`, runner `dpl_5inniQxzHF2uJg6Dx62UhG2At7J4`. Served bundles contain only staging project `pepbmqomiailnnvvwupz`. Its 159 migrations include `20260927025643`. Private Guide bucket and global Storage cap read back as 100,000,000 bytes. Other buckets retain their previous effective caps. No Edge Functions, Auth, secrets, email, payment, webhook or scheduler settings changed.
+
+Browser uploaded and published an exact 100,000,000-byte fictional MP4, then successfully replaced it with another real 100 MB transfer. One byte above the limit was rejected before transfer. Visible progress was observed at 52% on desktop, 4–5% on mobile and 8% on tablet. Mobile dialog had no horizontal overflow. Signed playback advanced with no video error. An org admin read published metadata and private media but could not upload; anonymous reads/signing were denied. Computer independently confirmed native 8:43 playback in VLC.
+
+Cleanup revoked the temporary account session and removed only the task-owned QA guide, four objects and temporary account. Independent counts returned to two organizations, ten events, eleven registrations and eleven payments, with zero Guide rows/objects. Browser reloaded the empty library successfully. Production remains at its prior release until promotion.

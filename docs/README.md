@@ -162,4 +162,4 @@ The approved Trail Roster visual direction is now a durable [layout specificatio
 
 ### Guide upload progress and 100 MB follow-up
 
-[Follow-up plan](plans/2026-09-27-guide-upload-progress.md): actual byte progress through the Fieldnotes component and a 100,000,000-byte upload limit. All 2,255 tests, both typechecks/builds and isolated migration replay passed. Hosted staging acceptance is pending.
+[Follow-up plan](plans/2026-09-27-guide-upload-progress.md): actual byte progress through the Fieldnotes component and a 100,000,000-byte upload limit. All 2,255 tests, both typechecks/builds and isolated migration replay passed. Hosted staging acceptance passed at `0e857509f4fe919b64b5d943d1f7f0801d0c626e`, including two actual 100 MB transfers, playback, permissions, responsive progress and task-only cleanup. Production promotion is next.
