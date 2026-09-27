@@ -640,9 +640,9 @@ After cutover, production is real-data-only; never insert sample/demo/QA data. S
 
 | Completed | Blockers | Next task |
 | --- | --- | --- |
-| Native transfer progress, accessible Fieldnotes bar, decimal 100 MB validation, additive bucket cap migration, isolated replay of 159 versions, 2,255 tests, both typechecks/builds and technical review | None on staging | Promote reviewed staging into main; verify production without synthetic data |
+| Native transfer progress, accessible Fieldnotes bar, decimal 100 MB validation, additive bucket cap migration, isolated replay of 159 versions, 2,255 tests, both typechecks/builds and technical review | None | Follow-up complete; new work starts from synchronized staging |
 
-Branch `codex/guide-upload-progress` starts at staging `f6cd6d6e6f18834e20c8f8702e805de703b87817`. Both hosted global caps are currently 52,428,800 bytes. The migration pins previously uncapped non-Guide buckets to that existing limit; explicit lower caps remain unchanged. Hosted global caps must be raised only after migration readback. Production content remains untouched.
+Branch `codex/guide-upload-progress` starts at staging `f6cd6d6e6f18834e20c8f8702e805de703b87817`. Before this follow-up, both hosted global caps were 52,428,800 bytes. The migration pins previously uncapped non-Guide buckets to that existing limit; explicit lower caps remain unchanged. Hosted global caps must be raised only after migration readback. Production content remains untouched.
 
 ### Follow-up hosted staging acceptance
 
@@ -651,3 +651,15 @@ PR #171 merged at `0e857509f4fe919b64b5d943d1f7f0801d0c626e`; exact staging CI `
 Browser uploaded and published an exact 100,000,000-byte fictional MP4, then successfully replaced it with another real 100 MB transfer. One byte above the limit was rejected before transfer. Visible progress was observed at 52% on desktop, 4–5% on mobile and 8% on tablet. Mobile dialog had no horizontal overflow. Signed playback advanced with no video error. An org admin read published metadata and private media but could not upload; anonymous reads/signing were denied. Computer independently confirmed native 8:43 playback in VLC.
 
 Cleanup revoked the temporary account session and removed only the task-owned QA guide, four objects and temporary account. Independent counts returned to two organizations, ten events, eleven registrations and eleven payments, with zero Guide rows/objects. Browser reloaded the empty library successfully. Production remains at its prior release until promotion.
+
+### Follow-up production release
+
+The recorded staging revision `16be0fe4863b8573876a2007eadc8d2864cbe334` passed exact CI `36293055008`. Its application/backend/workflow trees match hosted-tested `0e857509f4fe919b64b5d943d1f7f0801d0c626e`. Ready staging aliases point to admin `dpl_6StMRFu79DNkhpnZdyYnpTMBbNXG` and runner `dpl_3wiSy4ZJXyLf8tWAQzZWPQLCH52V`.
+
+Production PR #173 passed CI `36293430966` and merged into main at `2a4a9486ac47d73a9bac384810059c399e86fe71`. Both production deployments are Ready and own their production aliases: admin `dpl_5Bf97wtWjnzGYCUvR4ytaZcmhKjh`; runner `dpl_74jWX5BnNPvrKcd6EhH3QJsqU1WC`. Their served bundles reference only `whaqarofxdlzxrelbcrq`.
+
+Applied the same additive migration before production application serving. Independent readback confirms 159 versions through `20260927025643`, a private 100,000,000-byte Guide bucket and matching global Storage cap. Event/org/profile image buckets retain 52,428,800-byte limits; email-branding retains its explicit 1,048,576-byte limit. Fresh CLI dry run reports up to date. The CLI emitted its known nonfatal pg-delta certificate-cache warning after successful application; independent SQL and the fresh dry run verify completion. No function, secret, Auth, email, payment, CAPTCHA, webhook or scheduled worker changes.
+
+Production Browser reloaded Guide, opened the 100 MB upload form, confirmed title focus, then canceled with focus restored and no browser errors. Verification created no records or media. Counts remain two organizations, one event, 23 registrations and 19 payments, with zero Guide rows/objects. Published guides remain shared across organizations; drafts remain super-admin-only. Exact-main CI and sync-back evidence follow below.
+
+Exact production merge CI `36293824812` passed all required checks. Sync-back PR #174 passed CI `36293924644` and merged at `aa1d3c0acbdbed5dfeb949eeecefb63665400b90`. Main is again an ancestor of staging; application/backend/workflow trees are identical. The follow-up is complete.
