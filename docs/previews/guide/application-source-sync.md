@@ -23,3 +23,9 @@ The application reuses its installed Input, Textarea, Dialog, Label, and Button 
 ## Verification
 
 The five proposal stories remain available in the built local catalog at `https://storybook.lan/race-pace/`. Their earlier catalog typecheck and full build passed. The consuming application is verified separately with real local upload, persistence, signed playback, editing, draft isolation, role denial, search/filter/reset, and desktop/tablet/mobile browser checks. This is local implementation evidence, not a hosted release claim.
+
+## Upload progress follow-up — 2026-09-27
+
+Adopted canonical `packages/race-pace-ui/src/ui/progress.tsx` (SHA-256 `cf5de49b1c6d9ba6753d1d2f62820c543935cf426b8af8b49b277cfda6cc2c5b`) as `apps/web/components/fieldnotes/progress.tsx` (SHA-256 `cf7f0f225302eb1a306ab78679a27f57a72c33243f243d6fc55b0a8e92f31167`). The adapter adds the Next client directive, maps `cn` to the application helper, and passes `value` to the Radix root so assistive technology receives the actual percentage. Existing tokens and reduced-motion rules remain in use.
+
+The follow-up supersedes the original 50 MiB limit with 100 MB (100,000,000 bytes). Its additive migration preserves other buckets at their previous effective caps before the hosted project cap is raised.

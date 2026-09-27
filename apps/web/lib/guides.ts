@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const GUIDE_BUCKET = "guide-videos";
-export const GUIDE_MAX_BYTES = 50 * 1024 * 1024;
+export const GUIDE_MAX_BYTES = 100_000_000;
 export const GUIDE_URL_SECONDS = 3600;
 export const GUIDE_TOPICS = ["Getting started", "Events", "Registrations", "Payments", "Race day", "Team & settings"] as const;
 const uuid = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
@@ -26,7 +26,7 @@ export type GuideVideo = GuideInput & { created_at: string; updated_at: string; 
 export function guideFileError(file: Pick<File, "type" | "size">): string | null {
   if (!["video/mp4", "video/webm"].includes(file.type)) return "Choose an MP4 or WebM video.";
   if (!file.size) return "This file is empty. Choose another video.";
-  if (file.size > GUIDE_MAX_BYTES) return "Video must be 50 MiB or smaller. Choose a smaller file.";
+  if (file.size > GUIDE_MAX_BYTES) return "Video must be 100 MB or smaller. Choose a smaller file.";
   return null;
 }
 
