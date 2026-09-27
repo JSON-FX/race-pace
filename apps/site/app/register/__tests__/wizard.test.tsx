@@ -58,7 +58,7 @@ describe("RegisterWizard", () => {
     await userEvent.type(screen.getByLabelText(/Emergency contact/), "Maria 09171234567");
     await userEvent.click(screen.getByRole("button", { name: "Continue" }));
 
-    await userEvent.click(screen.getByRole("button", { name: "Finisher shirt" }));
+    await userEvent.click(screen.getByRole("checkbox", { name: "Finisher shirt" }));
     expect(screen.getByText("₱2,950.00")).toBeInTheDocument();
   });
 
@@ -68,7 +68,7 @@ describe("RegisterWizard", () => {
     await userEvent.type(screen.getByLabelText(/Date of birth/), "1990-01-01");
     await userEvent.type(screen.getByLabelText(/Emergency contact/), "Maria 09171234567");
     await userEvent.click(screen.getByRole("button", { name: "Continue" }));
-    await userEvent.click(screen.getByRole("button", { name: "M" }));
+    await userEvent.click(screen.getByRole("radio", { name: "M" }));
     await userEvent.click(screen.getByRole("button", { name: "Continue" }));
 
     await userEvent.click(screen.getByRole("button", { name: /Continue to payment/ }));
@@ -122,7 +122,7 @@ describe("RegisterWizard", () => {
     expect(await screen.findByText("This is required.")).toBeInTheDocument();
 
     // Selecting a gender clears the error and lets the runner advance.
-    await userEvent.click(screen.getByRole("button", { name: "Male" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Male" }));
     await userEvent.click(screen.getByRole("button", { name: "Continue" }));
     expect(await screen.findByText("Make this entry yours")).toBeInTheDocument();
   });

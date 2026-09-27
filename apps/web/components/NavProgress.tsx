@@ -2,6 +2,8 @@
 
 import * as React from "react";
 import { useLinkStatus } from "next/link";
+import { Spinner } from "@/components/ui/spinner";
+import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 
 /**
@@ -73,17 +75,7 @@ export function LinkPending({ className }: { className?: string }) {
   if (!pending) return null;
 
   return (
-    <span
-      role="status"
-      aria-label="Loading page"
-      className={cn(
-        "ml-auto size-3 shrink-0 animate-spin rounded-full border-2 border-primary/25 border-t-primary",
-        // Spinning conveys nothing a reduced-motion user asked to see; the ring
-        // still marks WHICH item is loading, which is the useful part.
-        "motion-reduce:animate-none",
-        className,
-      )}
-    />
+    <Spinner aria-label="Loading page" className={cn("ml-auto size-3 shrink-0 motion-reduce:animate-none", className)} />
   );
 }
 
@@ -100,21 +92,8 @@ export function NavProgressBar() {
   if (!ctx?.pending) return null;
 
   return (
-    <div
-      role="progressbar"
-      aria-label="Loading page"
-      aria-busy="true"
-      className="pointer-events-none absolute inset-x-0 top-0 z-50 h-[2.5px] overflow-hidden bg-transparent"
-    >
-      <span
-        className={cn(
-          "block h-full w-[38%] rounded-r-full bg-primary shadow-[0_0_8px_rgba(21,154,85,0.5)]",
-          "animate-nav-progress",
-          // Reduced motion: a static full-width tint. Still unmistakably "this
-          // page is working", with no travelling element.
-          "motion-reduce:w-full motion-reduce:animate-none motion-reduce:opacity-70",
-        )}
-      />
-    </div>
+    <Progress value={null} aria-label="Loading page" aria-busy="true"
+      className="pointer-events-none absolute inset-x-0 top-0 z-[60] h-[2.5px] rounded-none bg-transparent"
+      indicatorClassName="w-[38%] animate-nav-progress rounded-r-full motion-reduce:w-full motion-reduce:animate-none motion-reduce:opacity-70" />
   );
 }

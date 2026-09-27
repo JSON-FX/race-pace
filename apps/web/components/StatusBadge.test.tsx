@@ -29,10 +29,10 @@ it("humanises event statuses, including unknown ones", () => {
 // cancelled = a deliberate action).
 it("gives expired a neutral tone and cancelled a danger tone", () => {
   const { rerender } = render(<RegistrationStatusBadge status="expired" />);
-  expect(screen.getByText("Expired")).toHaveClass("bg-muted", "text-muted-foreground");
+  expect(screen.getByText("Expired")).toHaveAttribute("data-tone", "neutral");
 
   rerender(<RegistrationStatusBadge status="cancelled" />);
-  expect(screen.getByText("Cancelled")).toHaveClass("bg-destructive-tint", "text-destructive");
+  expect(screen.getByText("Cancelled")).toHaveAttribute("data-tone", "danger");
 });
 
 it("falls back to an em dash for a null registration status", () => {

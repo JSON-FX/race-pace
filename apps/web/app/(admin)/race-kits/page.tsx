@@ -1,3 +1,7 @@
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Label } from "@/components/ui/label";
+import { FormSelect } from "@race-pace/ui";
+import { Button } from "@/components/ui/button";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getMyRoles } from "@/lib/queries/roles";
@@ -17,9 +21,9 @@ export default async function RaceKitsPage({
       .range(offset, offset + 999);
     if (error)
       return (
-        <div className="p-6" role="alert">
+        <Alert className="p-6" role="alert"><AlertDescription>
           Couldn’t load kit events. Refresh and try again.
-        </div>
+        </AlertDescription></Alert>
       );
     events.push(...data);
     if (data.length < 1000) break;
@@ -41,12 +45,12 @@ export default async function RaceKitsPage({
       ) : (
         <>
           <form className="my-5 flex flex-wrap items-end gap-3">
-            <label className="grid gap-1 text-sm">
+            <Label className="grid gap-1">
               Event
-              <select
+              <FormSelect
                 name="event"
                 defaultValue={selected?.id ?? ""}
-                className="max-w-full rounded-lg border bg-card p-2"
+                className="max-w-full border p-2"
               >
                 {!selected && <option value="">Choose an event</option>}
                 {events.map((e) => (
@@ -54,19 +58,19 @@ export default async function RaceKitsPage({
                     {e.name}
                   </option>
                 ))}
-              </select>
-            </label>
-            <button className="rounded-lg border bg-card px-3 py-2 text-sm font-medium">
+              </FormSelect>
+            </Label>
+            <Button variant="outline"  className="border px-3 py-2">
               Switch event
-            </button>
+            </Button>
           </form>
           {selected ? (
             <KitStation key={selected.id} eventId={selected.id} />
           ) : (
-            <p role="alert">
+            <Alert role="alert"><AlertDescription>
               This event is not available to your account. Choose an authorized
               event.
-            </p>
+            </AlertDescription></Alert>
           )}
         </>
       )}

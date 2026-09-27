@@ -1,5 +1,7 @@
 "use client";
 
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import * as React from "react";
 import Image from "next/image";
 import dynamic from "next/dynamic";
@@ -111,7 +113,7 @@ export function RaceMorning({ event, tone }: { event: EventRow; tone: Tone }) {
         />
         {schedule.map((row, i) => (
           <Reveal as="li" key={i} delay={i * 0.07} className="relative flex gap-5 pb-7 last:pb-0">
-            <span
+            <span aria-hidden="true"
               className={cn(
                 "relative z-10 mt-1.5 h-[15px] w-[15px] shrink-0 rounded-full border-[3px]",
                 tone.dark ? "border-[#06120C]" : "border-white",
@@ -236,7 +238,7 @@ export function GalleryCarousel({ event, tone }: { event: EventRow; tone: Tone }
                 small — the tap target is what has to clear the minimum. */}
             <div className="absolute inset-x-0 bottom-0 flex justify-center gap-1 pb-1">
               {images.map((_, i) => (
-                <button
+                <Button variant="ghost"
                   key={i}
                   type="button"
                   onClick={() => go(i)}
@@ -250,7 +252,7 @@ export function GalleryCarousel({ event, tone }: { event: EventRow; tone: Tone }
                       i === index ? "w-7 bg-white" : "w-1.5 bg-white/50 group-hover:bg-white/80",
                     )}
                   />
-                </button>
+                </Button>
               ))}
             </div>
           </>
@@ -289,24 +291,24 @@ export function ParticipantRegistrationSection({ categories, tone }: { categorie
           </div>
         </div>
 
-        <div className={cn("grid gap-px border-t sm:grid-cols-2 lg:grid-cols-3", tone.dark ? "border-white/10 bg-white/10" : "border-black/10 bg-black/10")}>
+        <div className={cn("divide-y border-t", tone.dark ? "divide-white/10 border-white/10" : "divide-black/10 border-black/10")}>
           {categories.map((category) => (
             <Link
               key={category.id}
               href={`/register/${category.id}`}
               aria-label={`Register another participant for ${category.label}`}
               className={cn(
-                "group flex min-h-16 items-center justify-between gap-4 px-5 py-4 transition-colors focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                "group relative flex min-h-[88px] items-center gap-3 px-5 py-5 transition-colors focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:gap-6 sm:px-7",
                 tone.dark ? "bg-[#06120C] hover:bg-white/[0.06]" : "bg-background hover:bg-secondary",
               )}
             >
-              <span className="min-w-0">
-                <span className="block text-[15px] font-bold leading-snug">{category.label}</span>
-                <span className={cn("font-mono-race mt-1 block text-[11.5px]", tone.dark ? "text-white/55" : "text-muted-foreground")}>
+              <span className="min-w-0 flex-1 text-[16px] font-bold leading-snug sm:text-[18px]">{category.label}</span>
+              <span className="flex shrink-0 items-center gap-3 sm:gap-5">
+                <Badge variant="default" className="rounded-lg px-3 py-1.5 text-[17px] font-semibold leading-6 tabular-nums">
                   {formatPeso(category.base_price)}
-                </span>
+                </Badge>
+                <ArrowRight size={18} className="shrink-0 text-primary transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
               </span>
-              <ArrowRight size={18} className="shrink-0 text-primary transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
             </Link>
           ))}
         </div>
@@ -326,17 +328,17 @@ function CarouselButton({
 }) {
   const Icon = side === "left" ? ChevronLeft : ChevronRight;
   return (
-    <button
+    <Button variant="ghost"
       type="button"
       onClick={onClick}
       aria-label={label}
       className={cn(
-        "absolute top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/55 text-white backdrop-blur-sm transition-colors hover:bg-black/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white",
+        "absolute top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center backdrop-blur-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white",
         side === "left" ? "left-3" : "right-3",
       )}
     >
       <Icon size={20} aria-hidden="true" />
-    </button>
+    </Button>
   );
 }
 
@@ -392,15 +394,15 @@ export function CourseLocator({ event, tone }: { event: EventRow; tone: Tone }) 
                 ? "A loop course — you finish where you started, so drop bags and support stay in one place."
                 : "A point-to-point course. Plan transport back to the start, or use the organizer's shuttle."}
             </p>
-            <a
+            <Button asChild variant="default"><a
               href={maps}
               target="_blank"
               rel="noopener noreferrer"
-              className="mt-6 inline-flex items-center gap-2 rounded-pill bg-primary px-6 py-3 text-[15px] font-semibold text-primary-foreground transition-colors hover:bg-primary-focus"
+              className="mt-6 inline-flex items-center gap-2 px-6 py-3"
             >
               <Navigation size={16} aria-hidden="true" />
               Open in Maps
-            </a>
+            </a></Button>
           </div>
         </Reveal>
       </div>

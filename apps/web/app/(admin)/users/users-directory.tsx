@@ -1,10 +1,12 @@
 "use client";
 
+
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { useMemo, useState } from "react";
 import { CalendarDays, ChevronDown, ChevronRight, Search, UserRoundCheck } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
-import { initials, peso } from "@/lib/format";
+import { fmtDate, initials, peso } from "@/lib/format";
 import { MethodBadge } from "@/components/MethodBadge";
 import { PhotoAvatar } from "@/components/PhotoAvatar";
 import { ProviderBadge } from "@/components/ProviderBadge";
@@ -35,7 +37,7 @@ function date(value: string | null): string {
   if (!value) return "Not available";
   const parsed = new Date(value);
   if (!Number.isFinite(parsed.getTime())) return "Not available";
-  return new Intl.DateTimeFormat("en-PH", { dateStyle: "medium" }).format(parsed);
+  return fmtDate(value);
 }
 
 function allRegistrations(user: PlatformUser): PlatformRegistration[] {
@@ -114,12 +116,12 @@ function PassportCard({ passport, accountEmail, defaultOpen = false }: {
   defaultOpen?: boolean;
 }) {
   const birthDate = passport.dateOfBirth && /^\d{4}-\d{2}-\d{2}$/.test(passport.dateOfBirth)
-    ? date(`${passport.dateOfBirth}T12:00:00`)
+    ? date(passport.dateOfBirth)
     : passport.dateOfBirth;
   const barangay = passport.shippingBarangay ?? (passport.shippingBarangayCode ? `${passport.shippingBarangayCode} (code)` : null);
   return (
-    <details className="group overflow-hidden rounded-lg border bg-card" open={defaultOpen || undefined}>
-      <summary className="flex min-h-16 cursor-pointer list-none items-center gap-3 p-3 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring motion-reduce:transition-none [&::-webkit-details-marker]:hidden">
+    <Collapsible className="group overflow-hidden rounded-lg border bg-card" defaultOpen={defaultOpen || undefined}>
+      <CollapsibleTrigger className="flex min-h-16 cursor-pointer list-none items-center gap-3 p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring motion-reduce:transition-none [&::-webkit-details-marker]:hidden">
         <PhotoAvatar
           url={passport.avatarUrl}
           fallback={initials(passport.name)}
@@ -137,7 +139,7 @@ function PassportCard({ passport, accountEmail, defaultOpen = false }: {
           {passport.claimed ? "Claimed" : "Managed"}
         </StatusBadge>
         <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180 motion-reduce:transition-none" aria-hidden />
-      </summary>
+      </CollapsibleTrigger><CollapsibleContent forceMount className="data-[state=closed]:hidden">
       <div className="space-y-5 border-t px-3 pb-4 pt-4">
         <Section title="Participant details">
           <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
@@ -188,7 +190,7 @@ function PassportCard({ passport, accountEmail, defaultOpen = false }: {
           </div>
         </Section>
       </div>
-    </details>
+    </CollapsibleContent></Collapsible>
   );
 }
 
@@ -260,7 +262,7 @@ function UserInspector({
               />
               <div className="min-w-0">
                 <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Registered user</p>
-                <SheetTitle className="mt-1 truncate text-xl">{user.name}</SheetTitle>
+                <SheetTitle className="mt-1 truncate">{user.name}</SheetTitle>
                 <SheetDescription className="truncate">{user.email}</SheetDescription>
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   <ProviderBadge provider={user.provider} />
@@ -279,7 +281,7 @@ function UserInspector({
                 type="button"
                 size="sm"
                 variant={tab === item ? "secondary" : "ghost"}
-                className="h-11 px-2 text-xs sm:h-8 sm:px-3 sm:text-sm"
+                className="h-11 px-2 sm:h-8 sm:px-3"
                 onClick={() => setTab(item)}
               >
                 {item === "overview" ? "Overview" : item === "events" ? "All events" : "Race Passports"}
@@ -419,7 +421,7 @@ export function UsersDirectory({ initialUsers }: { initialUsers: PlatformUser[] 
         </Select>
       </div>
 
-      <Card className="gap-0 overflow-hidden rounded-xl border py-0 shadow-card">
+      <Card className="gap-0 overflow-hidden border py-0">
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
@@ -480,7 +482,7 @@ export function UsersDirectory({ initialUsers }: { initialUsers: PlatformUser[] 
                 );
               }) : (
                 <TableRow>
-                  <TableCell colSpan={7} className="py-12 text-center text-[13px] text-muted-foreground">
+                  <TableCell colSpan={7} className="py-12 text-center">
                     No users match these filters.
                   </TableCell>
                 </TableRow>

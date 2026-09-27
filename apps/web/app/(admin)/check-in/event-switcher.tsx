@@ -1,5 +1,8 @@
 "use client";
 
+import { Label } from "@/components/ui/label";
+import { NativeSelect } from "@/components/ui/native-select";
+import { Button } from "@/components/ui/button";
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { EventCombobox } from "@/components/EventCombobox";
@@ -34,23 +37,23 @@ export function EventSwitcher({
   if (!mounted) {
     return (
       <form method="get" className="flex w-full min-w-0 items-center gap-1.5 sm:w-auto">
-        <label htmlFor="event" className="sr-only">Switch event</label>
-        <select
+        <Label htmlFor="event" className="sr-only">Switch event</Label>
+        <NativeSelect
           id="event"
           name="event"
           defaultValue={value}
-          className="min-w-0 flex-1 rounded-lg border bg-card px-2.5 py-[5px] text-[12.5px] font-semibold"
+          className="min-w-0 flex-1 border px-2.5 py-[5px]"
         >
           {events.map((e) => (
             <option key={e.id} value={e.id}>{e.name}</option>
           ))}
-        </select>
-        <button
+        </NativeSelect>
+        <Button variant="outline"
           type="submit"
-          className="shrink-0 cursor-pointer rounded-lg border bg-card px-2.5 py-[5px] text-[12.5px] font-semibold hover:bg-muted"
+          className="shrink-0 cursor-pointer border px-2.5 py-[5px]"
         >
           Switch
-        </button>
+        </Button>
       </form>
     );
   }

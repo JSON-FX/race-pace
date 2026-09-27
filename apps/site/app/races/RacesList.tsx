@@ -1,24 +1,27 @@
 "use client";
 
+import { Status } from "@race-pace/ui";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import Link from "next/link";
 import Image from "next/image";
 import { Clock, TriangleAlert } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { formatPeso } from "@race-pace/shared";
 import { useMyRegistrations, cancelRegistration, type RegistrationRow } from "@/lib/registration";
 import { holdExpired } from "@/lib/holdExpiry";
 import { StatusBadge } from "@/components/StatusBadge";
 import { TopoPattern } from "@/components/TopoPattern";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { longDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -83,15 +86,14 @@ function HoldBadge({ status, expiresAt }: { status: string; expiresAt: string | 
   if (!hold) return null;
   const Icon = hold.urgent ? TriangleAlert : Clock;
   return (
-    <span
+    <Status tone={hold.urgent ? "danger" : "warning"}
       className={cn(
-        "font-eyebrow inline-flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[1.5px]",
-        hold.urgent ? "border-destructive bg-destructive-tint text-destructive" : "border-amber bg-amber-tint text-amber",
+        "inline-flex shrink-0 items-center gap-1 border px-2.5 py-1 uppercase",
       )}
     >
       <Icon size={11} aria-hidden="true" />
       {hold.label}
-    </span>
+    </Status>
   );
 }
 
@@ -116,6 +118,7 @@ function Thumb({ reg, past }: { reg: RegistrationRow; past: boolean }) {
 
 export function RacesList() {
   const { data, isLoading } = useMyRegistrations();
+  const returnFocus = useRef<HTMLElement | null>(null);
   const queryClient = useQueryClient();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [tab, setTab] = useState<"upcoming" | "finished" | "inactive">("upcoming");
@@ -146,7 +149,7 @@ export function RacesList() {
     return (
       <div className="rounded-xl border border-dashed border-border py-20 text-center">
         <p className="text-[17px] text-muted-foreground">You haven&apos;t entered a race yet.</p>
-        <Button asChild className="mt-6 h-auto rounded-pill px-8 py-4 text-[16px] font-semibold">
+        <Button asChild className="mt-6 h-auto px-8 py-4">
           <Link href="/events">Browse races</Link>
         </Button>
       </div>
@@ -172,7 +175,8 @@ export function RacesList() {
     }
   }
 
-  function openConfirm(r: RegistrationRow) {
+  function openConfirm(r: RegistrationRow, trigger: HTMLElement) {
+    returnFocus.current = trigger;
     setDialogError(null);
     setConfirmTarget(r);
   }
@@ -208,28 +212,16 @@ export function RacesList() {
   ];
 
   return (
-    <div>
-      <div role="tablist" aria-label="Race entries" className="flex gap-4 overflow-x-auto border-b border-divider sm:gap-6">
+    <Tabs value={tab} onValueChange={(value) => setTab(value as typeof tab)} className="gap-0">
+      <TabsList aria-label="Race entries" className="flex gap-4 overflow-x-auto border-b border-divider sm:gap-6">
         {TABS.map((t) => (
-          <button
-            key={t.key}
-            role="tab"
-            type="button"
-            aria-selected={tab === t.key}
-            onClick={() => setTab(t.key)}
-            className={cn(
-              "relative -mb-px shrink-0 pb-3 text-[12.5px] font-semibold transition-colors sm:text-[13.5px]",
-              tab === t.key ? "text-foreground" : "text-muted-foreground hover:text-foreground",
-            )}
-          >
+          <TabsTrigger key={t.key} value={t.key} className="shrink-0">
             {t.label} · {t.count}
-            {tab === t.key ? (
-              <span className="absolute inset-x-0 bottom-0 h-[2.5px] rounded-pill bg-primary" />
-            ) : null}
-          </button>
+          </TabsTrigger>
         ))}
-      </div>
+      </TabsList>
 
+      <TabsContent value={tab}>
       {rows.length === 0 ? (
         <p className="py-16 text-center text-[15px] text-muted-foreground">
           {tab === "upcoming" ? "Nothing coming up." : tab === "finished" ? "No finished races yet." : "No inactive entries."}
@@ -295,7 +287,7 @@ export function RacesList() {
 
                   <div className="mt-3.5 flex flex-wrap items-center gap-2">
                     {r.status === "paid" ? (
-                      <Button asChild className="h-auto rounded-pill px-5 py-2.5 text-[13px] font-semibold">
+                      <Button asChild className="h-auto px-5 py-2.5">
                         <Link href={`/ticket/${r.id}`}>View ticket</Link>
                       </Button>
                     ) : null}
@@ -319,7 +311,7 @@ export function RacesList() {
                             .
                           </p>
                         ) : (
-                          <Button asChild className="h-auto rounded-pill px-5 py-2.5 text-[13px] font-semibold">
+                          <Button asChild className="h-auto px-5 py-2.5">
                             <Link href={r.bookingOrderId ? `/group/order/${r.bookingOrderId}` : `/pay/${r.id}`}>Complete payment</Link>
                           </Button>
                         )}
@@ -327,8 +319,8 @@ export function RacesList() {
                           type="button"
                           variant="outline"
                           disabled={busyId === r.id}
-                          onClick={() => openConfirm(r)}
-                          className="h-auto rounded-pill px-5 py-2.5 text-[13px] font-semibold text-destructive hover:text-destructive"
+                          onClick={(event) => openConfirm(r, event.currentTarget)}
+                          className="h-auto px-5 py-2.5"
                         >
                           {busyId === r.id ? "Discarding…" : "Discard"}
                         </Button> : null}
@@ -337,7 +329,7 @@ export function RacesList() {
                     <Button
                       asChild
                       variant="outline"
-                      className="h-auto rounded-pill px-5 py-2.5 text-[13px] font-semibold"
+                      className="h-auto px-5 py-2.5"
                     >
                       <Link href={`/events/${r.event_id}`}>Race details</Link>
                     </Button>
@@ -349,11 +341,13 @@ export function RacesList() {
         </div>
       )}
 
-      <Dialog open={!!confirmTarget} onOpenChange={(open) => !open && closeConfirm()}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Discard this entry?</DialogTitle>
-            <DialogDescription>
+      </TabsContent>
+
+      <AlertDialog open={!!confirmTarget} onOpenChange={(open) => !open && closeConfirm()}>
+        <AlertDialogContent className="max-w-md" onCloseAutoFocus={(event) => { event.preventDefault(); returnFocus.current?.focus(); }}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Discard this entry?</AlertDialogTitle>
+            <AlertDialogDescription>
               {confirmTarget ? (
                 <>
                   You&apos;ll lose your spot for{" "}
@@ -363,17 +357,17 @@ export function RacesList() {
                   need to register again with no guarantee of space.
                 </>
               ) : null}
-            </DialogDescription>
-          </DialogHeader>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
           {dialogError ? (
-            <p
+            <Alert variant="destructive"
               role="alert"
-              className="rounded-lg border border-destructive/30 bg-destructive-tint px-3.5 py-2.5 text-[13.5px] text-destructive"
-            >
+              className="border px-3.5 py-2.5"
+            ><AlertDescription>
               {dialogError}
-            </p>
+            </AlertDescription></Alert>
           ) : null}
-          <DialogFooter>
+          <AlertDialogFooter>
             <Button type="button" variant="outline" onClick={closeConfirm}>
               Keep entry
             </Button>
@@ -385,9 +379,9 @@ export function RacesList() {
             >
               {confirmTarget && busyId === confirmTarget.id ? "Discarding…" : "Yes, discard entry"}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </Tabs>
   );
 }

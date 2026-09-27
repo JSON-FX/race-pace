@@ -1,5 +1,7 @@
 "use client";
 
+import { Status } from "@race-pace/ui";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Clock, Lock } from "lucide-react";
@@ -46,21 +48,21 @@ export function RaceKitCard({
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-[15px] font-semibold text-foreground">Race kit</h2>
         {locked ? (
-          <span className="flex items-center gap-1 rounded-pill bg-amber-tint px-2.5 py-1 text-[12px] text-amber">
+          <Status tone="warning" className="flex items-center gap-1 px-2.5 py-1">
             <Lock size={12} aria-hidden="true" /> Locked
-          </span>
+          </Status>
         ) : daysLeft !== null ? (
           // info-tint/info, not the non-existent accent-tint/accent — see
           // globals.css's note on shadcn tokens for why an undeclared
           // `--color-*` produces a silently dropped, invisible utility.
-          <span className="rounded-pill bg-info-tint px-2.5 py-1 text-[12px] text-info">
+          <Status tone="info" className="px-2.5 py-1">
             {daysLeft} {daysLeft === 1 ? "day" : "days"} left
-          </span>
+          </Status>
         ) : null}
       </div>
 
       {collection ? <p className="mb-3 text-sm font-medium">Collected {fmt(collection.released_at)}</p>
-        : collectionState === "error" ? <p role="alert" className="mb-3 text-sm">Collection status unavailable. Refresh before changing your kit.</p>
+        : collectionState === "error" ? <Alert role="alert" className="mb-3"><AlertDescription>Collection status unavailable. Refresh before changing your kit.</AlertDescription></Alert>
         : collectionState === "loading" ? <p className="mb-3 text-sm">Checking collection status…</p>
         : registrationId ? <p className="mb-3 text-sm">Not collected yet. Bring your ticket when collecting your complete kit.</p> : null}
       <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Shirt size</p>
@@ -69,7 +71,7 @@ export function RaceKitCard({
           {collection?.kit.shirt_size ?? shirtSize ?? "—"}
         </span>
         {locked ? null : (
-          <Button type="button" variant="outline" className="rounded-pill" onClick={onChange}>
+          <Button type="button" variant="outline" className="" onClick={onChange}>
             Change
           </Button>
         )}

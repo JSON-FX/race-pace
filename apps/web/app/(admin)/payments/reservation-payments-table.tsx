@@ -1,5 +1,10 @@
 "use client";
 
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { FormSelect } from "@race-pace/ui";
+import { Button } from "@/components/ui/button";
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell, TableFooter } from "@/components/ui/table";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Search, X } from "lucide-react";
@@ -50,39 +55,39 @@ export function ReservationPaymentsTable({ rows, eventId }: { rows: ReservationP
       </Link>
     </div>
     <div className="my-4 flex flex-wrap items-end gap-2" aria-label="Reservation payment filters">
-      <label className="relative block min-w-[210px] flex-1 sm:max-w-[300px]">
+      <Label className="relative block min-w-[210px] flex-1 sm:max-w-[300px]">
         <span className="sr-only">Search reservation payments</span>
         <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-        <input type="search" value={search} onChange={(event) => update(() => setSearch(event.target.value))}
-          placeholder="Search runner or event" className="h-9 w-full rounded-md border border-divider bg-card pl-9 pr-3 text-sm" />
-      </label>
-      <label className="grid gap-1 text-xs text-muted-foreground"><span>Method</span>
-        <select value={method} onChange={(event) => update(() => setMethod(event.target.value))}
-          className="h-9 min-w-[125px] rounded-md border border-divider bg-card px-2 text-sm text-foreground">
+        <Input type="search" value={search} onChange={(event) => update(() => setSearch(event.target.value))}
+          placeholder="Search runner or event" className="h-9 w-full border pl-9 pr-3" />
+      </Label>
+      <Label className="grid gap-1"><span>Method</span>
+        <FormSelect value={method} onChange={(event) => update(() => setMethod(event.target.value))}
+          className="h-9 min-w-[125px] border px-2">
           <option value="all">All methods</option>
           {methods.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-        </select>
-      </label>
-      <label className="grid gap-1 text-xs text-muted-foreground"><span>Paid from</span>
-        <input type="date" value={from} max={to || undefined} onChange={(event) => update(() => setFrom(event.target.value))}
-          className="h-9 rounded-md border border-divider bg-card px-2 text-sm text-foreground" />
-      </label>
-      <label className="grid gap-1 text-xs text-muted-foreground"><span>Paid to</span>
-        <input type="date" value={to} min={from || undefined} onChange={(event) => update(() => setTo(event.target.value))}
-          className="h-9 rounded-md border border-divider bg-card px-2 text-sm text-foreground" />
-      </label>
-      {filteredByUser ? <button type="button" onClick={() => { setSearch(""); setMethod("all"); setFrom(""); setTo(""); setPage(1); }}
-        className="inline-flex h-9 items-center gap-1 rounded-md border border-divider px-3 text-xs font-semibold hover:bg-muted"><X className="size-3" />Clear</button> : null}
+        </FormSelect>
+      </Label>
+      <Label className="grid gap-1"><span>Paid from</span>
+        <Input type="date" value={from} max={to || undefined} onChange={(event) => update(() => setFrom(event.target.value))}
+          className="h-9 border px-2" />
+      </Label>
+      <Label className="grid gap-1"><span>Paid to</span>
+        <Input type="date" value={to} min={from || undefined} onChange={(event) => update(() => setTo(event.target.value))}
+          className="h-9 border px-2" />
+      </Label>
+      {filteredByUser ? <Button variant="outline" type="button" onClick={() => { setSearch(""); setMethod("all"); setFrom(""); setTo(""); setPage(1); }}
+        className="inline-flex h-9 items-center gap-1 border px-3"><X className="size-3" />Clear</Button> : null}
     </div>
-    <Card className="gap-0 overflow-x-auto rounded-xl border py-0 shadow-card">
-      <table className="w-full min-w-[850px] text-left text-sm">
-        <thead><tr className="border-b border-divider text-xs text-muted-foreground">
-          <th className="p-3">Runner / event</th><th className="p-3">Paid / method</th>
-          <th className="p-3 text-right">Gross</th><th className="p-3 text-right">Platform Fees</th>
-          <th className="p-3 text-right">PayMongo</th><th className="p-3 text-right">Net to organizer</th>
-        </tr></thead>
-        <tbody>{visible.length ? visible.map((row) => <tr key={row.id} className="border-b border-divider/70 last:border-0">
-          <td className="p-3"><div className="flex items-center gap-2.5">
+    <Card className="gap-0 overflow-x-auto border py-0">
+      <Table className="w-full min-w-[850px] text-left">
+        <TableHeader><TableRow className="border-b">
+          <TableHead className="p-3">Runner / event</TableHead><TableHead className="p-3">Method</TableHead><TableHead className="p-3">Paid date</TableHead>
+          <TableHead className="p-3 text-right">Gross</TableHead><TableHead className="p-3 text-right">Platform Fees</TableHead>
+          <TableHead className="p-3 text-right">PayMongo</TableHead><TableHead className="p-3 text-right">Net to organizer</TableHead>
+        </TableRow></TableHeader>
+        <TableBody>{visible.length ? visible.map((row) => <TableRow key={row.id} className="border-b last:border-0">
+          <TableCell className="p-3"><div className="flex items-center gap-2.5">
             <PhotoAvatar url={row.runner_avatar_url} className="size-[30px]"
               fallbackClassName={`text-[11.5px] font-bold ${avatarTint(row.id).bg} ${avatarTint(row.id).fg}`}
               fallback={initials(row.runner_name ?? row.runner_email)} />
@@ -91,28 +96,29 @@ export function ReservationPaymentsTable({ rows, eventId }: { rows: ReservationP
               <Link href={`/events/${row.event_id}/reservations`} className="block truncate text-xs text-primary hover:underline">{row.event_name}</Link>
               {row.runner_name ? <div className="truncate text-[11px] text-muted-foreground">{row.runner_email}</div> : null}
             </div>
-          </div></td>
-          <td className="p-3"><div>{row.paid_at ? fmtDate(row.paid_at) : "—"}</div><MethodBadge method={row.method} status="paid" /></td>
-          <td className="p-3 text-right tabular-nums">{peso(row.amount_cents)}</td>
-          <td className="p-3 text-right tabular-nums">{peso(row.platform_fee_cents)}</td>
-          <td className="p-3 text-right tabular-nums">{peso(row.processor_fee_cents)}</td>
-          <td className="p-3 text-right font-semibold tabular-nums">{peso(row.net_to_org_cents)}</td>
-        </tr>) : <tr><td colSpan={6} className="p-8 text-center text-sm text-muted-foreground">No reservation payments match these filters.</td></tr>}</tbody>
-        <tfoot><tr className="bg-muted/30 font-bold">
-          <td className="p-3" colSpan={2}>{filteredByUser ? "Filtered totals" : "Reservation totals"}</td>
-          <td className="p-3 text-right tabular-nums">{peso(totals.gross)}</td>
-          <td className="p-3 text-right tabular-nums">{peso(totals.platform)}</td>
-          <td className="p-3 text-right tabular-nums">{peso(totals.processing)}</td>
-          <td className="p-3 text-right tabular-nums">{peso(totals.net)}</td>
-        </tr></tfoot>
-      </table>
+          </div></TableCell>
+          <TableCell className="p-3"><MethodBadge method={row.method} status="paid" /></TableCell>
+          <TableCell className="p-3 tabular-nums text-muted-foreground">{row.paid_at ? fmtDate(row.paid_at) : "—"}</TableCell>
+          <TableCell className="p-3 text-right tabular-nums">{peso(row.amount_cents)}</TableCell>
+          <TableCell className="p-3 text-right tabular-nums">{peso(row.platform_fee_cents)}</TableCell>
+          <TableCell className="p-3 text-right tabular-nums">{peso(row.processor_fee_cents)}</TableCell>
+          <TableCell className="p-3 text-right tabular-nums">{peso(row.net_to_org_cents)}</TableCell>
+        </TableRow>) : <TableRow><TableCell colSpan={7} className="p-8 text-center">No reservation payments match these filters.</TableCell></TableRow>}</TableBody>
+        <TableFooter><TableRow className="">
+          <TableCell className="p-3" colSpan={3}>{filteredByUser ? "Filtered totals" : "Reservation totals"}</TableCell>
+          <TableCell className="p-3 text-right tabular-nums">{peso(totals.gross)}</TableCell>
+          <TableCell className="p-3 text-right tabular-nums">{peso(totals.platform)}</TableCell>
+          <TableCell className="p-3 text-right tabular-nums">{peso(totals.processing)}</TableCell>
+          <TableCell className="p-3 text-right tabular-nums">{peso(totals.net)}</TableCell>
+        </TableRow></TableFooter>
+      </Table>
     </Card>
     <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
       <span>Showing {visible.length ? (page - 1) * PAGE_SIZE + 1 : 0}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length} reservation payments</span>
       {pageCount > 1 ? <div className="flex items-center gap-2">
-        <button type="button" disabled={page === 1} onClick={() => setPage(page - 1)} className="rounded-md border border-divider px-2 py-1 disabled:opacity-40">Previous</button>
+        <Button variant="outline" type="button" disabled={page === 1} onClick={() => setPage(page - 1)} className="border px-2 py-1 disabled:opacity-40">Previous</Button>
         <span>Page {page} of {pageCount}</span>
-        <button type="button" disabled={page === pageCount} onClick={() => setPage(page + 1)} className="rounded-md border border-divider px-2 py-1 disabled:opacity-40">Next</button>
+        <Button variant="outline" type="button" disabled={page === pageCount} onClick={() => setPage(page + 1)} className="border px-2 py-1 disabled:opacity-40">Next</Button>
       </div> : null}
     </div>
   </section>;

@@ -1,0 +1,57 @@
+{
+  "date": "2026-09-27",
+  "base": "1188768f33ea4999407774c15fc3146d8e72cc25",
+  "audit": {
+    "baselineModules": 256,
+    "currentModules": 295,
+    "catalogEntries": 63,
+    "unresolved": [],
+    "duplicatePrimitives": []
+  },
+  "tests": {
+    "sharedUI": 8,
+    "runner": 483,
+    "admin": 937,
+    "backendAndSharedContracts": 769,
+    "adminE2E": 9
+  },
+  "responsive": {
+    "states": 108,
+    "documentOverflow": 0,
+    "pageErrors": 0,
+    "widths": [
+      320,
+      768,
+      1440
+    ],
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "reducedMotion": true
+  },
+  "browserInteractionCases": 30,
+  "environment": "isolated local Supabase racepace-fieldnotes-validation, API 54621, database 54622; Next apps 3120/3121",
+  "release": "not committed, pushed or deployed",
+  "annotationRound": {
+    "report": "fieldnotes-annotations-verification.md",
+    "annotationsCorrected": 23,
+    "canonicalPrimitives": 39,
+    "tests": {
+      "sharedUI": 13,
+      "runner": 483,
+      "admin": 939,
+      "adminE2EPassedAcrossRuns": 8,
+      "adminE2ESkipped": 1
+    },
+    "sourceAuditUnresolved": 0,
+    "isolatedBuilds": "both pass",
+    "localEvents": {
+      "removed": 202,
+      "remaining": 2,
+      "open": "kitanglad-skyline-ultra",
+      "comingSoon": "kalatungan-forest-traverse"
+    },
+    "dataDependentLimit": "populated reservation states absent after requested cleanup"
+  }
+}

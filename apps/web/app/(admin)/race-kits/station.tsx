@@ -1,4 +1,11 @@
 "use client";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { FormSelect } from "@race-pace/ui";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -156,17 +163,17 @@ export function KitStation({ eventId }: { eventId: string }) {
             setPage(0);
           }}
         >
-          <input
+          <Input
             aria-label="Search runners or bib names"
             placeholder="Search runner, bib name or registration ID"
-            className="min-w-52 flex-1 rounded-lg border bg-background p-2 text-sm"
+            className="min-w-52 flex-1 border p-2"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
           <Button variant="outline">Search</Button>
-          <select
+          <FormSelect
             aria-label="Kit status"
-            className="rounded-lg border bg-background p-2 text-sm"
+            className="border p-2"
             value={filter}
             onChange={(e) => {
               setFilter(e.target.value);
@@ -176,7 +183,7 @@ export function KitStation({ eventId }: { eventId: string }) {
             <option value="all">All kits</option>
             <option value="unreleased">Not released</option>
             <option value="released">Released</option>
-          </select>
+          </FormSelect>
           <Button
             type="button"
             variant="outline"
@@ -198,10 +205,10 @@ export function KitStation({ eventId }: { eventId: string }) {
             void findTicket();
           }}
         >
-          <input
+          <Input
             aria-label="Scanned ticket"
             placeholder="Scan or paste the runner’s ticket"
-            className="min-w-52 flex-1 rounded-lg border bg-background p-2 text-sm"
+            className="min-w-52 flex-1 border p-2"
             value={scan}
             onChange={(e) => setScan(e.target.value)}
             autoComplete="off"
@@ -216,45 +223,45 @@ export function KitStation({ eventId }: { eventId: string }) {
         {loading ? (
           <p role="status">Loading kits…</p>
         ) : loadError ? (
-          <p role="alert">Couldn’t load the kit roster. Please refresh.</p>
+          <Alert role="alert"><AlertDescription>Couldn’t load the kit roster. Please refresh.</AlertDescription></Alert>
         ) : (
           <>
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="border-b text-muted-foreground">
-                  <tr>
+              <Table className="w-full text-left">
+                <TableHeader className="border-b">
+                  <TableRow>
                     {["Runner", "Kit", "Status", "Action"].map((h) => (
-                      <th key={h} className="p-3">
+                      <TableHead key={h} className="p-3">
                         {h}
-                      </th>
+                      </TableHead>
                     ))}
-                  </tr>
-                </thead>
-                <tbody>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {rows.map((row) => (
-                    <tr key={row.registration_id} className="border-b">
-                      <td className="p-3">
+                    <TableRow key={row.registration_id} className="border-b">
+                      <TableCell className="p-3">
                         <p className="font-medium">{row.runner}</p>
                         <p className="text-xs text-muted-foreground">
                           {row.category} · Bib name: {row.bib ?? "—"}
                         </p>
-                      </td>
-                      <td className="p-3">
+                      </TableCell>
+                      <TableCell className="p-3">
                         Shirt: {row.kit.shirt_size ?? "Not selected"}
                         <p className="text-xs text-muted-foreground">
                           {row.kit.addons.map((a) => a.name).join(", ") ||
                             "No add-ons"}
                         </p>
-                      </td>
-                      <td className="p-3">
+                      </TableCell>
+                      <TableCell className="p-3">
                         {kitState(row)}
                         {row.released_at && (
                           <p className="text-xs text-muted-foreground">
                             {new Date(row.released_at).toLocaleString()}
                           </p>
                         )}
-                      </td>
-                      <td className="p-3">
+                      </TableCell>
+                      <TableCell className="p-3">
                         {row.release_id ? (
                           row.can_reverse && (
                             <Button
@@ -276,22 +283,22 @@ export function KitStation({ eventId }: { eventId: string }) {
                             Review kit
                           </Button>
                         )}
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
                   {!rows.length && (
-                    <tr>
-                      <td colSpan={4} className="p-5 text-center">
+                    <TableRow>
+                      <TableCell colSpan={4} className="p-5 text-center">
                         No kits match these filters.
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   )}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
-            <div className="flex items-center justify-between gap-3 text-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
               <span>{total} registrations</span>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Button
                   variant="outline"
                   disabled={page === 0}
@@ -340,30 +347,30 @@ export function KitStation({ eventId }: { eventId: string }) {
                   "No add-ons"}
               </p>
               {review.row.release_id ? (
-                <label className="grid gap-1 text-sm">
+                <Label className="grid gap-1">
                   Reason for reversal
-                  <textarea
+                  <Textarea
                     aria-label="Reason for reversal"
-                    className="rounded-lg border p-2"
+                    className="border p-2"
                     value={reason}
                     maxLength={500}
                     onChange={(e) => setReason(e.target.value)}
                   />
-                </label>
+                </Label>
               ) : (
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
+                <Label className="flex items-center gap-2">
+                  <Checkbox
+
                     checked={present}
-                    onChange={(e) => setPresent(e.target.checked)}
+                    onCheckedChange={(checked) => setPresent(checked === true)}
                   />
                   The runner is here and I have checked the complete kit.
-                </label>
+                </Label>
               )}
               {error && (
-                <p role="alert" className="text-sm text-destructive">
+                <Alert variant="destructive" role="alert" className=""><AlertDescription>
                   {error}
-                </p>
+                </AlertDescription></Alert>
               )}
               <Button
                 disabled={

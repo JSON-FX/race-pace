@@ -1,6 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useRef, useState } from "react";
+import { ChoiceGroup } from "@race-pace/ui";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { SHIRT_SIZES } from "@race-pace/shared";
 import { Button } from "@/components/ui/button";
 import { updateShirtSize, kitEditMessage, type KitEditResult } from "@/lib/kit";
@@ -20,6 +23,7 @@ export function ShirtSizeSheet({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const returnFocus = useRef(typeof document === "undefined" ? null : document.activeElement as HTMLElement | null);
   const [picked, setPicked] = useState(current);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -39,48 +43,31 @@ export function ShirtSizeSheet({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end bg-black/50" role="dialog" aria-label="Change shirt size">
-      <div className="w-full rounded-t-2xl bg-card p-5">
-        <h2 className="text-[17px] font-semibold text-foreground">Shirt size</h2>
-        <p className="mt-1 text-[13px] text-muted-foreground">
-          Pick the size you want printed. You can change it until the organiser locks sizes.
-        </p>
-
-        {/* min-h-11 (44px) keeps every option at the minimum touch target — this is a
-            mobile-first page and small pills are a mis-tap generator. */}
-        <div className="mt-4 grid grid-cols-3 gap-2">
-          {SHIRT_SIZES.map((s) => (
-            <button
-              key={s}
-              type="button"
-              aria-pressed={picked === s}
-              onClick={() => setPicked(s)}
-              className={`min-h-11 rounded-xl border text-[15px] font-semibold ${
-                picked === s
-                  ? "border-accent bg-accent text-accent-foreground"
-                  : "border-border text-foreground"
-              }`}
-            >
-              {s}
-            </button>
-          ))}
+    <Sheet open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <SheetContent side="bottom" className="gap-0 p-5" onCloseAutoFocus={(event) => { event.preventDefault(); returnFocus.current?.focus(); }}>
+        <SheetHeader className="p-0">
+          <SheetTitle>Shirt size</SheetTitle>
+          <SheetDescription>Pick the size you want printed. You can change it until the organiser locks sizes.</SheetDescription>
+        </SheetHeader>
+        <div className="mt-4">
+          <ChoiceGroup label="Choose shirt size" value={picked ?? ""} options={SHIRT_SIZES.map((size) => ({ value: size, label: size }))} onValueChange={setPicked} className="grid grid-cols-3" />
         </div>
 
         {message ? (
-          <p role="alert" className="mt-4 rounded-xl border border-amber bg-amber-tint px-4 py-3 text-[13px] text-foreground">
+          <Alert role="alert" className="mt-4 border px-4 py-3"><AlertDescription>
             {message}
-          </p>
+          </AlertDescription></Alert>
         ) : null}
 
         <div className="mt-5 flex gap-3">
-          <Button type="button" variant="outline" className="h-auto flex-1 rounded-pill py-3" onClick={onClose}>
+          <Button type="button" variant="outline" className="h-auto flex-1 py-3" onClick={onClose}>
             Cancel
           </Button>
-          <Button type="button" className="h-auto flex-1 rounded-pill py-3" disabled={saving || !picked} onClick={save}>
+          <Button type="button" className="h-auto flex-1 py-3" loading={saving} disabled={!picked} onClick={save}>
             {saving ? "Saving…" : "Save"}
           </Button>
         </div>
-      </div>
-    </div>
+      </SheetContent>
+    </Sheet>
   );
 }

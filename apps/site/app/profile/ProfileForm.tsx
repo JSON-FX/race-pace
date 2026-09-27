@@ -1,16 +1,14 @@
 "use client";
 
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useEffect, useState } from "react";
 import { PassportEditor } from "./PassportEditor";
 import { getProfile, upsertProfile, type Profile } from "@/lib/profile";
 import type { PhotoKind } from "@/lib/profileImage";
-import { signOut } from "@/lib/auth";
 import { PassportPhotos } from "./PassportPhotos";
 import { useMyRegistrations } from "@/lib/registration";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { CountUp } from "@/components/event/motion-primitives";
-import { LogOut } from "lucide-react";
 
 /** "Jamie Cruz" -> "JC"; an unset name falls back to a single trail-green
  *  waypoint mark rather than empty air, so the passport card never looks broken. */
@@ -79,21 +77,16 @@ export function ProfileForm({ userId, email }: { userId: string; email?: string 
     setProfile((p) => ({ ...p, [column]: url }));
   }
   return <div>
-    <Card className="relative gap-0 overflow-hidden py-0 shadow-sm">
+    <Card className="relative gap-0 overflow-hidden py-0">
       <PassportPhotos userId={userId} name={profile.full_name} mark={initials(profile.full_name)} avatarUrl={profile.avatar_url} coverUrl={profile.cover_url} onChange={savePhoto} />
       <dl className="grid grid-cols-2 border-t border-divider bg-card lg:absolute lg:bottom-5 lg:right-5 lg:w-64 lg:grid-cols-1 lg:overflow-hidden lg:rounded-xl lg:border lg:border-white/15 lg:bg-forest/90 lg:shadow-xl lg:backdrop-blur-md">
         <Figure label="Races" value={career.races} />
         <Figure label="Distance" value={career.km} unit="km" />
       </dl>
     </Card>
-    {error && <p role="alert" className="mt-3 text-sm text-destructive">{error}</p>}
+    {error && <Alert variant="destructive" role="alert" className="mt-3"><AlertDescription>{error}</AlertDescription></Alert>}
     <PassportEditor key={userId} userId={userId} email={email} onSaved={(passport) => {
       if (passport.claimed_user_id === userId) setProfile((p) => ({ ...p, full_name: [passport.first_name, passport.last_name].filter(Boolean).join(" ") }));
     }} />
-    <div className="mt-6 flex justify-end">
-      <Button type="button" variant="outline" onClick={() => signOut().then(() => window.location.assign("/"))}>
-        <LogOut aria-hidden /> Sign out
-      </Button>
-    </div>
   </div>;
 }

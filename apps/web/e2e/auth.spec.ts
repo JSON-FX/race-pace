@@ -11,7 +11,7 @@ test("a wrong password shows an error and does not navigate", async ({ page }) =
   await page.goto("/login");
   await page.getByLabel("Email").fill(ADMIN.email);
   await page.getByLabel("Password").fill("wrong-password");
-  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
   // Next's route announcer also carries role="alert" (empty, for SR route
   // changes) — scope to the form's own error paragraph.
   await expect(page.locator("form").getByRole("alert")).toContainText("don't match");
@@ -22,7 +22,7 @@ test("an admin signs in, sees the shell, and lands on the default /events page",
   await page.goto("/login");
   await page.getByLabel("Email").fill(ADMIN.email);
   await page.getByLabel("Password").fill(ADMIN.password);
-  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page).toHaveURL(/\/events$/);
   await expect(page.getByRole("heading", { name: "Events" })).toBeVisible();
   // The shared chrome from Task 4/V1 — sidebar nav to the other admin pages.
@@ -33,7 +33,7 @@ test("signing in returns to the originally requested page via ?next=", async ({ 
   await page.goto("/login?next=%2Fsettings");
   await page.getByLabel("Email").fill(ADMIN.email);
   await page.getByLabel("Password").fill(ADMIN.password);
-  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page).toHaveURL(/\/settings$/);
 });
 
@@ -52,7 +52,7 @@ test("a non-admin lands on /no-access", async ({ page }) => {
   await page.goto("/login");
   await page.getByLabel("Email").fill(NONADMIN!.email);
   await page.getByLabel("Password").fill(NONADMIN!.password);
-  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page).toHaveURL(/\/no-access$/);
-  await expect(page.getByRole("heading", { name: "No admin access" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "This account isn't registered" })).toBeVisible();
 });

@@ -1,3 +1,5 @@
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { CalendarDays, ChevronDown, ShieldCheck } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { TableEmptyState } from "@/components/data-table";
@@ -56,7 +58,7 @@ export default async function CheckInPage({
     return (
       <Shell>
         <h1 className="mb-5 text-[21px] font-bold tracking-[-0.02em]">Check-in</h1>
-        <Card className="gap-0 overflow-hidden rounded-xl border py-0 shadow-card">
+        <Card className="gap-0 overflow-hidden border py-0">
           <TableEmptyState
             title="Couldn't load your events"
             description="The check-in roster didn't load. Refresh the page — if it keeps failing, your account may not be scoped to any event."
@@ -73,7 +75,7 @@ export default async function CheckInPage({
     return (
       <Shell>
         <h1 className="mb-5 text-[21px] font-bold tracking-[-0.02em]">Check-in</h1>
-        <Card className="gap-0 overflow-hidden rounded-xl border py-0 shadow-card">
+        <Card className="gap-0 overflow-hidden border py-0">
           <TableEmptyState
             title="No events to check runners in to"
             description="Check-in opens once you have an event. Create one under Events, or ask an org admin to scope your account to a race."
@@ -85,7 +87,7 @@ export default async function CheckInPage({
 
   const { data: required, error: modeError } = await supabase.rpc("checkin_event_required", { p_event_id: event.id });
   if (modeError || typeof required !== "boolean") {
-    return <Shell><Card className="p-5" role="alert">Couldn’t load this event’s check-in setting. Refresh and try again.</Card></Shell>;
+    return <Shell><Alert className="p-5" role="alert"><AlertDescription>Couldn’t load this event’s check-in setting. Refresh and try again.</AlertDescription></Alert></Shell>;
   }
   const { data: rosterData } = required
     ? await supabase.rpc("checkin_roster", { p_event_id: event.id })
@@ -127,13 +129,13 @@ export default async function CheckInPage({
         </>
       )}
 
-      {required && <details className="fieldnotes-rules">
-        <summary><ShieldCheck className="size-4 text-primary" aria-hidden /><span>Check-in safeguards</span><ChevronDown className="size-4 text-muted-foreground" aria-hidden /></summary>
+      {required && <Collapsible className="fieldnotes-rules">
+        <CollapsibleTrigger><ShieldCheck className="size-4 text-primary" aria-hidden /><span>Check-in safeguards</span><ChevronDown className="size-4 text-muted-foreground" aria-hidden /></CollapsibleTrigger><CollapsibleContent forceMount className="data-[state=closed]:hidden">
         <div className="fieldnotes-rules__content">
           <div><strong>Unpaid entries stay blocked</strong><p>The server refuses check-in with <code>not_paid</code> (409). Take payment before checking the runner in.</p></div>
           <div><strong>Repeat scans stay distinct</strong><p>The server returns <code>already: true</code>. The station shows &ldquo;already checked in&rdquo; instead of a new success.</p></div>
         </div>
-      </details>}
+      </CollapsibleContent></Collapsible>}
     </Shell>
   );
 }

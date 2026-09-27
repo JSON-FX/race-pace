@@ -1,3 +1,5 @@
+import { Badge } from "@/components/ui/badge";
+
 import {
   ArrowUpRight,
   Check,
@@ -81,7 +83,7 @@ export function CourseAtlas() {
                       <span className="block text-[14px] font-bold text-foreground">{label}</span>
                       <span className="mt-1 block text-[12px] text-muted-foreground">{note}</span>
                     </span>
-                    <span className="font-mono-race text-[10px] font-bold text-muted-foreground">0{index + 1}</span>
+                    <span className="font-mono-race text-xl font-semibold tabular-nums text-primary">0{index + 1}</span>
                   </li>
                 ))}
               </ol>
@@ -239,10 +241,10 @@ export function CourseAtlas() {
                 Whether you are preparing to run or organizing the start line, send us your question. We&apos;ll route it to the right person.
               </p>
               <div className="mt-5 flex flex-wrap gap-2" aria-label="Inquiry topics">
-                <span className="rounded-pill border border-forest/12 bg-secondary/45 px-3 py-1.5 text-[12px] font-semibold">Runner support</span>
-                <span className="rounded-pill border border-forest/12 bg-secondary/45 px-3 py-1.5 text-[12px] font-semibold">Organizer access</span>
+                <Badge variant="secondary" className="border border-forest/12 px-3 py-1.5">Runner support</Badge>
+                <Badge variant="secondary" className="border border-forest/12 px-3 py-1.5">Organizer access</Badge>
               </div>
-              <Button asChild className="mt-6 h-12 w-full rounded-pill text-[15px] font-bold shadow-none">
+              <Button asChild className="mt-6 h-12 w-full">
                 <Link href="/inquiry">
                   Send an inquiry <ArrowUpRight aria-hidden="true" />
                 </Link>

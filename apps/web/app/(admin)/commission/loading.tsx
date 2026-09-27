@@ -16,14 +16,14 @@ export default function Loading() {
 
       <div className="mb-[18px] grid grid-cols-2 gap-3 min-[760px]:grid-cols-4">
         {Array.from({ length: 4 }, (_, i) => (
-          <Card key={i} className="gap-0 rounded-xl border px-[15px] py-[14px] shadow-card">
+          <Card key={i} className="gap-0 border px-[15px] py-[14px]">
             <Skeleton className="h-3 w-24" />
             <Skeleton className="mt-[9px] h-6 w-28" />
           </Card>
         ))}
       </div>
 
-      <Card className="gap-0 rounded-xl border py-0 shadow-card">
+      <Card className="gap-0 border py-0">
         <div className="border-b bg-muted/40 p-3"><Skeleton className="h-3 w-full max-w-md" /></div>
         {Array.from({ length: 5 }, (_, i) => (
           <div key={i} className="flex items-center gap-4 border-b p-4 last:border-b-0">

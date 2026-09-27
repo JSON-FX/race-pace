@@ -1,5 +1,10 @@
 "use client";
 
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Spinner } from "@/components/ui/spinner";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useEffect, useRef, useState } from "react";
 import { Camera, Loader2, Move, Trash2 } from "lucide-react";
 import {
@@ -107,7 +112,7 @@ export function PassportPhotos({
   /** A hidden file input per photo. `value` is cleared on every pick so that
    *  re-choosing the same file still fires change. */
   const fileInput = (kind: PhotoKind) => (
-    <input
+    <Input
       ref={inputs[kind]}
       type="file"
       accept="image/jpeg,image/png,image/webp"
@@ -130,7 +135,7 @@ export function PassportPhotos({
           breakpoint would stretch the photo at one size or the other. */}
       <div
         className="relative w-full overflow-hidden bg-forest"
-        style={{ aspectRatio: PHOTO_ASPECT.cover }}
+        style={{ aspectRatio: PHOTO_ASPECT.cover, minHeight: 208 }}
       >
         {cover ? (
           // Not next/image: the URL is runner-set, may be absent, and the
@@ -180,7 +185,7 @@ export function PassportPhotos({
         {/* Identity, sitting on the photo rather than in a band beneath it. */}
         <div className="absolute inset-x-0 bottom-0 flex items-end gap-4 px-5 pb-4">
           <div className="relative shrink-0">
-            <span className="relative flex size-20 items-center justify-center overflow-hidden rounded-full border-2 border-white/70 bg-forest/70 font-display text-[24px] font-extrabold tracking-[-0.2px] text-white backdrop-blur-sm">
+            <Avatar className="relative flex size-24 sm:size-28 items-center justify-center overflow-hidden rounded-full border-2 border-white/70 bg-forest/70 font-display text-[32px] font-extrabold tracking-[-0.2px] text-white backdrop-blur-sm">
               {avatar ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
@@ -189,22 +194,22 @@ export function PassportPhotos({
                   style={framedImageStyle(avatar.framing)}
                 />
               ) : (
-                <span aria-hidden>{mark || "◈"}</span>
+                <AvatarFallback aria-hidden className="bg-transparent text-inherit text-[inherit]">{mark || "◈"}</AvatarFallback>
               )}
-            </span>
-            <button
+            </Avatar>
+            <Button variant="default" size="icon"
               type="button"
               onClick={() => inputs.avatar.current?.click()}
               disabled={busy !== null}
               aria-label={avatar ? "Change profile photo" : "Add profile photo"}
-              className="absolute -bottom-0.5 -right-0.5 flex size-7 items-center justify-center rounded-full border-2 border-white/70 bg-primary text-white transition-colors hover:bg-primary-focus disabled:opacity-60"
+              className="absolute -bottom-0.5 -right-0.5 flex size-7 items-center justify-center border-2 disabled:opacity-60"
             >
               {busy === "avatar" ? (
-                <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                <Spinner className="size-3.5 animate-spin" aria-hidden />
               ) : (
                 <Camera className="size-3.5" aria-hidden />
               )}
-            </button>
+            </Button>
           </div>
 
           <div className="min-w-0 pb-0.5">
@@ -230,9 +235,9 @@ export function PassportPhotos({
       {fileInput("cover")}
 
       {error ? (
-        <p role="alert" className="bg-card px-5 pt-3 text-[13px] text-destructive">
+        <Alert variant="destructive" role="alert" className="px-5 pt-3"><AlertDescription>
           {error}
-        </p>
+        </AlertDescription></Alert>
       ) : null}
 
       {/* Mounted only while framing, so every session starts from a clean
@@ -261,14 +266,14 @@ function TextAction({
   children: React.ReactNode;
 }) {
   return (
-    <button
+    <Button variant="secondary"
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="text-[11px] font-bold uppercase tracking-[1px] text-white/70 hover:text-white disabled:opacity-60"
+      className="uppercase disabled:opacity-60"
     >
       {children}
-    </button>
+    </Button>
   );
 }
 
@@ -286,14 +291,14 @@ function PhotoButton({
   children: React.ReactNode;
 }) {
   return (
-    <button
+    <Button variant="secondary"
       type="button"
       onClick={onClick}
       disabled={disabled}
       aria-label={label}
-      className="flex items-center gap-1.5 rounded-pill bg-black/45 px-2.5 py-1.5 text-white backdrop-blur-sm transition-colors hover:bg-black/65 disabled:opacity-60"
+      className="flex items-center gap-1.5 px-2.5 py-1.5 backdrop-blur-sm disabled:opacity-60"
     >
-      {busy ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : children}
-    </button>
+      {busy ? <Spinner className="size-3.5 animate-spin" aria-hidden /> : children}
+    </Button>
   );
 }

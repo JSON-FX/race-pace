@@ -1,5 +1,6 @@
 "use client";
 
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useState } from "react";
 import { toast } from "sonner";
 import {
@@ -41,7 +42,7 @@ export function BulkCancelDialog({ ids, onDone, onClose }: {
 
   return (
     <AlertDialog open onOpenChange={(o) => { if (!o && !busy) onClose(); }}>
-      <AlertDialogContent className="w-[380px] rounded-xl">
+      <AlertDialogContent className="w-[380px]">
         <AlertDialogHeader>
           <AlertDialogTitle className="text-[17px] font-bold">
             Cancel {ids.length} registration{ids.length === 1 ? "" : "s"}?
@@ -51,7 +52,7 @@ export function BulkCancelDialog({ ids, onDone, onClose }: {
             way — refund them individually instead. This can&apos;t be undone.
           </AlertDialogDescription>
         </AlertDialogHeader>
-        {error ? <span role="alert" className="text-[13px] text-destructive">{error}</span> : null}
+        {error ? <Alert variant="destructive" role="alert" className=""><AlertDescription>{error}</AlertDescription></Alert> : null}
         <AlertDialogFooter>
           <AlertDialogCancel className="rounded-pill" disabled={busy}>Keep them</AlertDialogCancel>
           <AlertDialogAction

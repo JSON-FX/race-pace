@@ -13,7 +13,7 @@ import { Card } from "@/components/ui/card";
  */
 export function NoOrgScope() {
   return (
-    <Card className="gap-0 overflow-hidden rounded-xl border py-0 shadow-card">
+    <Card className="gap-0 overflow-hidden border py-0">
       <TableEmptyState
         title="No organization on this account"
         description="This account isn't attached to an organization, so there's nothing to show here. Org-scoped pages need an organization — ask a super admin to scope your account to one."

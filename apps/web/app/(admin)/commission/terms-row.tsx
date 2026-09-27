@@ -1,5 +1,10 @@
 "use client";
 
+
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ChoiceGroup } from "@race-pace/ui";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { useActionState, useState } from "react";
 import { AlertTriangle, ChevronDown, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -42,25 +47,7 @@ function Segmented<T extends string>({
   options: { value: T; label: string }[];
   onChange: (v: T) => void;
 }) {
-  return (
-    <div role="radiogroup" aria-label={label} className="inline-flex overflow-hidden rounded-lg border bg-muted">
-      {options.map((o) => (
-        <button
-          key={o.value}
-          type="button"
-          role="radio"
-          aria-checked={value === o.value}
-          onClick={() => onChange(o.value)}
-          className={cn(
-            "px-2.5 py-1 text-[12px] font-bold transition-colors",
-            value === o.value ? "bg-forest text-white" : "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          {o.label}
-        </button>
-      ))}
-    </div>
-  );
+  return <ChoiceGroup variant="plain" hideLabel label={label} value={value} options={options} onValueChange={(next) => onChange(next as T)} />;
 }
 
 /** The mockup's `.rateinput` — a number with its unit attached, so `75` can
@@ -76,30 +63,12 @@ function UnitInput({
   disabled?: boolean;
 }) {
   return (
-    <span
-      className={cn(
-        "inline-flex items-center overflow-hidden rounded-lg border bg-card",
-        "focus-within:border-primary focus-within:ring-[3px] focus-within:ring-primary/15",
-        disabled && "opacity-50",
-      )}
-    >
-      {prefix ? (
-        <span className="border-r py-1 pl-2 pr-1 text-[12.5px] font-semibold text-muted-foreground">{prefix}</span>
-      ) : null}
-      <input
-        aria-label={label}
-        inputMode="decimal"
-        value={value}
-        disabled={disabled}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-[62px] bg-transparent px-2 py-1 text-right text-[13px] font-semibold tabular-nums outline-none"
-      />
-      {suffix ? (
-        <span className="border-l bg-muted py-1 pl-1.5 pr-2 text-[12.5px] font-semibold text-muted-foreground">
-          {suffix}
-        </span>
-      ) : null}
-    </span>
+    <InputGroup className="inline-flex w-auto">
+      {prefix ? <InputGroupAddon>{prefix}</InputGroupAddon> : null}
+      <InputGroupInput aria-label={label} inputMode="decimal" value={value} disabled={disabled}
+        onChange={(event) => onChange(event.target.value)} className="w-[62px] text-right tabular-nums" />
+      {suffix ? <InputGroupAddon align="inline-end">{suffix}</InputGroupAddon> : null}
+    </InputGroup>
   );
 }
 
@@ -125,16 +94,16 @@ function Strip({ tone, children }: { tone: "amber" | "destructive" | "info"; chi
 
 function Disclosure({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <details className="group border-t border-divider bg-info-tint text-info">
-      <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-[14px] py-2.5 text-[12.5px] font-bold marker:content-none">
+    <Collapsible className="group border-t border-divider bg-info-tint text-info">
+      <CollapsibleTrigger className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-[14px] py-2.5 marker:content-none">
         <Info className="size-[15px] shrink-0" strokeWidth={2.2} aria-hidden="true" />
         <span>{label}</span>
         <ChevronDown className="ml-auto size-4 shrink-0 transition-transform group-open:rotate-180" aria-hidden="true" />
-      </summary>
+      </CollapsibleTrigger><CollapsibleContent forceMount className="data-[state=closed]:hidden">
       <div className="border-t border-info/15 px-[14px] py-3 pl-[37px] text-[12.5px] font-semibold leading-5">
         {children}
       </div>
-    </details>
+    </CollapsibleContent></Collapsible>
   );
 }
 
@@ -144,11 +113,11 @@ function NoticeTooltip({ children }: { children: React.ReactNode }) {
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-            <button type="button" className="inline-flex min-h-9 items-center gap-2 rounded-md px-2 text-[12.5px] font-bold hover:bg-amber/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber/35">
+            <Button variant="ghost" type="button" className="inline-flex min-h-9 items-center gap-2 px-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber/35">
               <AlertTriangle className="size-[15px] shrink-0" strokeWidth={2.2} aria-hidden="true" />
               Future payments only
               <Info className="size-3.5 shrink-0" aria-hidden="true" />
-            </button>
+            </Button>
           </TooltipTrigger>
           <TooltipContent side="top" sideOffset={8} className="max-w-[380px] text-left leading-5">
             {children}
@@ -237,14 +206,17 @@ function FeeRow({ org, draft, onChange }: {
       <TableCell className="px-[14px] text-right tabular-nums">{org.paid_count.toLocaleString()}</TableCell>
       {/* The GMV column: charged_gross, not gross_revenue. See the header. */}
       <TableCell className="px-[14px] text-right tabular-nums">{peso(org.charged_gross)}</TableCell>
-      <TableCell className="px-[14px] text-right font-semibold tabular-nums">{peso(org.platform_fee)}</TableCell>
+      <TableCell className="px-[14px] text-right tabular-nums">{peso(org.platform_fee)}</TableCell>
       <TableCell className="px-[14px]">
-        <Segmented
-          label={`Fee type for ${org.name}`}
-          value={draft.type}
-          onChange={(type) => onChange({ ...draft, type })}
-          options={[{ value: "percent", label: "%" }, { value: "fixed", label: "₱" }]}
-        />
+        <Select value={draft.type} onValueChange={(type) => onChange({ ...draft, type })}>
+          <SelectTrigger size="sm" className="w-[156px]" aria-label={`Fee type for ${org.name}`}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="percent">Percent (%)</SelectItem>
+            <SelectItem value="fixed">Fixed (₱)</SelectItem>
+          </SelectContent>
+        </Select>
       </TableCell>
       {/* Fee mode is NOT part of the fee draft and has no Save button. It writes
           on change, because it is a single choice with no second field to agree
@@ -314,27 +286,28 @@ export function FeeTermsTable({ orgs }: { orgs: OrgCommissionRow[] }) {
   const focus = edited ?? [...orgs].sort((a, b) => b.paid_count - a.paid_count)[0];
 
   const flatWarnings = orgs
-    .map((o) => flatFeeWarning(pendingFee(draftFor(o)), o.cheapest_open, o.name))
-    .filter((w): w is string => w !== null);
+    .flatMap((o) => {
+      const text = flatFeeWarning(pendingFee(draftFor(o)), o.cheapest_open, o.name);
+      return text ? [{ orgId: o.id, text }] : [];
+    });
   const zeroWarnings = orgs
-    .map((o) => {
+    .flatMap((o) => {
       const w = zeroFeeWarning(pendingFee(draftFor(o)));
-      return w ? `${o.name}: ${w}` : null;
-    })
-    .filter((w): w is string => w !== null);
+      return w ? [{ orgId: o.id, text: `${o.name}: ${w}` }] : [];
+    });
 
   return (
     <>
-      <Table className="text-[12.5px]">
+      <Table className="">
         <TableHeader>
           <TableRow className="hover:bg-transparent">
-            <TableHead className="h-9 px-[14px] text-[10.5px] font-bold uppercase tracking-[0.05em] text-muted-foreground">Organization</TableHead>
-            <TableHead className="h-9 px-[14px] text-right text-[10.5px] font-bold uppercase tracking-[0.05em] text-muted-foreground">Paid entries</TableHead>
-            <TableHead className="h-9 px-[14px] text-right text-[10.5px] font-bold uppercase tracking-[0.05em] text-muted-foreground">GMV</TableHead>
-            <TableHead className="h-9 px-[14px] text-right text-[10.5px] font-bold uppercase tracking-[0.05em] text-muted-foreground">Commission earned</TableHead>
-            <TableHead className="h-9 px-[14px] text-[10.5px] font-bold uppercase tracking-[0.05em] text-muted-foreground">Type</TableHead>
-            <TableHead className="h-9 px-[14px] text-[10.5px] font-bold uppercase tracking-[0.05em] text-muted-foreground">Fee mode</TableHead>
-            <TableHead className="h-9 px-[14px] text-[10.5px] font-bold uppercase tracking-[0.05em] text-muted-foreground">Per registration</TableHead>
+            <TableHead className="h-9 px-[14px] uppercase">Organization</TableHead>
+            <TableHead className="h-9 px-[14px] text-right uppercase">Paid entries</TableHead>
+            <TableHead className="h-9 px-[14px] text-right uppercase">GMV</TableHead>
+            <TableHead className="h-9 px-[14px] text-right uppercase">Commission earned</TableHead>
+            <TableHead className="h-9 px-[14px] uppercase">Type</TableHead>
+            <TableHead className="h-9 px-[14px] uppercase">Fee mode</TableHead>
+            <TableHead className="h-9 px-[14px] uppercase">Per registration</TableHead>
             <TableHead className="h-9 px-[14px]" />
           </TableRow>
         </TableHeader>
@@ -373,14 +346,14 @@ export function FeeTermsTable({ orgs }: { orgs: OrgCommissionRow[] }) {
       </Disclosure>
 
       {flatWarnings.map((w) => (
-        <Strip key={w} tone="destructive">
-          <b className="font-extrabold">Flat fee vs. cheap entries.</b> {w} Shown here because a silent clamp is
+        <Strip key={w.orgId} tone="destructive">
+          <b className="font-extrabold">Flat fee vs. cheap entries.</b> {w.text} Shown here because a silent clamp is
           worse than a visible one.
         </Strip>
       ))}
       {zeroWarnings.map((w) => (
-        <Strip key={w} tone="destructive">
-          {w}
+        <Strip key={w.orgId} tone="destructive">
+          {w.text}
         </Strip>
       ))}
     </>
@@ -458,7 +431,7 @@ function RefundRow({ org, draft, onChange }: {
           <span className="text-[12.5px] text-muted-foreground">—</span>
         )}
       </TableCell>
-      <TableCell className="max-w-[380px] whitespace-normal px-[14px] align-top text-[12px] leading-[1.5] text-muted-foreground">
+      <TableCell className="max-w-[380px] whitespace-normal px-[14px] align-top leading-[1.5]">
         {org.example_entry_cents > 0 ? (
           <>
             <div>A runner cancelling a {peso(org.example_entry_cents)} entry:</div>
@@ -492,22 +465,21 @@ export function RefundTermsTable({ orgs }: { orgs: OrgCommissionRow[] }) {
   const draftFor = (o: OrgCommissionRow) => drafts[o.id] ?? refundDraftOf(o);
 
   const zeroWarnings = orgs
-    .map((o) => {
+    .flatMap((o) => {
       const d = draftFor(o);
       const w = zeroRetentionWarning(d.policy, centsOf(d.retention));
-      return w ? `${o.name}: ${w}` : null;
-    })
-    .filter((w): w is string => w !== null);
+      return w ? [{ orgId: o.id, text: `${o.name}: ${w}` }] : [];
+    });
 
   return (
     <>
-      <Table className="text-[12.5px]">
+      <Table className="">
         <TableHeader>
           <TableRow className="hover:bg-transparent">
-            <TableHead className="h-9 px-[14px] text-[10.5px] font-bold uppercase tracking-[0.05em] text-muted-foreground">Organization</TableHead>
-            <TableHead className="h-9 px-[14px] text-[10.5px] font-bold uppercase tracking-[0.05em] text-muted-foreground">Policy</TableHead>
-            <TableHead className="h-9 px-[14px] text-[10.5px] font-bold uppercase tracking-[0.05em] text-muted-foreground">Retained</TableHead>
-            <TableHead className="h-9 px-[14px] text-[10.5px] font-bold uppercase tracking-[0.05em] text-muted-foreground">Worked example</TableHead>
+            <TableHead className="h-9 px-[14px] uppercase">Organization</TableHead>
+            <TableHead className="h-9 px-[14px] uppercase">Policy</TableHead>
+            <TableHead className="h-9 px-[14px] uppercase">Retained</TableHead>
+            <TableHead className="h-9 px-[14px] uppercase">Worked example</TableHead>
             <TableHead className="h-9 px-[14px]" />
           </TableRow>
         </TableHeader>
@@ -524,8 +496,8 @@ export function RefundTermsTable({ orgs }: { orgs: OrgCommissionRow[] }) {
       </Table>
 
       {zeroWarnings.map((w) => (
-        <Strip key={w} tone="destructive">
-          {w}
+        <Strip key={w.orgId} tone="destructive">
+          {w.text}
         </Strip>
       ))}
 

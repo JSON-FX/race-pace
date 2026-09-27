@@ -1,5 +1,6 @@
 "use client";
 
+import { FormSelect } from "@race-pace/ui";
 import { useEffect, useRef, useState } from "react";
 import { ChevronDownIcon } from "lucide-react";
 import type { PsgcAddress } from "@race-pace/shared";
@@ -86,19 +87,19 @@ export function PsgcAddressField({ value, onChange, className, nativeCitySelect 
         {nativeCitySelect ? (
           <div className="relative">
             {!nativeCityReady && cityName ? <input type="hidden" form={cityForm} name={cityName} value={value?.city_psgc_code ?? ""} /> : null}
-            <select
+            <FormSelect
               aria-label="City"
               form={cityForm}
               name={nativeCityReady ? cityName : undefined}
               value={value?.city_psgc_code ?? ""}
               onChange={(event) => pickCity(event.target.value)}
               disabled={!nativeCityReady}
-              className="h-9 w-full appearance-none rounded-md border border-input bg-transparent py-2 pr-8 pl-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
+              className="h-9 w-full appearance-none border py-2 pr-8 pl-3 outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <option value="">— Select —</option>
               {(cities.data ?? []).map((city) => <option key={city.code} value={city.code}>{city.name}</option>)}
-            </select>
-            <ChevronDownIcon aria-hidden="true" className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-muted-foreground" />
+            </FormSelect>
+
           </div>
         ) : (
           <Select value={value?.city_psgc_code ?? undefined} onValueChange={(v) => pickCity(v === CLEAR ? "" : v)} disabled={!(provinceCode || noProvinces)}>

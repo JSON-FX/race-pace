@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
@@ -78,12 +79,12 @@ export default async function EventsPage({
                 : "No races match your search or filters."}
             </p>
             {hasAnyFilter(filters) ? (
-              <Link
+              <Button asChild variant="ghost"><Link
                 href="/events"
                 className="fieldnotes-events__clear"
               >
                 Clear filters
-              </Link>
+              </Link></Button>
             ) : null}
           </div>
         ) : (

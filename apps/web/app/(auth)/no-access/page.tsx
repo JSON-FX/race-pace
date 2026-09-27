@@ -32,7 +32,7 @@ export default async function NoAccessPage() {
 
   return (
     <main className="grid min-h-dvh place-items-center bg-muted p-6">
-      <Card className="w-full max-w-sm rounded-xl text-center shadow-lg">
+      <Card className="w-full max-w-sm text-center">
         <CardContent className="space-y-4 px-6 py-7">
           <div className="mx-auto grid size-11 place-items-center rounded-full bg-destructive-tint text-destructive">
             <ShieldOff className="size-5" aria-hidden />

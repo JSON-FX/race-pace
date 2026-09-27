@@ -18,6 +18,8 @@ ultra-trail event platform (Mindanao, Philippines).
 
 ## Web and admin readiness — September 2026
 
+Fieldnotes component revamp: [contract and audit](./specs/2026-09-27-fieldnotes-components.md), [source inventory](./specs/fieldnotes-components-audit.md), and [implementation plan](./plans/2026-09-27-fieldnotes-components.md). Implemented and locally validated; 39 shared primitives and component-only styling. [Verification evidence](./specs/fieldnotes-components-verification.md). [Annotation follow-up](./plans/2026-09-27-fieldnotes-annotations.md) and [latest annotation evidence](./specs/fieldnotes-annotations-verification.md) are complete locally. Awaiting any requested staging release.
+
 **Primary progress table:** [Launch progress](./operations/launch-progress.md). Update affected rows after each setup, implementation or verification step; show the next task and outstanding blockers.
 
 **Required release path:** [Staging-first workflow](./operations/release-workflow.md). Every application and backend change must pass the exact staging revision before promotion into `main`.

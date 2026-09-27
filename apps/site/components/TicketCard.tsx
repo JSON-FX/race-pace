@@ -1,5 +1,6 @@
 "use client";
 
+import { Card } from "@/components/ui/card";
 import { QRCodeSVG } from "qrcode.react";
 import { longDate } from "@/lib/format";
 
@@ -33,7 +34,7 @@ export function TicketCard({
   checkInRequired?: boolean;
 }) {
   return (
-    <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+    <Card className="gap-0 overflow-hidden py-0">
       {/* Identity band */}
       <div className="bg-forest px-7 pt-7 pb-6">
         <p className="text-[11px] font-semibold uppercase tracking-[1.4px] text-[#7FE0A6]">Race pass</p>
@@ -77,7 +78,7 @@ export function TicketCard({
         <Cell label="Category" value={categoryLabel} />
         <Cell label="Distance" value={distanceKm ? `${distanceKm} KM` : "—"} />
       </dl>
-    </div>
+    </Card>
   );
 }
 

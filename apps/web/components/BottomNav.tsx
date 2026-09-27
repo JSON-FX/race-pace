@@ -1,5 +1,7 @@
 "use client";
 
+
+import { Button } from "@/components/ui/button";
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -33,23 +35,22 @@ function isActive(pathname: string, to: string): boolean {
 function Tab({ item, active }: { item: NavItem; active: boolean }) {
   const { icon: Icon, to, label } = item;
   return (
-    <Link
+    <Button asChild variant={active ? "secondary" : "ghost"} className="relative min-h-12 min-w-0 flex-1 basis-0 flex-col gap-1 px-1 py-1.5 text-[10.5px] has-[>svg]:px-1"><Link
       href={to}
       aria-current={active ? "page" : undefined}
       className={cn(
         // min-h-12 + the flex column keeps the whole cell tappable, not just the
         // glyph — an icon-sized target is the most common bottom-bar mistake.
-        "relative flex min-h-12 flex-1 flex-col items-center justify-center gap-1 rounded-lg px-1 py-1.5",
-        "text-[10.5px] font-semibold transition-colors",
-        active ? "text-primary" : "text-muted-foreground",
+        "flex min-w-0 flex-col items-center justify-center",
+        "",
       )}
     >
       <Icon className="size-[21px]" strokeWidth={active ? 2.3 : 1.9} aria-hidden />
       {/* Labelled, never icon-only. An unlabelled tab bar is guesswork on first
           use, and these icons (a clipboard vs a card) are not self-evident. */}
-      <span className="leading-none">{label}</span>
+      <span className="max-w-full truncate leading-none">{label}</span>
       <LinkPending className="absolute right-[calc(50%-18px)] top-0 ml-0" />
-    </Link>
+    </Link></Button>
   );
 }
 
@@ -82,9 +83,9 @@ export function BottomNav({ roles }: { roles: MyRoles }) {
       ))}
 
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetTrigger
+        <SheetTrigger asChild><Button variant={moreActive ? "secondary" : "ghost"}
           className={cn(
-            "flex min-h-12 flex-1 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg px-1 py-1.5",
+            "flex min-h-12 min-w-0 flex-1 basis-0 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg px-1 py-1.5 has-[>svg]:px-1",
             "text-[10.5px] font-semibold transition-colors",
             // "More" lights up when the current page lives inside it, so the bar
             // always shows where you are — otherwise Payouts would render the
@@ -94,14 +95,14 @@ export function BottomNav({ roles }: { roles: MyRoles }) {
         >
           <Menu className="size-[21px]" strokeWidth={moreActive ? 2.3 : 1.9} aria-hidden />
           <span className="leading-none">More</span>
-        </SheetTrigger>
+        </Button></SheetTrigger>
 
         <SheetContent
           side="bottom"
-          className="rounded-t-2xl pb-[max(1rem,env(safe-area-inset-bottom))]"
+          className="pb-[max(1rem,env(safe-area-inset-bottom))]"
         >
           <SheetHeader className="pb-1">
-            <SheetTitle className="text-[15px]">All destinations</SheetTitle>
+            <SheetTitle className="">All destinations</SheetTitle>
           </SheetHeader>
 
           <div className="px-4 pb-2">
@@ -117,19 +118,17 @@ export function BottomNav({ roles }: { roles: MyRoles }) {
                   {group.items.map(({ to, label, icon: Icon }) => {
                     const active = isActive(pathname, to);
                     return (
-                      <Link
-                        key={to}
+                      <Button asChild key={to} variant={active ? "secondary" : "ghost"}><Link
                         href={to}
                         aria-current={active ? "page" : undefined}
                         className={cn(
-                          "flex min-h-[72px] flex-col items-center justify-center gap-1.5 rounded-xl px-2 py-3 text-center",
-                          "text-[11px] font-semibold leading-tight",
-                          active ? "bg-accent text-primary" : "text-foreground",
-                        )}
+                          "flex min-h-[72px] flex-col items-center justify-center gap-1.5 px-2 py-3 text-center",
+                          "leading-tight",
+                                          )}
                       >
                         <Icon className="size-5" strokeWidth={1.9} aria-hidden />
                         {label}
-                      </Link>
+                      </Link></Button>
                     );
                   })}
                 </div>

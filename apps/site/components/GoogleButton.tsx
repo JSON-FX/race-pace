@@ -1,5 +1,6 @@
 "use client";
 
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { signInWithGoogle } from "@/lib/auth";
@@ -20,7 +21,7 @@ export function GoogleButton({ next }: { next: string }) {
       <Button
         type="button"
         onClick={onClick}
-        className="h-auto w-full gap-2.5 rounded-pill bg-white py-4 text-[16px] font-semibold text-[#1F1F1F] shadow-sm hover:bg-white/90"
+        className="h-auto w-full gap-2.5 py-4"
       >
         <svg width="19" height="19" viewBox="0 0 48 48" aria-hidden="true">
           <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />

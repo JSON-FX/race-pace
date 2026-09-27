@@ -19,7 +19,7 @@
 .stepNumber,.currentNumber { display:grid; place-items:center; flex:none; width:42px; height:42px; border:1px solid #cbd9ce; border-radius:50%; background:rgb(var(--card)); color:#587364; font-size:12px; font-weight:800; }
 .currentNumber { border-color:rgb(var(--primary)); background:rgb(var(--primary)); color:rgb(var(--primary-foreground)); box-shadow:0 0 0 5px rgb(var(--secondary)); }
 .done .stepNumber { border-color:#b9dbc4; background:rgb(var(--secondary)); color:rgb(var(--secondary-foreground)); }
-.panel { grid-area:main; display:block; min-width:0; padding:36px 40px 32px; border:1px solid rgb(var(--border)); border-radius:4px; background:rgb(var(--card)); box-shadow:0 8px 0 #d8e0d8,0 18px 50px #19331d12; }
+.panel { grid-area:main; display:block; min-width:0; padding:36px 40px 32px; }
 .panelTopline { display:flex; justify-content:space-between; gap:15px; padding-bottom:20px; margin-bottom:28px; border-bottom:1px solid rgb(var(--border)); color:#536158; font-size:11px; }
 .sectionHeading { display:flex; align-items:flex-start; gap:17px; }
 .sectionIcon { display:grid; place-items:center; flex:none; width:45px; height:45px; border-radius:13px; background:rgb(var(--secondary)); color:rgb(var(--secondary-foreground)); }
@@ -46,7 +46,6 @@
 :global(.dark) .stepContent[aria-current=step] { color:rgb(var(--foreground)); }
 :global(.dark) .stepNumber { background:rgb(var(--card)); color:rgb(var(--foreground)); border-color:rgb(var(--border)); }
 :global(.dark) .currentNumber { color:rgb(var(--primary-foreground)); }
-:global(.dark) .panel { box-shadow:0 8px 0 #23342a,0 18px 50px #0004; }
 :global(.dark) .panelTopline { color:rgb(var(--muted-foreground)); }
 :global(.dark) .summary { background:#1b3a29; color:white; }
 :global(.dark) .summaryTop,:global(.dark) .summaryCategory,:global(.dark) .summaryTotal span,:global(.dark) .summaryNote,:global(.dark) .summaryMeta p { color:#bedec6; }

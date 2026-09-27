@@ -1,5 +1,7 @@
 "use client";
 
+import { Switch } from "@/components/ui/switch";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useActionState, useState } from "react";
 import { useRouter } from "next/navigation";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -46,20 +48,20 @@ export function SettingsForm({ org, canEdit }: { org: OrgBranding; canEdit: bool
           <div className="flex-1 px-4 pb-5 md:px-5">
             <form id="org-profile-form" action={formAction}>
               <input type="hidden" name="orgId" value={org.id} />
-              <Label htmlFor="org-name" className="mb-1.5 block text-[12px] font-bold">Organization name</Label>
+              <Label htmlFor="org-name" className="mb-1.5 block">Organization name</Label>
               <Input
                 id="org-name"
                 name="name"
                 defaultValue={org.name}
                 required
                 disabled={!canEdit}
-                className="h-11 rounded-[10px] bg-background"
+                className="h-11"
               />
               <p className="mt-1.5 text-[11px] text-muted-foreground">
                 Use the full registered or public-facing organization name.
               </p>
               <div className="mt-5">
-                <Label htmlFor="org-description" className="mb-1.5 block text-[12px] font-bold">Organizer Description</Label>
+                <Label htmlFor="org-description" className="mb-1.5 block">Organizer Description</Label>
                 <Textarea
                   id="org-description"
                   name="description"
@@ -68,7 +70,7 @@ export function SettingsForm({ org, canEdit }: { org: OrgBranding; canEdit: bool
                   rows={4}
                   disabled={!canEdit}
                   placeholder="Tell runners what your organization is about."
-                  className="min-h-28 rounded-[10px] bg-background"
+                  className="min-h-28"
                 />
                 <p className="mt-1.5 text-[11px] text-muted-foreground">Optional. This will appear on your public organizer profile.</p>
               </div>
@@ -88,11 +90,11 @@ export function SettingsForm({ org, canEdit }: { org: OrgBranding; canEdit: bool
                 </p>
               )}
             </div>
-            {state.error ? <p role="alert" className="mt-2 text-[13px] text-destructive">{state.error}</p> : null}
+            {state.error ? <Alert variant="destructive" role="alert" className="mt-2"><AlertDescription>{state.error}</AlertDescription></Alert> : null}
             {state.success ? <p role="status" className="mt-2 text-[13px] text-muted-foreground">{state.success}</p> : null}
           </div>
           <SettingsSectionFooter helper="Updates the public organization profile.">
-            <Button type="submit" form="org-profile-form" disabled={!canEdit || pending} className="h-10 rounded-[10px] px-4">
+            <Button type="submit" form="org-profile-form" disabled={!canEdit || pending} className="h-10 px-4">
               {pending ? "Saving…" : "Save profile"}
             </Button>
           </SettingsSectionFooter>
@@ -112,32 +114,30 @@ export function SettingsForm({ org, canEdit }: { org: OrgBranding; canEdit: bool
           <div className="flex-1 px-4 pb-5 md:px-5">
             <input type="hidden" name="orgId" value={org.id} />
             <input type="hidden" name="checkInRequired" value="false" />
-            <label className="flex items-start gap-4 rounded-xl border bg-background p-3.5">
+            <Label className="flex items-start gap-4 border p-3.5">
               <span className="min-w-0 flex-1">
                 <strong className="block text-[13px]">Require participant check-in</strong>
                 <span className="mt-1 block text-[11px] leading-relaxed text-muted-foreground">
                   New events start with check-in enabled. Existing events keep their current setting.
                 </span>
               </span>
-              <span className="relative mt-0.5 inline-flex h-[26px] w-[46px] shrink-0">
-                <input
-                  type="checkbox"
+              <span className="inline-flex min-h-11 shrink-0 items-center">
+                <Switch
+
                   name="checkInRequired"
                   value="true"
                   defaultChecked={org.check_in_required_default}
                   disabled={!canEdit}
                   aria-label="Require event check-in by default"
-                  className="peer sr-only"
+                  className="mt-1"
                 />
-                <span className="absolute inset-0 rounded-pill bg-border transition-colors peer-checked:bg-primary peer-disabled:opacity-50 peer-focus-visible:ring-[3px] peer-focus-visible:ring-ring/30" />
-                <span className="pointer-events-none absolute left-[3px] top-[3px] size-5 rounded-full bg-white shadow-sm transition-transform peer-checked:translate-x-5" />
               </span>
-            </label>
-            {checkInState.error ? <p role="alert" className="mt-2 text-[13px] text-destructive">{checkInState.error}</p> : null}
+            </Label>
+            {checkInState.error ? <Alert variant="destructive" role="alert" className="mt-2"><AlertDescription>{checkInState.error}</AlertDescription></Alert> : null}
             {checkInState.success ? <p role="status" className="mt-2 text-[13px] text-muted-foreground">{checkInState.success}</p> : null}
           </div>
           <SettingsSectionFooter helper="This does not change existing events.">
-            <Button type="submit" disabled={!canEdit || checkInPending} className="h-10 rounded-[10px] px-4">
+            <Button type="submit" disabled={!canEdit || checkInPending} className="h-10 px-4">
               {checkInPending ? "Saving…" : "Save default"}
             </Button>
           </SettingsSectionFooter>

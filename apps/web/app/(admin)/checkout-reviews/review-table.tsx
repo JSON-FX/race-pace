@@ -1,5 +1,6 @@
 "use client";
 
+
 import { useState } from "react";
 import { Copy } from "lucide-react";
 import { TableEmptyState } from "@/components/data-table";
@@ -32,7 +33,7 @@ export function ReviewTable({ reviews }: { reviews: UnboundCheckoutReview[] }) {
           Hold deadline: {newestFirst ? "newest first" : "oldest first"}
         </Button>
       </div>
-      <Table className="text-[12.5px]">
+      <Table className="">
         <TableHeader>
           <TableRow className="hover:bg-transparent">
             <TableHead>Event / organization</TableHead>

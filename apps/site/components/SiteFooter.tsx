@@ -106,7 +106,7 @@ export function SiteFooter() {
           ))}
         </div>
 
-        <p className="mt-10 border-t border-divider pt-6 font-mono-race text-[10px] uppercase tracking-[1px] text-muted-foreground">
+        <p className="mt-10 border-t border-divider pt-6 font-sans text-xs leading-6 text-muted-foreground">
           © {year} Race Pace · Quezon, Bukidnon 8715, Philippines · All rights reserved.
         </p>
       </div>

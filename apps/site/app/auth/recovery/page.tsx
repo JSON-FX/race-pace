@@ -1,5 +1,6 @@
 "use client";
 
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import Image from "next/image";
@@ -54,16 +55,16 @@ export default function RecoveryPage() {
     finally { setPending(false); }
   }
   return <main className="grid min-h-dvh place-items-center bg-muted p-6">
-    <Card className="w-full max-w-sm rounded-xl shadow-lg"><CardContent className="space-y-4 px-6 py-7">
+    <Card className="w-full max-w-sm"><CardContent className="space-y-4 px-6 py-7">
       <Image src="/topnav-logo.png" alt="Race Pace" width={700} height={372} priority className="mx-auto h-auto w-28" />
       <h1 className="text-xl font-bold">Choose a new password</h1>
       {state === "loading" && <p role="status">Checking your reset link…</p>}
-      {state === "invalid" && <><p role="alert">This reset link is invalid, expired, or already used.</p><Link className="block text-sm underline" href="/forgot-password">Request a new reset link</Link></>}
-      {state === "done" && <><p role="status">Your password has been updated.</p>{error && <p role="alert">{error}</p>}<Link className="block text-sm underline" href="/sign-in">Sign in with your new password</Link></>}
+      {state === "invalid" && <><Alert role="alert"><AlertDescription>This reset link is invalid, expired, or already used.</AlertDescription></Alert><Link className="block text-sm underline" href="/forgot-password">Request a new reset link</Link></>}
+      {state === "done" && <><p role="status">Your password has been updated.</p>{error && <Alert role="alert"><AlertDescription>{error}</AlertDescription></Alert>}<Link className="block text-sm underline" href="/sign-in">Sign in with your new password</Link></>}
       {state === "ready" && <form onSubmit={submit} className="space-y-4">
         <div className="space-y-1.5"><Label htmlFor="password">New password</Label><Input id="password" name="password" type="password" autoComplete="new-password" minLength={6} required /></div>
         <div className="space-y-1.5"><Label htmlFor="confirmPassword">Confirm new password</Label><Input id="confirmPassword" name="confirmPassword" type="password" autoComplete="new-password" minLength={6} required /></div>
-        {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+        {error && <Alert variant="destructive" role="alert" className=""><AlertDescription>{error}</AlertDescription></Alert>}
         <Button disabled={pending} className="w-full">{pending ? "Updating…" : "Update password"}</Button>
       </form>}
     </CardContent></Card>

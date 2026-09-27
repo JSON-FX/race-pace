@@ -86,7 +86,7 @@ export function ParallaxLayer({
 
   return (
     <div ref={ref} className={className}>
-      <motion.div style={{ y, scale }} className="h-full w-full will-change-transform">
+      <motion.div style={{ y, scale }} className="relative h-full w-full will-change-transform">
         {children}
       </motion.div>
     </div>

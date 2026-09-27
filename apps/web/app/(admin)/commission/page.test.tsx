@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 
 const getMyRoles = vi.fn();
 const getCommissionOverview = vi.fn();
@@ -197,4 +197,44 @@ it("labels unknown organizer and unpaid amounts as incomplete", async () => {
   render(await CommissionPage());
   expect(screen.getByText("Incomplete")).toBeInTheDocument();
   expect(screen.getByText("Unpaid amount incomplete; reconcile processing fees")).toBeInTheDocument();
+});
+
+
+describe("CommissionPage — second browser review regressions", () => {
+  it.each([0, 10000])("keeps warnings for distinct organizations with identical names (flat fee %i)", async (flat) => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const fixture = { ...ORG, name: "Checkout Fixture Org", commission_type: "fixed",
+        commission_flat_cents: flat, refund_fee_cents: 0,
+        cheapest_open: { label: "5K", base_price: 1000 } };
+      getCommissionOverview.mockResolvedValue({ ...emptyOverview, orgs: [
+        { ...fixture, id: "duplicate-name-1" }, { ...fixture, id: "duplicate-name-2" },
+      ] });
+      await renderPage();
+      expect(screen.getAllByText(/Checkout Fixture Org: A ₱0 retention/)).toHaveLength(2);
+      if (flat === 0) expect(screen.getAllByText(/Checkout Fixture Org: A ₱0 flat commission/)).toHaveLength(2);
+      else expect(screen.getAllByText(/cheapest open category is the 5K/)).toHaveLength(2);
+      expect(error.mock.calls.filter(call => String(call[0]).includes("same key"))).toHaveLength(0);
+    } finally {
+      error.mockRestore();
+    }
+  });
+
+  it("changes fee type as an unsaved draft and preserves the named form values", async () => {
+    getCommissionOverview.mockResolvedValue({ ...emptyOverview, orgs: [ORG] });
+    await renderPage();
+    const control = screen.getByRole("combobox", { name: "Fee type for TrailNorth" });
+    expect(control).toHaveTextContent("Percent (%)");
+    fireEvent.keyDown(control, { key: "ArrowDown" });
+    fireEvent.click(await screen.findByRole("option", { name: "Fixed (₱)" }));
+    expect(control).toHaveTextContent("Fixed (₱)");
+    expect(screen.getByRole("textbox", { name: "Flat fee in pesos for TrailNorth" })).toBeInTheDocument();
+    const form = document.getElementById("fee-o1") as HTMLFormElement;
+    const values = new FormData(form);
+    expect(values.get("orgId")).toBe("o1");
+    expect(values.get("commission_type")).toBe("fixed");
+    expect(values.get("commission_percent")).toBe("3");
+    expect(values.get("commission_flat_pesos")).toBe("0");
+    expect(screen.getAllByRole("button", { name: "Save" })[0]).toBeEnabled();
+  });
 });

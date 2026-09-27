@@ -1,5 +1,7 @@
 "use client";
 
+import { Spinner } from "@/components/ui/spinner";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -79,10 +81,10 @@ export function GoogleButton({ next }: { next: string | null }) {
         variant="outline"
         onClick={signIn}
         disabled={pending}
-        className="h-10 w-full gap-2.5 bg-card font-semibold"
+        className="h-10 w-full gap-2.5"
       >
         {pending ? (
-          <Loader2 className="size-4 animate-spin" aria-hidden />
+          <Spinner className="size-4 animate-spin" aria-hidden />
         ) : (
           <svg className="size-[17px]" viewBox="0 0 48 48" aria-hidden="true">
             <path fill="#4285F4" d="M45.1 24.5c0-1.6-.1-3.2-.4-4.7H24v8.9h11.8c-.5 2.8-2 5.1-4.4 6.7v5.5h7.1c4.1-3.8 6.6-9.4 6.6-16.4z" />
@@ -94,7 +96,7 @@ export function GoogleButton({ next }: { next: string | null }) {
         {pending ? "Redirecting to Google…" : "Sign in with Google"}
       </Button>
       {error ? (
-        <p role="alert" className="text-[12.5px] text-destructive">{error}</p>
+        <Alert variant="destructive" role="alert" className=""><AlertDescription>{error}</AlertDescription></Alert>
       ) : null}
     </div>
   );

@@ -1,5 +1,6 @@
 "use client";
 
+
 import { Trash2 } from "lucide-react";
 import type { CategoryDraft } from "../lib/actions/events";
 import { Input } from "./ui/input";
@@ -55,7 +56,7 @@ export function CategoryEditor({
               variant="ghost"
               size="icon"
               onClick={() => onChange(rows.filter((_, j) => j !== i))}
-              className="ml-auto size-9 shrink-0 text-destructive hover:bg-destructive-tint hover:text-destructive"
+              className="ml-auto size-9 shrink-0"
             >
               <Trash2 className="size-4" />
             </Button>

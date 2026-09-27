@@ -15,7 +15,7 @@ it("filters organizers by live regions and search, then clears both filters", as
   const user = userEvent.setup();
   render(<OrganizerDirectory organizers={organizers} />);
   expect(screen.getByText("2 organizers shown")).toBeInTheDocument();
-  await user.click(screen.getByRole("button", { name: "Davao Region" }));
+  await user.click(screen.getByRole("radio", { name: "Davao Region" }));
   expect(screen.getByText("1 organizer shown")).toBeInTheDocument();
   expect(screen.queryByRole("heading", { name: "Northern Crew" })).not.toBeInTheDocument();
   await user.type(screen.getByRole("searchbox", { name: "Search organizers or places" }), "Bukidnon");

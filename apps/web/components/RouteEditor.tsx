@@ -1,5 +1,7 @@
 "use client";
 
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { useRef, useState } from "react";
 import { Upload, Trash2, Route as RouteIcon, PencilLine } from "lucide-react";
 import { CourseDrawEditor } from "./CourseDrawEditor";
@@ -25,6 +27,7 @@ export function RouteEditor({
   startLat: number | null;
   startLng: number | null;
 }) {
+  const drawTrigger = useRef<HTMLButtonElement>(null);
   const [drawing, setDrawing] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
@@ -61,6 +64,7 @@ export function RouteEditor({
   if (drawing) {
     return (
       <CourseDrawEditor
+        onReturnFocus={() => drawTrigger.current?.focus()}
         initialRoute={isValidRoute(route) ? route : null}
         // Fall back to the middle of the Philippines when the event has no
         // coordinates yet — better than opening on null island off Africa.
@@ -80,7 +84,7 @@ export function RouteEditor({
     <div>
       <Label className={fieldLabel}>COURSE ROUTE</Label>
 
-      <input
+      <Input
         ref={input}
         type="file"
         accept=".gpx,application/gpx+xml,application/xml,text/xml"
@@ -93,7 +97,7 @@ export function RouteEditor({
       />
 
       <div className="mt-1.5 flex flex-wrap items-center gap-2">
-        <Button type="button" variant="outline" size="sm" onClick={() => setDrawing(true)}>
+        <Button ref={drawTrigger} type="button" variant="outline" size="sm" onClick={() => setDrawing(true)}>
           <PencilLine size={14} className="mr-1.5" />
           {points > 0 ? "Edit on map" : "Draw on map"}
         </Button>
@@ -105,10 +109,10 @@ export function RouteEditor({
 
         {points > 0 ? (
           <>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-2.5 py-1 text-[12px] font-medium text-secondary-foreground">
+            <Badge variant="secondary" className="inline-flex items-center gap-1.5 px-2.5 py-1">
               <RouteIcon size={12} />
               {points} points
-            </span>
+            </Badge>
             <Button
               type="button"
               variant="ghost"

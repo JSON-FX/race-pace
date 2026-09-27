@@ -16,7 +16,7 @@ import { Card } from "@/components/ui/card";
  */
 export function OrgAdminsOnly() {
   return (
-    <Card className="gap-0 overflow-hidden rounded-xl border py-0 shadow-card">
+    <Card className="gap-0 overflow-hidden border py-0">
       <TableEmptyState
         title="Organization admins only"
         description="Managing your team's roles and invitations is limited to organization admins. Ask an admin if you need a change made here."

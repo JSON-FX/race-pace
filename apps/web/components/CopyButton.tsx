@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import { useEffect, useRef, useState } from "react";
 import { Check, Copy } from "lucide-react";
 import { toast } from "sonner";
@@ -33,13 +34,13 @@ export function CopyButton({ value, label, className }: {
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
 
   return (
-    <button
+    <Button variant="default"
       type="button"
       aria-label={copied ? `${label} copied` : `Copy ${label}`}
       className={cn(
-        "relative inline-flex size-6 shrink-0 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors",
+        "relative inline-flex size-6 shrink-0 items-center justify-center border",
         "before:absolute before:left-1/2 before:top-1/2 before:size-11 before:-translate-x-1/2 before:-translate-y-1/2 before:content-['']",
-        "hover:border-primary/40 hover:text-foreground",
+        "",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         className,
       )}
@@ -59,6 +60,6 @@ export function CopyButton({ value, label, className }: {
       }}
     >
       {copied ? <Check className="size-3.5 text-primary" /> : <Copy className="size-3.5" />}
-    </button>
+    </Button>
   );
 }

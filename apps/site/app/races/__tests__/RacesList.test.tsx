@@ -170,7 +170,7 @@ describe("RacesList — discard confirmation dialog", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Discard" }));
     expect(cancelRegistrationMock).not.toHaveBeenCalled();
-    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    expect(await screen.findByRole("alertdialog")).toBeInTheDocument();
   });
 
   it("Keep entry closes the dialog without deleting anything", async () => {
@@ -181,11 +181,11 @@ describe("RacesList — discard confirmation dialog", () => {
     renderList();
 
     await userEvent.click(screen.getByRole("button", { name: "Discard" }));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await screen.findByRole("alertdialog");
     await userEvent.click(within(dialog).getByRole("button", { name: "Keep entry" }));
 
     expect(cancelRegistrationMock).not.toHaveBeenCalled();
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Discard" })).toBeInTheDocument();
   });
 
@@ -198,11 +198,11 @@ describe("RacesList — discard confirmation dialog", () => {
     renderList();
 
     await userEvent.click(screen.getByRole("button", { name: "Discard" }));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await screen.findByRole("alertdialog");
     await userEvent.click(within(dialog).getByRole("button", { name: "Yes, discard entry" }));
 
     expect(cancelRegistrationMock).toHaveBeenCalledWith("r1");
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
   });
 
   it("keeps the dialog open and shows the error there when the discard fails", async () => {
@@ -218,12 +218,12 @@ describe("RacesList — discard confirmation dialog", () => {
     renderList();
 
     await userEvent.click(screen.getByRole("button", { name: "Discard" }));
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await screen.findByRole("alertdialog");
     await userEvent.click(within(dialog).getByRole("button", { name: "Yes, discard entry" }));
 
     expect(cancelRegistrationMock).toHaveBeenCalledWith("r1");
     // Still open, error inside it, not a page-top banner.
-    const stillOpenDialog = await screen.findByRole("dialog");
+    const stillOpenDialog = await screen.findByRole("alertdialog");
     expect(within(stillOpenDialog).getByRole("alert")).toHaveTextContent(/can no longer be discarded/);
     // The row itself is untouched — still there, still offering to be discarded.
     expect(within(stillOpenDialog).getByRole("button", { name: "Yes, discard entry" })).toBeInTheDocument();

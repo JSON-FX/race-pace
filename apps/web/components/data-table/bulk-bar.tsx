@@ -1,5 +1,6 @@
 "use client";
 
+
 import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -28,7 +29,7 @@ export function BulkBar({ count, ids, actions, onClear }: {
       {actions.map((a) => {
         const button = (
           <Button key={a.label} size="sm" variant={a.variant === "destructive" ? "destructive" : "outline"}
-            className="h-8 rounded-lg" disabled={a.disabled} aria-disabled={a.disabled}
+            className="h-8" disabled={a.disabled} aria-disabled={a.disabled}
             onClick={a.disabled ? undefined : () => a.onSelect(ids)}>
             {a.icon ? <a.icon className="size-3.5" /> : null}
             {a.label}
@@ -55,7 +56,7 @@ export function BulkBar({ count, ids, actions, onClear }: {
           </TooltipProvider>
         );
       })}
-      <Button variant="ghost" size="sm" className="ml-auto h-8 text-xs text-muted-foreground" onClick={onClear}>
+      <Button variant="ghost" size="sm" className="ml-auto h-8" onClick={onClear}>
         Clear
       </Button>
     </div>
