@@ -28,3 +28,5 @@ The installed Supabase SDK exposes no upload callback. Native XMLHttpRequest sen
 Apply migration 20260927025643 and read back bucket limits before raising the staging global cap. Complete actual 100 MB Browser upload, increasing bar, save, playback, permission denial, responsive checks and task-only cleanup. Production promotion follows only after staging passes. Production checks must create no synthetic records or payment.
 
 Staging release source: `0e857509f4fe919b64b5d943d1f7f0801d0c626e`, PR #171, passing exact CI `36292046851`. Deployment IDs, migration/global cap readback and cleanup counts are recorded in the launch ledger.
+
+Production PR #173 merged at `2a4a9486ac47d73a9bac384810059c399e86fe71`. Both matching aliases are Ready, both bundles use production only, migration 20260927025643 and 100 MB private/global caps are independently verified, and the live form passed read-only Browser acceptance with no errors. Business counts remain unchanged and no synthetic production data was created. Exact CI and synchronization are recorded in the launch ledger.
