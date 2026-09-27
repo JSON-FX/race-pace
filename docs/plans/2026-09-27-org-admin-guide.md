@@ -1,6 +1,6 @@
 # Guide: approved Video Library implementation
 
-Status: implemented and verified locally; hosted release pending. Branch: `codex/org-guide-prototypes`.
+Status: implemented, deployed to staging, and verified through hosted Browser acceptance. Branch: `codex/org-guide-prototypes`.
 
 ## Intent and inherited decisions
 

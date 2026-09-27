@@ -158,4 +158,4 @@ The approved Trail Roster visual direction is now a durable [layout specificatio
 
 ### 2026-09-27 organization admin Guide
 
-[Video Library](specs/2026-09-27-org-admin-guide.md) selected and implemented locally. Fieldnotes source sync, authenticated upload, drafts/publishing, search, and private playback are verified. [Implementation plan](plans/2026-09-27-org-admin-guide.md). Hosted staging acceptance remains pending.
+[Video Library](specs/2026-09-27-org-admin-guide.md) selected and implemented locally. Fieldnotes source sync, authenticated upload, drafts/publishing, search, and private playback are verified. [Implementation plan](plans/2026-09-27-org-admin-guide.md). Hosted Guide acceptance passed; see the [staging release evidence](operations/launch-progress.md).
