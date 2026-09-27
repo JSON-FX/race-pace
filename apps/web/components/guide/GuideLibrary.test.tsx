@@ -1,5 +1,5 @@
 import { beforeEach, expect, it, vi } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { GuideVideo } from "@/lib/guides";
 
@@ -163,4 +163,36 @@ it("does not save existing metadata after choosing an invalid replacement video"
   expect(mocks.upload).not.toHaveBeenCalled();
   expect(mocks.save).not.toHaveBeenCalled();
   expect(mocks.router.refresh).not.toHaveBeenCalled();
+});
+
+
+it("shows accessible byte progress while upload and save remain pending", async () => {
+  const user = userEvent.setup();
+  let advance: (percent: number) => void = () => {};
+  let finish: (media: { storage_path: string; thumbnail_path: null; duration_seconds: number }) => void = () => {};
+  mocks.upload.mockImplementation((_id, _file, phase, progress) => {
+    phase("Uploading video…"); progress(25); advance = progress;
+    return new Promise(resolve => { finish = resolve; });
+  });
+  mocks.save.mockResolvedValue({ ok: false, error: "Try saving again." });
+  render(<GuideLibrary guides={[]} isSuperAdmin />);
+  await user.click(screen.getByRole("button", { name: "Upload video" }));
+  const dialog = await screen.findByRole("dialog");
+  await user.type(within(dialog).getByRole("textbox", { name: "Title" }), "New guide");
+  await user.type(within(dialog).getByLabelText("Description"), "Prepare a race.");
+  expect(within(dialog).getByText(/Up to 100 MB/)).toBeInTheDocument();
+  await user.upload(within(dialog).getByLabelText("Video file"), new File(["video"], "guide.mp4", { type: "video/mp4" }));
+  await user.click(within(dialog).getByRole("button", { name: "Publish guide" }));
+  const bar = await within(dialog).findByRole("progressbar", { name: "Video upload progress" });
+  expect(bar).toHaveAttribute("aria-valuenow", "25");
+  expect(within(dialog).getByRole("button", { name: "Cancel" })).toBeDisabled();
+  expect(mocks.save).not.toHaveBeenCalled();
+  act(() => advance(75));
+  expect(bar).toHaveAttribute("aria-valuenow", "75");
+  act(() => advance(100));
+  expect(within(dialog).getByRole("status")).toHaveTextContent("Finishing upload…");
+  await act(async () => finish({ storage_path: `${id}/${uploadId}.mp4`, thumbnail_path: null, duration_seconds: 95 }));
+  expect(await within(dialog).findByRole("alert")).toHaveTextContent("Try saving again.");
+  expect(within(dialog).queryByRole("progressbar")).not.toBeInTheDocument();
+  expect(within(dialog).getByRole("button", { name: "Publish guide" })).toBeEnabled();
 });

@@ -159,3 +159,7 @@ The approved Trail Roster visual direction is now a durable [layout specificatio
 ### 2026-09-27 organization admin Guide
 
 [Video Library](specs/2026-09-27-org-admin-guide.md) selected and implemented locally. Fieldnotes source sync, authenticated upload, drafts/publishing, search, and private playback are verified. [Implementation plan](plans/2026-09-27-org-admin-guide.md). Hosted staging acceptance and production read-only checks passed; see the [release evidence](operations/launch-progress.md).
+
+### Guide upload progress and 100 MB follow-up
+
+[Follow-up plan](plans/2026-09-27-guide-upload-progress.md): actual byte progress through the Fieldnotes component and a 100,000,000-byte upload limit. All 2,255 tests, both typechecks/builds and isolated migration replay passed. Hosted staging acceptance is pending.
