@@ -1,6 +1,6 @@
 # Organization admin Guide
 
-Status: selected Video Library deployed and verified on staging through PR #166.
+Status: selected Video Library deployed to production through PR #168 after hosted staging acceptance; production read-only checks passed.
 
 ## Approved design
 
@@ -20,7 +20,7 @@ Source: the [approved prototype](../previews/guide/GuidePrototype.tsx) and [expl
 
 `guide_videos` is platform-owned teaching content and intentionally has no organization ID. It carries bounded title/description/topic, real duration, immutable video/thumbnail paths, publication status, and timestamps. Business tables keep tenant isolation.
 
-The private `guide-videos` bucket permits only MP4, WebM, and JPEG, with a 50 MiB per-file limit. The unconfirmed prototype label of 500 MB was corrected to the repository's existing Storage cap. Titles are at most 160 characters; descriptions at most 2,000. Videos are at most four hours.
+The private `guide-videos` bucket permits only MP4, WebM, and JPEG, with a 100 MB (100,000,000 bytes) per-file limit. The uploader reports actual bytes sent through an accessible Fieldnotes progress bar. A finishing phase distinguishes transfer completion from metadata saving. The upload-limit follow-up supersedes the original 50 MiB release. Titles are at most 160 characters; descriptions at most 2,000. Videos are at most four hours.
 
 Database row-level security permits super-admin CRUD. Org-admin reads require published rows. Storage reads require an exact matching published video/thumbnail path and an admin role. Editors, marshals, runners, and anonymous callers are denied. A known draft or orphan object path does not grant access. Server actions validate roles, metadata, path ownership, and upload existence before saving. No service-role key reaches the browser.
 
@@ -30,4 +30,4 @@ Playback and thumbnails use signed URLs with one-hour lifetimes. Unpublishing pr
 
 No synthetic guide rows or media are inserted by the migration. The real library starts empty until a super admin publishes content. Local QA uses an isolated stack and existing illustrative tutorial media. Abandoned uploads and replaced files remain super-admin-only; automatic deletion is excluded because an uncertain save response must not destroy a successfully saved recording.
 
-Transcoding, video analytics, lessons/progress, caption generation, and hosted deployment are outside this slice. Apply migration `20260927010129` and deploy the reviewed app revision to staging before production promotion. Confirm the hosted Storage global cap supports 50 MiB and complete hosted role/upload/playback checks.
+Transcoding, video analytics, lessons/progress, and caption generation are outside this slice. Migration `20260927010129` and the reviewed application passed staging role/upload/playback acceptance before production promotion. The original hosted release used 50 MiB caps. The 100 MB follow-up passed hosted staging upload, progress, responsive, playback and permission checks. Production promotion is in progress. See the release ledger for production deployments and read-only verification.

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { BookOpen, CalendarDays, Check, ChevronDown, ClipboardList, CreditCard, FileVideo, Play, Plus, QrCode, Search, ShieldCheck, Upload, Users, X } from "lucide-react";
 import { Button } from "@/components/fieldnotes/button";
+import { Progress } from "@/components/fieldnotes/progress";
 import { Field } from "@/components/fieldnotes/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -55,6 +56,7 @@ function GuideUpload({ guide, onSaved, onClose, restoreFocus }: { guide: GuideVi
   const [fileIssue, setFileIssue] = useState("");
   const [busy, setBusy] = useState(false);
   const [phase, setPhase] = useState("");
+  const [progress, setProgress] = useState<number | null>(null);
   const uploaded = useRef<UploadedGuide | null>(null);
   const titleInput = useRef<HTMLInputElement>(null);
 
@@ -66,9 +68,9 @@ function GuideUpload({ guide, onSaved, onClose, restoreFocus }: { guide: GuideVi
     const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
     const published = submitter?.value === "published";
     if (!guide && !file && !uploaded.current) { setError("Choose a video before continuing."); return; }
-    setBusy(true); setError("");
+    setBusy(true); setError(""); setProgress(null);
     try {
-      if (file && !uploaded.current) uploaded.current = await uploadGuideVideo(id, file, setPhase);
+      if (file && !uploaded.current) uploaded.current = await uploadGuideVideo(id, file, setPhase, setProgress);
       const media = uploaded.current ?? guide;
       if (!media) throw new Error("Choose a video before continuing.");
       setPhase("Saving guide…");
@@ -78,7 +80,7 @@ function GuideUpload({ guide, onSaved, onClose, restoreFocus }: { guide: GuideVi
       if (!result.ok) { setError(result.error ?? "Guide could not be saved. Try again."); return; }
       onSaved(published);
     } catch (failure) { setError(failure instanceof Error ? failure.message : "Guide could not be saved. Try again."); }
-    finally { setBusy(false); setPhase(""); }
+    finally { setBusy(false); setPhase(""); setProgress(null); }
   }
   return <Dialog open onOpenChange={open => { if (!open && !busy) onClose(); }}><DialogContent className="gd-dialog gd-upload-dialog" showCloseButton={!busy}
     onCloseAutoFocus={e => { e.preventDefault(); restoreFocus(); }}
@@ -91,16 +93,19 @@ function GuideUpload({ guide, onSaved, onClose, restoreFocus }: { guide: GuideVi
         <Field ref={titleInput} className="gd-field" name="title" label="Title" required maxLength={160} defaultValue={guide?.title} placeholder="e.g. Create and publish your event" />
         <label className="gd-field">Description<Textarea name="description" required maxLength={2000} rows={3} defaultValue={guide?.description} placeholder="What will an org admin learn?" /></label>
         <label className="gd-field">Topic<select name="topic" defaultValue={guide?.topic ?? GUIDE_TOPICS[0]}>{GUIDE_TOPICS.map(t => <option key={t}>{t}</option>)}</select></label>
-        <label className="gd-upload-zone"><Upload /><strong>{file ? file.name : guide ? "Replace video (optional)" : "Choose your video"}</strong><span>MP4 or WebM · Up to 50 MiB · Up to four hours</span>
+        <label className="gd-upload-zone"><Upload /><strong>{file ? file.name : guide ? "Replace video (optional)" : "Choose your video"}</strong><span>MP4 or WebM · Up to 100 MB · Up to four hours</span>
           <Input type="file" aria-label="Video file" accept="video/mp4,video/webm" aria-describedby={error ? "guide-upload-error" : undefined}
             onChange={e => { const next = e.target.files?.[0] ?? null; const invalid = next ? guideFileError(next) : null;
               setError(invalid ?? ""); setFileIssue(invalid ?? ""); setFile(invalid ? null : next); uploaded.current = null; }} /></label>
+        {busy && <div className="gd-upload-status">
+          <p className="gd-upload-note" role="status">{phase === "Uploading video…" && progress === 100 ? "Finishing upload…" : phase}</p>
+          {progress !== null && <div className="gd-upload-progress"><Progress value={progress} aria-label="Video upload progress" /><span aria-hidden="true">{progress}%</span></div>}
+        </div>}
         <p className="gd-upload-note"><ShieldCheck />Drafts are visible only to super admins. Published guides are shared with all org admins.</p>
         {error && <p id="guide-upload-error" className="gd-form-error" role="alert">{error}</p>}
         <div className="gd-form-actions"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
           <Button type="submit" variant="outline" value="draft">Save draft</Button><Button type="submit" value="published">{guide?.is_published ? "Save changes" : "Publish guide"}</Button></div>
       </fieldset>
-      {busy && <p className="gd-upload-note" role="status">{phase}</p>}
     </form>
   </DialogContent></Dialog>;
 }

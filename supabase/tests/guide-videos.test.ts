@@ -91,10 +91,15 @@ afterAll(async () => {
 });
 
 describe("global Guide library authorization", () => {
-  it("pins a private 50 MiB bucket and supported video/thumbnail MIME types", async () => {
+  it("pins a private 100 MB bucket and supported video/thumbnail MIME types", async () => {
     const found = checked(await service.storage.getBucket(bucket));
     expect(found.public).toBe(false);
-    expect(found.file_size_limit).toBe(50 * 1024 * 1024);
+    expect(found.file_size_limit).toBe(100_000_000);
+    const others = checked(await service.storage.listBuckets()).filter(item => item.id !== bucket);
+    for (const other of others) {
+      expect(other.file_size_limit).toBeGreaterThan(0);
+      expect(other.file_size_limit).toBeLessThanOrEqual(52_428_800);
+    }
     expect(found.allowed_mime_types?.sort()).toEqual(["image/jpeg", "video/mp4", "video/webm"]);
     const unsupported = await upload(superAdmin, `${published.id}/${randomUUID()}.txt`, "text/plain");
     expect(unsupported.error).not.toBeNull();

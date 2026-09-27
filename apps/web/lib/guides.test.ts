@@ -40,13 +40,17 @@ describe("guide metadata", () => {
 });
 
 describe("guide files", () => {
-  it.each(["video/mp4", "video/webm"])("accepts %s at the 50 MiB limit", type => {
+  it.each(["video/mp4", "video/webm"])("accepts %s at the 100 MB limit", type => {
     expect(guideFileError({ type, size: GUIDE_MAX_BYTES })).toBeNull();
+  });
+  it("accepts videos above the previous 50 MiB cap", () => {
+    expect(guideFileError({ type: "video/mp4", size: 75_000_000 })).toBeNull();
+    expect(GUIDE_MAX_BYTES).toBe(100_000_000);
   });
   it("rejects unsupported, empty, and oversized files with useful recovery", () => {
     expect(guideFileError({ type: "image/jpeg", size: 20 })).toMatch(/MP4 or WebM/);
     expect(guideFileError({ type: "video/mp4", size: 0 })).toMatch(/empty.*another video/);
-    expect(guideFileError({ type: "video/mp4", size: GUIDE_MAX_BYTES + 1 })).toMatch(/50 MiB.*smaller file/);
+    expect(guideFileError({ type: "video/mp4", size: GUIDE_MAX_BYTES + 1 })).toMatch(/100 MB.*smaller file/);
   });
 });
 

@@ -173,3 +173,8 @@ button:hover .gd-recording + .gd-play { transform: scale(1.08); }
   .gd-root button:hover .gd-play { transform: translate(-50%,-50%); }
   .gd-root button:hover .gd-recording + .gd-play { transform: none; }
 }
+
+.gd-upload-progress { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
+.gd-upload-progress [data-slot="progress"] { flex: 1; background: var(--secondary); }
+.gd-upload-progress [data-slot="progress-indicator"] { background: var(--primary); }
+.gd-upload-progress > span { min-width: 36px; text-align: right; font-size: 12px; font-variant-numeric: tabular-nums; }

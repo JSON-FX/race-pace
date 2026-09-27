@@ -1,6 +1,6 @@
 # Org admin Guide: five interactive proposals
 
-Status: Video Library selected, implemented, and deployed at [staging Guide](https://staging-admin.racepace.com.ph/guide). These five proposals remain the original design references. See the [application specification](../../specs/2026-09-27-org-admin-guide.md), [source synchronization](application-source-sync.md), and [live local page](http://127.0.0.1:4180/guide).
+Status: Video Library selected, implemented, and deployed at [production Guide](https://admin.racepace.com.ph/guide) after hosted staging acceptance. These five proposals remain the original design references. See the [application specification](../../specs/2026-09-27-org-admin-guide.md), [source synchronization](application-source-sync.md), and [live local page](http://127.0.0.1:4180/guide).
 
 Branch: `codex/org-guide-prototypes`, created from `origin/staging` at `1188768f33ea4999407774c15fc3146d8e72cc25`.
 

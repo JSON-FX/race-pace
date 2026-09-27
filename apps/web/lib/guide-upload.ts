@@ -43,7 +43,36 @@ async function inspectVideo(file: File): Promise<{ duration: number; thumbnail: 
   }
 }
 
-export async function uploadGuideVideo(id: string, file: File, phase: (label: string) => void): Promise<UploadedGuide> {
+// Storage uses the same multipart POST as the SDK. XHR exposes actual bytes sent.
+async function uploadVideo(path: string, file: File, progress: (percent: number) => void): Promise<void> {
+  const client = createClient();
+  const { data, error } = await client.auth.getSession();
+  if (error || !data.session) throw new Error("Your session expired. Sign in again before uploading.");
+  const body = new FormData();
+  body.append("cacheControl", "3600");
+  body.append("", file);
+  await new Promise<void>((resolve, reject) => {
+    const request = new XMLHttpRequest();
+    const fail = () => reject(new Error("Video upload failed. Check your connection and try again."));
+    request.upload.onprogress = event => {
+      if (event.lengthComputable && event.total > 0) progress(Math.min(100, Math.floor(event.loaded / event.total * 100)));
+    };
+    request.onload = () => {
+      if (request.status >= 200 && request.status < 300) { progress(100); resolve(); }
+      else fail();
+    };
+    request.onerror = fail;
+    request.onabort = fail;
+    request.open("POST", `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/${GUIDE_BUCKET}/${path}`);
+    request.setRequestHeader("apikey", process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
+    request.setRequestHeader("Authorization", `Bearer ${data.session.access_token}`);
+    request.setRequestHeader("x-upsert", "false");
+    progress(0);
+    request.send(body);
+  });
+}
+
+export async function uploadGuideVideo(id: string, file: File, phase: (label: string) => void, progress: (percent: number) => void): Promise<UploadedGuide> {
   const error = guideFileError(file);
   if (error) throw new Error(error);
   phase("Reading video…");
@@ -52,8 +81,7 @@ export async function uploadGuideVideo(id: string, file: File, phase: (label: st
   const uploadId = crypto.randomUUID();
   const storage_path = `${id}/${uploadId}.${file.type === "video/webm" ? "webm" : "mp4"}`;
   phase("Uploading video…");
-  const video = await client.storage.from(GUIDE_BUCKET).upload(storage_path, file, { contentType: file.type, upsert: false });
-  if (video.error) throw new Error("Video upload failed. Check your connection and try again.");
+  await uploadVideo(storage_path, file, progress);
   let thumbnail_path: string | null = null;
   if (media.thumbnail) {
     phase("Preparing thumbnail…");

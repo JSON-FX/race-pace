@@ -18,7 +18,7 @@ ultra-trail event platform (Mindanao, Philippines).
 
 ## Web and admin readiness — September 2026
 
-Organization admin Guide: [Video Library](./specs/2026-09-27-org-admin-guide.md) selected and implemented locally with Fieldnotes components. Search, super-admin upload/publishing, and private playback are verified. [Implementation plan](./plans/2026-09-27-org-admin-guide.md). Staging delivery and hosted role/upload/playback checks are complete through [PR #166](https://github.com/JSON-FX/race-pace/pull/166). See the [release evidence](./operations/launch-progress.md).
+Organization admin Guide: [Video Library](./specs/2026-09-27-org-admin-guide.md) selected and implemented locally with Fieldnotes components. Search, super-admin upload/publishing, and private playback are verified. [Implementation plan](./plans/2026-09-27-org-admin-guide.md). Hosted staging role/upload/playback checks passed; production delivery and read-only checks are complete through [PR #168](https://github.com/JSON-FX/race-pace/pull/168). See the [release evidence](./operations/launch-progress.md).
 
 **Primary progress table:** [Launch progress](./operations/launch-progress.md). Update affected rows after each setup, implementation or verification step; show the next task and outstanding blockers.
 
@@ -158,4 +158,8 @@ The approved Trail Roster visual direction is now a durable [layout specificatio
 
 ### 2026-09-27 organization admin Guide
 
-[Video Library](specs/2026-09-27-org-admin-guide.md) selected and implemented locally. Fieldnotes source sync, authenticated upload, drafts/publishing, search, and private playback are verified. [Implementation plan](plans/2026-09-27-org-admin-guide.md). Hosted Guide acceptance passed; see the [staging release evidence](operations/launch-progress.md).
+[Video Library](specs/2026-09-27-org-admin-guide.md) selected and implemented locally. Fieldnotes source sync, authenticated upload, drafts/publishing, search, and private playback are verified. [Implementation plan](plans/2026-09-27-org-admin-guide.md). Hosted staging acceptance and production read-only checks passed; see the [release evidence](operations/launch-progress.md).
+
+### Guide upload progress and 100 MB follow-up
+
+[Follow-up plan](plans/2026-09-27-guide-upload-progress.md): actual byte progress through the Fieldnotes component and a 100,000,000-byte upload limit. All 2,255 tests, both typechecks/builds and isolated migration replay passed. Hosted staging acceptance passed at `0e857509f4fe919b64b5d943d1f7f0801d0c626e`, including two actual 100 MB transfers, playback, permissions, responsive progress and task-only cleanup. Production promotion is next.
