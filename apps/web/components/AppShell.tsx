@@ -34,7 +34,7 @@ export function AppShell({
         {/* `relative` anchors the absolutely-positioned bar to the content pane
             rather than the viewport, so it spans the content and not the
             sidebar — matching where the navigation actually lands. */}
-        <SidebarInset className="relative bg-muted">
+        <SidebarInset className="relative min-w-0 bg-muted">
           <NavProgressBar />
           <TopBar roles={roles} orgName={orgName} orgContext={orgContext} />
           <main className="rp-scroll flex-1 overflow-y-auto bg-muted">{children}</main>
