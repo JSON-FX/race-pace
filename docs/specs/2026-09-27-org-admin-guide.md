@@ -1,6 +1,6 @@
 # Organization admin Guide
 
-Status: selected Video Library implemented locally; staging release pending.
+Status: selected Video Library deployed and verified on staging through PR #166.
 
 ## Approved design
 

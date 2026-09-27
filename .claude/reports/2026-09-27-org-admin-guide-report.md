@@ -2,7 +2,7 @@
 
 **Plan:** `docs/plans/2026-09-27-org-admin-guide.md`
 **Branch:** `codex/org-guide-prototypes`
-**Status:** COMPLETE locally; staging release authorized and in progress.
+**Status:** COMPLETE locally and deployed to staging; hosted Guide acceptance passed.
 
 ## Summary
 
@@ -51,6 +51,6 @@ Playwright's screenshot caret override produced a development hydration warning 
 
 ## Release boundary
 
-The owner authorized staging delivery on 2026-09-27. Commit, pull request, deployment, and hosted acceptance are in progress. Production promotion is not authorized. The migration creates no guide rows or media. Hosted delivery must use the staging-first workflow, confirm the hosted global upload cap, apply the reviewed migration, and verify real super-admin upload plus org-admin playback before production promotion.
+The owner authorized staging delivery on 2026-09-27. PR #166 merged at `712e26eec0df3610ca28523ae52eabf70dc7f33e`; both staging apps are Ready, migration `20260927010129` is applied, and hosted Browser acceptance passed. The migration creates no guide rows or media. The temporary hosted test guide, files, and accounts were removed. Exact deployment IDs, migration readback, CI retry, role checks, and cleanup are recorded in `docs/operations/launch-progress.md`. Production promotion is not authorized.
 
 Local preview sign-in uses the documented [Cloudflare test site key](https://developers.cloudflare.com/turnstile/troubleshooting/testing/) in ignored local environment settings only. It does not change application authentication code or hosted provider configuration.

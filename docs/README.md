@@ -18,7 +18,7 @@ ultra-trail event platform (Mindanao, Philippines).
 
 ## Web and admin readiness — September 2026
 
-Organization admin Guide: [Video Library](./specs/2026-09-27-org-admin-guide.md) selected and implemented locally with Fieldnotes components. Search, super-admin upload/publishing, and private playback are verified. [Implementation plan](./plans/2026-09-27-org-admin-guide.md). Hosted staging release remains pending.
+Organization admin Guide: [Video Library](./specs/2026-09-27-org-admin-guide.md) selected and implemented locally with Fieldnotes components. Search, super-admin upload/publishing, and private playback are verified. [Implementation plan](./plans/2026-09-27-org-admin-guide.md). Staging delivery and hosted role/upload/playback checks are complete through [PR #166](https://github.com/JSON-FX/race-pace/pull/166). See the [release evidence](./operations/launch-progress.md).
 
 **Primary progress table:** [Launch progress](./operations/launch-progress.md). Update affected rows after each setup, implementation or verification step; show the next task and outstanding blockers.
 
@@ -158,4 +158,4 @@ The approved Trail Roster visual direction is now a durable [layout specificatio
 
 ### 2026-09-27 organization admin Guide
 
-[Video Library](specs/2026-09-27-org-admin-guide.md) selected and implemented locally. Fieldnotes source sync, authenticated upload, drafts/publishing, search, and private playback are verified. [Implementation plan](plans/2026-09-27-org-admin-guide.md). Hosted staging acceptance remains pending.
+[Video Library](specs/2026-09-27-org-admin-guide.md) selected and implemented locally. Fieldnotes source sync, authenticated upload, drafts/publishing, search, and private playback are verified. [Implementation plan](plans/2026-09-27-org-admin-guide.md). Hosted Guide acceptance passed; see the [staging release evidence](operations/launch-progress.md).
