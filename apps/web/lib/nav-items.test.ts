@@ -58,3 +58,11 @@ it("shows kit crew only race kits in navigation and the phone bar", () => {
   expect(paths(visibleOrgItems(who(["release_kits"])))).toEqual(["/race-kits"]);
   expect(paths(primaryMobileItems(who(["release_kits"])))).toEqual(["/race-kits"]);
 });
+
+it("offers Guide in org-admin navigation and mobile More, and hides it from staff", () => {
+  const admin = who(["manage_team", "manage_org", "check_in"]);
+  expect(paths(visibleOrgItems(admin))).toContain("/guide");
+  expect(paths(moreMobileItems(admin).flatMap(group => group.items))).toContain("/guide");
+  expect(paths(visibleOrgItems(who(["manage_org", "check_in"])))).not.toContain("/guide");
+  expect(paths(visibleOrgItems(who(["manage_platform", "manage_team"])))).toContain("/guide");
+});

@@ -18,6 +18,8 @@ ultra-trail event platform (Mindanao, Philippines).
 
 ## Web and admin readiness — September 2026
 
+Organization admin Guide: [Video Library](./specs/2026-09-27-org-admin-guide.md) selected and implemented locally with Fieldnotes components. Search, super-admin upload/publishing, and private playback are verified. [Implementation plan](./plans/2026-09-27-org-admin-guide.md). Staging delivery and hosted role/upload/playback checks are complete through [PR #166](https://github.com/JSON-FX/race-pace/pull/166). See the [release evidence](./operations/launch-progress.md).
+
 **Primary progress table:** [Launch progress](./operations/launch-progress.md). Update affected rows after each setup, implementation or verification step; show the next task and outstanding blockers.
 
 **Required release path:** [Staging-first workflow](./operations/release-workflow.md). Every application and backend change must pass the exact staging revision before promotion into `main`.
@@ -153,3 +155,7 @@ The approved Trail Roster visual direction is now a durable [layout specificatio
 ### 2026-09-17 group ticket-email delivery worker
 
 [Delivery plan](plans/2026-09-17-group-ticket-delivery.md) implemented locally: protected worker, leased outbox claims, failed-send backoff, stale completion guards and one booker email containing named active participant tickets. Refunded tickets are omitted. Original booking total appears once. Backend593 tests and Deno checks passed. Runtime flag and scheduler remain off; transport verification and group browser flow are pending. [Report](../.claude/reports/2026-09-17-group-ticket-delivery-report.md).
+
+### 2026-09-27 organization admin Guide
+
+[Video Library](specs/2026-09-27-org-admin-guide.md) selected and implemented locally. Fieldnotes source sync, authenticated upload, drafts/publishing, search, and private playback are verified. [Implementation plan](plans/2026-09-27-org-admin-guide.md). Hosted Guide acceptance passed; see the [staging release evidence](operations/launch-progress.md).

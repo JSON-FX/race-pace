@@ -1,0 +1,14 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { GuidePrototype } from "./GuidePrototype";
+const meta = { title: "Fieldnotes/Proposals/Org admin Guide", component: GuidePrototype, parameters: { layout: "fullscreen", docs: { description: { component: "Five local Guide design proposals. Sample lessons and role simulation only. No application backend or hosted writes." } } } } satisfies Meta<typeof GuidePrototype>;
+export default meta;
+type Story = StoryObj<typeof meta>;
+export const VideoLibrary: Story = { args: { initialChoice: 0 } };
+export const TopicIndex: Story = { args: { initialChoice: 1 } };
+export const WatchDesk: Story = { args: { initialChoice: 2 } };
+export const TaskFinder: Story = { args: { initialChoice: 3 } };
+export const CompactList: Story = { args: { initialChoice: 4 } };
+export const SuperAdmin: Story = { args: { initialRole: "super" } };
+export const Empty: Story = { args: { initialState: "empty" } };
+export const Loading: Story = { args: { initialState: "loading" } };
+export const LoadError: Story = { args: { initialState: "error" } };
