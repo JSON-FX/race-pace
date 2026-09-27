@@ -17,7 +17,7 @@ The client, local Storage configuration and additive bucket migration use 100,00
 - Both optimized Next builds passed.
 - Focused boundary/transport/UI coverage: 41 passing tests. Covers exactly 100 MB, one byte above, intermediate percentage, unknown total, HTTP/network/abort failure, expired session, accessible progress and retained metadata retry.
 - Technical review passed with no findings.
-- Canonical Fieldnotes progress inspected through Browser in the existing Storybook catalog. Local Browser rejected 100,000,001 bytes, accepted 100,000,000 bytes and saved a real draft with thumbnail and measured duration. Computer opened the same fixture in VLC and confirmed native 8:43 playback. Browser found feedback below the dialog fold; the progress block was moved beside the file field. Consuming hosted staging upload/visual acceptance remains pending.
+- Canonical Fieldnotes progress inspected through Browser in the existing Storybook catalog. Local Browser rejected 100,000,001 bytes, accepted 100,000,000 bytes and saved a real draft with thumbnail and measured duration. Computer opened the same fixture in VLC and confirmed native 8:43 playback. Browser found feedback below the dialog fold; the progress block was moved beside the file field. Hosted staging upload/visual acceptance passed: two actual 100 MB uploads, increasing desktop/mobile/tablet progress, signed playback and permissions. All task-owned QA records, four media objects and the temporary account were removed.
 
 ## Intentional implementation choices
 
@@ -26,3 +26,5 @@ The installed Supabase SDK exposes no upload callback. Native XMLHttpRequest sen
 ## Release gate
 
 Apply migration 20260927025643 and read back bucket limits before raising the staging global cap. Complete actual 100 MB Browser upload, increasing bar, save, playback, permission denial, responsive checks and task-only cleanup. Production promotion follows only after staging passes. Production checks must create no synthetic records or payment.
+
+Staging release source: `0e857509f4fe919b64b5d943d1f7f0801d0c626e`, PR #171, passing exact CI `36292046851`. Deployment IDs, migration/global cap readback and cleanup counts are recorded in the launch ledger.

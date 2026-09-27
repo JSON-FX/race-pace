@@ -1,6 +1,6 @@
 # Guide upload progress and 100 MB limit
 
-Status: implemented and locally validated; hosted release in progress. Branch: `codex/guide-upload-progress`, based on staging `f6cd6d6e6f18834e20c8f8702e805de703b87817`. Main is an ancestor of staging. The original Guide release is verified in production at `ff7d22e8b2d4311c692ffb90b255e821cba50ed0`.
+Status: implemented, locally validated and accepted on hosted staging; production promotion in progress. Branch: `codex/guide-upload-progress`, based on staging `f6cd6d6e6f18834e20c8f8702e805de703b87817`. Main is an ancestor of staging. The original Guide release is verified in production at `ff7d22e8b2d4311c692ffb90b255e821cba50ed0`.
 
 ## Feature and acceptance criteria
 
