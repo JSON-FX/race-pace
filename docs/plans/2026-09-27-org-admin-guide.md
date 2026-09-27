@@ -61,3 +61,7 @@ Create a dedicated local Supabase stack with distinct project ID and free ports 
 
 - 2026-09-27 — Added `min-w-0` to existing SidebarInset after browser verification found tablet overflow from the shell’s minimum content width. No navigation behavior changed.
 - 2026-09-27 — Corrected isolated test runtime’s public function URL to port 54721. The default points to the shared 54521 stack and caused one unrelated fake-checkout failure. Final suite passes with the isolated URL.
+
+## Staging delivery
+
+PR #166 merged on 2026-09-27. Hosted upload, publishing, role restrictions, search, playback, responsive layout, and cleanup passed using Browser. See `docs/operations/launch-progress.md` for the exact source, deployments, migration, and CI evidence.
