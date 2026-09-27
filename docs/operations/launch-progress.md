@@ -722,3 +722,27 @@ Local release checks: shared UI 13 tests, Runner 483, Admin 1003, backend/shared
 - Hosted Browser acceptance used existing staging sessions and QA events. Runner home/footer, open event details, forest green metric/price badges, participant links, Coming Soon reservation actions and Profile loaded. Badge readback is `rgb(23, 99, 65)` with white text. Reserve links measure 240×60 and 240×64 pixels. Profile has zero duplicate Sign out buttons. Admin Events, Users, Commission and Guide loaded; commission fee types are dropdowns. Guide Upload video readback is forest green with white text. Captured runner/admin warnings and errors are empty across these routes.
 - Existing authenticated staging sessions remained valid. No new payment, reservation, upload, email or other hosted fixture mutation occurred during acceptance. Fresh sign-in, recovery, tenant isolation, organization/event creation and email delivery remain pre-production acceptance work; local and GitHub contract tests cover their unchanged backend behavior.
 - Local cleanup returned to exactly two review events, 183 organizations, 624 users and the original 4,777 Race Passports. The existing pending reservation is retained. Normal local Edge runtime configuration was restored; readiness returned HTTP 405. Only the existing race-pace app/ Supabase stack was used.
+
+## Fieldnotes production preflight — 2026-09-27
+
+| Completed | Blockers | Next task |
+| --- | --- | --- |
+| Fresh staging sign-in, invitation, organization/event creation, tenant isolation, email delivery, recovery redemption and cleanup verified | Password update and subsequent sign-in remain untested by owner choice | Promote staging to main; verify production; sync main to staging |
+
+
+Source: staging `214d2409936226b00fb799e18d957d15969d381d`. Exact CI `36298248738` passed. Both staging deployments are Ready at this SHA: Runner `dpl_7wzXE5t9YWFFEnzsfCEQm1czYuDC`, Admin `dpl_A27SNgVmsbHvGzeYUPpaZxqUViuE`. Application, backend and workflow source matches the UI-tested merge `7b275893e6ccec87c5b4bee272d9d69d27352fff`.
+
+Fresh hosted acceptance:
+- Runner signed out and completed Google sign-in through staging Supabase `pepbmqomiailnnvvwupz`; authenticated home loaded.
+- Super admin created `[TEST] Fieldnotes Release QA 20260927` through the staging Organizations form. Owner explicitly confirmed the QA admin invitation.
+- Manual invitation link redeemed to an ordinary organizer session. The new organization's Events directory initially contained zero events; platform navigation was absent.
+- Organizer created one draft event using the actual hosted form. Independent SQL confirmed event `ba029167-edbe-44b7-83fe-6f0d6445ccc8` belonged to QA organization `461aeb9a-466d-4caf-a161-999c7e6dc7d6`. It was never published and had no category, booking or payment.
+- The unrelated scope organization's event editor returned 404. SQL confirmed the QA account has no role in that organization.
+- Resend records `01a0e190-d9fa-7234-85d1-dbb3cd841112` (sign-in) and `01a0e196-ce29-7669-bb8f-8dcc2dca1ffe` (fresh recovery) are delivered. Sender is `Race Pace Staging <staging@notify.racepace.com.ph>`. Both reached the existing support QA inbox, and links target only staging Auth and staging-admin.
+- The first recovery email was delivered but its link was invalidated by concurrent invitation generation. A subsequent serial request delivered a fresh link and rendered the valid New password / Confirm new password form. On 2026-09-28, the owner explicitly accepted this remaining recovery gap for the UI release and chose to complete the password update and subsequent password sign-in later. Neither step is claimed as tested.
+- Browser captured no errors or warnings for the organizer acceptance session.
+- Cleanup deleted only the newly created draft event, organization and membership. Readback: two organizations, ten events, eleven registrations and eleven payments; zero owned event/organization residue. Existing QA identity and memberships preserved.
+
+Backend/environment readback: both hosted projects have 159 migration versions through `20260927025643`; no Supabase source changes in this release. All production functions are Active. Four pre-existing bundle differences remain (`org-members`, `group-payment-prepare`, `group-payment`, `group-reservations`); staging additionally has `fake-checkout`. No function is deployed by this UI release. PayMongo/Resend keys, sender, admin URL and origin fingerprints differ by environment and predate this release. Staging alone has EMAIL_ENVIRONMENT. No provider settings changed.
+
+Production baseline remains main `2a4a9486ac47d73a9bac384810059c399e86fe71`, Runner `dpl_74jWX5BnNPvrKcd6EhH3QJsqU1WC`, Admin `dpl_5Bf97wtWjnzGYCUvR4ytaZcmhKjh`. Data counts: two organizations, one event, 23 registrations, 19 payments and one Guide video. No production mutation or live payment occurred.
