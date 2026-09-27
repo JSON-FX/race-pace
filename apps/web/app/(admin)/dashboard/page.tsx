@@ -1,3 +1,4 @@
+
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ClipboardList, Wallet, Landmark, Clock } from "lucide-react";
@@ -67,7 +68,7 @@ export default async function DashboardPage() {
   if (events.eventCount === 0) {
     return (
       <Shell>
-        <Card className="gap-0 overflow-hidden rounded-xl border py-0 shadow-card">
+        <Card className="gap-0 overflow-hidden border py-0">
           <TableEmptyState
             title="Nothing to report yet"
             description="Revenue, sign-ups and fill rate all follow from your events. Create your first one and this page fills in as registrations arrive."
@@ -144,17 +145,17 @@ export default async function DashboardPage() {
       </KpiRow>
 
       <div className="fieldnotes-dashboard-panels">
-        <Card className="gap-0 overflow-hidden rounded-xl border py-0 shadow-card">
+        <Card className="gap-0 overflow-hidden border py-0">
           <CardHead title="Sign-ups over time" note="Daily · 30d" />
           <SignupsChart points={data.signups} />
         </Card>
-        <Card className="gap-0 overflow-hidden rounded-xl border py-0 shadow-card">
+        <Card className="gap-0 overflow-hidden border py-0">
           <CardHead title="Race capacity" note="Up to 5 capped races" />
           <FillRatePanel rows={data.fill} />
         </Card>
       </div>
 
-      <Card className="mt-3 gap-0 overflow-hidden rounded-xl border py-0 shadow-card">
+      <Card className="mt-3 gap-0 overflow-hidden border py-0">
         <CardHead title="Upcoming events" note="Next 60 days" />
         {events.upcoming.length === 0 ? (
           <TableEmptyState
@@ -162,7 +163,7 @@ export default async function DashboardPage() {
             description="Nothing is scheduled to start soon. Past and draft events are still on the Events page."
           />
         ) : (
-          <Table className="text-[12.5px]">
+          <Table className="">
             <TableHeader>
               <TableRow className="hover:bg-transparent">
                 <TableHead>Event</TableHead>
@@ -175,7 +176,7 @@ export default async function DashboardPage() {
             <TableBody>
               {events.upcoming.map((e) => (
                 <TableRow key={e.id}>
-                  <TableCell className="font-medium">
+                  <TableCell className="">
                     {/* `/events/[id]` does not exist — the only per-event route
                         is the editor. Linking to the bare id 404s, and because
                         Next prefetches these on render it 404s in the console
@@ -183,7 +184,7 @@ export default async function DashboardPage() {
                         rowHref. */}
                     <Link href={`/events/${e.id}/edit`} className="hover:underline">{e.name}</Link>
                   </TableCell>
-                  <TableCell className="tabular-nums text-muted-foreground">
+                  <TableCell className="tabular-nums">
                     {e.eventDate ? fmtDate(e.eventDate) : "—"}
                   </TableCell>
                   <TableCell><EventStatusBadge status={e.status} /></TableCell>

@@ -1,5 +1,11 @@
 "use client";
 
+import { DatePicker } from "@race-pace/ui";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { FieldError } from "@/components/ui/field";
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { FormSelect } from "@race-pace/ui";
 import { useEffect, useRef, useState } from "react";
 import {
   BLOOD_TYPES,
@@ -47,7 +53,7 @@ const VALUE_KEYS = [
   "shipping_address_line",
 ] as const;
 
-const SELECT_CLASS = "min-h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs outline-none transition-colors focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20";
+const SELECT_CLASS = "w-full";
 
 const RELATIONSHIP_GROUPS = [
   { label: "Immediate family", values: EMERGENCY_RELATIONSHIPS.slice(0, 13) },
@@ -175,7 +181,7 @@ export function PassportEditor({ userId, email, onSaved }: { userId: string; ema
               const complete = passportCompleteness(row, today).complete;
               const name = passportName(row, userId);
               return (
-                <button
+                <Button variant={active ? "secondary" : "outline"}
                   key={row.id}
                   type="button"
                   disabled={busy}
@@ -183,19 +189,18 @@ export function PassportEditor({ userId, email, onSaved }: { userId: string; ema
                   aria-label={`Edit ${name}`}
                   onClick={() => choose(row)}
                   className={cn(
-                    "flex min-h-16 w-full items-center gap-3 rounded-xl border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50",
-                    active ? "border-primary bg-secondary" : "border-border bg-background hover:bg-accent",
+                    "flex h-auto min-h-[76px] w-full justify-start whitespace-normal items-center gap-3 border p-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50",
                   )}
                 >
-                  <span className={cn("flex size-10 shrink-0 items-center justify-center rounded-lg font-mono-race text-xs font-bold", active ? "bg-primary text-primary-foreground" : "bg-muted text-foreground")}>
+                  <Avatar className="size-11"><AvatarFallback className={cn("text-sm font-semibold", active ? "bg-primary text-primary-foreground" : "bg-muted text-foreground")}>
                     {(row.first_name?.[0] ?? "R") + (row.last_name?.[0] ?? "P")}
-                  </span>
+                  </AvatarFallback></Avatar>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-semibold text-foreground">{name}</span>
                     <span className="mt-0.5 block text-xs text-muted-foreground">{complete ? "Complete" : "Needs details"}</span>
                   </span>
                   <ChevronRight className="size-4 text-muted-foreground" aria-hidden />
-                </button>
+                </Button>
               );
             })}
           </div>
@@ -215,7 +220,7 @@ export function PassportEditor({ userId, email, onSaved }: { userId: string; ema
       </Card>
 
       <div>
-        {error ? <p role="alert" className="mb-4 rounded-lg border border-destructive/25 bg-destructive-tint px-4 py-3 text-sm text-destructive">{error}</p> : null}
+        {error ? <Alert variant="destructive" role="alert" className="mb-4 border px-4 py-3"><AlertDescription>{error}</AlertDescription></Alert> : null}
         {passport ? (
           <Card className="gap-0 py-0">
             <CardHeader className="border-b border-divider py-6 sm:grid-cols-[1fr_auto]">
@@ -233,27 +238,27 @@ export function PassportEditor({ userId, email, onSaved }: { userId: string; ema
 
             <form onSubmit={save} noValidate>
               <fieldset disabled={busy}>
-                <details open className="group border-b border-divider">
-                  <summary className="flex min-h-20 cursor-pointer list-none items-center gap-4 px-6 py-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
+                <Collapsible defaultOpen className="group border-b border-divider">
+                  <CollapsibleTrigger className="flex min-h-20 cursor-pointer list-none items-center gap-4 px-6 py-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
                     <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-secondary text-secondary-foreground"><UserRound aria-hidden /></span>
                     <span className="flex-1"><span className="block font-semibold">Personal details</span><span className="mt-1 block text-sm text-muted-foreground">Name, birthday and gender</span></span>
                     <ChevronRight className="size-4 text-muted-foreground transition-transform group-open:rotate-90" aria-hidden />
-                  </summary>
+                  </CollapsibleTrigger><CollapsibleContent forceMount className="data-[state=closed]:hidden">
                   <div className="grid gap-5 px-6 pb-6 sm:grid-cols-2">
                     {PERSONAL_FIELDS.map(([key, label, type, required]) => (
                       <div key={key} className="space-y-1.5">
                         <Label htmlFor={`passport-${key}`}>{label}{required ? " *" : ""}</Label>
-                        <Input id={`passport-${key}`} type={type} value={values[key] ?? ""} max={type === "date" ? today : undefined} aria-invalid={!!issues[key]} aria-describedby={issues[key] ? `error-${key}` : undefined} onChange={(event) => change(key, event.target.value)} />
-                        {issues[key] ? <p id={`error-${key}`} className="text-sm text-destructive">{issues[key]}</p> : null}
+                        {type === "date" ? <DatePicker id={`passport-${key}`} required={required} value={values[key] ?? ""} max={today} aria-invalid={!!issues[key]} aria-describedby={issues[key] ? `error-${key}` : undefined} onValueChange={value => change(key, value)} /> : <Input id={`passport-${key}`} type={type} required={required} value={values[key] ?? ""} aria-invalid={!!issues[key]} aria-describedby={issues[key] ? `error-${key}` : undefined} onChange={(event) => change(key, event.target.value)} />}
+                        {issues[key] ? <FieldError id={`error-${key}`}>{issues[key]}</FieldError> : null}
                       </div>
                     ))}
                     <div className="space-y-1.5">
                       <Label htmlFor="passport-gender">Gender *</Label>
-                      <select id="passport-gender" className={SELECT_CLASS} value={values.gender ?? ""} aria-invalid={!!issues.gender} onChange={(event) => change("gender", event.target.value)}>
+                      <FormSelect id="passport-gender" className={SELECT_CLASS} value={values.gender ?? ""} required aria-invalid={!!issues.gender} aria-describedby={issues.gender ? `error-gender` : undefined} onChange={(event) => change("gender", event.target.value)}>
                         <option value="">Select gender</option>
                         {PASSPORT_GENDERS.map((gender) => <option key={gender}>{gender}</option>)}
-                      </select>
-                      {issues.gender ? <p className="text-sm text-destructive">{issues.gender}</p> : null}
+                      </FormSelect>
+                      {issues.gender ? <FieldError id="error-gender">{issues.gender}</FieldError> : null}
                     </div>
                     {passport.claimed_user_id === userId ? (
                       <div className="rounded-lg bg-muted px-4 py-3 text-sm">
@@ -263,62 +268,61 @@ export function PassportEditor({ userId, email, onSaved }: { userId: string; ema
                     ) : (
                       <div className="space-y-1.5">
                         <Label htmlFor="participant-email">Participant email</Label>
-                        <Input id="participant-email" type="email" value={values.participant_email ?? ""} onChange={(event) => change("participant_email", event.target.value)} />
-                        <p className="text-xs text-muted-foreground">Optional and never treated as a verified login.</p>
-                        {issues.participant_email ? <p className="text-sm text-destructive">{issues.participant_email}</p> : null}
+                        <Input id="participant-email" type="email" aria-invalid={!!issues.participant_email} aria-describedby="participant-email-hint participant-email-error" value={values.participant_email ?? ""} onChange={(event) => change("participant_email", event.target.value)} />
+                        <p id="participant-email-hint" className="text-xs text-muted-foreground">Optional and never treated as a verified login.</p>
+                        {issues.participant_email ? <FieldError id="participant-email-error">{issues.participant_email}</FieldError> : null}
                       </div>
                     )}
                     {passport.legacy_full_name && !passport.first_name ? <p className="text-sm text-muted-foreground sm:col-span-2">Previously saved name: {passport.legacy_full_name}. Enter the first and last names separately.</p> : null}
                   </div>
-                </details>
+                </CollapsibleContent></Collapsible>
 
-                <details open className="group border-b border-divider">
-                  <summary className="flex min-h-20 cursor-pointer list-none items-center gap-4 px-6 py-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
+                <Collapsible defaultOpen className="group border-b border-divider">
+                  <CollapsibleTrigger className="flex min-h-20 cursor-pointer list-none items-center gap-4 px-6 py-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
                     <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-secondary text-secondary-foreground"><Phone aria-hidden /></span>
                     <span className="flex-1"><span className="block font-semibold">Contact and safety</span><span className="mt-1 block text-sm text-muted-foreground">Reachable contacts for event day</span></span>
                     <ChevronRight className="size-4 text-muted-foreground transition-transform group-open:rotate-90" aria-hidden />
-                  </summary>
+                  </CollapsibleTrigger><CollapsibleContent forceMount className="data-[state=closed]:hidden">
                   <div className="grid gap-5 px-6 pb-6 sm:grid-cols-2">
                     {CONTACT_FIELDS.map(([key, label, type]) => (
                       <div key={key} className="space-y-1.5">
                         <Label htmlFor={`passport-${key}`}>{label} *</Label>
-                        <Input id={`passport-${key}`} type={type} inputMode={type === "tel" ? "tel" : undefined} autoComplete={key === "contact_number" ? "tel" : undefined} value={values[key] ?? ""} maxLength={type === "tel" ? 17 : undefined} placeholder={type === "tel" ? "+63 917 555 0142" : undefined} aria-invalid={!!issues[key]} aria-describedby={issues[key] ? `error-${key}` : undefined} onChange={(event) => change(key, type === "tel" ? formatPhilippinePhone(event.target.value) : event.target.value)} />
-                        {issues[key] ? <p id={`error-${key}`} className="text-sm text-destructive">{issues[key]}</p> : null}
+                        <Input id={`passport-${key}`} type={type} required inputMode={type === "tel" ? "tel" : undefined} autoComplete={key === "contact_number" ? "tel" : undefined} value={values[key] ?? ""} maxLength={type === "tel" ? 17 : undefined} placeholder={type === "tel" ? "+63 917 555 0142" : undefined} aria-invalid={!!issues[key]} aria-describedby={issues[key] ? `error-${key}` : undefined} onChange={(event) => change(key, type === "tel" ? formatPhilippinePhone(event.target.value) : event.target.value)} />
+                        {issues[key] ? <FieldError id={`error-${key}`}>{issues[key]}</FieldError> : null}
                       </div>
                     ))}
                     <div className="space-y-1.5">
                       <Label htmlFor="passport-relationship">Relationship *</Label>
-                      <select id="passport-relationship" className={SELECT_CLASS} value={relationship} aria-invalid={!!issues.emergency_contact_relationship} onChange={(event) => change("emergency_contact_relationship", event.target.value)}>
+                      <FormSelect id="passport-relationship" className={SELECT_CLASS} value={relationship} required aria-invalid={!!issues.emergency_contact_relationship} aria-describedby={issues.emergency_contact_relationship ? `error-emergency_contact_relationship` : undefined} onChange={(event) => change("emergency_contact_relationship", event.target.value)}>
                         <option value="">Select relationship</option>
                         {legacyRelationship ? <option value={legacyRelationship}>{legacyRelationship} (saved)</option> : null}
                         {RELATIONSHIP_GROUPS.map((group) => <optgroup key={group.label} label={group.label}>{group.values.map((option) => <option key={option} value={option}>{option}</option>)}</optgroup>)}
-                      </select>
-                      {issues.emergency_contact_relationship ? <p className="text-sm text-destructive">{issues.emergency_contact_relationship}</p> : null}
+                      </FormSelect>
+                      {issues.emergency_contact_relationship ? <FieldError id="error-emergency_contact_relationship">{issues.emergency_contact_relationship}</FieldError> : null}
                     </div>
                     {([['shirt_size', 'Shirt size', SHIRT_SIZES], ['blood_type', 'Blood type', BLOOD_TYPES]] as const).map(([key, label, options]) => (
                       <div className="space-y-1.5" key={key}>
                         <Label htmlFor={`passport-${key}`}>{label}</Label>
-                        <select id={`passport-${key}`} className={SELECT_CLASS} value={values[key] ?? ""} onChange={(event) => change(key, event.target.value)}>
+                        <FormSelect id={`passport-${key}`} className={SELECT_CLASS} value={values[key] ?? ""} onChange={(event) => change(key, event.target.value)}>
                           <option value="">Not provided</option>
                           {options.map((option) => <option key={option}>{option}</option>)}
-                        </select>
+                        </FormSelect>
                       </div>
                     ))}
                     <p className="text-xs leading-5 text-muted-foreground sm:col-span-2">A shared household or helper number is allowed. Enter the emergency contact’s number separately.</p>
                   </div>
-                </details>
+                </CollapsibleContent></Collapsible>
 
-                <details open className="group">
-                  <summary className="flex min-h-20 cursor-pointer list-none items-center gap-4 px-6 py-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
+                <Collapsible defaultOpen className="group">
+                  <CollapsibleTrigger className="flex min-h-20 cursor-pointer list-none items-center gap-4 px-6 py-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
                     <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-secondary text-secondary-foreground"><MapPin aria-hidden /></span>
                     <span className="flex-1"><span className="block font-semibold">Shipping address *</span><span className="mt-1 block text-sm text-muted-foreground">Required for your Race Passport</span></span>
                     <ChevronRight className="size-4 text-muted-foreground transition-transform group-open:rotate-90" aria-hidden />
-                  </summary>
+                  </CollapsibleTrigger><CollapsibleContent forceMount className="data-[state=closed]:hidden">
                   <div className="px-6 pb-6">
-                    <ShippingAddress key={selected} values={values} onChange={(patch) => { setValues((current) => ({ ...current, ...patch })); setSaved(false); }} />
-                    {["shipping_barangay_code", "shipping_zip_code", "shipping_address_line"].map((key) => issues[key] ? <p key={key} className="mt-2 text-sm text-destructive">{issues[key]}</p> : null)}
+                    <ShippingAddress key={selected} issues={issues} values={values} onChange={(patch) => { setValues((current) => ({ ...current, ...patch })); setSaved(false); }} />
                   </div>
-                </details>
+                </CollapsibleContent></Collapsible>
               </fieldset>
 
               <div className="flex flex-col gap-3 border-t border-divider px-6 py-5 sm:flex-row sm:items-center sm:justify-between">

@@ -18,6 +18,8 @@ ultra-trail event platform (Mindanao, Philippines).
 
 ## Web and admin readiness — September 2026
 
+Fieldnotes component revamp: [contract and audit](./specs/2026-09-27-fieldnotes-components.md), [source inventory](./specs/fieldnotes-components-audit.md), and [implementation plan](./plans/2026-09-27-fieldnotes-components.md). Implemented and locally validated; 39 shared primitives and component-only styling. [Verification evidence](./specs/fieldnotes-components-verification.md). [Annotation follow-up](./plans/2026-09-27-fieldnotes-annotations.md) and [latest annotation evidence](./specs/fieldnotes-annotations-verification.md) are complete locally. Deployed to staging through [PR #176](https://github.com/JSON-FX/race-pace/pull/176). Both applications are Ready at `7b275893e6ccec87c5b4bee272d9d69d27352fff`; hosted control, color, profile and console checks pass. See the [release record](./operations/launch-progress.md). Production promotion remains separate.
+
 Organization admin Guide: [Video Library](./specs/2026-09-27-org-admin-guide.md) selected and implemented locally with Fieldnotes components. Search, super-admin upload/publishing, and private playback are verified. [Implementation plan](./plans/2026-09-27-org-admin-guide.md). Hosted staging role/upload/playback checks passed; production delivery and read-only checks are complete through [PR #168](https://github.com/JSON-FX/race-pace/pull/168). See the [release evidence](./operations/launch-progress.md).
 
 **Primary progress table:** [Launch progress](./operations/launch-progress.md). Update affected rows after each setup, implementation or verification step; show the next task and outstanding blockers.
@@ -162,4 +164,4 @@ The approved Trail Roster visual direction is now a durable [layout specificatio
 
 ### Guide upload progress and 100 MB follow-up
 
-[Follow-up plan](plans/2026-09-27-guide-upload-progress.md): actual byte progress through the Fieldnotes component and a 100,000,000-byte upload limit. All 2,255 tests, both typechecks/builds and isolated migration replay passed. Hosted staging acceptance passed at `0e857509f4fe919b64b5d943d1f7f0801d0c626e`, including two actual 100 MB transfers, playback, permissions, responsive progress and task-only cleanup. Production promotion is next.
+[Follow-up plan](plans/2026-09-27-guide-upload-progress.md): actual byte progress through the Fieldnotes component and a 100,000,000-byte upload limit. All 2,255 tests, both typechecks/builds and isolated migration replay passed. Hosted staging acceptance passed at `0e857509f4fe919b64b5d943d1f7f0801d0c626e`, including two actual 100 MB transfers, playback, permissions, responsive progress and task-only cleanup. Production is verified at `2a4a9486ac47d73a9bac384810059c399e86fe71`, including both Ready deployments, backend caps and read-only Browser acceptance. See the launch ledger for CI and sync-back evidence.

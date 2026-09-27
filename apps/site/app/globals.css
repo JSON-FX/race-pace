@@ -1,4 +1,7 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "@race-pace/ui/fieldnotes.css";
+@source "../../../packages/ui/src";
 
 @custom-variant dark (&:is(.dark *));
 

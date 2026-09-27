@@ -1,3 +1,4 @@
+import { Card } from "@/components/ui/card";
 import { formatPeso } from "@race-pace/shared";
 
 /** The ticket-stub summary that appears on register, pay, and the ticket —
@@ -13,7 +14,7 @@ export function TicketStub({ eventName, categoryLabel, meta, amountLabel, amount
   amount: number | null;
 }) {
   return (
-    <div className="overflow-hidden rounded-xl bg-forest">
+    <Card className="gap-0 overflow-hidden border-0 bg-forest py-0">
       <div className="px-5 pt-5">
         <p className="text-[10.5px] font-semibold uppercase tracking-[1.2px] text-[#7FE0A6]">{eventName}</p>
         <p className="mt-1 font-display text-[19px] font-extrabold tracking-[-0.3px] text-white">{categoryLabel}</p>
@@ -30,6 +31,6 @@ export function TicketStub({ eventName, categoryLabel, meta, amountLabel, amount
           {amount === null ? "—" : formatPeso(amount)}
         </span>
       </div>
-    </div>
+    </Card>
   );
 }

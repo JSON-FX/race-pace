@@ -1,5 +1,7 @@
 "use client";
 
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import Image from "next/image";
 import { formatDateRange, disciplineLayout } from "@race-pace/shared";
@@ -121,9 +123,7 @@ export function FeaturedRace({
               fighting whatever the photo happens to be there. */}
           <div className={cn("absolute inset-0", dark ? "bg-black/35" : "bg-black/15")} />
 
-          <span className="absolute left-4 top-4 rounded-pill bg-primary px-3.5 py-1.5 font-mono-race text-[10px] font-bold uppercase tracking-[1.8px] text-primary-foreground">
-            Next up
-          </span>
+          <Badge className="absolute left-4 top-4">Next up</Badge>
           {days != null ? (
             <span className="font-mono-race absolute bottom-4 right-4 text-[10px] uppercase tracking-[1.4px] text-white/80">
               {days === 0 ? "Race day" : `${days} day${days === 1 ? "" : "s"} out`}
@@ -183,15 +183,14 @@ export function FeaturedRace({
             {slotsLeft != null ? <Stat label="Slots left" dark={dark} value={<CountUp value={slotsLeft} />} /> : null}
           </dl>
 
-          <Link
+          <Button asChild variant="outline"><Link
             href={eventPublicPath(event)}
             className={cn(
-              "mt-6 inline-flex rounded-pill px-6 py-3 text-[13.5px] font-semibold transition-opacity hover:opacity-90",
-              dark ? "bg-white text-forest" : "bg-primary text-primary-foreground",
+              "mt-6 inline-flex px-6 py-3",
             )}
           >
             View race →
-          </Link>
+          </Link></Button>
         </div>
       </article>
     </Reveal>

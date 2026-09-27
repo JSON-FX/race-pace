@@ -1,5 +1,7 @@
 "use client";
 
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Label } from "@/components/ui/label";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -135,15 +137,15 @@ export function GroupOrder({ orderId, initialStatus, entryTotal, eventName, cate
 
   return <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
     <Link className="mb-5 inline-flex min-h-11 items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground" href="/bookings"><ArrowLeft aria-hidden="true" className="size-4" />Back to bookings</Link>
-    <Card className="gap-0 overflow-hidden rounded-3xl border-border/70 py-0 shadow-[0_20px_55px_rgba(20,35,25,0.08)]">
+    <Card className="gap-0 overflow-hidden py-0">
       <CardHeader className="gap-3 border-b border-border/70 p-6 sm:p-8 lg:px-10 lg:py-9">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">Group booking · payment</p>
         <CardTitle className="text-3xl tracking-tight sm:text-4xl">{eventName}</CardTitle>
         <CardDescription className="text-base">Review the runners and categories before continuing to PayMongo.</CardDescription>
         <div className="flex flex-wrap gap-2 pt-1">
-          <Badge variant="secondary" className="border border-border/70">{participantCount} participant{participantCount === 1 ? "" : "s"}</Badge>
-          <Badge variant="secondary" className="border border-border/70">{categoryBadge}</Badge>
-          <Badge variant="secondary" className="border border-border/70">{participantCount} QR ticket{participantCount === 1 ? "" : "s"} after payment</Badge>
+          <Badge variant="secondary" className="border">{participantCount} participant{participantCount === 1 ? "" : "s"}</Badge>
+          <Badge variant="secondary" className="border">{categoryBadge}</Badge>
+          <Badge variant="secondary" className="border">{participantCount} QR ticket{participantCount === 1 ? "" : "s"} after payment</Badge>
         </div>
       </CardHeader>
 
@@ -177,7 +179,7 @@ export function GroupOrder({ orderId, initialStatus, entryTotal, eventName, cate
         </div>
       </section>
       <aside className="border-t border-border/70 bg-muted/20 p-6 sm:p-8 lg:border-t-0 lg:border-l lg:p-10">
-        <Card className="gap-4 rounded-2xl border-border bg-background py-6 shadow-none">
+        <Card className="gap-4 py-6">
           <CardHeader className="px-6"><CardTitle>Payment summary</CardTitle></CardHeader>
           <CardContent className="space-y-4 px-6">
             <div className="flex justify-between gap-4 text-sm"><span className="text-muted-foreground">Entries and add-ons</span><strong className="tabular-nums">{formatPeso(entryTotal)}</strong></div>
@@ -185,9 +187,9 @@ export function GroupOrder({ orderId, initialStatus, entryTotal, eventName, cate
             <Separator />
             <div className="flex items-end justify-between gap-4"><span className="font-semibold">{effectiveFeeMode === "pass_on" ? "Subtotal before processing" : "Total to pay"}</span><strong className="text-xl tabular-nums">{formatPeso(attempt?.gross_cents ?? entryTotal)}</strong></div>
             <p className="text-xs text-muted-foreground">{effectiveFeeMode === "pass_on" ? "PayMongo shows the exact processing fee before confirmation." : "Race Pace and PayMongo fees are included in this total."}</p>
-            {blocked ? <p role="alert" className="rounded-lg border border-destructive p-3 text-sm">This payment needs review. Do not start another checkout. Contact Race Pace support with booking ID {orderId}.</p> : null}
-            {expired || status === "expired" || status === "cancelled" ? <p role="alert" className="text-sm text-destructive">This reservation is no longer payable. No new payment will be started.</p> : null}
-            {canPrepare ? <div className="space-y-2"><label className="text-sm font-medium" htmlFor="group-method">Payment method</label>
+            {blocked ? <Alert variant="destructive" role="alert" className="border p-3"><AlertDescription>This payment needs review. Do not start another checkout. Contact Race Pace support with booking ID {orderId}.</AlertDescription></Alert> : null}
+            {expired || status === "expired" || status === "cancelled" ? <Alert variant="destructive" role="alert" className=""><AlertDescription>This reservation is no longer payable. No new payment will be started.</AlertDescription></Alert> : null}
+            {canPrepare ? <div className="space-y-2"><Label className="" htmlFor="group-method">Payment method</Label>
               <Select value={method} onValueChange={value => setMethod(value as Method)}>
                 <SelectTrigger id="group-method" className="h-12 w-full"><span className="flex items-center gap-2"><MethodLogo methodKey={method} /><span>{METHOD_LABELS[method]}</span></span></SelectTrigger>
                 <SelectContent position="popper" align="start" className="w-[var(--radix-select-trigger-width)]">{(Object.keys(METHOD_LABELS) as Method[]).map(value => <SelectItem key={value} value={value}><MethodLogo methodKey={value} /><span>{METHOD_LABELS[value]}</span></SelectItem>)}</SelectContent>
@@ -197,7 +199,7 @@ export function GroupOrder({ orderId, initialStatus, entryTotal, eventName, cate
             {canPay && !blocked ? <Button disabled={busy} onClick={pay} className="h-12 w-full">{busy ? "Opening PayMongo…" : "Continue to PayMongo"}</Button> : null}
             {attempt && !complete ? <Button variant="outline" disabled={busy} onClick={check} className="h-11 w-full">Check payment status</Button> : null}
             {canCancel ? <AlertDialog>
-              <AlertDialogTrigger asChild><Button variant="ghost" disabled={busy} className="h-11 w-full text-muted-foreground">Change participants</Button></AlertDialogTrigger>
+              <AlertDialogTrigger asChild><Button variant="ghost" disabled={busy} className="h-11 w-full">Change participants</Button></AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
                   <AlertDialogTitle>Cancel this group booking?</AlertDialogTitle>
@@ -214,7 +216,7 @@ export function GroupOrder({ orderId, initialStatus, entryTotal, eventName, cate
         </Card>
       </aside>
     </div>}
-    {error ? <p role="alert" className="border-t px-6 py-4 text-sm text-destructive sm:px-8">{error}</p> : null}
+    {error ? <Alert variant="destructive" role="alert" className="border-t px-6 py-4 sm:px-8"><AlertDescription>{error}</AlertDescription></Alert> : null}
     </Card>
   </div>;
 }

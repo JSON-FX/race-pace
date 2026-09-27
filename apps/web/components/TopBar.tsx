@@ -35,7 +35,7 @@ export function TopBar({
           minimum and in the worst possible spot for a thumb. */}
       <SidebarTrigger className="hidden md:inline-flex" />
       <Breadcrumb className="min-w-0 flex-1">
-        <BreadcrumbList className="flex-nowrap gap-1.5 text-xs text-muted-foreground sm:gap-1.5">
+        <BreadcrumbList className="flex-nowrap overflow-hidden gap-1.5 text-xs text-muted-foreground sm:gap-1.5">
           {/* orgName is null for a bare super_admin with no org-scoped row
               (see requireOrgId) — fall back to just the current page.
               Hidden on mobile: the org is already named by the switcher beside

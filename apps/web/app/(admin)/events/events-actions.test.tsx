@@ -9,7 +9,7 @@ it("cancel modal calls cancelEventAction then onDone", async () => {
   const user = userEvent.setup();
   const onClose = vi.fn(), onDone = vi.fn();
   render(<CancelModal event={{ id: "e1", name: "Apo Sky Ultra" }} onClose={onClose} onDone={onDone} />);
-  const dialog = screen.getByRole("dialog");
+  const dialog = screen.getByRole("alertdialog");
   expect(within(dialog).getByText(/Cancel “Apo Sky Ultra”/)).toBeInTheDocument();
   await user.type(within(dialog).getByLabelText("Cancel note"), "weather");
   await user.click(within(dialog).getByText("Cancel event"));

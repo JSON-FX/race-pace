@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
@@ -39,12 +40,12 @@ export default async function Home() {
               The next one hasn&apos;t gone live yet. Check back soon, or see what&apos;s run before.
             </p>
             {events.length > 0 ? (
-              <Link
+              <Button asChild variant="outline"><Link
                 href="/events"
-                className="mt-8 inline-flex w-fit rounded-pill border border-border px-7 py-3.5 text-[15px] font-semibold text-foreground transition-colors hover:border-primary/40"
+                className="mt-8 inline-flex w-fit border border-border px-7 py-3.5"
               >
                 See past races
-              </Link>
+              </Link></Button>
             ) : null}
           </section>
         </main>

@@ -1,9 +1,11 @@
+import { Card } from "@/components/ui/card";
+import { Status } from "@race-pace/ui";
+import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import Image from "next/image";
 import { formatDateRange, formatAddress } from "@race-pace/shared";
 import { shortDate } from "@/lib/format";
 import { eventPublicPath, type EventRow } from "@/lib/events";
-import { cn } from "@/lib/utils";
 import { TopoPattern } from "@/components/TopoPattern";
 import { eventState, STATE_BADGE } from "@/lib/eventState";
 
@@ -23,14 +25,14 @@ export function EventCard({ event, index }: { event: EventRow; index?: number })
   const badge = state === "open" ? null : STATE_BADGE[state];
 
   return (
-    <Link
+    <Card asChild className="gap-0 py-0"><Link
       href={eventPublicPath(event)}
-      className="group block overflow-hidden rounded-xl border border-border bg-card transition-colors hover:border-primary/40"
+      className="group flex h-full flex-col overflow-hidden"
     >
       {/* aspect-ratio, not a fixed height: these columns narrow from ~350px on
           desktop to ~165px on a phone, and a fixed height turns into a
           letterbox strip at the small end. */}
-      <div className="relative aspect-[16/10] overflow-hidden bg-muted">
+      <div className="relative aspect-[16/10] shrink-0 overflow-hidden bg-muted">
         {event.hero_image_url ? (
           <Image
             src={event.hero_image_url}
@@ -53,18 +55,11 @@ export function EventCard({ event, index }: { event: EventRow; index?: number })
             values, so reading `event.status` here showed a race that is
             happening right now as "Closed". See lib/eventState.ts. */}
         {badge ? (
-          <span
-            className={cn(
-              "absolute right-2 top-2 rounded-pill px-2 py-1 text-[10px] font-semibold uppercase tracking-wide sm:right-3 sm:top-3 sm:px-2.5 sm:text-[11px]",
-              badge.className,
-            )}
-          >
-            {badge.label}
-          </span>
+          <Status dot={false} className="absolute right-2 top-2 sm:right-3 sm:top-3" tone={state === "cancelled" ? "danger" : state === "ongoing" ? "success" : state === "almost_full" || state === "rescheduled" ? "warning" : "neutral"} >{badge.label}</Status>
         ) : null}
       </div>
 
-      <div className="p-3 sm:p-5">
+      <div className="flex flex-1 flex-col p-3 sm:p-5">
         {event.org_name ? (
           <p className="truncate text-[10px] font-semibold uppercase tracking-[1.5px] text-primary sm:text-[11px]">
             {event.org_name}
@@ -80,18 +75,18 @@ export function EventCard({ event, index }: { event: EventRow; index?: number })
         </div>
 
         {event.distances.length > 0 ? (
-          <div className="mt-2 flex flex-wrap gap-1 sm:mt-4 sm:gap-1.5">
+          <div className="mt-auto flex flex-wrap gap-1 pt-2 sm:pt-4 sm:gap-1.5">
             {event.distances.map((d) => (
-              <span
+              <Badge variant="secondary"
                 key={d}
-                className="font-mono-race rounded-pill border border-border px-1.5 py-0.5 text-[9.5px] font-bold tabular-nums text-foreground sm:px-2.5 sm:py-1 sm:text-[12px]"
+                className="border border-border px-1.5 py-0.5 tabular-nums sm:px-2.5 sm:py-1 sm:text-[12px]"
               >
                 {d}K
-              </span>
+              </Badge>
             ))}
           </div>
         ) : null}
       </div>
-    </Link>
+    </Link></Card>
   );
 }

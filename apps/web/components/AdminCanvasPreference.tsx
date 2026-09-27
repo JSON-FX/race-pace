@@ -1,5 +1,7 @@
 "use client";
 
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
 import { useEffect, useState } from "react";
 
 type Canvas = "white" | "white-gray" | "fieldnotes";
@@ -54,20 +56,15 @@ export function AdminCanvasPreference({ compact = false }: { compact?: boolean }
         <h2 id="canvas-heading" className="text-[15px] font-semibold">Workspace background</h2>
         <p className="mt-1 text-[12px] text-muted-foreground">Choose the canvas for admin pages. Saved in this browser.</p>
       </div>
-      <div className={`fieldnotes-canvas-options ${compact ? "fieldnotes-canvas-options--sidebar" : ""}`} role="group" aria-label="Workspace background">
+      <RadioGroup value={value} onValueChange={next => { if (OPTIONS.some(option => option.value === next)) choose(next as Canvas); }} className={`fieldnotes-canvas-options ${compact ? "fieldnotes-canvas-options--sidebar" : ""}`} aria-label="Workspace background">
         {OPTIONS.map((option) => (
-          <button
-            key={option.value}
-            type="button"
-            aria-pressed={value === option.value}
-            onClick={() => choose(option.value)}
-            className="fieldnotes-canvas-option"
-          >
+          <Label key={option.value} htmlFor={`canvas-${option.value}`} className="fieldnotes-canvas-option">
+            <RadioGroupItem id={`canvas-${option.value}`} value={option.value} />
             <span className="fieldnotes-canvas-option__swatch" style={{ backgroundColor: option.color }} aria-hidden="true" />
             <span className="fieldnotes-canvas-option__label">{option.label}</span>
-          </button>
+          </Label>
         ))}
-      </div>
+      </RadioGroup>
     </section>
   );
 }

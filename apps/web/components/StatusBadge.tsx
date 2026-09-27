@@ -1,35 +1,11 @@
-import { cva } from "class-variance-authority";
-import { cn } from "@/lib/utils";
+import { Status } from "@race-pace/ui";
 
 export type BadgeTone = "paid" | "pending" | "info" | "danger" | "neutral" | "highlight";
 
-const tone = cva(
-  "inline-flex items-center gap-[5px] rounded-pill px-2.5 py-1 text-[11px] font-semibold",
-  {
-    variants: {
-      tone: {
-        paid: "bg-paid-tint text-forest dark:text-paid",
-        pending: "bg-amber-tint text-amber",
-        info: "bg-info-tint text-info",
-        danger: "bg-destructive-tint text-destructive",
-        neutral: "bg-muted text-muted-foreground",
-        highlight: "bg-muted text-foreground",
-      },
-    },
-    defaultVariants: { tone: "neutral" },
-  }
-);
+const tones = { paid: "success", pending: "warning", info: "info", danger: "danger", neutral: "neutral", highlight: "neutral" } as const;
 
-/** The mockup's `.bdg` dot badge: a 5px leading dot in `currentColor`, so it
- *  always matches whatever tone color the badge itself resolves to without a
- *  second color prop to keep in sync. */
-export function StatusBadge({ tone: t, children, className }: { tone: BadgeTone; children: React.ReactNode; className?: string }) {
-  return (
-    <span className={cn(tone({ tone: t }), className)}>
-      <span aria-hidden="true" className="size-[5px] shrink-0 rounded-full bg-current" />
-      {children}
-    </span>
-  );
+export function StatusBadge({ tone, children, className }: { tone: BadgeTone; children: React.ReactNode; className?: string }) {
+  return <Status tone={tones[tone]} className={className}>{children}</Status>;
 }
 
 const PAYMENT: Record<string, { label: string; tone: BadgeTone }> = {

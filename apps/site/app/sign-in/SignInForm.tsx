@@ -1,5 +1,6 @@
 "use client";
 
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -80,7 +81,7 @@ export function SignInForm() {
           <Input
             id="email" type="email" autoComplete="email" required
             value={email} onChange={(e) => setEmail(e.target.value)}
-            className="h-12 rounded-xl"
+            className="h-12"
           />
         </div>
         <TurnstileWidget
@@ -93,18 +94,18 @@ export function SignInForm() {
           <Input
             id="password" type="password" autoComplete="current-password" required
             value={password} onChange={(e) => setPassword(e.target.value)}
-            className="h-12 rounded-xl"
+            className="h-12"
           />
         </div>
         {/* Below the fields it relates to, and announced — an error only at the
             top of a form is easy to miss on a phone. */}
         {error ? (
-          <p role="alert" className="text-[13.5px] text-destructive">{error}</p>
+          <Alert variant="destructive" role="alert" className=""><AlertDescription>{error}</AlertDescription></Alert>
         ) : null}
         <Button
           type="submit"
           disabled={busy || !captchaToken}
-          className="h-12 rounded-pill text-[15px] font-bold"
+          className="h-12"
         >
           {busy ? "Signing in…" : "Sign in"}
         </Button>

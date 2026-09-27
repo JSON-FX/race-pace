@@ -1,5 +1,8 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
+import { Status } from "@race-pace/ui";
+import { Badge } from "@/components/ui/badge";
 import Image from "next/image";
 import Link from "next/link";
 import { Check, Clock, ArrowUpRight } from "lucide-react";
@@ -233,9 +236,9 @@ export function EventPageBody({
           <div className="mx-auto max-w-6xl px-5 py-5 text-sm sm:px-8">
             <strong>Your early reservation has {reservationRemaining} {reservationRemaining === 1 ? "place" : "places"} awaiting entry payment.</strong> Choose an available category for each Race Passport before the reservation deadline. The reservation fee remains a separate charge.
             <div className="mt-3 flex flex-wrap gap-2">{categories.filter((category) => category.slots_taken < category.slots_total).map((category) =>
-              <Link key={category.id} href={`/register/${category.id}?reservation_id=${reservationId}`} className="rounded-full border border-current px-3 py-2 text-xs font-bold">
+              <Button asChild variant="outline" key={category.id}><Link  href={`/register/${category.id}?reservation_id=${reservationId}`} className="border border-current px-3 py-2">
                 Register for {category.label}
-              </Link>
+              </Link></Button>
             )}</div>
           </div>
         </section>
@@ -389,15 +392,15 @@ function DistanceRow({
                 has (or is finishing) an entry here, how many slots remain is no
                 longer the fact that matters most about this row. */}
             {mine && myEntry ? (
-              <span
+              <Status tone="warning"
                 className={`font-eyebrow inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[1.5px] ${
                   myEntry.status === "paid"
-                    ? "border-transparent bg-paid-tint text-paid"
+                    ? "border-transparent"
                     : // Bordered, not just tinted: paid is a flat confirmation, pending
                       // carries a deadline and money, so it keeps a visible outline on
                       // top of the same tint/text pairing to read as the more urgent
                       // of the two — same border width on both to avoid a size jump.
-                      "border-amber bg-amber-tint text-amber"
+                      ""
                 }`}
               >
                 {myEntry.status === "paid" ? (
@@ -406,17 +409,19 @@ function DistanceRow({
                   <Clock size={11} aria-hidden="true" />
                 )}
                 {myEntry.status === "paid" ? "Your entry" : "Payment pending"}
-              </span>
+              </Status>
             ) : scarce ? (
-              <span className="font-eyebrow rounded-full bg-amber-tint px-2.5 py-1 text-[10px] font-bold uppercase tracking-[1.5px] text-amber">
+              <Status tone="warning" className="px-2.5 py-1 uppercase">
                 {remaining} left
-              </span>
+              </Status>
             ) : null}
           </div>
 
-          <p className={`font-mono-race mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[12.5px] ${dim}`}>
-            {facts.map((f) => (
-              <span key={f}>{f}</span>
+          <p className="mt-3 flex flex-wrap gap-2">
+            {facts.map((fact) => (
+              <Badge key={fact} variant="default" className="px-3 py-1 text-[13px] tabular-nums">
+                {fact}
+              </Badge>
             ))}
           </p>
 
@@ -435,8 +440,7 @@ function DistanceRow({
             (U+20B1), so "₱" fell back to a system font and rendered larger and
             heavier than the digits next to it. Archivo carries ₱ AND tabular
             figures, and it is already the display face — so the price reads as
-            the headline figure it is. Mono stays on the km/gain/cut-off data
-            below, which never contains a currency symbol. */}
+            the headline figure it is. */}
         <div className="self-start text-right font-display text-[clamp(1.1rem,2.6vw,1.6rem)] font-extrabold tabular-nums sm:self-center">
           {formatPeso(category.base_price)}
         </div>
@@ -452,7 +456,7 @@ function DistanceRow({
               // border and not a solid fill (WCAG contrast in a future dark
               // mode; StatusBadge.tsx's bg-*-tint/text-* is the established
               // pairing).
-              <Link
+              <Button asChild variant="outline"><Link
                 href={myEntry.status === "paid" ? "/races" : myEntry.bookingOrderId ? `/group/order/${myEntry.bookingOrderId}` : `/pay/${myEntry.id}`}
                 aria-label={
                   myEntry.status === "paid"
@@ -461,8 +465,8 @@ function DistanceRow({
                 }
                 className={`inline-flex w-full items-center justify-center gap-1.5 rounded-pill border px-6 py-3 text-[14.5px] font-semibold ${
                   myEntry.status === "paid"
-                    ? "border-transparent bg-paid-tint text-paid"
-                    : "border-amber bg-amber-tint text-amber"
+                    ? "border-transparent text-paid"
+                    : "border-amber text-amber"
                 }`}
               >
                 {myEntry.status === "paid" ? (
@@ -471,37 +475,31 @@ function DistanceRow({
                   <Clock size={16} aria-hidden="true" />
                 )}
                 {myEntry.status === "paid" ? "You're in — view entry" : "Finish payment"}
-              </Link>
+              </Link></Button>
             ) : (
               // A different distance of the same event: informative, not a
               // primary action — outlined rather than filled so it never
               // competes with the runner's actual entry above or a live
               // "Join" pill on another card.
-              <Link
+              <Button asChild variant="outline"><Link
                 href={myEntry.status === "paid" ? "/races" : myEntry.bookingOrderId ? `/group/order/${myEntry.bookingOrderId}` : `/pay/${myEntry.id}`}
                 aria-label={
                   myEntry.status === "paid"
                     ? `${category.label} — you're registered on another distance`
                     : `${category.label} — payment pending on another distance`
                 }
-                className={`inline-flex w-full items-center justify-center gap-1.5 rounded-pill border px-6 py-3 text-[13.5px] font-semibold transition-colors ${
-                  trail
-                    ? "border-white/20 text-white/70 hover:bg-white/5"
-                    : "border-black/15 text-black/60 hover:bg-black/5"
-                }`}
+                className="inline-flex w-full items-center justify-center gap-1.5 px-6 py-3"
               >
                 <ArrowUpRight size={15} aria-hidden="true" />
                 {myEntry.status === "paid" ? "Registered — other distance" : "Pending — other distance"}
-              </Link>
+              </Link></Button>
             )
           ) : !enterable ? (
-            <span
-              className={`inline-flex w-full items-center justify-center rounded-pill px-6 py-3 text-[14.5px] font-semibold ${
-                trail ? "bg-white/10 text-white/55" : "bg-black/5 text-black/45"
-              }`}
+            <Badge variant="secondary"
+              className="inline-flex w-full items-center justify-center px-6 py-3"
             >
               {closed ? "Registration closed" : "Sold out"}
-            </span>
+            </Badge>
           ) : (
             <RainbowButton asChild className="h-auto w-full rounded-pill px-6 py-3 text-[14.5px] font-semibold">
               <Link href={`/register/${category.id}${reservationId ? `?reservation_id=${reservationId}` : ""}`} aria-label={`Join ${category.label} — ${formatPeso(category.base_price)}`}>

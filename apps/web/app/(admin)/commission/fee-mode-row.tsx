@@ -1,5 +1,6 @@
 "use client";
 
+
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { setFeeMode } from "@/lib/actions/commission";
@@ -49,7 +50,7 @@ export function FeeModeSelect({
         });
       }}
     >
-      <SelectTrigger size="sm" className="w-[188px] rounded-pill" aria-label={`Fee mode for ${orgName}`}>
+      <SelectTrigger size="sm" className="w-[188px]" aria-label={`Fee mode for ${orgName}`}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>

@@ -21,6 +21,6 @@ if (supabaseUrl) {
 }
 
 // Docker cannot optimize a browser-facing loopback URL; fetch local images in the browser.
-const nextConfig: NextConfig = { images: { remotePatterns, unoptimized: process.env.NODE_ENV === "development" && supabaseUrl?.protocol === "http:" } };
+const nextConfig: NextConfig = { transpilePackages: ["@race-pace/ui"], images: { remotePatterns, unoptimized: process.env.NODE_ENV === "development" && supabaseUrl?.protocol === "http:" } };
 
 export default nextConfig;

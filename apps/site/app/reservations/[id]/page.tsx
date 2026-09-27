@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -58,11 +59,11 @@ export default async function ReservationPage({ params, searchParams }: {
         ? "Your reservation became a paid event entry. The separate reservation fee remains nonrefundable."
         : <>Complete registration and secure entry payment by {deadline} PHT. The reservation fee is nonrefundable and separate from the later registration price. If you miss the deadline, your held place returns to event inventory.</>}</p>
       <div className="mt-7 flex flex-wrap gap-3">
-        {reservation.status === "converted" ? <Link href="/races"
-          className="rounded-full bg-emerald-600 px-5 py-3 text-sm font-bold">View my race</Link> : null}
-        {reservation.status === "pending" && payment?.checkout_url ? <a href={payment.checkout_url}
-          className="rounded-full bg-emerald-600 px-5 py-3 text-sm font-bold">Continue PayMongo checkout</a> : null}
-        <Link href={eventPublicPath(event)} className="rounded-full border border-white/35 px-5 py-3 text-sm font-bold">View event</Link>
+        {reservation.status === "converted" ? <Button asChild variant="default"><Link href="/races"
+          className="px-5 py-3">View my race</Link></Button> : null}
+        {reservation.status === "pending" && payment?.checkout_url ? <Button asChild variant="default"><a href={payment.checkout_url}
+          className="px-5 py-3">Continue PayMongo checkout</a></Button> : null}
+        <Button asChild variant="outline"><Link href={eventPublicPath(event)} className="border border-white/35 px-5 py-3">View event</Link></Button>
       </div>
     </div>
   </main></>;

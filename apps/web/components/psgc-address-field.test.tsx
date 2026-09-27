@@ -102,10 +102,12 @@ it("commits a native city selection to a sibling profile form input", async () =
   await user.click(await screen.findByRole("option", { name: "Davao Region" }));
   await user.click(screen.getByLabelText("Province"));
   await user.click(await screen.findByRole("option", { name: "Davao del Sur" }));
-  await user.selectOptions(screen.getByLabelText("City"), "112603");
+  await user.click(screen.getByRole("combobox", { name: "City" }));
+  await user.click(screen.getByRole("option", { name: "City of Digos" }));
   expect(new FormData(screen.getByTestId("profile-form") as HTMLFormElement).get("homeCityPsgcCode")).toBe("112603");
 
-  await user.selectOptions(screen.getByLabelText("City"), "");
+  await user.click(screen.getByRole("combobox", { name: "City" }));
+  await user.click(screen.getByRole("option", { name: "— Select —" }));
   expect(new FormData(screen.getByTestId("profile-form") as HTMLFormElement).get("homeCityPsgcCode")).toBe("");
 });
 

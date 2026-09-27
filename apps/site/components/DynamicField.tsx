@@ -1,6 +1,9 @@
 "use client";
 
+
+import { FieldFrame } from "@race-pace/ui";
 import { Input } from "@/components/ui/input";
+import { FieldError } from "@/components/ui/field";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { PillSelect } from "@/components/PillSelect";
@@ -23,6 +26,7 @@ export function DynamicField({ field, value, onChange, error, idPrefix = "" }: {
     return (
       <PillSelect
         label={label}
+        required={field.required}
         value={(value as string) ?? ""}
         options={field.options ?? []}
         onChange={onChange}
@@ -34,8 +38,9 @@ export function DynamicField({ field, value, onChange, error, idPrefix = "" }: {
   if (field.type === "checkbox") {
     return (
       <div className="mt-6 flex items-center gap-3 rounded-lg border border-border p-4">
-        <Checkbox id={inputId} checked={!!value} onCheckedChange={(c) => onChange(c === true)} />
-        <Label htmlFor={inputId} className="text-[14px]">{label}</Label>
+        <Checkbox required={field.required} aria-required={field.required || undefined} id={inputId} aria-invalid={!!error} aria-describedby={error ? `${inputId}-error` : undefined} checked={!!value} onCheckedChange={(c) => onChange(c === true)} />
+        <Label htmlFor={inputId} className="">{label}</Label>
+        {error ? <FieldError id={`${inputId}-error`}>{error}</FieldError> : null}
       </div>
     );
   }
@@ -51,8 +56,7 @@ export function DynamicField({ field, value, onChange, error, idPrefix = "" }: {
   const inputType = field.type === "number" ? "number" : field.type === "date" ? "date" : "text";
 
   return (
-    <div className="mt-6 flex flex-col gap-2">
-      <Label htmlFor={inputId}>{label}</Label>
+    <FieldFrame label={label} htmlFor={inputId} required={field.required} error={error} className="mt-6">
       <Input
         id={inputId}
         type={inputType}
@@ -65,7 +69,6 @@ export function DynamicField({ field, value, onChange, error, idPrefix = "" }: {
         }}
         aria-invalid={!!error}
       />
-      {error ? <p className="text-[13px] text-destructive">{error}</p> : null}
-    </div>
+    </FieldFrame>
   );
 }

@@ -75,7 +75,7 @@ export function SignupsChart({ points }: { points: SignupPoint[] }) {
 
   return (
     <div className="px-[15px] pb-1.5 pt-3">
-      <svg
+      <svg data-rp-ui="fieldnotes" data-slot="chart"
         viewBox={`0 0 ${W} ${H}`}
         width="100%"
         height={H}

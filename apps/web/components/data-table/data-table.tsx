@@ -1,5 +1,6 @@
 "use client";
 
+
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
@@ -162,7 +163,7 @@ export function DataTable<TData>({
           result count without hunting for it. */}
       <p role="status" aria-live="polite" className="sr-only">{total} results</p>
 
-      <Card className={cn("gap-0 overflow-hidden rounded-xl border py-0 shadow-card", params.isPending && "opacity-60 transition-opacity")}>
+      <Card className={cn("gap-0 overflow-hidden border py-0", params.isPending && "opacity-60 transition-opacity")}>
         {selectable ? (
           <BulkBar count={selectedIds.length} ids={selectedIds} actions={bulkActions} onClear={() => setSelected({})} />
         ) : null}
@@ -241,7 +242,7 @@ export function DataTable<TData>({
                       return (
                         <TableCell key={cell.id}
                           style={width !== undefined ? { width } : undefined}
-                          className="py-3 text-[13px]">
+                          className="py-3">
                           {/* Exactly one real <a> per row, in the first data
                               cell — not one per cell. An <a> cannot legally
                               contain a <td>, so it wraps the cell instead of

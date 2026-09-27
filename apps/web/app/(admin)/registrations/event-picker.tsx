@@ -1,5 +1,6 @@
 "use client";
 
+
 import { useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -36,7 +37,7 @@ export function EventPicker({ events, value }: {
         // is the control the operator just acted on, so the busy state belongs
         // where their attention already is.
         aria-busy={isPending}
-        className="h-9 w-[280px] rounded-lg data-[busy=true]:opacity-70"
+        className="h-9 w-[280px] data-[busy=true]:opacity-70"
         data-busy={isPending}
       >
         <SelectValue placeholder="Pick an event" />

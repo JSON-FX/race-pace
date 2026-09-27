@@ -1,3 +1,4 @@
+
 import type { LucideIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -37,7 +38,7 @@ export function SettingsSection({
       id={id}
       role="region"
       aria-labelledby={headingId}
-      className={cn("scroll-mt-24 gap-0 overflow-hidden rounded-xl border py-0 shadow-card", className)}
+      className={cn("scroll-mt-24 gap-0 overflow-hidden border py-0", className)}
     >
       <div className="flex items-start gap-3 px-4 pb-4 pt-5 md:px-5">
         <span className={cn("grid size-10 shrink-0 place-items-center rounded-xl", iconTone[tone])}>
@@ -48,7 +49,7 @@ export function SettingsSection({
           <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">{description}</p>
         </div>
         {status ? (
-          <Badge variant="secondary" className="mt-0.5 text-[10px] font-bold">{status}</Badge>
+          <Badge variant="secondary" className="mt-0.5">{status}</Badge>
         ) : null}
       </div>
       {children}

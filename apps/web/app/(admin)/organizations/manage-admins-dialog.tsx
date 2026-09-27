@@ -1,5 +1,6 @@
 "use client";
 
+
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Copy } from "lucide-react";
@@ -74,7 +75,7 @@ function RoleSelect({
     >
       <SelectTrigger
         aria-label={`Change role for ${memberLabel(member)}`}
-        className="h-8 w-[120px] rounded-lg"
+        className="h-8 w-[120px]"
       >
         <SelectValue />
       </SelectTrigger>

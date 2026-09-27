@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import * as React from "react";
 // Pinned to maplibre-gl v5, NOT v6. v6 splits its web worker into a separate
 // module that Next's webpack dev server never resolves — the style and sprites
@@ -331,14 +332,14 @@ export function CourseMap({
           control never promises something the map cannot do. Bottom-LEFT to
           stay clear of maplibre's own attribution and zoom controls. */}
       {canReplay ? (
-        <button
+        <Button variant="ghost"
           type="button"
           onClick={() => playRouteRef.current()}
           disabled={playing}
-          className="absolute bottom-3 left-3 z-10 inline-flex items-center gap-2 rounded-pill bg-black/75 px-4 py-2.5 text-[13px] font-semibold text-white backdrop-blur-sm transition-colors hover:bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:opacity-60"
+          className="absolute bottom-3 left-3 z-10 inline-flex items-center gap-2 px-4 py-2.5 backdrop-blur-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:opacity-60"
         >
           {playing ? "Running the course…" : "Replay the course"}
-        </button>
+        </Button>
       ) : null}
     </div>
   );

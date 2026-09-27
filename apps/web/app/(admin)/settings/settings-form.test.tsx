@@ -127,7 +127,7 @@ describe("SettingsForm", () => {
 
   it("submits a false default when the organizer unchecks event check-in", async () => {
     render(<SettingsForm org={org} canEdit />);
-    fireEvent.click(screen.getByRole("checkbox", { name: "Require event check-in by default" }));
+    fireEvent.click(screen.getByRole("switch", { name: "Require event check-in by default" }));
     fireEvent.click(screen.getByRole("button", { name: "Save default" }));
     await waitFor(() => expect(updateOrgCheckInDefaultAction).toHaveBeenCalled());
     const submitted = updateOrgCheckInDefaultAction.mock.calls.at(-1)?.[1] as FormData;

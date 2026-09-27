@@ -1,3 +1,4 @@
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -37,32 +38,32 @@ export default async function EventReservationsPage({ params }: { params: Promis
     <h1 className="mt-5 text-2xl font-bold">Early reservations</h1>
     <p className="mt-1 text-sm text-muted-foreground">{event.name} · Event places are held separately from category registrations.</p>
     <div className="mt-6 overflow-x-auto rounded-xl border border-divider bg-card">
-      {reservations?.length ? <table className="w-full min-w-[760px] text-left text-sm">
-        <thead className="border-b border-divider text-xs uppercase tracking-wide text-muted-foreground">
-          <tr><th className="p-4">Booker and Race Passports</th><th className="p-4">Status</th><th className="p-4">Entry payment due</th>
-            <th className="p-4 text-right">Reservation fee</th><th className="p-4 text-right">Platform Fees</th>
-            <th className="p-4 text-right">PayMongo</th><th className="p-4 text-right">Paid total</th></tr>
-        </thead>
-        <tbody>{reservations.map((reservation) => {
+      {reservations?.length ? <Table className="w-full min-w-[760px] text-left">
+        <TableHeader className="border-b uppercase">
+          <TableRow><TableHead className="p-4">Booker and Race Passports</TableHead><TableHead className="p-4">Status</TableHead><TableHead className="p-4">Entry payment due</TableHead>
+            <TableHead className="p-4 text-right">Reservation fee</TableHead><TableHead className="p-4 text-right">Platform Fees</TableHead>
+            <TableHead className="p-4 text-right">PayMongo</TableHead><TableHead className="p-4 text-right">Paid total</TableHead></TableRow>
+        </TableHeader>
+        <TableBody>{reservations.map((reservation) => {
           const payment = (Array.isArray(reservation.reservation_payments)
             ? reservation.reservation_payments[0] : reservation.reservation_payments) as
             { amount_cents: number; processor_fee_cents: number | null; status: string } | null;
-          return <tr key={reservation.id} className="border-b border-divider/70 last:border-0">
-            <td className="p-4 font-medium"><div>{reservation.email}</div>
+          return <TableRow key={reservation.id} className="border-b last:border-0">
+            <TableCell className="p-4"><div>{reservation.email}</div>
               <div className="mt-1 text-xs font-normal text-muted-foreground">{reservation.quantity} {reservation.quantity === 1 ? "place" : "places"}</div>
               {(placesByReservation.get(reservation.id) ?? []).map((place) => <div key={place.id} className="mt-1 text-xs font-normal">
                 {place.participant_name} · {place.is_managed ? "Managed Passport" : "Own Passport"} · {place.status.replaceAll("_", " ")}
               </div>)}
-            </td>
-            <td className="p-4 capitalize">{reservation.status.replaceAll("_", " ")}</td>
-            <td className="p-4">{new Intl.DateTimeFormat("en-PH", { timeZone: "Asia/Manila", dateStyle: "medium", timeStyle: "short" }).format(new Date(reservation.registration_deadline_at))} PHT</td>
-            <td className="p-4 text-right tabular-nums">{peso(reservation.reservation_fee_cents * reservation.quantity)}</td>
-            <td className="p-4 text-right tabular-nums">{peso(reservation.platform_fee_cents * reservation.quantity)}</td>
-            <td className="p-4 text-right tabular-nums">{payment?.processor_fee_cents == null ? "Pending" : peso(payment.processor_fee_cents)}</td>
-            <td className="p-4 text-right font-semibold tabular-nums">{payment?.status === "paid" ? peso(payment.amount_cents) : "Pending"}</td>
-          </tr>;
-        })}</tbody>
-      </table> : <p className="p-8 text-sm text-muted-foreground">No reservations for this event yet.</p>}
+            </TableCell>
+            <TableCell className="p-4 capitalize">{reservation.status.replaceAll("_", " ")}</TableCell>
+            <TableCell className="p-4">{new Intl.DateTimeFormat("en-PH", { timeZone: "Asia/Manila", dateStyle: "medium", timeStyle: "short" }).format(new Date(reservation.registration_deadline_at))} PHT</TableCell>
+            <TableCell className="p-4 text-right tabular-nums">{peso(reservation.reservation_fee_cents * reservation.quantity)}</TableCell>
+            <TableCell className="p-4 text-right tabular-nums">{peso(reservation.platform_fee_cents * reservation.quantity)}</TableCell>
+            <TableCell className="p-4 text-right tabular-nums">{payment?.processor_fee_cents == null ? "Pending" : peso(payment.processor_fee_cents)}</TableCell>
+            <TableCell className="p-4 text-right tabular-nums">{payment?.status === "paid" ? peso(payment.amount_cents) : "Pending"}</TableCell>
+          </TableRow>;
+        })}</TableBody>
+      </Table> : <p className="p-8 text-sm text-muted-foreground">No reservations for this event yet.</p>}
     </div>
   </div>;
 }

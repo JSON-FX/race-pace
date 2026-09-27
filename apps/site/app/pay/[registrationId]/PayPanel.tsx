@@ -1,5 +1,8 @@
 "use client";
 
+import { ChoiceGroup } from "@race-pace/ui";
+
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Check, Lock, ShieldCheck } from "lucide-react";
@@ -52,7 +55,7 @@ export function PayPanel({ registrationId }: { registrationId: string }) {
         <p className="mt-3 text-[15px] leading-relaxed text-muted-foreground">
           {paid ? "Your registration is paid. You do not need to pay again." : "This registration can no longer be paid. Check My Races for its status."}
         </p>
-        <Button asChild className="mt-8 h-auto rounded-pill px-8 py-4 text-[16px] font-semibold">
+        <Button asChild className="mt-8 h-auto px-8 py-4">
           <Link href={paid ? `/ticket/${registrationId}` : "/races"}>{paid ? "View ticket" : "Back to My Races"}</Link>
         </Button>
       </div>
@@ -87,7 +90,7 @@ export function PayPanel({ registrationId }: { registrationId: string }) {
           {reg.data.statusNote ??
             "The organizer closed registration for this event. You have not been charged."}
         </p>
-        <Button asChild className="mt-8 h-auto rounded-pill px-8 py-4 text-[16px] font-semibold">
+        <Button asChild className="mt-8 h-auto px-8 py-4">
           <Link href="/races">Back to My Races</Link>
         </Button>
       </div>
@@ -121,7 +124,7 @@ export function PayPanel({ registrationId }: { registrationId: string }) {
         <p className="mt-3 text-[15px] leading-relaxed text-muted-foreground">
           {checkoutErrorMessage("org_suspended")}
         </p>
-        <Button asChild className="mt-8 h-auto rounded-pill px-8 py-4 text-[16px] font-semibold">
+        <Button asChild className="mt-8 h-auto px-8 py-4">
           <Link href="/races">Back to My Races</Link>
         </Button>
       </div>
@@ -147,7 +150,7 @@ export function PayPanel({ registrationId }: { registrationId: string }) {
         <p className="mt-3 text-[15px] leading-relaxed text-muted-foreground">
           The organizer closed this registration before you paid. You have not been charged.
         </p>
-        <Button asChild className="mt-8 h-auto rounded-pill px-8 py-4 text-[16px] font-semibold">
+        <Button asChild className="mt-8 h-auto px-8 py-4">
           <Link href={`/events/${reg.data.event_id}`}>Enter again</Link>
         </Button>
       </div>
@@ -170,7 +173,7 @@ export function PayPanel({ registrationId }: { registrationId: string }) {
         <p className="mt-3 text-[15px] leading-relaxed text-muted-foreground">
           This hold ran out and the slot is back in the pool. You&apos;ll need to enter again.
         </p>
-        <Button asChild className="mt-8 h-auto rounded-pill px-8 py-4 text-[16px] font-semibold">
+        <Button asChild className="mt-8 h-auto px-8 py-4">
           <Link href={`/events/${reg.data.event_id}`}>Enter again</Link>
         </Button>
       </div>
@@ -254,17 +257,14 @@ export function PayPanel({ registrationId }: { registrationId: string }) {
           <section className={styles.payMethods}>
             <h3>Pay with</h3>
             <p>Choose a payment method to continue.</p>
-            <div className={styles.methodGrid} aria-label="Payment methods">
-              {(["qrph", "gcash", "maya", "card"] as const).map((key) => {
-                const label = PAY_METHODS.find((item) => item.key === key)?.label ?? key;
-                return <button key={key} type="button" aria-pressed={method === key} onClick={() => setMethod(key)} className={styles.methodItem}><MethodLogo methodKey={key} /><span>{label}</span>{method === key ? <Check className={styles.methodSelected} size={16} aria-hidden="true" /> : null}</button>;
-              })}
-            </div>
+            <ChoiceGroup label="Payment methods" value={method} onValueChange={setMethod} disabled={busy}
+              className={styles.methodGrid} options={(["qrph", "gcash", "maya", "card"] as const).map(key => ({ value: key,
+                label: <><MethodLogo methodKey={key} /><span>{PAY_METHODS.find(item => item.key === key)?.label ?? key}</span></> }))} />
           </section>}
       </div>
       {inclusions.length > 0 ? <section className={styles.inclusions}><h3>What&apos;s included</h3><ul>{inclusions.map((item, index) => <li key={index}><Check size={15} aria-hidden="true" />{item}</li>)}</ul></section> : null}
       <RefundNotice policy={reg.data.refundPolicy} retention={reg.data.refundFeeCents} />
-      {error ? <p role="alert" className={styles.error}>{error}</p> : null}
+      {error ? <Alert variant="destructive" role="alert" className={styles.error}><AlertDescription>{error}</AlertDescription></Alert> : null}
       <div className={styles.actions}><Button type="button" disabled={busy} onClick={pay}>{busy ? "Opening…" : passOn ? "Continue to checkout" : `Pay ${formatPeso(due ?? total)}`} <ArrowRight size={16} aria-hidden="true" /></Button></div>
       <p className={styles.securityNote}><Lock size={13} aria-hidden="true" /> Encrypted and secured by PayMongo</p>
     </RaceBib>

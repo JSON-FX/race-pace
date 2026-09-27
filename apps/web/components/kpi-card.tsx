@@ -1,3 +1,4 @@
+import { Skeleton } from "@/components/ui/skeleton";
 import type { LucideIcon } from "lucide-react";
 import { TrendingUp } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -27,7 +28,7 @@ export type KpiCardProps = {
  *  optional 11.5px semibold delta line. Server component — no client state. */
 export function KpiCard({ icon: Icon, label, value, delta }: KpiCardProps) {
   return (
-    <Card className="gap-0 rounded-xl border px-[15px] py-[14px] shadow-card">
+    <Card className="gap-0 border px-[15px] py-[14px]">
       <div className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground">
         <Icon className="size-[13px]" strokeWidth={2} aria-hidden />
         {label}
@@ -68,9 +69,9 @@ export function KpiRowSkeleton({ cards = 4 }: { cards?: number }) {
       aria-label="Loading summary"
     >
       {Array.from({ length: cards }).map((_, i) => (
-        <Card key={i} className="gap-0 rounded-xl border px-[15px] py-[14px] shadow-card">
-          <div className="h-3 w-20 animate-pulse rounded bg-muted" />
-          <div className="mt-[9px] h-6 w-24 animate-pulse rounded bg-muted" />
+        <Card key={i} className="gap-0 border px-[15px] py-[14px]">
+          <Skeleton className="h-3 w-20 animate-pulse rounded bg-muted" />
+          <Skeleton className="mt-[9px] h-6 w-24 animate-pulse rounded bg-muted" />
         </Card>
       ))}
     </div>

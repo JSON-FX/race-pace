@@ -1,5 +1,8 @@
 "use client";
 
+
+import { Skeleton } from "@/components/ui/skeleton";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useActionState, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
@@ -30,7 +33,7 @@ import { eventPublicUrl, isValidEventSlug, normalizeEventSlug } from "@/lib/even
 // with ssr:false keeps the whole maplibre chunk out of the server render.
 const RouteEditor = dynamic(
   () => import("@/components/RouteEditor").then((m) => m.RouteEditor),
-  { ssr: false, loading: () => <div className="h-14 animate-pulse rounded-lg bg-muted" /> },
+  { ssr: false, loading: () => <Skeleton className="h-14 animate-pulse rounded-lg bg-muted" /> },
 );
 
 const fieldLabel = "mb-1.5 block text-[11px] font-semibold tracking-wide text-muted-foreground";
@@ -296,19 +299,19 @@ export function EventEditorForm({ initial, orgId, checkInDefault = true, canEdit
                   <Input aria-label="Flag-off" type="time" className={inputCls} value={event.flag_off ?? ""} onChange={(e) => set({ flag_off: e.target.value || null })} />
                 </Field>
               </div>
-              <label className="flex items-start gap-3 rounded-lg border p-3 text-sm">
-                <input
-                  type="checkbox"
+              <Label className="flex items-start gap-3 border p-3">
+                <Checkbox
+
                   aria-label="Require event check-in"
                   checked={event.check_in_required}
                   disabled={!canEditCheckIn}
-                  onChange={(e) => set({ check_in_required: e.target.checked })}
+                  onCheckedChange={(checked) => set({ check_in_required: checked === true })}
                 />
                 <span>
                   <span className="block font-semibold">Require event check-in</span>
                   <span className="block text-muted-foreground">Turn this off when the organizer does not scan runners at the venue. Tickets and kit release still work.</span>
                 </span>
-              </label>
+              </Label>
               <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
                 <Field label="Registration closes" hint="Leave empty to close by status only">
                   <Input
@@ -340,38 +343,38 @@ export function EventEditorForm({ initial, orgId, checkInDefault = true, canEdit
                 fix blood type and emergency contact after the kit cutoff.
               </p>
               <Field label="Description" required={event.status === "coming_soon"}>
-                <Textarea aria-label="Description" className="min-h-[92px] resize-y rounded-lg text-[13.5px]" value={event.description ?? ""} onChange={(e) => set({ description: e.target.value || null })} />
+                <Textarea aria-label="Description" className="min-h-[92px] resize-y" value={event.description ?? ""} onChange={(e) => set({ description: e.target.value || null })} />
               </Field>
             </div>
           </FormSection>
 
           <FormSection id="sec-coming-soon" title="Coming soon" hint="Publish a teaser before registration details are ready">
             <div className="space-y-4">
-              <label className="flex items-start gap-3 rounded-lg border p-3 text-sm">
-                <input
-                  type="checkbox"
+              <Label className="flex items-start gap-3 border p-3">
+                <Checkbox
+
                   aria-label="Display as coming soon"
                   checked={event.status === "coming_soon"}
                   disabled={event.status !== "draft" && event.status !== "coming_soon"}
-                  onChange={(e) => set({ status: e.target.checked ? "coming_soon" : "draft" })}
+                  onCheckedChange={(checked) => set({ status: checked === true ? "coming_soon" : "draft" })}
                 />
                 <span>
                   <span className="block font-semibold">Display as coming soon</span>
                   <span className="block text-muted-foreground">Name, public link, discipline, featured image, and description are enough to publish.</span>
                 </span>
-              </label>
+              </Label>
               {event.status === "coming_soon" ? (
                 <div className="space-y-4 rounded-xl border bg-muted/20 p-4">
-                  <label className="flex items-start gap-3 text-sm">
-                    <input type="checkbox" aria-label="Enable Notify me" checked={event.coming_soon_notify_enabled}
-                      onChange={(e) => set({ coming_soon_notify_enabled: e.target.checked })} />
+                  <Label className="flex items-start gap-3">
+                    <Checkbox  aria-label="Enable Notify me" checked={event.coming_soon_notify_enabled}
+                      onCheckedChange={(checked) => set({ coming_soon_notify_enabled: checked === true })} />
                     <span><strong className="block">Notify me</strong><span className="text-muted-foreground">Email followers when registration opens.</span></span>
-                  </label>
-                  <label className="flex items-start gap-3 text-sm">
-                    <input type="checkbox" aria-label="Enable Reserve now" checked={event.coming_soon_reserve_enabled}
-                      onChange={(e) => set({ coming_soon_reserve_enabled: e.target.checked })} />
+                  </Label>
+                  <Label className="flex items-start gap-3">
+                    <Checkbox  aria-label="Enable Reserve now" checked={event.coming_soon_reserve_enabled}
+                      onCheckedChange={(checked) => set({ coming_soon_reserve_enabled: checked === true })} />
                     <span><strong className="block">Reserve now</strong><span className="text-muted-foreground">A separate, nonrefundable charge holds one event place.</span></span>
-                  </label>
+                  </Label>
                   {event.coming_soon_reserve_enabled ? (
                     <div className="grid gap-3 sm:grid-cols-2">
                       <Field label="Reservation fee (₱)" required hint="Runner also pays Platform Fees and PayMongo processing.">
@@ -440,7 +443,7 @@ export function EventEditorForm({ initial, orgId, checkInDefault = true, canEdit
             title="Categories"
             hint="Price changes automatically refresh unpaid checkouts"
             action={
-              <Button variant="outline" size="sm" className="rounded-pill" onClick={() => setCats(addCategory(cats))}>
+              <Button variant="outline" size="sm" className="" onClick={() => setCats(addCategory(cats))}>
                 + Add distance
               </Button>
             }

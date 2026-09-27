@@ -1,3 +1,4 @@
+import { Badge } from "@/components/ui/badge";
 import Image from "next/image";
 
 /**
@@ -143,21 +144,21 @@ function Mark({ mark, height }: { mark: MarkKey; height: number }) {
       title={alt}
       width={Math.round(height * (mark === "qrph" ? 3000 / 710 : 506 / 316))}
       height={height}
-      className="block w-auto"
-      style={{ height }}
+      className="block object-contain"
+      style={{ width: mark === "visa" || mark === "mastercard" ? 36 : 64, height }}
     />
   );
 }
 
 /** The Method cell: brand mark(s) plus the label. */
-export function MethodBadge({ method, status, height = 18 }: { method: string | null | undefined; status?: string; height?: number }) {
+export function MethodBadge({ method, status, height = 28 }: { method: string | null | undefined; status?: string; height?: number }) {
   const { kind, label, marks } = methodPresentation(method, status);
   return (
-    <span className="flex items-center gap-1.5">
+    <Badge variant="outline" className="h-8 gap-1.5 border-0 bg-transparent p-0" title={label} aria-label={kind === "known" ? label : undefined}>
       {marks.map((mark) => (
         <Mark key={mark} mark={mark} height={height} />
       ))}
-      <span className={kind === "known" ? "text-foreground" : "text-muted-foreground"}>{label}</span>
-    </span>
+      <span className={kind === "known" ? "sr-only" : "text-muted-foreground"}>{label}</span>
+    </Badge>
   );
 }

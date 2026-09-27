@@ -1,5 +1,9 @@
 "use client";
 
+import { Spinner } from "@/components/ui/spinner";
+import { FormSelect } from "@race-pace/ui";
+import { Textarea } from "@/components/ui/textarea";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useState } from "react";
 import { CheckCircle2, LoaderCircle, MailCheck, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -87,13 +91,13 @@ export function OrganizerSignup() {
       <form aria-label="Inquiry form" className="mt-6 space-y-5" onSubmit={submit}>
         <div className="grid gap-5 sm:grid-cols-2">
           <div className="space-y-2">
-            <Label htmlFor="inquiry-first-name" className="text-[13px] font-semibold text-forest/78">
+            <Label htmlFor="inquiry-first-name" className="">
               First name <span aria-hidden="true">*</span><span className="sr-only"> (required)</span>
             </Label>
             <Input id="inquiry-first-name" name="firstName" autoComplete="given-name" minLength={1} maxLength={80} required placeholder="Juan" className={fieldClass} />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="inquiry-last-name" className="text-[13px] font-semibold text-forest/78">
+            <Label htmlFor="inquiry-last-name" className="">
               Last name <span aria-hidden="true">*</span><span className="sr-only"> (required)</span>
             </Label>
             <Input id="inquiry-last-name" name="lastName" autoComplete="family-name" minLength={1} maxLength={80} required placeholder="dela Cruz" className={fieldClass} />
@@ -101,35 +105,35 @@ export function OrganizerSignup() {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="inquiry-email" className="text-[13px] font-semibold text-forest/78">
+          <Label htmlFor="inquiry-email" className="">
             Email <span aria-hidden="true">*</span><span className="sr-only"> (required)</span>
           </Label>
           <Input id="inquiry-email" name="email" type="email" autoComplete="email" maxLength={254} required placeholder="you@example.com" className={fieldClass} />
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="inquiry-audience" className="text-[13px] font-semibold text-forest/78">
+          <Label htmlFor="inquiry-audience" className="">
             I&apos;m reaching out as <span aria-hidden="true">*</span><span className="sr-only"> (required)</span>
           </Label>
-          <select id="inquiry-audience" name="audience" required defaultValue="" className={`${fieldClass} w-full px-3 outline-none focus-visible:ring-[3px]`}>
+          <FormSelect id="inquiry-audience" name="audience" required defaultValue="" className={`${fieldClass} w-full px-3 outline-none focus-visible:ring-[3px]`}>
             <option value="" disabled>Select one</option>
             <option value="runner">Runner</option>
             <option value="organizer">Organizer</option>
-          </select>
+          </FormSelect>
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="inquiry-subject" className="text-[13px] font-semibold text-forest/78">
+          <Label htmlFor="inquiry-subject" className="">
             Subject <span aria-hidden="true">*</span><span className="sr-only"> (required)</span>
           </Label>
           <Input id="inquiry-subject" name="subject" minLength={2} maxLength={160} required placeholder="What do you need help with?" className={fieldClass} />
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="inquiry-message" className="text-[13px] font-semibold text-forest/78">
+          <Label htmlFor="inquiry-message" className="">
             Message <span aria-hidden="true">*</span><span className="sr-only"> (required)</span>
           </Label>
-          <textarea
+          <Textarea
             id="inquiry-message"
             name="message"
             minLength={2}
@@ -137,7 +141,7 @@ export function OrganizerSignup() {
             required
             placeholder="Tell us what you need help with..."
             onChange={(event) => setMessageLength(event.currentTarget.value.length)}
-            className="min-h-36 w-full resize-y rounded-xl border border-forest/14 bg-secondary/45 px-3 py-3 text-[14px] text-forest outline-none placeholder:text-forest/38 focus-visible:border-primary focus-visible:ring-[3px] focus-visible:ring-primary/25"
+            className="min-h-36 w-full resize-y border px-3 py-3 outline-none placeholder:text-forest/38 focus-visible:ring-[3px] focus-visible:ring-primary/25"
           />
           <div className="flex items-start justify-between gap-4 text-[11px] leading-5 text-muted-foreground">
             <span>Include the race or event name when relevant.</span>
@@ -150,9 +154,9 @@ export function OrganizerSignup() {
           <Input id="inquiry-website" name="website" tabIndex={-1} autoComplete="off" />
         </div>
 
-        <Button type="submit" disabled={busy} className="h-12 w-full rounded-pill bg-primary text-[15px] font-bold text-primary-foreground shadow-none hover:bg-primary-focus">
+        <Button type="submit" disabled={busy} className="h-12 w-full">
           {busy ? (
-            <><LoaderCircle className="animate-spin motion-reduce:animate-none" aria-hidden="true" /> Sending message…</>
+            <><Spinner className="animate-spin motion-reduce:animate-none" aria-hidden="true" /> Sending message…</>
           ) : (
             <>Send message <Send aria-hidden="true" /></>
           )}
@@ -163,9 +167,9 @@ export function OrganizerSignup() {
         </p>
 
         {state.kind === "error" ? (
-          <p role="alert" className="rounded-xl border border-destructive/20 bg-destructive/5 px-4 py-3 text-[13px] leading-5 text-destructive">
+          <Alert variant="destructive" role="alert" className="border px-4 py-3 leading-5"><AlertDescription>
             We couldn&apos;t send your message. Email inquiries@racepace.com.ph directly and we&apos;ll help you from there.
-          </p>
+          </AlertDescription></Alert>
         ) : null}
       </form>
     </div>

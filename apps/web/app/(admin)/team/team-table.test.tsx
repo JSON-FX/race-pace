@@ -247,7 +247,8 @@ it("restores the event restriction when the server rejects an edit", async () =>
   const picker = screen.getByLabelText(
     "Event access for marshal@racepace.test",
   );
-  await user.selectOptions(picker, "b");
-  await waitFor(() => expect(picker).toHaveValue("a"));
+  await user.click(picker);
+  await user.click(screen.getByRole("option", { name: "Other" }));
+  await waitFor(() => expect(picker).toHaveTextContent("Assigned"));
   expect(changeRoleAction).toHaveBeenCalledWith("u2", "a1", "marshal", "b");
 });

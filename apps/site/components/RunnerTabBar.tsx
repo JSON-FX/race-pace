@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Home, Mountain, Ticket, User, UsersRound } from "lucide-react";
@@ -47,7 +48,7 @@ export function RunnerTabBar({ signedIn }: { signedIn: boolean }) {
     <nav
       aria-label="Primary"
       className={cn(
-        "sticky bottom-0 z-40 flex border-t border-border bg-background md:hidden",
+        "no-print sticky bottom-0 z-40 flex border-t border-border bg-background md:hidden",
         // The home indicator overlays the bottom ~34px on a gesture-nav phone.
         // Without the inset the labels are unreadable and the targets sit inside
         // the system's own swipe region.
@@ -57,16 +58,14 @@ export function RunnerTabBar({ signedIn }: { signedIn: boolean }) {
       {TABS.map(({ href, label, icon: Icon }) => {
         const active = isActive(pathname, href);
         return (
-          <Link
-            key={href}
+          <Button asChild key={href} variant={active ? "secondary" : "ghost"} className="min-w-0 flex-1 flex-col"><Link
             href={href}
             aria-current={active ? "page" : undefined}
             className={cn(
               // The whole cell is the target, not the glyph — min 44px tall with
               // the padding, and each cell is a quarter of the viewport wide.
-              "relative flex min-h-12 flex-1 flex-col items-center justify-center gap-1 rounded-lg px-1 py-1.5",
-              "text-[10.5px] font-semibold transition-colors",
-              active ? "text-primary" : "text-muted-foreground",
+              "relative flex min-h-12 flex-1 flex-col items-center justify-center gap-1 px-1 py-1.5",
+              "",
             )}
           >
             <Icon className="size-[22px]" strokeWidth={active ? 2.3 : 1.9} aria-hidden />
@@ -78,7 +77,7 @@ export function RunnerTabBar({ signedIn }: { signedIn: boolean }) {
                 self-evident icons, and an unlabelled bar is guesswork on a
                 runner's first visit. */}
             <span className="leading-none">{label}</span>
-          </Link>
+          </Link></Button>
         );
       })}
     </nav>

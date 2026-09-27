@@ -1,0 +1,318 @@
+{
+  "hubBaseCommit": "d2a671b0c050847356933b38f9cf509be60c5c5c",
+  "sourceState": "uncommitted working-tree snapshot",
+  "date": "2026-09-27",
+  "registry": "official shadcn new-york-v4",
+  "adaptations": [
+    "Replace cn imports with the existing clsx/tailwind-merge helper",
+    "Mark existing DOM/portal roots with data-rp-ui for component-only RGB tokens",
+    "Wrap direct color token references for the application RGB contract",
+    "Add client boundaries for hook-based modules",
+    "Retain current app Sonner theme observation and table divider compatibility",
+    "Button loading and disabled-link compatibility; semantic destructive foreground in dark mode",
+    "Card asChild extension preserves linked card DOM and geometry",
+    "Overlay opener restoration supports programmatic table and upload workflows",
+    "Progress measured value propagation and Slider thumb accessible labels",
+    "CommandDialog accessible header belongs inside the modal",
+    "SidebarInset min-width and hidden scanner-input geometry preserve the application shell",
+    "Source roots exclude SidebarProvider and SidebarInset to preserve page canvases",
+    "Outline Button declares foreground for contrast inside dark section compositions",
+    "Calendar Tailwind variable syntax and compact 36px cells fit a 320px viewport",
+    "DatePicker uses Fieldnotes Calendar/Popover with civil-date form values and styled month/year menus",
+    "FormSelect retains native server rendering, FormData, reset and validation with a Radix menu after hydration",
+    "ChoiceGroup plain variant and optional status dots support annotated application contexts"
+  ],
+  "files": [
+    {
+      "source": "packages/race-pace-ui/src/ui/alert-dialog.tsx",
+      "sha256": "e3b77f9def7d5afe9c7f2ae198756b05f16ea4c97f7204d82b2f0cdf0c893cd2",
+      "destination": "src/ui/alert-dialog.tsx",
+      "adaptedSha256": "1dcdd9c0c70752fa3b7f92bbcb32e3141d48aab847871621ec103fd3ce634cd4"
+    },
+    {
+      "source": "packages/race-pace-ui/src/ui/alert.tsx",
+      "sha256": "d03dcae5cdb63c381c1144ca9a0c49ba0e46466967d7deb94662034042acb034",
+      "destination": "src/ui/alert.tsx",
+      "adaptedSha256": "bc607b8283a2550676cd7b8d91acf74e78890edd26cfe9043985eeb3ca1b0ecc"
+    },
+    {
+      "source": "packages/race-pace-ui/src/ui/avatar.tsx",
+      "sha256": "f757031690c648e3b115907bff6ded599076ea7245715d32b98dad2bd2153899",
+      "destination": "src/ui/avatar.tsx",
+      "adaptedSha256": "921b04c9dc5073c4497aef0d2e04e17ea19d7c5523f1633c6260c45e010b42c7"
+    },
+    {
+      "source": "packages/race-pace-ui/src/ui/badge.tsx",
+      "sha256": "13a9380dfff853ee730c14a52df49f22aecd31f40f2998d7c1e7ec458b6e1650",
+      "destination": "src/ui/badge.tsx",
+      "adaptedSha256": "3d1816279a73074ba0ef566ea2cc9d6c4e9bc684a20c2fc0e49be898b3049ea3"
+    },
+    {
+      "source": "packages/race-pace-ui/src/ui/breadcrumb.tsx",
+      "sha256": "c75fcd3d9e8470188bc0dd4b27a2b26fff3ad42b9c9c534a953dc090ae2cba33",
+      "destination": "src/ui/breadcrumb.tsx",
+      "adaptedSha256": "81c992ef31211370ef754a9a39dec5c344988d17a436a43a06e2b2241ffe0972"
+    },
+    {
+      "source": "packages/race-pace-ui/src/ui/button.tsx",
+      "sha256": "79dd6f75f8136394442202d6b8b922fb269eaad0a5dba579397c9d5b41f893bb",
+      "destination": "src/ui/button.tsx",
+      "adaptedSha256": "920281b32c49b113f6a818bc22132337918880aa130d3299dd15b8ad5ef28f80"
+    },
+    {
+      "source": "packages/race-pace-ui/src/ui/card.tsx",
+      "sha256": "ef8305b12c3112dab42a4708b41b1ebcc042fa5ab4c20f039da8d45b09ed5059",
+      "destination": "src/ui/card.tsx",
+      "adaptedSha256": "44b26ec3104092282a79f4dfb35f835e927d6c6faf5fa47ceb94c0384d3e7891"
+    },
+    {
+      "source": "packages/race-pace-ui/src/ui/checkbox.tsx",
+      "sha256": "ba0ac64064e2d8fa7299d53e9e84b9a4772fef8dd4cf6170c56d3030a1d69941",
+      "destination": "src/ui/checkbox.tsx",
+      "adaptedSha256": "779bd870b4e255deab85dd390f2f3c6849db3aeaf0ca3cb1837707c71084d6c1"
+    },
+    {
+      "source": "packages/race-pace-ui/src/ui/command.tsx",
+      "sha256": "11dd9a286c20e4355ab59dee1308e1c9f3f22a8d9d0778c2d8472773704418ec",
+      "destination": "src/ui/command.tsx",
+      "adaptedSha256": "7d71082e1d27c7210d3e918d589e6de88f043bafe79785f1824ab85a25e58f89"
+    },
+    {
+      "source": "packages/race-pace-ui/src/ui/dialog.tsx",
+      "sha256": "c89b631a1a896951ba92dad4d8fb1ed4189c20e7acf8bf886c610c6d49623afb",
+      "destination": "src/ui/dialog.tsx",
+      "adaptedSha256": "282db0939a3d172b4fbe3f1758253766e026ca07646fb999136de886a3004623"
+    },
+    {
+      "source": "packages/race-pace-ui/src/ui/dropdown-menu.tsx",
+      "sha256": "9b39f3c4f1164529b5feebe5c3189efe6ea38790e36a158b22e263e73b227a9f",
+      "destination": "src/ui/dropdown-menu.tsx",
+      "adaptedSha256": "62725dad21d3a82d78fb7e82bb1f48d3f0cdf7b3ceb2c91b260e6ea455cb997a"
+    },
+    {
+      "source": "packages/race-pace-ui/src/ui/input.tsx",
+      "sha256": "0c9457181f6ddc80969bcf854e92c362903a55b6e889fbef3fd85343ecc4af5b",
+      "destination": "src/ui/input.tsx",
+      "adaptedSha256": "6f2eb6a80b3d72909c0fc7d685a70881ce0d7bb3046fcee19fa6c6a430dde956"
+    },
+    {
+      "source": "packages/race-pace-ui/src/ui/item.tsx",
+      "sha256": "85e320b9868ad4de2be4ab35bfe32e8d8a033efb1cf7e9b4385b25552b6e7014",
+      "destination": "src/ui/item.tsx",
+      "adaptedSha256": "a1b4528c3379bfe03f1179f330666b7b898ef9d91e7d1ea98225292301a8a634"
+    },
+    {
+      "source": "packages/race-pace-ui/src/ui/label.tsx",
+      "sha256": "344bde38b8531615dbf8e14af3895517c24d8ef6ce56ddeda7e2e6fe4b5d0c00",
+      "destination": "src/ui/label.tsx",
+      "adaptedSha256": "d62164e7ef54074928a50854dcd1d8b6da8f6a10855a6553506f2f2cbe2a2157"
+    },
+    {
+      "source": "packages/race-pace-ui/src/ui/pagination.tsx",
+      "sha256": "8f5ed6763062e259a28b182fe382a0dc0b42d0fd835b0f39999529f7bf2a2668",
+      "destination": "src/ui/pagination.tsx",
+      "adaptedSha256": "9b8684be049efb07b60a76951471a7e3a523606353bfa65e35e80bd48b288d80"
+    },
+    {
+      "source": "packages/race-pace-ui/src/ui/popover.tsx",
+      "sha256": "3f99d3add6c9fa4f03721e81297ee10e1310785ee1d9d9d4c82a114d84ab0757",
+      "destination": "src/ui/popover.tsx",
+      "adaptedSha256": "058203a864a2cd455151ffae83eca02a0fe8f21ba737ee404284be824ec992eb"
+    },
+    {
+      "source": "packages/race-pace-ui/src/ui/select.tsx",
+      "sha256": "9293fd75923693411cd443049fba313135014c4ad6997cfcde1e37693fc85b04",
+      "destination": "src/ui/select.tsx",
+      "adaptedSha256": "e873911762ee92436ca69520259ba6a97914ddbafc5313d25dcdbeb84f71fd5f"
+    },
+    {
+      "source": "packages/race-pace-ui/src/ui/separator.tsx",
+      "sha256": "ad7d5403fe337160e41dbf04147896e448ae3a747b8d06660d627d74d60021bc",
+      "destination": "src/ui/separator.tsx",
+      "adaptedSha256": "d16f8ad0b98dfda114633ff1b488a7310e2022b52fee292760f585e74f7d42a8"
+    },
+    {
+      "source": "packages/race-pace-ui/src/ui/sheet.tsx",
+      "sha256": "7e4e3e2a5976ad75c1e0f63624fb3748ad84b27ca1ec85c0a6d33e6f300dc80d",
+      "destination": "src/ui/sheet.tsx",
+      "adaptedSha256": "f47ef7f0a946569b03aa9973b64d424147e876a3431df175424d1696b0fc0c89"
+    },
+    {
+      "source": "packages/race-pace-ui/src/ui/sidebar.tsx",
+      "sha256": "96586fa684cb5a0fe126f138a8ca0eeccc217071d5a4e832ba0c4af888a36f2f",
+      "destination": "src/ui/sidebar.tsx",
+      "adaptedSha256": "a2da1268d072af0812646a600fc62de3fccdb43e9417b45ec7d3a10f85452327"
+    },
+    {
+      "source": "packages/race-pace-ui/src/ui/skeleton.tsx",
+      "sha256": "f51ce0fcd31e5c31437382e80ea0af94b4fc3d64221d27091d36824546780a43",
+      "destination": "src/ui/skeleton.tsx",
+      "adaptedSha256": "a3dbc557093fd0081ccd4fc01cb9ca52ff22db800ca5f837bad2b5f56d071089"
+    },
+    {
+      "source": "packages/race-pace-ui/src/ui/sonner.tsx",
+      "sha256": "a3868f2a8aafd8e2dc96b7ae145009939e9d8723cbb5a4b61d7b7d9bed9df478",
+      "destination": "src/ui/sonner.tsx",
+      "adaptedSha256": "db2953607884c00738ef3b8b8976387d642089863e0184384f971018af62a3ac"
+    },
+    {
+      "source": "packages/race-pace-ui/src/ui/table.tsx",
+      "sha256": "b3298fc8c50e434bd307bd39b80b96053e8780f422996e8a6fb76d42ced473d8",
+      "destination": "src/ui/table.tsx",
+      "adaptedSha256": "5db39025023da29237f78f4c45f331a259b424ac9e187c911191daa44304e40f"
+    },
+    {
+      "source": "packages/race-pace-ui/src/ui/textarea.tsx",
+      "sha256": "5cafcfeeee29534f449387a16b585f5923d2faab1a0cdc50a874416b175f59ce",
+      "destination": "src/ui/textarea.tsx",
+      "adaptedSha256": "1d98f03d6a59c616acde9ff9931c4c3aa637b2693172b336d0bf8b44b6ce1074"
+    },
+    {
+      "source": "packages/race-pace-ui/src/ui/tooltip.tsx",
+      "sha256": "611e4305879b2773eafe76bf3c5caa69d8e47367fd97887a71634a27828f4433",
+      "destination": "src/ui/tooltip.tsx",
+      "adaptedSha256": "4f6f374f4e2b496764bb6ba85a8af9dafa5895779ba9adb0ce8565b66d736a23"
+    },
+    {
+      "source": "packages/race-pace-ui/src/ui/native-select.tsx",
+      "sha256": "4bdbce5575dce610fed747df4547a3d494713f4df8d28e09b3ccee62e4d72f93",
+      "destination": "src/ui/native-select.tsx",
+      "adaptedSha256": "3468eb4492dd6e060fd5b0f6a96be1f77387f7d4bf7dab71c13eea5faffe22fe"
+    },
+    {
+      "source": "packages/race-pace-ui/src/ui/field.tsx",
+      "sha256": "6f412667835f1c4d6a114ad34b27b09d1fc4e364f270935a7f6c7ea27ea939dd",
+      "destination": "src/ui/field.tsx",
+      "adaptedSha256": "3794391aa1a9b75d42e5c84c61b6ee5ce4f988229b900077f19587b1f37e81af"
+    },
+    {
+      "source": "packages/race-pace-ui/src/ui/radio-group.tsx",
+      "sha256": "cfc4f99ee68be2fbbd70de3ffad82e1462d5e8e0bb0aecfd190a4f5115325862",
+      "destination": "src/ui/radio-group.tsx",
+      "adaptedSha256": "b41921604c381812714c4906c14a58b208137371864c7d22ea9c69ca86000e7d"
+    },
+    {
+      "source": "packages/race-pace-ui/src/ui/toggle-group.tsx",
+      "sha256": "0e71b3dc7b2ee92ae1d8626ed4ffad54bfe00ec7d48c237d1a48cf00d02d1316",
+      "destination": "src/ui/toggle-group.tsx",
+      "adaptedSha256": "00dfea90125960c4ef4d38577ad2a0b189f29c9db5df90f00b8b31ecbd2e6c6e"
+    },
+    {
+      "source": "packages/race-pace-ui/src/ui/toggle.tsx",
+      "sha256": "bd9ca65fc62651311cb90bec2c6b22a58321ec6975bb25260362bfc0197e3a13",
+      "destination": "src/ui/toggle.tsx",
+      "adaptedSha256": "c0eeeb9eb9e4c9b792763929ceab0780cd0c079c90ddc4871459c45c905cd6a3"
+    },
+    {
+      "source": "packages/race-pace-ui/src/ui/collapsible.tsx",
+      "sha256": "eb4ee2a9ddb3c566c509753a79e4f4c9425d9f8474d55f61f8c8694928b6a509",
+      "destination": "src/ui/collapsible.tsx",
+      "adaptedSha256": "193bca38765f557fb2136d64064b6e6953b27ba2d0f5727043c90ab24863971d"
+    },
+    {
+      "source": "packages/race-pace-ui/src/ui/empty.tsx",
+      "sha256": "54f529ccf72c18c4b5abd5586a7cf1f2a4c8d207aac366029d66ed095cb2965d",
+      "destination": "src/ui/empty.tsx",
+      "adaptedSha256": "a5eb670ef4823e34ba9656ed9172e9c3fad5c23919b1e550450e38ee0a912057"
+    },
+    {
+      "source": "packages/race-pace-ui/src/ui/spinner.tsx",
+      "sha256": "5d040fc49cb54c0296070644053b5a8840ddbfca89a430546bf308df3fffad65",
+      "destination": "src/ui/spinner.tsx",
+      "adaptedSha256": "6ffaf9f27fffa075b708f1ccfa9bd325246d08b97dc002431539e742ec9046d5"
+    },
+    {
+      "source": "packages/race-pace-ui/src/ui/progress.tsx",
+      "sha256": "cf5de49b1c6d9ba6753d1d2f62820c543935cf426b8af8b49b277cfda6cc2c5b",
+      "destination": "src/ui/progress.tsx",
+      "adaptedSha256": "41efb3034a857a1c3c4e68451fdf2406002d05a38bae22023b93860c48bc4057"
+    },
+    {
+      "source": "packages/race-pace-ui/src/ui/input-group.tsx",
+      "sha256": "ae0845f75a8443bcb72b6e38d1c8a5e2c80a625005ee877891fec0e9241e0267",
+      "destination": "src/ui/input-group.tsx",
+      "adaptedSha256": "1b5b8ca35dfcd3efe3b8d3d3f45c766f29794aa0185e5e0e94c32a6f83e1ff49"
+    },
+    {
+      "source": "packages/race-pace-ui/src/ui/slider.tsx",
+      "sha256": "6a531f6182de6efec2c25d30a7626b66cbf11cf52d505e47f907124934f7188e",
+      "destination": "src/ui/slider.tsx",
+      "adaptedSha256": "bb98f4482def72abb69ff6d1abb1c8942637e9c19f0ca4861bf6bdf09586f070"
+    },
+    {
+      "source": "packages/race-pace-ui/src/hooks/use-mobile.ts",
+      "sha256": "ad0936f84f1df79d3697bfbff9c18f8ad58431c1cbaf2359c6a853b0fcc9f28b",
+      "destination": "src/hooks/use-mobile.ts",
+      "adaptedSha256": "ad0936f84f1df79d3697bfbff9c18f8ad58431c1cbaf2359c6a853b0fcc9f28b"
+    },
+    {
+      "source": "projects/race-pace/src/fieldnotes-next/theme.css",
+      "sha256": "84b61cb5fe46146a3c528f834940bc5bbbf71a9efa3039faa451477216d4c692",
+      "destination": "reference-only"
+    },
+    {
+      "source": "projects/race-pace/src/libraries/library.css",
+      "sha256": "25137af50241aefc6d7103148896bcb15470417e8736c5e9d38ece4d462f11fa",
+      "destination": "reference-only"
+    },
+    {
+      "source": "projects/race-pace/DESIGN.md",
+      "sha256": "99f69d9a5756fbbb98a645aba9bff915aa381fa72ad9d3dbd17b7f969efa2183",
+      "destination": "reference-only"
+    },
+    {
+      "source": "packages/race-pace-ui/src/status.tsx",
+      "sha256": "de49eabed295b698f15a6b6bc854cea2783fb9e29a5d0d8b3370d86ab89a8e98",
+      "destination": "reference-only"
+    },
+    {
+      "source": "packages/race-pace-ui/src/ui/tabs.tsx",
+      "sha256": "e1df6e2f95ece373ca909c1d54b8ba8cf4c47dd425c1784bbb9a01c38dd0936b",
+      "destination": "src/ui/tabs.tsx",
+      "adaptedSha256": "29e74ef1371b32360d3bd68c7b0afa83cefd9f67976d83b74ed8907cc9fbe92b"
+    },
+    {
+      "source": "packages/race-pace-ui/src/ui/switch.tsx",
+      "sha256": "743676f33f823ffa8008bbd5eb94cb68e227599447d60e132a202291a395f8e4",
+      "destination": "src/ui/switch.tsx",
+      "adaptedSha256": "efd7758250da9a211247c51de4a412d5f9c5e12581bf4ff844880992a213516d"
+    },
+    {
+      "source": "packages/race-pace-ui/src/ui/calendar.tsx",
+      "sha256": "2683b40ede6311832de473c8f29cd2fc9ac62edd76f7d771ae843b93219a72a5",
+      "destination": "src/ui/calendar.tsx",
+      "adaptedSha256": "afb5cddb0bca0c045040f440fc4e2647569c7261c04d49d157fe19c8540f2f92"
+    },
+    {
+      "source": "projects/race-pace/src/libraries/demos/extended-demos.tsx",
+      "sha256": "97e1b68f34b89d7b2b1fbf38a55871831cc48ba496c003a7c30af5b768e392de",
+      "destination": "reference-only"
+    }
+  ],
+  "adaptedFiles": [
+    {
+      "path": "src/fieldnotes.css",
+      "sha256": "e0c779f3c2327d1c0cb653a2369b98f39ac22d3d1a20157c5930351f3e85f2b9"
+    },
+    {
+      "path": "src/choice-group.tsx",
+      "sha256": "dbe9b26d36cc65efbd01b9648353e3429188b71362f6a7be1969ef812994ad8f"
+    },
+    {
+      "path": "src/status.tsx",
+      "sha256": "5d44d43ad04c283bb4b325fb03806a4bb0139215f359dc76fdcf1f3e49ee3949"
+    },
+    {
+      "path": "src/field-frame.tsx",
+      "sha256": "fdd2a2236c26fcdcbf16af4bfd217fd0ac433289ee3e66e49ea57d02eedcebcd"
+    },
+    {
+      "path": "src/form-select.tsx",
+      "sha256": "4d30e605482708c3c03350eefacf4ef7b7aaedfbf2686510d837f950997ae021"
+    },
+    {
+      "path": "src/date-picker.tsx",
+      "sha256": "522ef94ed0ff96723957419468e34098f2a0e9a8eeb94b35beeaa462688a8b09"
+    }
+  ]
+}

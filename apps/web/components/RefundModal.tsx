@@ -1,8 +1,9 @@
 "use client";
 
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogCancel } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { refundRegistrationAction, previewRefundAction, type RefundResponse } from "@/lib/actions/registrations";
@@ -45,14 +46,14 @@ export function RefundModal({ registration, onClose, onDone }: {
   }
 
   return (
-    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="w-[380px] rounded-xl">
-        <DialogHeader>
-          <DialogTitle className="text-[17px] font-bold">{ready ? `Refund ${amount}?` : "Review refund"}</DialogTitle>
-          <DialogDescription className="text-[13px] text-muted-foreground">
+    <AlertDialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <AlertDialogContent className="w-[380px]">
+        <AlertDialogHeader>
+          <AlertDialogTitle className="">{ready ? `Refund ${amount}?` : "Review refund"}</AlertDialogTitle>
+          <AlertDialogDescription className="text-[13px] text-muted-foreground">
             A full refund releases {registration.full_name ?? "this runner"}&apos;s slot. A partial refund keeps the ticket and slot active. Completed refunds cannot be undone.
-          </DialogDescription>
-        </DialogHeader>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
         {ready ? <dl className="text-sm space-y-2">
           <div>Original payment: {peso(preview!.total_paid!)}</div>
           <div>Retained fees: {peso(preview!.retained_fees!)}</div>
@@ -60,14 +61,14 @@ export function RefundModal({ registration, onClose, onDone }: {
           <p>Platform and processing fees are retained, along with any organizer refund fee.</p>
         </dl> : !error ? <p>{preview?.pending ? "Refund pending. The slot stays reserved until the provider confirms it." : preview?.already ? "This registration was already refunded." : "Loading refund amount…"}</p> : null}
         <Input disabled={!!canCheck} aria-label="Refund note" placeholder="Reason (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
-        {error ? <span role="alert" className="text-[13px] text-destructive">{error}</span> : null}
-        <DialogFooter>
-          <Button variant="outline" className="rounded-pill" onClick={onClose}>Keep it</Button>
-          <Button aria-label={canCheck ? "Check refund status" : "Confirm refund"} variant="destructive" className="rounded-pill" disabled={busy || (!ready && !canCheck)} onClick={submit}>
+        {error ? <Alert variant="destructive" role="alert" className=""><AlertDescription>{error}</AlertDescription></Alert> : null}
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={onClose}>Keep it</AlertDialogCancel>
+          <Button aria-label={canCheck ? "Check refund status" : "Confirm refund"} variant="destructive" className="" disabled={busy || (!ready && !canCheck)} onClick={submit}>
             {busy ? (canCheck ? "Checking…" : "Refunding…") : canCheck ? "Check refund status" : "Refund"}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

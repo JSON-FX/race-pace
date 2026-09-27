@@ -1,5 +1,8 @@
 "use client";
 
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -33,14 +36,14 @@ function Chip({
   children: string;
 }) {
   return (
-    <Link
+    <Button asChild variant={active ? "default" : "outline"}><Link
       href={href}
       aria-label={`${children} filter, ${active ? "selected" : "not selected"}`}
       className="fieldnotes-events__chip"
       data-active={active}
     >
       {children}
-    </Link>
+    </Link></Button>
   );
 }
 
@@ -66,15 +69,15 @@ export function EventFilters({
       {filters.bands.length ? <input type="hidden" name="distance" value={filters.bands.join(",")} /> : null}
       {filters.terrain.length ? <input type="hidden" name="terrain" value={filters.terrain.join(",")} /> : null}
       {filters.province ? <input type="hidden" name="province" value={filters.province} /> : null}
-      <label htmlFor="race-search">Search races and places</label>
+      <Label htmlFor="race-search">Search races and places</Label>
       <div className="fieldnotes-events__search-row">
         <div className="fieldnotes-events__search-field">
           <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 5 5" /></svg>
-          <input id="race-search" name="q" type="search" placeholder="Race name, organizer, or place" value={query} maxLength={100} onChange={(event) => setQuery(event.target.value)} />
+          <Input id="race-search" name="q" type="search" placeholder="Race name, organizer, or place" value={query} maxLength={100} onChange={(event) => setQuery(event.target.value)} />
         </div>
-        <button type="submit">Search races</button>
+        <Button variant="ghost" type="submit">Search races</Button>
       </div>
-      {filters.query ? <Link className="fieldnotes-events__search-clear" href={to({ ...filters, query: null })}>Clear search</Link> : null}
+      {filters.query ? <Button asChild variant="ghost"><Link className="fieldnotes-events__search-clear" href={to({ ...filters, query: null })}>Clear search</Link></Button> : null}
     </form>
     <div className="fieldnotes-events__chips">
       <Chip href={to(EMPTY_FILTERS)} active={!any}>

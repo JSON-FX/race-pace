@@ -1,5 +1,6 @@
 "use client";
 
+
 import { Suspense, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
@@ -87,7 +88,7 @@ function SignUpForm() {
           resetKey={captchaResetKey}
         />
         {error ? <p className="text-[14px] text-destructive">{error}</p> : null}
-        <Button type="submit" disabled={busy || !captchaToken} className="h-auto rounded-pill py-4 text-[16px] font-semibold">
+        <Button type="submit" disabled={busy || !captchaToken} className="h-auto py-4">
           {busy ? "Creating…" : "Create account"}
         </Button>
       </form>

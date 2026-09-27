@@ -18,14 +18,18 @@ describe("Passport editor", () => {
     expect(screen.queryByText("Bib name")).not.toBeInTheDocument();
     expect(screen.queryByRole("option", { name: "Non-binary" })).not.toBeInTheDocument();
     expect(screen.getByLabelText("Emergency contact number *")).toHaveValue("+63 918 123 4567");
-    expect(screen.getByLabelText("Relationship *")).toHaveValue("Son");
-    expect(screen.getByRole("option", { name: "Caregiver" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Relationship *" })).toHaveTextContent("Son");
+    fireEvent.click(screen.getByRole("combobox", { name: "Relationship *" }));
+    expect(await screen.findByRole("option", { name: "Caregiver" })).toBeInTheDocument();
   });
   it("blocks incomplete details and does not submit", async () => {
     render(<PassportEditor userId="user" />);
     fireEvent.change(await screen.findByLabelText("First name *"), { target: { value: "   " } });
     fireEvent.click(screen.getByRole("button", { name: "Save Passport" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("highlighted");
+    expect(await screen.findByText("Please complete the highlighted Passport fields.")).toBeInTheDocument();
+    const firstName = screen.getByLabelText("First name *");
+    expect(firstName).toHaveAttribute("aria-invalid", "true");
+    expect(firstName).toHaveAccessibleDescription();
     expect(api.savePassport).not.toHaveBeenCalled();
   });
   it("saves the selected participant without changing the booking account", async () => {

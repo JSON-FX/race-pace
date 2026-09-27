@@ -1,5 +1,7 @@
 "use client";
 
+
+import { Badge } from "@/components/ui/badge";
 import { useState } from "react";
 import { X } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
@@ -116,7 +118,7 @@ export function RegistrationDetail({ row, onClose, onRefunded }: {
         // w-[calc(100%-2rem)], not w-full: setting max-w-[460px] replaces
         // DialogContent's own max-w-[calc(100%-2rem)], which is what keeps a
         // 16px gutter on a phone — without it the panel runs edge to edge.
-        className="top-[6vh] flex max-h-[88vh] w-[calc(100%-2rem)] max-w-[460px] translate-y-0 flex-col gap-0 overflow-hidden rounded-xl p-0 sm:max-w-[460px]"
+        className="top-[6vh] flex max-h-[88vh] w-[calc(100%-2rem)] max-w-[460px] flex-col gap-0 overflow-hidden p-0 sm:max-w-[460px]"
       >
         {/* ── Who ───────────────────────────────────────────────────────── */}
         <div className="flex shrink-0 items-start gap-3 px-[18px] pb-3.5 pt-4">
@@ -128,7 +130,7 @@ export function RegistrationDetail({ row, onClose, onRefunded }: {
           />
 
           <div className="min-w-0 flex-1">
-            <DialogTitle className="text-[15px] font-semibold leading-tight">
+            <DialogTitle className="leading-tight">
               {row.full_name ?? "—"}
             </DialogTitle>
             <DialogDescription className="sr-only">
@@ -145,9 +147,9 @@ export function RegistrationDetail({ row, onClose, onRefunded }: {
 
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
               {teamName ? (
-                <span className="rounded-pill bg-muted px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-foreground">
+                <Badge variant="secondary" className="px-2.5 py-1 uppercase">
                   Team: {teamName}
-                </span>
+                </Badge>
               ) : null}
               {/* Same registration_status-wins-for-expired/cancelled swap as
                   the table's Status column (registrations-table.tsx) — an
@@ -165,7 +167,7 @@ export function RegistrationDetail({ row, onClose, onRefunded }: {
             variant="ghost"
             size="icon"
             aria-label="Close"
-            className="-mr-1 -mt-1 size-8 shrink-0 text-muted-foreground"
+            className="-mr-1 -mt-1 size-8 shrink-0"
             onClick={onClose}
           >
             <X className="size-4" />
@@ -250,7 +252,7 @@ export function RegistrationDetail({ row, onClose, onRefunded }: {
           </span>
           <Button
             variant="destructive"
-            className="shrink-0 rounded-pill"
+            className="shrink-0"
             disabled={!canRefund}
             onClick={() => setRefunding(true)}
           >

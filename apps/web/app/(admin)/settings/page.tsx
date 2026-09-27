@@ -1,3 +1,4 @@
+
 import { redirect } from "next/navigation";
 import { Building2, FileText, ImageIcon, ScanLine } from "lucide-react";
 import { getMyRoles, requireOrgId } from "@/lib/queries/roles";
@@ -55,7 +56,7 @@ export default async function SettingsPage() {
             Manage your public identity, event defaults, and participant waiver policy.
           </p>
         </div>
-        <Badge variant="outline" className="gap-2 rounded-pill bg-card px-3 py-1.5 text-[11px] font-bold shadow-card">
+        <Badge variant="outline" className="gap-2 px-3 py-1.5">
           <span className="size-1.5 rounded-full bg-primary" aria-hidden="true" />
           {canEdit ? "Admin access" : "Read-only access"}
         </Badge>
@@ -94,7 +95,7 @@ export default async function SettingsPage() {
 
       <div className="grid gap-4 lg:grid-cols-[208px_minmax(0,1fr)]">
         <aside className="self-start lg:sticky lg:top-20">
-          <Card className="hidden gap-0 rounded-xl p-2.5 shadow-card lg:block">
+          <Card className="hidden gap-0 p-2.5 lg:block">
             <p className="px-2.5 pb-1.5 pt-2 text-[9px] font-extrabold uppercase tracking-[0.1em] text-muted-foreground">
               Organization
             </p>

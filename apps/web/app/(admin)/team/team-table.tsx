@@ -1,5 +1,7 @@
 "use client";
 
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { FormSelect } from "@race-pace/ui";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Trash2 } from "lucide-react";
@@ -92,7 +94,7 @@ function RoleCell({ member, orgId }: { member: TeamMember; orgId: string }) {
     >
       <SelectTrigger
         aria-label={`Change role for ${member.full_name ?? member.email}`}
-        className="h-8 w-[130px] rounded-lg"
+        className="h-8 w-[130px]"
       >
         <SelectValue />
       </SelectTrigger>
@@ -154,7 +156,7 @@ function RemoveMemberCell({
           variant="ghost"
           size="icon-sm"
           aria-label={`Remove ${name}`}
-          className="text-muted-foreground hover:text-destructive"
+          className=""
         >
           <Trash2 className="size-4" />
         </Button>
@@ -168,9 +170,9 @@ function RemoveMemberCell({
           </AlertDialogDescription>
         </AlertDialogHeader>
         {error ? (
-          <p role="alert" className="text-[13px] text-destructive">
+          <Alert variant="destructive" role="alert" className=""><AlertDescription>
             {error}
-          </p>
+          </AlertDescription></Alert>
         ) : null}
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
@@ -298,9 +300,9 @@ function ScopeCell({
       <span className="text-muted-foreground">All organization events</span>
     );
   return (
-    <select
+    <FormSelect
       aria-label={`Event access for ${member.full_name ?? member.email}`}
-      className="h-8 max-w-60 rounded-lg border bg-background px-2 text-sm"
+      className="h-8 max-w-60 border px-2"
       value={scope}
       disabled={busy}
       onChange={(e) => {
@@ -331,7 +333,7 @@ function ScopeCell({
           {event.name}
         </option>
       ))}
-    </select>
+    </FormSelect>
   );
 }
 function ResendCell({ member, orgId }: { member: TeamMember; orgId: string }) {

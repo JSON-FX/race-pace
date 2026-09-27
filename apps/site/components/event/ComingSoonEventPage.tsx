@@ -1,8 +1,18 @@
 "use client";
 
+
+import { ArrowRight } from "lucide-react";
+import { ChoiceGroup } from "@race-pace/ui";
+import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
+
+import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { DISCIPLINE_LABELS, type EventDiscipline } from "@race-pace/shared";
 import { createClient } from "@/lib/supabase/client";
 import { eventPublicPath, type EventRow } from "@/lib/events";
@@ -34,83 +44,83 @@ function shortDateLabel(iso: string | null | undefined): string {
 
 function ComingSoonGallery({ name, images }: { name: string; images: string[] }) {
   const [selected, setSelected] = useState(0);
-  const dialog = useRef<HTMLDialogElement>(null);
+  const [open, setOpen] = useState(false);
   const current = images[selected];
   const step = (delta: number) => setSelected((value) => (value + delta + images.length) % images.length);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (!dialog.current?.open) return;
+      if (!open) return;
       if (event.key === "ArrowLeft") step(-1);
       if (event.key === "ArrowRight") step(1);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [images.length]);
+  }, [images.length, open]);
 
   if (!images.length) return null;
   return (
-    <section className="dossier-section dossier-gallery" aria-labelledby="coming-gallery-title">
+    <Dialog open={open} onOpenChange={setOpen}><section className="dossier-section dossier-gallery" aria-labelledby="coming-gallery-title">
       <div className="dossier-section-inner">
         <div className="dossier-gallery-heading">
           <div><p className="dossier-eyebrow">A LOOK AT THE EVENT</p><h2 id="coming-gallery-title">EVENT GALLERY</h2></div>
           <p>Explore the event images. Select a photo or open it full screen.</p>
         </div>
         <div className="dossier-gallery-stage">
-          <button type="button" className="dossier-gallery-open" aria-label={`Open event image ${selected + 1} full screen`}
-            onClick={() => dialog.current?.showModal()}>
+          <DialogTrigger asChild><Button variant="ghost" type="button" className="dossier-gallery-open" aria-label={`Open event image ${selected + 1} full screen`}
+            >
             <Image src={current} width={1536} height={1024} alt={`${name} event image ${selected + 1}`} />
             <span>VIEW FULL SCREEN ↗</span>
-          </button>
+          </Button></DialogTrigger>
           {images.length > 1 ? (
             <div className="dossier-gallery-stage-controls">
-              <button type="button" aria-label="Previous event image" onClick={() => step(-1)}>←</button>
+              <Button variant="ghost" type="button" aria-label="Previous event image" onClick={() => step(-1)}>←</Button>
               <span>{String(selected + 1).padStart(2, "0")} / {String(images.length).padStart(2, "0")}</span>
-              <button type="button" aria-label="Next event image" onClick={() => step(1)}>→</button>
+              <Button variant="ghost" type="button" aria-label="Next event image" onClick={() => step(1)}>→</Button>
             </div>
           ) : null}
         </div>
         {images.length > 1 ? (
           <div className="dossier-gallery-thumbs" role="group" aria-label="Select event image">
             {images.map((url, index) => (
-              <button key={`${url}-${index}`} type="button" aria-label={`Show event image ${index + 1}`}
+              <Button variant="ghost" key={`${url}-${index}`} type="button" aria-label={`Show event image ${index + 1}`}
                 aria-pressed={index === selected} onClick={() => setSelected(index)}>
                 <Image src={url} width={80} height={55} alt="" />
                 <span>{String(index + 1).padStart(2, "0")} · Event image</span>
-              </button>
+              </Button>
             ))}
           </div>
         ) : null}
       </div>
-      <dialog ref={dialog} className="dossier-gallery-dialog" aria-label="Event gallery full screen"
-        onClick={(event) => { if (event.target === dialog.current) dialog.current?.close(); }}>
+      <DialogContent showCloseButton={false} data-fullscreen="true" className="dossier-gallery-dialog inset-0 translate-x-0 translate-y-0 max-w-none sm:max-w-none w-screen h-dvh p-0">
+        <DialogTitle className="sr-only">Event gallery full screen</DialogTitle><DialogDescription className="sr-only">Use the arrow keys to browse. Press Escape to close.</DialogDescription>
         <div className="dossier-gallery-dialog-inner">
           <div className="dossier-gallery-dialog-header">
             <span>{name.toUpperCase()} / EVENT GALLERY</span>
-            <button type="button" aria-label="Close full-screen gallery" onClick={() => dialog.current?.close()}>CLOSE ×</button>
+            <Button variant="ghost" type="button" aria-label="Close full-screen gallery" onClick={() => setOpen(false)}>CLOSE ×</Button>
           </div>
           <div className="dossier-gallery-dialog-stage">
-            <button type="button" aria-label="Previous event image" onClick={() => step(-1)}>←</button>
-            <button type="button" id="dossier-gallery-full-image" aria-label="Close full-screen photo" onClick={() => dialog.current?.close()}>
+            <Button variant="ghost" type="button" aria-label="Previous event image" onClick={() => step(-1)}>←</Button>
+            <Button variant="ghost" type="button" id="dossier-gallery-full-image" aria-label="Close full-screen photo" onClick={() => setOpen(false)}>
               <Image src={current} width={1536} height={1024} alt={`${name} event image ${selected + 1}`} />
-            </button>
-            <button type="button" aria-label="Next event image" onClick={() => step(1)}>→</button>
+            </Button>
+            <Button variant="ghost" type="button" aria-label="Next event image" onClick={() => step(1)}>→</Button>
           </div>
           <div className="dossier-gallery-dialog-footer">
             <span>{String(selected + 1).padStart(2, "0")} / {String(images.length).padStart(2, "0")}</span>
             <p>Select a photo below. Select the large image to close.</p>
             <div className="dossier-gallery-dialog-thumbs" role="group" aria-label="Select full-screen event image">
               {images.map((url, index) => (
-                <button key={`${url}-${index}`} type="button" aria-label={`Show event image ${index + 1}`}
+                <Button variant="ghost" key={`${url}-${index}`} type="button" aria-label={`Show event image ${index + 1}`}
                   aria-pressed={index === selected} onClick={() => setSelected(index)}>
                   <Image src={url} width={94} height={66} alt="" />
-                </button>
+                </Button>
               ))}
             </div>
           </div>
         </div>
-      </dialog>
-    </section>
+      </DialogContent>
+    </section></Dialog>
   );
 }
 
@@ -249,8 +259,8 @@ export function ComingSoonEventPage({ event, userEmail, reservation, reservedPas
             <div><dt>EVENT DATE</dt><dd>{event.event_date ?? "TO BE ANNOUNCED"}</dd></div>
             <div><dt>RESERVED ENTRY DUE</dt><dd>{event.coming_soon_reserve_enabled ? shortDeadline : "NOT APPLICABLE"}</dd></div>
           </dl>
-          {canReserve ? <a className="dossier-button" href="#dossier-reserve">Reserve now</a>
-            : event.coming_soon_notify_enabled ? <a className="dossier-button" href="#dossier-notify">Notify me</a> : null}
+          {canReserve ? <Button asChild variant="default" className="dossier-primary-cta"><a href="#dossier-reserve">Reserve now<ArrowRight aria-hidden /></a></Button>
+            : event.coming_soon_notify_enabled ? <Button asChild variant="default" className="dossier-primary-cta"><a href="#dossier-notify">Notify me<ArrowRight aria-hidden /></a></Button> : null}
         </div>
       </section>
       <div className="dossier-content">
@@ -269,27 +279,21 @@ export function ComingSoonEventPage({ event, userEmail, reservation, reservedPas
                 </div> : userEmail ? <fieldset className="dossier-passports">
                   <legend>Choose who to reserve for</legend>
                   <p className="dossier-passport-help">Your Passport starts selected. Leave managed Passports unchecked to reserve only for yourself. Each selected Passport adds one event place and one reservation fee.</p>
-                  {passportError ? <p role="alert">{passportError}</p> : null}
+                  {passportError ? <Alert role="alert"><AlertDescription>{passportError}</AlertDescription></Alert> : null}
                   {!passportError && !passports.length ? <p>Loading your Race Passports…</p> : null}
-                  {passports.map((passport) => <label className="dossier-passport" key={passport.id}>
-                    <input type="checkbox" checked={selectedPassportIds.includes(passport.id)}
+                  {passports.map((passport) => <Label className="dossier-passport" key={passport.id}>
+                    <Checkbox  checked={selectedPassportIds.includes(passport.id)}
                       disabled={!selectedPassportIds.includes(passport.id) && selectedPassportIds.length >= 10}
-                      onChange={() => togglePassport(passport.id)} />
+                      onCheckedChange={() => togglePassport(passport.id)} />
                     <span><strong>{passportName(passport)}</strong><small>{passport.claimed_user_id ? "Your Passport" : "Managed Passport"}</small></span>
-                  </label>)}
+                  </Label>)}
                   {passports.length ? <p>{selectedPassportIds.length} selected · {selectedPassportIds.length} event {selectedPassportIds.length === 1 ? "place" : "places"}</p> : null}
                 </fieldset> : null}
-                {!reservation ? <fieldset className="dossier-methods"><legend>Payment method</legend>
-                  <div className="dossier-method-grid">{METHODS.map((option) => (
-                    <label className="dossier-method" key={option.id}>
-                      <input type="radio" name="reservation-method" value={option.id} checked={method === option.id}
-                        onChange={() => setMethod(option.id)} disabled={!!reservation} />
-                      <span className={`dossier-method-art${option.id === "card" ? " dossier-card-art" : ""}`}>
-                        {option.logos.map((logo) => <Image key={logo} src={logo} width={54} height={34} alt="" />)}
-                      </span><span>{option.label}</span>
-                    </label>
-                  ))}</div>
-                </fieldset> : null}
+                {!reservation ? <ChoiceGroup label="Payment method" name="reservation-method" value={method}
+                  onValueChange={setMethod} className="dossier-method-grid" options={METHODS.map(option => ({ value: option.id,
+                    label: <><span className={`dossier-method-art${option.id === "card" ? " dossier-card-art" : ""}`}>
+                      {option.logos.map(logo => <Image key={logo} src={logo} width={54} height={34} alt="" />)}
+                    </span><span>{option.label}</span></> }))} /> : null}
               </div>
               <div className="dossier-reservation-right">
                 <strong>{reservationPayment?.status === "paid" ? pesos(reservationPayment.amount_cents)
@@ -298,15 +302,15 @@ export function ComingSoonEventPage({ event, userEmail, reservation, reservedPas
                     : <span className="dossier-plus-fee"> + PayMongo fee</span>}
                 </strong>
                 <small>No refunds for the reservation fee.</small>
-                {reservation ? <Link className="dossier-button" href={`/reservations/${reservation.id}`}>
-                  {reservation.status === "paid" ? "View reservation" : "Continue reservation"}</Link>
-                : !userEmail ? <Link className="dossier-button" href={signInHref}>Sign in to reserve</Link>
-                : <button type="button" className="dossier-button" disabled={!canReserve || busy || !selectedPassportIds.length} onClick={reserve}>
+                {reservation ? <Button asChild variant="default"><Link className="dossier-button" href={`/reservations/${reservation.id}`}>
+                  {reservation.status === "paid" ? "View reservation" : "Continue reservation"}</Link></Button>
+                : !userEmail ? <Button asChild variant="default"><Link className="dossier-button" href={signInHref}>Sign in to reserve</Link></Button>
+                : <Button variant="default" type="button" className="dossier-button" disabled={!canReserve || busy || !selectedPassportIds.length} onClick={reserve}>
                   {busy ? "Opening checkout…" : canReserve ? "Reserve now" : "Reservations paused"}
-                </button>}
+                </Button>}
               </div>
             </div>
-            {reservationError ? <p role="alert" className="dossier-action-error">{reservationError}</p> : null}
+            {reservationError ? <Alert variant="destructive" role="alert" className="dossier-action-error"><AlertDescription>{reservationError}</AlertDescription></Alert> : null}
             <dl className="dossier-fees">
               <div><dt>RESERVATION FEE{placeCount > 1 ? ` × ${placeCount} Passports` : ""}</dt><dd>{pesos(fee * placeCount)}</dd></div>
               <div><dt>PLATFORM FEES{placeCount > 1 ? ` × ${placeCount} Passports` : ""}</dt><dd>{pesos(platformFee * placeCount)}</dd></div>
@@ -331,12 +335,12 @@ export function ComingSoonEventPage({ event, userEmail, reservation, reservedPas
           <p className="dossier-eyebrow">WAIT FOR THE OPENING</p><h2>GET THE NOTICE</h2>
           <p>Get one email when registration opens.</p>
           {userEmail ? <form className="dossier-notify" onSubmit={notify}>
-            <label htmlFor="dossier-email">Email address</label>
-            <div><input id="dossier-email" type="email" value={userEmail} readOnly /><button type="submit" disabled={notifying}>{notifying ? "Saving…" : "Notify me"}</button></div>
+            <Label htmlFor="dossier-email">Email address</Label>
+            <div><Input id="dossier-email" type="email" value={userEmail} readOnly /><Button variant="default" type="submit" disabled={notifying}>{notifying ? "Saving…" : "Notify me"}</Button></div>
             <p role="status" aria-live="polite">{notifyState}</p>
-          </form> : <Link className="dossier-button" href={signInHref}>Sign in to get the notice</Link>}
+          </form> : <Button asChild variant="default"><Link className="dossier-button" href={signInHref}>Sign in to get the notice</Link></Button>}
         </div></section> : null}
-        {canReserve ? <section className="dossier-end"><div><h2>STILL READING?<br />RESERVE.</h2><a className="dossier-button" href="#dossier-reserve">Reserve now</a></div></section> : null}
+        {canReserve ? <section className="dossier-end"><div><h2>STILL READING?<br />RESERVE.</h2><Button asChild variant="default" className="dossier-primary-cta dossier-end-cta"><a href="#dossier-reserve">Reserve now<ArrowRight aria-hidden /></a></Button></div></section> : null}
       </div>
     </div>
   );

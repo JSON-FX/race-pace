@@ -6,8 +6,16 @@ test.beforeEach(async ({ page }) => {
   await page.goto("/login");
   await page.getByLabel("Email").fill(ADMIN.email);
   await page.getByLabel("Password").fill(ADMIN.password);
-  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page).toHaveURL(/\/events$/);
+  // A focused local review may keep events in one organization only.
+  const organization = process.env.E2E_ORG_NAME;
+  if (organization) {
+    await page.getByRole("combobox", { name: /Switch organization/ }).click();
+    await page.getByRole("combobox", { name: "Search organizations", exact: true }).fill(organization);
+    await page.getByRole("option", { name: organization, exact: true }).click();
+    await expect(page.getByRole("combobox", { name: /Switch organization/ })).toContainText(organization);
+  }
 });
 
 // The Events table (not Registrations) is the target here on purpose:

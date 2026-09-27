@@ -1,5 +1,8 @@
 "use client";
 
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { FieldFrame } from "@race-pace/ui";
 import * as React from "react";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -43,7 +46,7 @@ export function FormSection({
     // scroll-mt clears the sticky TopBar — without it an anchored jump puts the
     // section heading underneath the header and it reads as jumping to the
     // wrong place.
-    <Card id={id} className={cn("scroll-mt-24 gap-0 rounded-xl border py-0 shadow-card", className)}>
+    <Card id={id} className={cn("scroll-mt-24 gap-0 border py-0", className)}>
       {hideTitle ? null : (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b px-4 py-3 md:px-5">
           <h2 className="text-[15px] font-bold tracking-[-0.01em]">{title}</h2>
@@ -78,22 +81,7 @@ export function Field({
   children: React.ReactNode;
   className?: string;
 }) {
-  return (
-    <div className={cn("min-w-0", className)}>
-      <Label htmlFor={htmlFor} className="mb-1.5 block text-[12.5px] font-semibold text-foreground">
-        {label}
-        {required ? (
-          <span className="ml-0.5 text-destructive" aria-label="required">*</span>
-        ) : null}
-      </Label>
-      {children}
-      {error ? (
-        <p role="alert" className="mt-1 text-[12px] font-medium text-destructive">{error}</p>
-      ) : hint ? (
-        <p className="mt-1 text-[12px] leading-snug text-muted-foreground">{hint}</p>
-      ) : null}
-    </div>
-  );
+  return <FieldFrame label={label} htmlFor={htmlFor} required={required} hint={hint} error={error} className={cn("min-w-0", className)}>{children}</FieldFrame>;
 }
 
 /**
@@ -144,12 +132,12 @@ export function SectionRail({ sections }: { sections: SectionMeta[] }) {
           const on = s.id === active;
           return (
             <li key={s.id} className="shrink-0 lg:shrink">
-              <a
+              <Button asChild variant={on ? "secondary" : "ghost"} className="w-full justify-start"><a
                 href={`#${s.id}`}
                 aria-current={on ? "true" : undefined}
                 className={cn(
-                  "flex min-h-11 items-center gap-2 rounded-lg px-3 text-[13px] font-semibold transition-colors lg:px-2.5",
-                  on ? "bg-card text-foreground shadow-card" : "text-muted-foreground hover:text-foreground",
+                  "flex min-h-11 items-center gap-2 px-3 lg:px-2.5",
+
                 )}
               >
                 <span
@@ -165,7 +153,7 @@ export function SectionRail({ sections }: { sections: SectionMeta[] }) {
                     {s.count}
                   </span>
                 ) : null}
-              </a>
+              </a></Button>
             </li>
           );
         })}
@@ -198,7 +186,7 @@ export function StickySaveBar({
       )}
     >
       {error ? (
-        <p role="alert" className="mr-auto text-[13px] font-medium text-destructive">{error}</p>
+        <Alert variant="destructive" role="alert" className="mr-auto"><AlertDescription>{error}</AlertDescription></Alert>
       ) : dirty ? (
         <p className="mr-auto flex items-center gap-1.5 text-[12.5px] font-semibold text-amber">
           <span aria-hidden className="size-[7px] rounded-full bg-amber" />
@@ -207,21 +195,21 @@ export function StickySaveBar({
       ) : (
         <span className="mr-auto" />
       )}
-      <button
+      <Button variant="outline"
         type="button"
         onClick={onCancel}
-        className="min-h-11 rounded-pill border border-border bg-card px-5 text-[13.5px] font-semibold transition-colors hover:bg-muted"
+        className="min-h-11 border px-5"
       >
         Cancel
-      </button>
-      <button
+      </Button>
+      <Button variant="default"
         type="button"
         onClick={onSave}
         disabled={pending}
-        className="min-h-11 rounded-pill bg-primary px-5 text-[13.5px] font-bold text-primary-foreground transition-colors hover:bg-primary-focus disabled:opacity-60"
+        className="min-h-11 px-5 disabled:opacity-60"
       >
         {pending ? "Saving…" : "Save event"}
-      </button>
+      </Button>
     </div>
   );
 }

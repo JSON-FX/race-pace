@@ -1,3 +1,4 @@
+
 import { TableEmptyState } from "@/components/data-table";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { fmtDateTime, peso } from "@/lib/format";
@@ -9,7 +10,7 @@ export function CaptureReviewTable({ reviews }: { reviews: SingleCaptureReview[]
   }
 
   return (
-    <Table className="text-[12.5px]">
+    <Table className="">
       <TableHeader>
         <TableRow className="hover:bg-transparent">
           <TableHead>Event / organization</TableHead>

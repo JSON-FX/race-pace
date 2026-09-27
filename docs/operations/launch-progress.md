@@ -3,6 +3,38 @@
 Updated: 2026-09-27. Overall: MVP RELEASED; FIELDNOTES ADMIN AND TRAIL ATLAS ORGANIZERS IN PRODUCTION; OWNER CHECKOUT PENDING.
 Scope: runner website and admin only. The first release is a controlled pilot with one organizer and PayMongo. Production contains real organizer and event data; add no synthetic data.
 
+### Fieldnotes component revamp — 2026-09-27
+
+| Work | Status | Blocker | Next task |
+|---|---|---|---|
+| Complete source audit and mapping | Complete: 256 baseline modules, 295 current modules, 63 catalog dispositions; no unresolved recognized controls | None | Maintain the audit on future component changes. |
+| Shared package and app integration | Implemented locally: 39 canonical primitives, source hashes, thin reexports, scoped tokens and dedicated control migration | None | Review the isolated branch when preparing a release. |
+| Application verification | Local gates pass: UI 8, Runner 483, Admin 937, backend/shared 769 tests; 9 Admin E2E cases; both types/builds; 108 responsive states and 30 interaction cases | Hosted/provider verification belongs to release | Follow staging-first workflow when release is requested. |
+
+Evidence: [Fieldnotes verification report](../specs/fieldnotes-components-verification.md). Branch `codex/fieldnotes-component-revamp` starts at staging `1188768`. No commit, push or deployment performed. Production was not used for synthetic QA.
+
+Local container preview, 2026-09-27: the existing `race-pace-site-1` and `race-pace-web-1` now bind the Fieldnotes component worktree. `racepace.lan` and `admin.racepace.lan` retain their existing Traefik routes and local Supabase on 54521. Original environment files remain read-only mounts. Admin receives a documented frontend Turnstile dummy key because its existing file lacked one. Runner retains its configured key. Both pages return HTTP 200, and Browser confirms Fieldnotes roots and 14px Button corners. Rollback configuration is stored in the original checkout at `.local/fieldnotes-preview/rollback-compose.json`. No database or hosted service changed.
+
+### Fieldnotes annotations and local review data — 2026-09-27
+
+| Work | Status | Blocker | Next task |
+|---|---|---|---|
+| Browser annotations | All 23 corrected locally; shared 13, Runner 483 and Admin 939 tests; both types/builds and source reconciliation pass | One repository non-admin E2E case skipped without credentials; populated reservation states removed by requested cleanup | Owner's second browser review on the local hosts. |
+| Local fixture replacement | 202 old events removed after backup and rollback rehearsal; one detailed open event and one detailed Coming Soon event with Imagegen photos | None | Review both event pages; preserve backup. |
+| Preview infrastructure | Stable local app environment mounts and current-staging Edge Function snapshot replace deleted checkout mounts; user counts load | Old rollback source path no longer exists | Keep preview available; restore/update rollback source before using it. |
+
+Evidence: [annotation verification](../specs/fieldnotes-annotations-verification.md). Local backend API is 54521. Accounts, organizations and Passports remain intact. No commit, push, hosted backend write, payment or release performed. The initial container notes above describe an earlier checkpoint; stable environment files and local data now follow this entry.
+
+### Second annotation review — 2026-09-27
+
+| Work | Status | Blocker | Next task |
+|---|---|---|---|
+| New annotations and CTA color corrections | Complete locally: forest CTAs, description type, populated reservation spacing, duplicate sign-out removal and fee-type Select | None | Owner review on local hosts. |
+| Console corrections | Organization-ID warning keys and Philippine Users dates; fresh reviewed routes have no errors or warnings | None | Continue owner review. |
+| Validation | Runner 483 and Admin 943 tests; both types/builds; eight configured E2E cases pass across runs; source/design checks pass | Non-admin E2E case lacks credentials | Keep the existing `race-pace` preview bound to the worktree. |
+
+Evidence: [second-round verification](../specs/fieldnotes-annotations-verification.md#second-browser-review-and-cta-color-correction). Existing local reservation and data preserved. Only the existing app containers served the review. No hosted release or provider transaction performed.
+
 ### Organization admin Guide — 2026-09-27
 
 | Work | Status | Blocker | Next task |
@@ -636,13 +668,15 @@ After cutover, production is real-data-only; never insert sample/demo/QA data. S
 
 - 2026-09-18: Began the authorized prelaunch production cutover after that staging walkthrough. An isolated `codex/production-cutover-20260918` worktree at `e423379` linked to the production project and dry-run listed exactly 38 pending migrations. The Supabase dashboard showed seven scheduled backups, latest 17 Sep 2026 19:26 UTC; it warned that Storage objects are excluded. Production Auth and Storage objects predated that backup. Applied the 38 migrations through the production-linked CLI without seeding or resetting. The CLI exited successfully after a nonfatal pg-delta catalog-cache warning. Independent SQL confirmed 136 migration versions through `20260918140000`, and a fresh dry run said the remote database is up to date. Counts remained one organization, two events, one registration, one payment and five Auth users; five Passport rows were provisioned. At that checkpoint, no production function, Vercel deployment, PayMongo secret, webhook, worker or test transaction had changed yet. Coming Soon remains closed.
 
+- 2026-09-27: Completed open-event course badges, noticeable forest-green/white participant prices and aligned full-width participant rows. Fixed the parallax fill Image parent position. Runner 483 tests/types/isolated build pass before the last styling-only row adjustment; all 37 event tests/types/detector pass afterward. Browser evidence and exact-width capture limits are in `docs/specs/fieldnotes-annotations-verification.md`. Investigated local resource usage and stopped only the older host Next server with explicit user authorization. Existing `race-pace` containers remain active. Status: local review ready. Blocker: no hosted release requested. Next: owner visual review.
+
 ## Guide upload progress and 100 MB follow-up — 2026-09-27
 
 | Completed | Blockers | Next task |
 | --- | --- | --- |
-| Native transfer progress, accessible Fieldnotes bar, decimal 100 MB validation, additive bucket cap migration, isolated replay of 159 versions, 2,255 tests, both typechecks/builds and technical review | None on staging | Promote reviewed staging into main; verify production without synthetic data |
+| Native transfer progress, accessible Fieldnotes bar, decimal 100 MB validation, additive bucket cap migration, isolated replay of 159 versions, 2,255 tests, both typechecks/builds and technical review | None | Follow-up complete; new work starts from synchronized staging |
 
-Branch `codex/guide-upload-progress` starts at staging `f6cd6d6e6f18834e20c8f8702e805de703b87817`. Both hosted global caps are currently 52,428,800 bytes. The migration pins previously uncapped non-Guide buckets to that existing limit; explicit lower caps remain unchanged. Hosted global caps must be raised only after migration readback. Production content remains untouched.
+Branch `codex/guide-upload-progress` starts at staging `f6cd6d6e6f18834e20c8f8702e805de703b87817`. Before this follow-up, both hosted global caps were 52,428,800 bytes. The migration pins previously uncapped non-Guide buckets to that existing limit; explicit lower caps remain unchanged. Hosted global caps must be raised only after migration readback. Production content remains untouched.
 
 ### Follow-up hosted staging acceptance
 
@@ -651,3 +685,64 @@ PR #171 merged at `0e857509f4fe919b64b5d943d1f7f0801d0c626e`; exact staging CI `
 Browser uploaded and published an exact 100,000,000-byte fictional MP4, then successfully replaced it with another real 100 MB transfer. One byte above the limit was rejected before transfer. Visible progress was observed at 52% on desktop, 4–5% on mobile and 8% on tablet. Mobile dialog had no horizontal overflow. Signed playback advanced with no video error. An org admin read published metadata and private media but could not upload; anonymous reads/signing were denied. Computer independently confirmed native 8:43 playback in VLC.
 
 Cleanup revoked the temporary account session and removed only the task-owned QA guide, four objects and temporary account. Independent counts returned to two organizations, ten events, eleven registrations and eleven payments, with zero Guide rows/objects. Browser reloaded the empty library successfully. Production remains at its prior release until promotion.
+
+### Follow-up production release
+
+The recorded staging revision `16be0fe4863b8573876a2007eadc8d2864cbe334` passed exact CI `36293055008`. Its application/backend/workflow trees match hosted-tested `0e857509f4fe919b64b5d943d1f7f0801d0c626e`. Ready staging aliases point to admin `dpl_6StMRFu79DNkhpnZdyYnpTMBbNXG` and runner `dpl_3wiSy4ZJXyLf8tWAQzZWPQLCH52V`.
+
+Production PR #173 passed CI `36293430966` and merged into main at `2a4a9486ac47d73a9bac384810059c399e86fe71`. Both production deployments are Ready and own their production aliases: admin `dpl_5Bf97wtWjnzGYCUvR4ytaZcmhKjh`; runner `dpl_74jWX5BnNPvrKcd6EhH3QJsqU1WC`. Their served bundles reference only `whaqarofxdlzxrelbcrq`.
+
+Applied the same additive migration before production application serving. Independent readback confirms 159 versions through `20260927025643`, a private 100,000,000-byte Guide bucket and matching global Storage cap. Event/org/profile image buckets retain 52,428,800-byte limits; email-branding retains its explicit 1,048,576-byte limit. Fresh CLI dry run reports up to date. The CLI emitted its known nonfatal pg-delta certificate-cache warning after successful application; independent SQL and the fresh dry run verify completion. No function, secret, Auth, email, payment, CAPTCHA, webhook or scheduled worker changes.
+
+Production Browser reloaded Guide, opened the 100 MB upload form, confirmed title focus, then canceled with focus restored and no browser errors. Verification created no records or media. Counts remain two organizations, one event, 23 registrations and 19 payments, with zero Guide rows/objects. Published guides remain shared across organizations; drafts remain super-admin-only. Exact-main CI and sync-back evidence follow below.
+
+Exact production merge CI `36293824812` passed all required checks. Sync-back PR #174 passed CI `36293924644` and merged at `aa1d3c0acbdbed5dfeb949eeecefb63665400b90`. Main is again an ancestor of staging; application/backend/workflow trees are identical. The follow-up is complete.
+
+## Fieldnotes staging delivery — 2026-09-27
+
+| Completed | Blockers | Next task |
+|---|---|---|
+| Committed reviewed UI and annotations; merged current staging; preserved Guide release records; adapted newly added Guide controls and removed duplicate Spinner/Progress implementations | Local checks pass; hosted checks pending | Open PR into staging, then verify exact staging deployment |
+
+Application-only release relative to current staging: no migration, function, provider or hosted data change. Current staging already includes the two Guide migrations. Applied those only to the existing local database after backup so release tests see the current schema. Temporary backend-test fixtures and a local fake-provider runtime are confined to the existing race-pace stack; restore the normal local runtime and remove the owned test fixtures after validation. Local review events and imagery are excluded from Git and will not be seeded into staging.
+
+Local release checks: shared UI 13 tests, Runner 483, Admin 1003, backend/shared 777 covered with corrected temporary fixtures and focused reruns. Typechecks, both isolated builds and the 303-module source audit pass. Guide browser review confirms forest green actions, topic selection and Cancel focus; no captured console errors. Temporary test data removed; both local review events and the pending reservation retained. Normal local Edge runtime restored.
+
+## Fieldnotes hosted staging release — 2026-09-27
+
+| Completed | Blockers | Next task |
+| --- | --- | --- |
+| PR #176 merged into staging; both exact-commit applications Ready and aliases verified; hosted UI checks pass | Production acceptance has not been requested; fresh sign-in/recovery, organization/event creation and email delivery were not repeated during this UI acceptance | Review the staged UI; run remaining hosted acceptance before any production promotion |
+
+- Source: [PR #176](https://github.com/JSON-FX/race-pace/pull/176), staging merge `7b275893e6ccec87c5b4bee272d9d69d27352fff`. Both feature/PR CI runs passed: `36296806013` and `36296825747`. Exact staging merge CI `36297294193` passed.
+- Runner: `dpl_8HRyMjevzjLoaiAURXD1wH2q7meP`, Ready, owns `staging.racepace.com.ph`.
+- Admin: `dpl_8GFBERNj1SG5sKwn8VVmuz3uisZQ`, Ready, owns `staging-admin.racepace.com.ph`.
+- Environment: fetched runner chunk `8508-f44795b35840d214.js` and admin Guide chunk `page-020fe86bd505eba4.js` contain only staging Supabase project `pepbmqomiailnnvvwupz`. Neither contains the production project reference.
+- Backend: read-only staging query confirms 159 migrations through `20260927025643`. No migration, Edge Function, Auth, provider, webhook, scheduler, Storage or secret changes in this release. Local generated images and event fixtures are excluded from Git and were not inserted into staging.
+- Hosted Browser acceptance used existing staging sessions and QA events. Runner home/footer, open event details, forest green metric/price badges, participant links, Coming Soon reservation actions and Profile loaded. Badge readback is `rgb(23, 99, 65)` with white text. Reserve links measure 240×60 and 240×64 pixels. Profile has zero duplicate Sign out buttons. Admin Events, Users, Commission and Guide loaded; commission fee types are dropdowns. Guide Upload video readback is forest green with white text. Captured runner/admin warnings and errors are empty across these routes.
+- Existing authenticated staging sessions remained valid. No new payment, reservation, upload, email or other hosted fixture mutation occurred during acceptance. Fresh sign-in, recovery, tenant isolation, organization/event creation and email delivery remain pre-production acceptance work; local and GitHub contract tests cover their unchanged backend behavior.
+- Local cleanup returned to exactly two review events, 183 organizations, 624 users and the original 4,777 Race Passports. The existing pending reservation is retained. Normal local Edge runtime configuration was restored; readiness returned HTTP 405. Only the existing race-pace app/ Supabase stack was used.
+
+## Fieldnotes production preflight — 2026-09-27
+
+| Completed | Blockers | Next task |
+| --- | --- | --- |
+| Fresh staging sign-in, invitation, organization/event creation, tenant isolation, email delivery, recovery redemption and cleanup verified | Password update and subsequent sign-in remain untested by owner choice | Promote staging to main; verify production; sync main to staging |
+
+
+Source: staging `214d2409936226b00fb799e18d957d15969d381d`. Exact CI `36298248738` passed. Both staging deployments are Ready at this SHA: Runner `dpl_7wzXE5t9YWFFEnzsfCEQm1czYuDC`, Admin `dpl_A27SNgVmsbHvGzeYUPpaZxqUViuE`. Application, backend and workflow source matches the UI-tested merge `7b275893e6ccec87c5b4bee272d9d69d27352fff`.
+
+Fresh hosted acceptance:
+- Runner signed out and completed Google sign-in through staging Supabase `pepbmqomiailnnvvwupz`; authenticated home loaded.
+- Super admin created `[TEST] Fieldnotes Release QA 20260927` through the staging Organizations form. Owner explicitly confirmed the QA admin invitation.
+- Manual invitation link redeemed to an ordinary organizer session. The new organization's Events directory initially contained zero events; platform navigation was absent.
+- Organizer created one draft event using the actual hosted form. Independent SQL confirmed event `ba029167-edbe-44b7-83fe-6f0d6445ccc8` belonged to QA organization `461aeb9a-466d-4caf-a161-999c7e6dc7d6`. It was never published and had no category, booking or payment.
+- The unrelated scope organization's event editor returned 404. SQL confirmed the QA account has no role in that organization.
+- Resend records `01a0e190-d9fa-7234-85d1-dbb3cd841112` (sign-in) and `01a0e196-ce29-7669-bb8f-8dcc2dca1ffe` (fresh recovery) are delivered. Sender is `Race Pace Staging <staging@notify.racepace.com.ph>`. Both reached the existing support QA inbox, and links target only staging Auth and staging-admin.
+- The first recovery email was delivered but its link was invalidated by concurrent invitation generation. A subsequent serial request delivered a fresh link and rendered the valid New password / Confirm new password form. On 2026-09-28, the owner explicitly accepted this remaining recovery gap for the UI release and chose to complete the password update and subsequent password sign-in later. Neither step is claimed as tested.
+- Browser captured no errors or warnings for the organizer acceptance session.
+- Cleanup deleted only the newly created draft event, organization and membership. Readback: two organizations, ten events, eleven registrations and eleven payments; zero owned event/organization residue. Existing QA identity and memberships preserved.
+
+Backend/environment readback: both hosted projects have 159 migration versions through `20260927025643`; no Supabase source changes in this release. All production functions are Active. Four pre-existing bundle differences remain (`org-members`, `group-payment-prepare`, `group-payment`, `group-reservations`); staging additionally has `fake-checkout`. No function is deployed by this UI release. PayMongo/Resend keys, sender, admin URL and origin fingerprints differ by environment and predate this release. Staging alone has EMAIL_ENVIRONMENT. No provider settings changed.
+
+Production baseline remains main `2a4a9486ac47d73a9bac384810059c399e86fe71`, Runner `dpl_74jWX5BnNPvrKcd6EhH3QJsqU1WC`, Admin `dpl_5Bf97wtWjnzGYCUvR4ytaZcmhKjh`. Data counts: two organizations, one event, 23 registrations, 19 payments and one Guide video. No production mutation or live payment occurred.

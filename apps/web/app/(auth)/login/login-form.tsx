@@ -1,5 +1,7 @@
 "use client";
 
+import { Spinner } from "@/components/ui/spinner";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import Link from "next/link";
 import { useActionState, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -44,9 +46,9 @@ export function LoginForm() {
   return (
     <div className="space-y-4">
       {oauthMessage ? (
-        <p role="alert" className="rounded-lg bg-destructive-tint px-3 py-2 text-[12.5px] font-medium text-destructive">
+        <Alert variant="destructive" role="alert" className="px-3 py-2"><AlertDescription>
           {oauthMessage}
-        </p>
+        </AlertDescription></Alert>
       ) : null}
 
       {/* Google first: for an org whose staff already live in Google Workspace
@@ -77,10 +79,10 @@ export function LoginForm() {
         </div>
         <TurnstileWidget action="admin_sign_in" onTokenChange={setCaptchaToken} resetKey={captchaResetKey} />
         {state.error ? (
-          <p role="alert" className="text-sm text-destructive">{state.error}</p>
+          <Alert variant="destructive" role="alert" className=""><AlertDescription>{state.error}</AlertDescription></Alert>
         ) : null}
         <Button type="submit" className="w-full" disabled={pending || !captchaToken}>
-          {pending ? <Loader2 className="size-4 animate-spin" /> : null}
+          {pending ? <Spinner className="size-4 animate-spin" /> : null}
           {pending ? "Signing in…" : "Sign in"}
         </Button>
       </form>
