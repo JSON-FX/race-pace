@@ -1,3 +1,5 @@
+import { Badge } from "@/components/ui/badge";
+
 import { notFound } from "next/navigation";
 import { Building2, Coins, Landmark, Percent, Shield } from "lucide-react";
 import { getMyRoles } from "@/lib/queries/roles";
@@ -32,9 +34,9 @@ function ScopeBand({ orgCount }: { orgCount: number }) {
       <Shield className="size-[17px] shrink-0" strokeWidth={2} aria-hidden />
       <b className="text-[13.5px] font-bold">Platform scope</b>
       <span className="text-[12px] font-semibold text-white/60">All organizations · super admin</span>
-      <span className="ms-auto rounded-pill bg-white/15 px-2.5 py-[3px] text-[11px] font-bold tabular-nums">
+      <Badge variant="secondary" className="ms-auto px-2.5 py-[3px] tabular-nums">
         {orgCount} org{orgCount === 1 ? "" : "s"}
-      </span>
+      </Badge>
     </div>
   );
 }
@@ -119,7 +121,7 @@ export default async function OrganizationsPage() {
         />
       </KpiRow>
 
-      <Card className="gap-0 overflow-hidden rounded-xl border py-0 shadow-card">
+      <Card className="gap-0 overflow-hidden border py-0">
         <Table>
           <TableHeader>
             <TableRow>
@@ -135,7 +137,7 @@ export default async function OrganizationsPage() {
           <TableBody>
             {rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="py-10 text-center text-[13px] text-muted-foreground">
+                <TableCell colSpan={7} className="py-10 text-center">
                   No organizations yet. Create the first one to get an organizer onto the platform.
                 </TableCell>
               </TableRow>
@@ -169,7 +171,7 @@ export default async function OrganizationsPage() {
                         figure and belongs under a different heading. */}
                     <TableCell className="text-right tabular-nums">{peso(org.chargedGross)}</TableCell>
                     <TableCell
-                      className={`text-right tabular-nums${rate.zero ? " font-semibold text-destructive" : ""}`}
+                      className={`text-right tabular-nums${rate.zero ? " text-amber font-semibold" : ""}`}
                       // A ₱0 fee is not a formatting curiosity: it is an
                       // organization the platform earns nothing from, and it
                       // reads as an ordinary tidy number unless it is called out.

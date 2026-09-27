@@ -1,5 +1,7 @@
 "use client";
 
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { useRef, useState } from "react";
 import { uploadEventImage } from "../lib/imageUpload";
 import { Card } from "./ui/card";
@@ -8,7 +10,7 @@ import { Button } from "./ui/button";
 export type EventImagesValue = { hero_image_url: string | null; gallery: string[] };
 const MAX = 8;
 
-const roundBtn = "absolute h-[26px] w-[26px] rounded-full border-0 p-0 text-[13px] leading-[26px] text-white hover:text-white";
+const roundBtn = "absolute p-0";
 
 /** One image set for an event; the starred image is the featured (card) image.
  *  Controlled: on change it emits { hero_image_url: starred, gallery: the rest in order }. */
@@ -74,14 +76,14 @@ export function EventImagesEditor({ orgId, heroUrl, gallery, onChange }: {
         {urls.map((url) => (
           <div key={url} className="relative aspect-[4/3] w-full overflow-hidden rounded-[10px] border border-border bg-muted">
             <img src={url} alt="Event image" className="block h-full w-full object-cover" />
-            <Button type="button" variant="ghost" aria-label={url === featured ? "Featured image" : "Set as featured"}
+            <Button type="button" size="icon" variant={url === featured ? "default" : "secondary"} aria-label={url === featured ? "Featured image" : "Set as featured"}
               onClick={() => star(url)} disabled={pending > 0}
-              className={`${roundBtn} top-1.5 left-1.5 ${url === featured ? "bg-primary hover:bg-primary" : "bg-black/50 hover:bg-black/50"} ${pending > 0 ? "opacity-50" : ""}`}>★</Button>
-            <Button type="button" variant="ghost" aria-label="Remove image"
+              className={`${roundBtn} top-1.5 left-1.5 ${pending > 0 ? "opacity-50" : ""}`}>★</Button>
+            <Button type="button" size="icon" variant="secondary" aria-label="Remove image"
               onClick={() => remove(url)} disabled={pending > 0}
-              className={`${roundBtn} top-1.5 right-1.5 bg-black/50 text-[15px] hover:bg-black/50 ${pending > 0 ? "opacity-50" : ""}`}>×</Button>
+              className={`${roundBtn} top-1.5 right-1.5 ${pending > 0 ? "opacity-50" : ""}`}>×</Button>
             {url === featured ? (
-              <span className="absolute bottom-1.5 left-1.5 rounded-full bg-primary px-[7px] py-[2px] text-[10px] font-bold text-primary-foreground">FEATURED</span>
+              <Badge className="absolute bottom-1.5 left-1.5">FEATURED</Badge>
             ) : null}
           </div>
         ))}
@@ -93,11 +95,13 @@ export function EventImagesEditor({ orgId, heroUrl, gallery, onChange }: {
       </div>
 
       {!full && pending === 0 ? (
-        <label className="mt-3 inline-block cursor-pointer text-[13px] font-semibold text-primary">
+        <>
+        <Button type="button" variant="outline" className="mt-3" onClick={() => fileRef.current?.click()}>
           + Add images
-          <input ref={fileRef} type="file" accept="image/*" multiple aria-label="Add images"
+        </Button>
+          <Input ref={fileRef} type="file" accept="image/*" multiple aria-label="Add images"
             className="hidden" onChange={(e) => addFiles(e.target.files)} />
-        </label>
+        </>
       ) : null}
       {err ? <div className="mt-2 text-xs text-destructive">{err}</div> : null}
     </Card>

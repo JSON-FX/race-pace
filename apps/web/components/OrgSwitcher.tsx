@@ -1,16 +1,11 @@
 "use client";
 
-import { useTransition } from "react";
+import { Button } from "@/components/ui/button";
+import { useState, useTransition } from "react";
 import { Building2, Check, ChevronsUpDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandInput, CommandList, CommandEmpty, CommandItem } from "@/components/ui/command";
 import { setActiveOrg } from "@/lib/actions/set-active-org";
 import type { OrgOption } from "@/lib/org-context";
 
@@ -45,6 +40,7 @@ export function OrgSwitcher({
   // org only appears once the server re-renders. A transition keeps the old
   // markup interactive until it does, instead of blanking the shell.
   const [isPending, startTransition] = useTransition();
+  const [open, setOpen] = useState(false);
 
   const active = availableOrgs.find((o) => o.orgId === activeOrgId);
 
@@ -52,7 +48,7 @@ export function OrgSwitcher({
   // and the one the org-provisioning screens will resolve.
   if (isSuperAdmin && availableOrgs.length === 0) {
     return (
-      <Badge variant="secondary" className="text-[13px] font-semibold">
+      <Badge variant="secondary" className="">
         Platform · Super admin
       </Badge>
     );
@@ -62,51 +58,52 @@ export function OrgSwitcher({
 
   if (!canSwitch) {
     return (
-      <Badge variant="secondary" className="text-[13px] font-semibold">
+      <Badge variant="secondary" className="">
         {active?.name ?? "…"}
       </Badge>
     );
   }
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="default"
           type="button"
+          role="combobox"
+          aria-expanded={open}
           aria-label={`Organization: ${active?.name ?? "none"}. Switch organization`}
           // min-h-11 (44px) on touch sizes, back to the compact 34px on desktop
           // where a mouse makes the extra height wasted chrome. `max-w` +
           // truncate so a long organization name can't push the header wide —
           // the switcher is the last thing that should cost a sideways scroll.
-          className="inline-flex min-h-11 max-w-[55vw] items-center gap-1.5 truncate rounded-md border border-primary/25 bg-secondary px-2.5 py-1.5 text-[13px] font-semibold text-secondary-foreground transition-colors hover:border-primary/45 hover:bg-accent disabled:opacity-60 md:min-h-0 md:max-w-none"
+          className="inline-flex min-h-11 max-w-[55vw] items-center gap-1.5 truncate border px-2.5 py-1.5 disabled:opacity-60 md:min-h-0 md:max-w-none"
           disabled={isPending}
         >
-          <Building2 className="size-3.5 shrink-0 text-primary" aria-hidden="true" />
-          <span className="hidden text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground lg:inline">
+          <Building2 className="size-3.5 shrink-0" aria-hidden="true" />
+          <span className="hidden text-[10px] font-bold uppercase tracking-[0.08em] opacity-80 lg:inline">
             Organization
           </span>
           <span className="truncate">{active?.name ?? "…"}</span>
           <ChevronsUpDown className="size-3.5 shrink-0 opacity-70" aria-hidden="true" />
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="max-h-[70vh] min-w-[240px] overflow-y-auto">
-        <DropdownMenuLabel className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-          Switch organization · super admin
-        </DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        {availableOrgs.map((o) => (
-          <DropdownMenuItem
-            key={o.orgId}
-            onSelect={() => startTransition(() => setActiveOrg(o.orgId))}
-            className="flex items-center justify-between gap-3"
-          >
-            <span className="font-medium">{o.name}</span>
-            {o.orgId === activeOrgId ? (
-              <Check className="size-4 shrink-0 text-primary" aria-hidden="true" />
-            ) : null}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-[320px] p-0">
+        <Command label="Search organizations">
+          <CommandInput placeholder="Search organizations…" aria-label="Search organizations" />
+          <CommandList className="max-h-[320px] p-1">
+            <CommandEmpty>No organizations found.</CommandEmpty>
+            {availableOrgs.map(org => <CommandItem key={org.orgId} value={org.orgId} keywords={[org.name]}
+              onSelect={() => {
+                setOpen(false);
+                if (org.orgId !== activeOrgId) startTransition(() => setActiveOrg(org.orgId));
+              }} className="gap-3">
+              <Building2 className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+              <span className="min-w-0 flex-1 truncate">{org.name}</span>
+              {org.orgId === activeOrgId ? <Check className="size-4 shrink-0 text-primary" aria-hidden /> : null}
+            </CommandItem>)}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   );
 }

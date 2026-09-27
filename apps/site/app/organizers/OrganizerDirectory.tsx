@@ -1,5 +1,10 @@
 "use client";
 
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
 import { filterOrganizers, regionsOf, type Organizer } from "@/lib/organizers";
@@ -9,19 +14,17 @@ export function RegionIndex({ regions, selected, onSelect }: { regions: string[]
   return (
     <aside className="trail-atlas__region-rail" aria-label="Explore by region">
       <h2>Explore by region</h2>
-      <div className="trail-atlas__region-options" role="group" aria-label="Filter organizers by region">
+      <ToggleGroup type="single" value={selected || "all"} onValueChange={value => onSelect(value === "all" ? "" : value)} className="trail-atlas__region-options" aria-label="Filter organizers by region">
         {["", ...regions].map((region) => (
-          <button
+          <ToggleGroupItem value={region || "all"}
             key={region || "all"}
             type="button"
-            aria-pressed={selected === region}
-            onClick={() => onSelect(region)}
             className="trail-atlas__region-filter"
           >
             {region || "All regions"}
-          </button>
+          </ToggleGroupItem>
         ))}
-      </div>
+      </ToggleGroup>
     </aside>
   );
 }
@@ -39,11 +42,11 @@ export function OrganizerDirectory({ organizers }: { organizers: Organizer[] }) 
           <h1>Find your next race community.</h1>
           <p>Browse organizers by the places they call home, then see their events.</p>
         </div>
-        <label className="trail-atlas__search">
+        <Label className="trail-atlas__search">
           <Search size={19} aria-hidden="true" />
           <span className="sr-only">Search organizers or places</span>
-          <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search organizers or places" autoComplete="off" />
-        </label>
+          <Input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search organizers or places" autoComplete="off" />
+        </Label>
       </section>
       <div className="trail-atlas__directory-layout">
         <RegionIndex regions={regions} selected={region} onSelect={setRegion} />
@@ -57,7 +60,7 @@ export function OrganizerDirectory({ organizers }: { organizers: Organizer[] }) 
               <h2>{organizers.length ? "No organizers found" : "No organizers yet"}</h2>
               <p>{organizers.length ? "Try another name, place, or region." : "Check back as new race communities join Race Pace."}</p>
               {organizers.length && (query || region) ? (
-                <button type="button" className="trail-atlas__action trail-atlas__action--secondary" onClick={() => { setQuery(""); setRegion(""); }}>Clear filters</button>
+                <Button variant="outline" type="button" className="trail-atlas__action trail-atlas__action--secondary" onClick={() => { setQuery(""); setRegion(""); }}>Clear filters</Button>
               ) : null}
             </div>
           )}

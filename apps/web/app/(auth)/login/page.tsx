@@ -54,7 +54,7 @@ export default async function LoginPage() {
 
   return (
     <main className="grid min-h-dvh place-items-center bg-muted p-6">
-      <Card className="w-full max-w-sm overflow-hidden rounded-xl p-0 shadow-lg">
+      <Card className="w-full max-w-sm overflow-hidden p-0">
         {/* The project-owned illustration stays inside the band so the form
             remains the subject while both applications share one visual cue. */}
         <div className="relative overflow-hidden bg-forest px-6 pb-5 pt-6">

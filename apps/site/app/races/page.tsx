@@ -1,3 +1,6 @@
+import { Card } from "@/components/ui/card";
+import { ChevronRight, CalendarDays, Ticket } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
@@ -33,13 +36,23 @@ export default async function RacesPage() {
           <div className="mt-4 grid gap-3">
             {reservations.map((reservation) => {
               const event = reservation.events as unknown as { name: string; status: string } | null;
-              return <Link key={reservation.id} href={`/reservations/${reservation.id}`}
-                className="flex items-center justify-between gap-4 rounded-xl border border-divider bg-card p-4 transition-colors hover:border-primary/40">
-                <span><span className="block font-semibold">{event?.name ?? "Event reservation"}</span>
-                  <span className="mt-1 block text-xs text-muted-foreground">Entry payment due {new Intl.DateTimeFormat("en-PH", { timeZone: "Asia/Manila", dateStyle: "medium" }).format(new Date(reservation.registration_deadline_at))} PHT</span>
-                </span>
-                <span className="shrink-0 rounded-full bg-primary/10 px-3 py-1 text-xs font-bold capitalize text-primary">{reservation.status.replaceAll("_", " ")}</span>
-              </Link>;
+              return <Card asChild key={reservation.id}
+                className="group grid min-h-[112px] grid-cols-[48px_minmax(0,1fr)_20px] items-center gap-x-4 gap-y-2 p-5 transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:grid-cols-[48px_minmax(0,1fr)_auto_20px]">
+                <Link href={`/reservations/${reservation.id}`}>
+                  <span className="row-span-2 flex size-12 items-center justify-center rounded-xl bg-secondary text-secondary-foreground sm:row-span-1">
+                    <Ticket className="size-6" aria-hidden />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-base font-semibold leading-6">{event?.name ?? "Event reservation"}</span>
+                    <span className="mt-2 flex items-start gap-2 text-sm leading-5 text-muted-foreground">
+                      <CalendarDays className="mt-0.5 size-4 shrink-0" aria-hidden />
+                      <span>Entry payment due {new Intl.DateTimeFormat("en-PH", { timeZone: "Asia/Manila", dateStyle: "medium" }).format(new Date(reservation.registration_deadline_at))} PHT</span>
+                    </span>
+                  </span>
+                  <Badge variant="secondary" className="col-start-2 row-start-2 w-fit px-3 py-1 capitalize sm:col-start-3 sm:row-start-1">{reservation.status.replaceAll("_", " ")}</Badge>
+                  <ChevronRight className="col-start-3 row-span-2 row-start-1 size-5 text-muted-foreground sm:col-start-4 sm:row-span-1" aria-hidden />
+                </Link>
+              </Card>;
             })}
           </div>
         </section> : null}

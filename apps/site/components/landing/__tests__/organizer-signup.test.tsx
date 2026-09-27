@@ -23,7 +23,8 @@ async function openAndCompleteForm() {
   await user.type(screen.getByLabelText(/First name/), "Ana");
   await user.type(screen.getByLabelText(/Last name/), "Runner");
   await user.type(screen.getByLabelText(/^Email/), "ana@example.com");
-  await user.selectOptions(screen.getByLabelText(/reaching out as/), "runner");
+  await user.click(screen.getByRole("combobox", { name: /reaching out as/ }));
+  await user.click(screen.getByRole("option", { name: "Runner" }));
   await user.type(screen.getByLabelText(/^Subject/), "Registration payment");
   await user.type(screen.getByLabelText(/^Message/), "Please help me verify my payment.");
   return user;

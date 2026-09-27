@@ -1,5 +1,8 @@
 import Link from "next/link";
-import Image from "next/image";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Status } from "@race-pace/ui";
 import { formatDateRange, formatAddress } from "@race-pace/shared";
 import { shortDate } from "@/lib/format";
 import { eventPublicPath, type EventRow } from "@/lib/events";
@@ -15,7 +18,7 @@ export function FieldnotesEventCard({ event }: { event: EventRow }) {
   const organizerInitials = event.org_name?.split(/\s+/).slice(0, 2).map((word) => word[0]).join("").toUpperCase();
 
   return (
-    <Link
+    <Card asChild className="gap-0 py-0"><Link
       href={eventPublicPath(event)}
       className="fieldnotes-race-card"
     >
@@ -23,20 +26,17 @@ export function FieldnotesEventCard({ event }: { event: EventRow }) {
         <FieldnotesHero src={event.hero_image_url} />
 
         {event.org_name ? (
-          <span className="fieldnotes-race-card__avatar" aria-hidden="true">
-            {event.org_logo_url ? (
-              <Image src={event.org_logo_url} alt="" width={48} height={48} className="fieldnotes-race-card__avatar-image" />
-            ) : organizerInitials}
-          </span>
+          <Avatar className="fieldnotes-race-card__avatar" aria-hidden="true">
+            <AvatarImage src={event.org_logo_url ?? undefined} alt="" className="fieldnotes-race-card__avatar-image" />
+            <AvatarFallback>{organizerInitials}</AvatarFallback>
+          </Avatar>
         ) : null}
 
         {/* Derived, not raw status: "Ongoing" and "Rescheduled" are not enum
             values, so reading `event.status` here showed a race that is
             happening right now as "Closed". See lib/eventState.ts. */}
         {badge ? (
-          <span className="fieldnotes-race-card__status" data-state={state}>
-            {badge.label}
-          </span>
+          <Status className="fieldnotes-race-card__status" tone={state === "cancelled" ? "danger" : state === "ongoing" ? "success" : state === "almost_full" || state === "rescheduled" ? "warning" : "neutral"} >{badge.label}</Status>
         ) : null}
       </div>
 
@@ -62,16 +62,16 @@ export function FieldnotesEventCard({ event }: { event: EventRow }) {
 
         <div className="fieldnotes-race-card__footer">
           {event.distances.map((d) => (
-            <span
+            <Badge variant="outline"
               key={d}
               className="fieldnotes-race-card__distance"
             >
               {d}K
-            </span>
+            </Badge>
           ))}
         </div>
         <span className="fieldnotes-race-card__view">View race <span aria-hidden="true">↗</span></span>
       </div>
-    </Link>
+    </Link></Card>
   );
 }

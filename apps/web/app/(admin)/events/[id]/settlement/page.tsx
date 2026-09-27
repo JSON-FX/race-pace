@@ -1,3 +1,4 @@
+
 import { notFound, redirect } from "next/navigation";
 import { getMyRoles } from "@/lib/queries/roles";
 import { hasCapability } from "@/lib/capabilities";
@@ -60,7 +61,7 @@ export default async function SettlementPage({
         <ExportSettlementButton eventId={id} />
       </div>
 
-      <Card className="mb-4 gap-0 rounded-xl border p-[15px] shadow-card">
+      <Card className="mb-4 gap-0 border p-[15px]">
         <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-[13px] sm:grid-cols-5">
           <div><dt className="text-muted-foreground">Gross collected</dt>
             <dd className="font-bold tabular-nums">{peso(s.totals.gross)}</dd></div>
@@ -109,14 +110,14 @@ export default async function SettlementPage({
         </p>
       ) : null}
 
-      <Card className="gap-0 overflow-hidden rounded-xl border py-0 shadow-card">
+      <Card className="gap-0 overflow-hidden border py-0">
         {s.rows.length === 0 ? (
           <TableEmptyState
             title="No payments yet"
             description="Money appears here as runners complete their registrations."
           />
         ) : (
-          <Table className="text-[12.5px]">
+          <Table className="">
             <TableHeader>
               <TableRow className="hover:bg-transparent">
                 <TableHead>Runner</TableHead>
@@ -132,14 +133,14 @@ export default async function SettlementPage({
             <TableBody>
               {s.rows.map((r) => (
                 <TableRow key={r.registration_id} className={r.status === "refunded" ? "opacity-60" : undefined}>
-                  <TableCell className="py-2.5 font-semibold">{r.runner_name}</TableCell>
+                  <TableCell className="py-2.5">{r.runner_name}</TableCell>
                   <TableCell className="py-2.5">{r.category}</TableCell>
                   <TableCell className="py-2.5">{r.paid_at ? fmtDate(r.paid_at) : "—"}</TableCell>
                   <TableCell className="py-2.5">{r.method ?? "—"}</TableCell>
                   <TableCell className="py-2.5 text-right tabular-nums">{peso(r.gross_paid)}</TableCell>
                   <TableCell className="py-2.5 text-right tabular-nums">{deduction(r.rp_commission)}</TableCell>
                   <TableCell className="py-2.5 text-right tabular-nums">{deduction(r.processing_fee)}</TableCell>
-                  <TableCell className="py-2.5 text-right font-bold tabular-nums">
+                  <TableCell className="py-2.5 text-right tabular-nums">
                     {r.status === "refunded" ? peso(0) : money(r.net_to_org)}
                   </TableCell>
                 </TableRow>

@@ -1,5 +1,6 @@
 "use client";
 
+
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -55,7 +56,7 @@ export function CallbackPanel() {
   if (cancelled && rid) {
     return (
       <Panel title="Payment not completed" body="No payment has been confirmed for this registration. Your slot is still held — you can try again.">
-        <Button asChild className="h-auto rounded-pill px-8 py-4 text-[16px] font-semibold">
+        <Button asChild className="h-auto px-8 py-4">
           <Link href={`/pay/${rid}`}>Back to payment</Link>
         </Button>
       </Panel>
@@ -68,7 +69,7 @@ export function CallbackPanel() {
         title="We lost track of that payment"
         body="If you completed a payment, it will still be confirmed. Check My Races in a moment."
       >
-        <Button asChild className="h-auto rounded-pill px-8 py-4 text-[16px] font-semibold">
+        <Button asChild className="h-auto px-8 py-4">
           <Link href="/races">Go to My Races</Link>
         </Button>
       </Panel>
@@ -81,7 +82,7 @@ export function CallbackPanel() {
         title="Payment needs review"
         body={`PayMongo reported your payment, but your race entry needs manual review. No race pass has been issued. Please do not pay again. Contact Race Pace support with registration reference ${rid}.`}
       >
-        <Button asChild className="h-auto rounded-pill px-8 py-4 text-[16px] font-semibold">
+        <Button asChild className="h-auto px-8 py-4">
           <Link href="/races">View My Races</Link>
         </Button>
       </Panel>
@@ -103,7 +104,7 @@ export function CallbackPanel() {
           if (result.status === "review_required") setReviewRequired(true);
           return reg.refetch();
         })}
-        className="h-auto rounded-pill px-8 py-4 text-[16px] font-semibold"
+        className="h-auto px-8 py-4"
       >
         Check again
       </Button>

@@ -1,0 +1,182 @@
+/* Explicit source sync from Fieldnotes theme.css and component specimens.
+ * Raw channels preserve both applications' rgb(var(--token)) contract.
+ * Component roots, including portals, own these values; page roots do not. */
+:where([data-rp-ui="fieldnotes"], .toaster) {
+  --background: 245 245 237;
+  --foreground: 29 56 41;
+  --card: 255 255 255;
+  --card-foreground: 29 56 41;
+  --popover: 255 255 255;
+  --popover-foreground: 29 56 41;
+  --primary: 23 99 65;
+  --primary-foreground: 255 255 255;
+  --primary-focus: 19 84 55;
+  --secondary: 232 238 227;
+  --secondary-foreground: 29 56 41;
+  --muted: 232 238 227;
+  --muted-foreground: 80 103 85;
+  --accent: 211 227 191;
+  --accent-foreground: 29 56 41;
+  --destructive: 161 47 50;
+  --destructive-foreground: 255 255 255;
+  --destructive-tint: 253 236 234;
+  --border: 196 208 193;
+  --divider: 196 208 193;
+  --input: 145 166 141;
+  --ring: 23 99 65;
+  --paid: 23 99 65;
+  --paid-tint: 232 238 227;
+  --amber: 151 115 52;
+  --amber-tint: 251 239 227;
+  --info: 56 107 122;
+  --info-tint: 221 238 241;
+  --forest: 23 60 43;
+  --sidebar: 245 245 237;
+  --sidebar-foreground: 29 56 41;
+  --sidebar-primary: 23 99 65;
+  --sidebar-primary-foreground: 255 255 255;
+  --sidebar-accent: 232 238 227;
+  --sidebar-accent-foreground: 29 56 41;
+  --sidebar-border: 196 208 193;
+  --sidebar-ring: 23 99 65;
+  --chart-1: 23 99 65;
+  --chart-2: 98 143 73;
+  --chart-3: 151 115 52;
+  --chart-4: 56 107 122;
+  --chart-5: 120 88 120;
+  --color-sidebar-border: rgb(var(--sidebar-border));
+  --color-sidebar-accent: rgb(var(--sidebar-accent));
+  --color-popover: rgb(var(--popover));
+  --color-popover-foreground: rgb(var(--popover-foreground));
+  --color-border: rgb(var(--border));
+  --radius: 0.875rem;
+  --radius-card: 1.125rem;
+  --rp-ui-font: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --rp-ui-display: "New York", "Iowan Old Style", "Palatino Linotype", serif;
+}
+
+.dark :where([data-rp-ui="fieldnotes"], .toaster) {
+  --background: 19 32 25;
+  --foreground: 238 243 232;
+  --card: 27 44 34;
+  --card-foreground: 238 243 232;
+  --popover: 27 44 34;
+  --popover-foreground: 238 243 232;
+  --primary: 180 214 155;
+  --primary-foreground: 20 44 27;
+  --primary-focus: 160 197 133;
+  --secondary: 41 62 46;
+  --secondary-foreground: 238 243 232;
+  --muted: 34 56 42;
+  --muted-foreground: 180 199 177;
+  --accent: 52 75 50;
+  --accent-foreground: 237 245 230;
+  --border: 70 97 71;
+  --divider: 70 97 71;
+  --input: 104 130 100;
+  --ring: 180 214 155;
+  --destructive: 255 162 155;
+  --destructive-foreground: 20 44 27;
+  --destructive-tint: 58 31 31;
+  --paid: 180 214 155;
+  --paid-tint: 41 62 46;
+  --amber: 236 201 128;
+  --amber-tint: 61 48 27;
+  --info: 170 217 214;
+  --info-tint: 35 71 72;
+  --sidebar: 21 38 28;
+  --sidebar-foreground: 238 243 232;
+  --sidebar-primary: 180 214 155;
+  --sidebar-primary-foreground: 20 44 27;
+  --sidebar-accent: 41 62 46;
+  --sidebar-accent-foreground: 238 243 232;
+  --sidebar-border: 70 97 71;
+  --sidebar-ring: 180 214 155;
+}
+
+/* Avoid a card/sidebar font reset: these often contain approved section copy. */
+:where([data-rp-ui="fieldnotes"]):is(
+  [data-rp-control="button"], [data-slot="input"], [data-slot="textarea"],
+  [data-slot="native-select"], [data-slot="select-trigger"],
+  [data-slot="label"], [data-slot="field-label"], [data-slot="field-description"],
+  [data-slot="field-error"], [data-slot="badge"], [data-slot="alert"],
+  [data-slot="table"], [data-slot="dialog-content"], [data-slot="alert-dialog-content"], [data-slot="sheet-content"],
+  [data-slot="popover-content"], [data-slot="dropdown-menu-content"],
+  [data-slot="tooltip-content"], [data-slot="command"], [data-slot="tabs"],
+  [data-slot="radio-group"], [data-slot="toggle-group"]
+) { font-family: var(--rp-ui-font); }
+
+[data-rp-ui="fieldnotes"][data-rp-control="button"] {
+  min-height: 44px;
+  border-radius: 14px;
+  font-weight: 600;
+  transition: background-color 160ms, color 160ms, transform 120ms;
+}
+[data-rp-ui="fieldnotes"][data-rp-control="button"]:not(:disabled):active { transform: scale(0.98); }
+[data-rp-ui="fieldnotes"][data-rp-control="button"][data-size="sm"],
+[data-rp-ui="fieldnotes"][data-rp-control="button"][data-size="icon-sm"] { min-height: 36px; }
+[data-rp-ui="fieldnotes"][data-rp-control="button"][data-size="xs"],
+[data-rp-ui="fieldnotes"][data-rp-control="button"][data-size="icon-xs"] { min-height: 32px; }
+[data-rp-ui="fieldnotes"][data-rp-control="button"][data-size="lg"] { min-height: 48px; }
+[data-rp-ui="fieldnotes"]:is([data-slot="input"], [data-slot="textarea"], [data-slot="select-trigger"], [data-slot="native-select"], [data-slot="toggle"], [data-slot="toggle-group-item"], [data-slot="tabs-trigger"]) {
+  min-height: 44px;
+  border-radius: 14px;
+}
+[data-rp-ui="fieldnotes"][data-slot="card"] { border-radius: 18px; }
+[data-rp-ui="fieldnotes"]:is([data-slot="dialog-content"], [data-slot="alert-dialog-content"], [data-slot="popover-content"], [data-slot="dropdown-menu-content"]) { border-radius: 18px; }
+[data-rp-ui="fieldnotes"]:is([data-slot="dialog-title"], [data-slot="alert-dialog-title"], [data-slot="sheet-title"]) {
+  font-family: var(--rp-ui-display);
+  font-size: 32px;
+  font-weight: 500;
+}
+[data-rp-ui="fieldnotes"][data-slot="table"] { font-variant-numeric: tabular-nums; }
+[data-rp-ui="fieldnotes"][data-slot="badge"].rp-fn-status { gap: 7px; padding: 5px 10px; border: 0; border-radius: 999px; font-size: 13px; font-weight: 600; background: rgb(var(--muted)); color: rgb(var(--foreground)); }
+.rp-fn-status-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+[data-rp-ui="fieldnotes"].rp-fn-status[data-tone="success"] { background: rgb(var(--paid-tint)); color: rgb(var(--paid)); }
+[data-rp-ui="fieldnotes"].rp-fn-status[data-tone="warning"] { background: rgb(var(--amber-tint)); color: rgb(var(--amber)); }
+[data-rp-ui="fieldnotes"].rp-fn-status[data-tone="danger"] { background: rgb(var(--destructive-tint)); color: rgb(var(--destructive)); }
+[data-rp-ui="fieldnotes"].rp-fn-status[data-tone="info"] { background: rgb(var(--info-tint)); color: rgb(var(--info)); }
+
+@media (pointer: coarse) {
+  [data-rp-ui="fieldnotes"][data-rp-control="button"] { min-height: 44px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-rp-ui="fieldnotes"], [data-rp-ui="fieldnotes"] * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  [data-rp-ui="fieldnotes"][data-rp-control="button"]:active { transform: none; }
+}
+
+[data-rp-ui="fieldnotes"][data-slot="collapsible-trigger"] { width: 100%; min-height: 44px; text-align: left; font-family: var(--rp-ui-font); }
+[data-rp-ui="fieldnotes"][data-slot="collapsible-trigger"][data-state="open"] .group-open\:rotate-90 { transform: rotate(90deg); }
+[data-rp-ui="fieldnotes"][data-fullscreen="true"] { border-radius: 0; }
+[data-rp-ui="fieldnotes"][data-rp-control="button"][data-size="icon"] { min-width: 44px; }
+[data-rp-ui="fieldnotes"][data-rp-control="button"][data-size="icon-sm"] { min-width: 36px; }
+[data-rp-ui="fieldnotes"][data-rp-control="button"][data-size="icon-xs"] { min-width: 32px; }
+[data-rp-ui="fieldnotes"][data-rp-control="button"][data-size="icon-lg"] { min-width: 48px; min-height: 48px; }
+@media (pointer: coarse) { [data-rp-ui="fieldnotes"][data-rp-control="button"][data-size^="icon"] { min-width: 44px; } }
+
+[data-rp-ui="fieldnotes"]:is([data-slot="alert-dialog-action"], [data-slot="alert-dialog-cancel"], [data-slot="command-input-wrapper"], [data-slot="command-item"]) { min-height: 44px; }
+[data-rp-ui="fieldnotes"]:is([data-slot="alert-dialog-action"], [data-slot="alert-dialog-cancel"]) { border-radius: 14px; font-family: var(--rp-ui-font); }
+[data-rp-ui="fieldnotes"][data-slot="command-input"] { min-height: 44px; }
+
+[data-rp-ui="fieldnotes"]:is([data-slot="dialog-content"], [data-slot="alert-dialog-content"]):not([data-fullscreen="true"]) { max-width: calc(100vw - 2rem); max-height: calc(100dvh - 2rem); overflow-y: auto; }
+[data-rp-ui="fieldnotes"][data-slot="sheet-content"] { max-height: 100dvh; overflow-y: auto; }
+[data-rp-ui="fieldnotes"][data-slot="popover-content"] { max-width: calc(100vw - 2rem); }
+
+[data-rp-ui="fieldnotes"][data-slot="switch"][data-size="default"] { width: 48px; height: 28px; }
+[data-rp-ui="fieldnotes"][data-slot="switch"][data-size="default"] [data-slot="switch-thumb"] { width: 24px; height: 24px; }
+
+/* Scanner wedges and hidden file pickers retain their native hidden geometry. */
+[data-rp-ui="fieldnotes"][data-slot="input"].sr-only { width: 1px; height: 1px; min-height: 0; padding: 0; border: 0; }
+
+[data-rp-ui="fieldnotes"][data-slot="collapsible-trigger"][data-state="open"] .group-open\:rotate-180 { transform: rotate(180deg); }
+
+/* Keep small selection glyphs while providing a 44px pointer target. */
+[data-rp-ui="fieldnotes"]:is([data-slot="checkbox"], [data-slot="radio-group-item"], [data-slot="switch"], [data-slot="slider-thumb"]) { position: relative; }
+[data-rp-ui="fieldnotes"]:is([data-slot="checkbox"], [data-slot="radio-group-item"], [data-slot="switch"], [data-slot="slider-thumb"])::after { content: ""; position: absolute; width: max(100%, 44px); height: max(100%, 44px); left: 50%; top: 50%; transform: translate(-50%, -50%); }
+
+/* Explicitly compact calendar grid fits seven columns at 320px. */
+[data-rp-ui="fieldnotes"][data-slot="calendar"] { font-family:var(--rp-ui-font); --cell-size:36px; }
+[data-rp-ui="fieldnotes"][data-slot="calendar"] [data-rp-control="button"] { min-width:36px; min-height:36px; height:36px; border-radius:8px; }
+[data-rp-ui="fieldnotes"][data-slot="select-trigger"][data-size="sm"] { min-height:36px; }
+[data-rp-ui="fieldnotes"][data-slot="select-content"] { font-family:var(--rp-ui-font); border-radius:14px; max-width:calc(100vw - 2rem); }
+[data-rp-ui="fieldnotes"][data-slot="select-item"] { min-height:40px; }

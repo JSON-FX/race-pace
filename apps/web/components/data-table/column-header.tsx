@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import { ArrowDown, ArrowUp, ChevronsUpDown } from "lucide-react";
 import type { Header } from "@tanstack/react-table";
 import { flexRender } from "@tanstack/react-table";
@@ -22,16 +23,16 @@ export function SortableHeader<TData>({ header, onSort }: {
     <TableHead
       aria-sort={dir === "asc" ? "ascending" : dir === "desc" ? "descending" : canSort ? "none" : undefined}
       style={width !== undefined ? { width } : undefined}
-      className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
+      className="uppercase"
     >
       {canSort ? (
-        <button type="button" className="inline-flex items-center gap-1 uppercase"
+        <Button variant="ghost" type="button" className="inline-flex items-center gap-1 uppercase"
           onClick={() => onSort(header.column.id, dir === "asc")}>
           {content}
           {dir === "asc" ? <ArrowUp className="size-3" />
             : dir === "desc" ? <ArrowDown className="size-3" />
             : <ChevronsUpDown className="size-3 opacity-40" />}
-        </button>
+        </Button>
       ) : content}
     </TableHead>
   );

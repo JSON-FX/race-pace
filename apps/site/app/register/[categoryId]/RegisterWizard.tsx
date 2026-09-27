@@ -1,5 +1,9 @@
 "use client";
 
+
+import { ChoiceGroup, FieldFrame } from "@race-pace/ui";
+
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -18,7 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { PillSelect } from "@/components/PillSelect";
 import { DynamicField } from "@/components/DynamicField";
 import { RefundNotice } from "@/components/RefundNotice";
@@ -255,16 +259,16 @@ export function RegisterWizard({ userId, category, event, addons, formFields, pa
             <PassportField label="Booking email" value={email || ""} />
           </dl></section>
         </div>
-        <Link href="/profile" className={styles.editLink}>Edit Race Passport <ArrowRight size={15} aria-hidden="true" /></Link>
+        <Button asChild variant="link"><Link href="/profile" className={styles.editLink}>Edit Race Passport <ArrowRight size={15} aria-hidden="true" /></Link></Button>
       </> : null}
 
       {draft.step === 1 && !passport ? <>
         <RaceBibHeading step={1} icon={<UserRound />} title="Your details" description="Your ticket and emergency details will use this information." />
         <div className={styles.formFields}>
-          <div className={styles.formField}><Label htmlFor="full_name">Full name</Label><Input id="full_name" value={draft.details.full_name ?? ""} onChange={(e) => setDetail("full_name", e.target.value)} /></div>
-          <div className={styles.formField}><Label htmlFor="bib_name">Bib name *</Label><Input id="bib_name" value={draft.details.bib_name ?? ""} onChange={(e) => setDetail("bib_name", e.target.value)} aria-invalid={!!errors.bib_name} /><p>Printed on your race bib.</p>{errors.bib_name ? <p className={styles.error}>{errors.bib_name}</p> : null}</div>
-          <div className={styles.formField}><Label htmlFor="date_of_birth">Date of birth *</Label><Input id="date_of_birth" type="date" value={draft.details.date_of_birth ?? ""} onChange={(e) => setDetail("date_of_birth", e.target.value)} aria-invalid={!!errors.date_of_birth} />{errors.date_of_birth ? <p className={styles.error}>{errors.date_of_birth}</p> : null}</div>
-          <div className={styles.formField}><Label htmlFor="emergency_contact">Emergency contact *</Label><Input id="emergency_contact" value={draft.details.emergency_contact ?? ""} onChange={(e) => setDetail("emergency_contact", e.target.value)} placeholder="Name and mobile number" aria-invalid={!!errors.emergency_contact} />{errors.emergency_contact ? <p className={styles.error}>{errors.emergency_contact}</p> : null}</div>
+          <FieldFrame label="Full name" htmlFor="full_name" className={styles.formField}><Input id="full_name" value={draft.details.full_name ?? ""} onChange={(e) => setDetail("full_name", e.target.value)} /></FieldFrame>
+          <FieldFrame label="Bib name *" htmlFor="bib_name" hint="Printed on your race bib." error={errors.bib_name} className={styles.formField}><Input required id="bib_name" value={draft.details.bib_name ?? ""} onChange={(e) => setDetail("bib_name", e.target.value)} aria-invalid={!!errors.bib_name} /></FieldFrame>
+          <FieldFrame label="Date of birth *" htmlFor="date_of_birth" error={errors.date_of_birth} className={styles.formField}><Input required id="date_of_birth" type="date" value={draft.details.date_of_birth ?? ""} onChange={(e) => setDetail("date_of_birth", e.target.value)} aria-invalid={!!errors.date_of_birth} /></FieldFrame>
+          <FieldFrame label="Emergency contact *" htmlFor="emergency_contact" error={errors.emergency_contact} className={styles.formField}><Input required id="emergency_contact" value={draft.details.emergency_contact ?? ""} onChange={(e) => setDetail("emergency_contact", e.target.value)} placeholder="Name and mobile number" aria-invalid={!!errors.emergency_contact} /></FieldFrame>
         </div>
         {requestedProfileKeys.has("gender") ? <PillSelect label="GENDER" value={draft.details.gender ?? ""} options={GENDERS} onChange={(v) => setDetail("gender", v)} error={errors.gender} /> : null}
       </> : null}
@@ -273,12 +277,14 @@ export function RegisterWizard({ userId, category, event, addons, formFields, pa
         <RaceBibHeading step={2} icon={<Shirt />} title="Make this entry yours" description="Choose your kit and answer the event questions." />
         <section className={styles.kitSection}>
           <div className={styles.sectionRow}><div><h3>Shirt size</h3><p>Choose the size you want on race day.</p></div>{requiredProfileKeys.includes("shirt_size") ? <span className={styles.required}>Required</span> : null}</div>
-          <div className={styles.sizeGrid} role="group" aria-label="Shirt size">{SHIRT_SIZES.map((size) => <button key={size} type="button" className={styles.sizeButton} aria-pressed={draft.kit.shirt_size === size} onClick={() => setKit("shirt_size", size)}>{size}</button>)}</div>
-          {errors.shirt_size ? <p className={styles.formError}>{errors.shirt_size}</p> : null}
+          <ChoiceGroup label="Shirt size" value={draft.kit.shirt_size} onValueChange={value => setKit("shirt_size", value)}
+            error={errors.shirt_size} className={styles.sizeGrid} options={SHIRT_SIZES.map(value => ({ value, label: value }))} />
+
         </section>
-        {requestedProfileKeys.has("blood_type") ? <section className={styles.kitSection}><div className={styles.sectionRow}><div><h3>Blood type</h3><p>Used by the organizer for race-day preparation.</p></div>{requiredProfileKeys.includes("blood_type") ? <span className={styles.required}>Required</span> : null}</div><div className={styles.sizeGrid} role="group" aria-label="Blood type">{BLOOD_TYPES.map((bloodType) => <button key={bloodType} type="button" className={styles.sizeButton} aria-pressed={draft.kit.blood_type === bloodType} onClick={() => setKit("blood_type", bloodType)}>{bloodType}</button>)}</div>{errors.blood_type ? <p className={styles.formError}>{errors.blood_type}</p> : null}</section> : null}
+        {requestedProfileKeys.has("blood_type") ? <section className={styles.kitSection}><div className={styles.sectionRow}><div><h3>Blood type</h3><p>Used by the organizer for race-day preparation.</p></div>{requiredProfileKeys.includes("blood_type") ? <span className={styles.required}>Required</span> : null}</div><ChoiceGroup label="Blood type" value={draft.kit.blood_type} onValueChange={value => setKit("blood_type", value)}
+          error={errors.blood_type} className={styles.sizeGrid} options={BLOOD_TYPES.map(value => ({ value, label: value }))} /></section> : null}
         <section className={styles.kitSection}><div className={styles.sectionRow}><div><h3>Event question</h3><p>Your answer helps the organizers prepare.</p></div></div><div className={styles.choice}><Checkbox id="first_ultra" checked={draft.firstUltra} onCheckedChange={(c) => patch({ firstUltra: c === true })} /><span className={styles.choiceCopy}><Label htmlFor="first_ultra">First ultra at this distance?</Label><small>You can update this before you confirm.</small></span></div><div className={styles.dynamicFields}>{eventQuestions.map((f) => <DynamicField key={f.id} field={f} value={draft.values[f.key]} onChange={(v) => setValue(f.key, v)} error={errors[f.key]} />)}</div></section>
-        {addons.length > 0 ? <section className={styles.kitSection}><div className={styles.sectionRow}><div><h3>Optional extras</h3><p>Only selected extras are added to your entry.</p></div></div>{addons.map((a) => { const on = draft.addonIds.includes(a.id); return <button key={a.id} type="button" aria-pressed={on} aria-label={a.name} onClick={() => patch({ addonIds: on ? draft.addonIds.filter((id) => id !== a.id) : [...draft.addonIds, a.id] })} className={styles.addon}><span className={styles.addonCheck}><Check size={15} aria-hidden="true" /></span><span className={styles.choiceCopy}><strong>{a.name}</strong></span><span className={styles.addonPrice}>+{formatPeso(a.price)}</span></button>; })}</section> : null}
+        {addons.length > 0 ? <section className={styles.kitSection}><div className={styles.sectionRow}><div><h3>Optional extras</h3><p>Only selected extras are added to your entry.</p></div></div>{addons.map((a) => { const on = draft.addonIds.includes(a.id); return <Label key={a.id} htmlFor={`addon-${a.id}`} className={styles.addon}><Checkbox id={`addon-${a.id}`} checked={on} aria-label={a.name} onCheckedChange={checked => patch({ addonIds: checked === true ? [...draft.addonIds, a.id] : draft.addonIds.filter(id => id !== a.id) })} /><span className={styles.choiceCopy}><strong>{a.name}</strong></span><span className={styles.addonPrice}>+{formatPeso(a.price)}</span></Label>; })}</section> : null}
         {!passport && showSaveBack(profile, { ...draft.details, ...draft.kit }) ? <div className={styles.choice}><Checkbox id="save_back" checked={draft.saveBack} onCheckedChange={(c) => patch({ saveBack: c === true })} /><Label htmlFor="save_back">Save these details to my profile</Label></div> : null}
       </> : null}
 
@@ -302,10 +308,10 @@ export function RegisterWizard({ userId, category, event, addons, formFields, pa
         </div>
         <RefundNotice policy={event.refundPolicy} retention={event.refundFeeCents} />
         {assisted ? <p className="mt-6 rounded-lg bg-muted p-4 text-sm">Pass this device to {runnerName}. The participant must read and accept the waiver personally. You remain the booking contact.</p> : null}
-        <div className={styles.waiverChoice}><Checkbox id="waiver" checked={draft.waiver} onCheckedChange={(c) => patch({ waiver: c === true })} /><div><Label htmlFor="waiver">{assisted ? `I, ${runnerName}, personally accept the event waiver and confirm I’m medically fit to take part.` : "I accept the event waiver and confirm I’m medically fit to take part."}</Label><button className={styles.waiverLink} type="button" onClick={() => setWaiverOpen(true)}>Read event waiver</button></div></div>
+        <div className={styles.waiverChoice}><Checkbox id="waiver" checked={draft.waiver} onCheckedChange={(c) => patch({ waiver: c === true })} /><div><Label htmlFor="waiver">{assisted ? `I, ${runnerName}, personally accept the event waiver and confirm I’m medically fit to take part.` : "I accept the event waiver and confirm I’m medically fit to take part."}</Label><Button variant="ghost" className={styles.waiverLink} type="button" onClick={() => setWaiverOpen(true)}>Read event waiver</Button></div></div>
       </> : null}
 
-      {formError ? <p role="alert" className={styles.formError}>{formError}</p> : null}
+      {formError ? <Alert variant="destructive" role="alert" className={styles.formError}><AlertDescription>{formError}</AlertDescription></Alert> : null}
       <div className={styles.actions}>
         {draft.step > 1 ? <Button type="button" variant="outline" onClick={() => patch({ step: draft.step - 1 })}><ArrowLeft size={16} aria-hidden="true" /> Back</Button> : null}
         {draft.step < 3 ? <Button type="button" onClick={next}>Continue <ArrowRight size={16} aria-hidden="true" /></Button> : <Button type="button" disabled={busy} onClick={submit}>{busy ? "Submitting…" : "Continue to payment"} <ArrowRight size={16} aria-hidden="true" /></Button>}
@@ -313,7 +319,7 @@ export function RegisterWizard({ userId, category, event, addons, formFields, pa
 
       <Dialog open={waiverOpen} onOpenChange={setWaiverOpen}>
         <DialogContent className="max-w-lg">
-          <DialogHeader><DialogTitle>{waiver?.title ?? "Event waiver"}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{waiver?.title ?? "Event waiver"}</DialogTitle><DialogDescription>Read the event waiver before accepting.</DialogDescription></DialogHeader>
           <div className="max-h-[60vh] overflow-y-auto whitespace-pre-line text-[14px] leading-relaxed text-foreground">{waiver?.body ?? WAIVER_TEXT}</div>
           <Button type="button" className="mt-4 h-auto py-3" onClick={() => { patch({ waiver: true }); setWaiverOpen(false); }}>I accept</Button>
         </DialogContent>

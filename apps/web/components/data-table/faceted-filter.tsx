@@ -1,5 +1,7 @@
 "use client";
 
+
+import { Badge } from "@/components/ui/badge";
 import { Check, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -19,10 +21,10 @@ export function FacetedFilter({ def, value, onChange }: {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className="h-9 rounded-lg" aria-label={def.label}>
+        <Button variant="outline" size="sm" className="h-9" aria-label={def.label}>
           {def.label}
           {active ? (
-            <span className="ml-1.5 rounded-pill bg-primary px-1.5 text-[11px] font-semibold text-primary-foreground">1</span>
+            <Badge variant="secondary" className="ml-1.5 px-1.5">1</Badge>
           ) : null}
           <ChevronDown className="ml-1 size-3.5 text-muted-foreground" />
         </Button>

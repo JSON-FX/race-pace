@@ -1,5 +1,7 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -39,10 +41,10 @@ export function ReservationStatusPanel({ id, initialStatus, returned, remaining 
         : status === "review_required" ? "We received a payment update that needs review. Your selected places remain held while we reconcile it."
         : "This reservation no longer holds an event place."}
     </p>
-    {status === "pending" ? <button type="button" onClick={check} disabled={checking}
-      className="mt-4 rounded-full bg-white px-5 py-2.5 text-sm font-bold text-[#16442b] disabled:opacity-50">
+    {status === "pending" ? <Button variant="ghost" type="button" onClick={check} disabled={checking}
+      className="mt-4 px-5 py-2.5 disabled:opacity-50">
       {checking ? "Checking…" : "Check payment"}
-    </button> : null}
-    {error ? <p role="alert" className="mt-3 text-sm text-rose-200">{error}</p> : null}
+    </Button> : null}
+    {error ? <Alert role="alert" className="mt-3"><AlertDescription>{error}</AlertDescription></Alert> : null}
   </div>;
 }

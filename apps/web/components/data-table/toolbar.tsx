@@ -1,5 +1,6 @@
 "use client";
 
+
 import { useEffect, useRef, useState } from "react";
 import { Search, SlidersHorizontal } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -61,7 +62,7 @@ export function DataTableToolbar({
     <div className="flex flex-wrap items-center gap-2">
       <div className="relative">
         <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input aria-label="Search" placeholder={searchPlaceholder} className="h-9 w-[220px] rounded-lg pl-8"
+        <Input aria-label="Search" placeholder={searchPlaceholder} className="h-9 w-[220px] pl-8"
           value={draft} onChange={(e) => setDraft(e.target.value)} />
       </div>
 
@@ -74,7 +75,7 @@ export function DataTableToolbar({
       {columnToggles.length > 0 ? (
         <Popover>
           <PopoverTrigger asChild>
-            <Button variant="outline" size="sm" className="ml-auto h-9 rounded-lg" aria-label="Toggle columns">
+            <Button variant="outline" size="sm" className="ml-auto h-9" aria-label="Toggle columns">
               <SlidersHorizontal className="size-3.5" />
               Columns
             </Button>
@@ -83,7 +84,7 @@ export function DataTableToolbar({
             {columnToggles.map((c) => (
               <div key={c.id} className="flex items-center gap-2">
                 <Checkbox id={`col-${c.id}`} checked={c.visible} onCheckedChange={c.toggle} />
-                <Label htmlFor={`col-${c.id}`} className="text-[13px] font-normal">{c.label}</Label>
+                <Label htmlFor={`col-${c.id}`} className="">{c.label}</Label>
               </div>
             ))}
           </PopoverContent>

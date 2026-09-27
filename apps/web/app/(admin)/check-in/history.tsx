@@ -1,5 +1,6 @@
 "use client";
 
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Card } from "@/components/ui/card";
@@ -29,7 +30,7 @@ export function CheckInHistory({ eventId, revision }: { eventId: string; revisio
         <Button variant="outline" size="sm" onClick={() => setRetry(n => n + 1)}>Refresh history</Button>
       </div>
       <p className="text-xs text-muted-foreground">Latest 50 actions. Reversing a check-in keeps its history.</p>
-      {state === "loading" ? <p role="status">Loading history…</p> : state === "error" ? <p role="alert">Couldn’t load check-in history. Try refreshing.</p> : rows.length === 0 ? <p className="text-sm text-muted-foreground">No recorded check-in actions yet.</p> : (
+      {state === "loading" ? <p role="status">Loading history…</p> : state === "error" ? <Alert role="alert"><AlertDescription>Couldn’t load check-in history. Try refreshing.</AlertDescription></Alert> : rows.length === 0 ? <p className="text-sm text-muted-foreground">No recorded check-in actions yet.</p> : (
         <ul className="divide-y">
           {rows.map(row => <li key={row.id} className="flex flex-wrap items-start justify-between gap-2 py-3 text-sm">
             <div><p className="font-medium">{row.runner} · {row.action === "checked_in" ? "Checked in" : "Check-in reversed"}</p>

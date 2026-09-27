@@ -61,7 +61,7 @@ export function RaceRail({ events }: { events: EventRow[] }) {
       >
         {events.map((e, i) => (
           <div key={e.id} className="w-[214px] shrink-0 snap-start">
-            <Reveal delay={Math.min(i, 5) * 0.05}>
+            <Reveal className="h-full" delay={Math.min(i, 5) * 0.05}>
               <EventCard event={e} index={i + 2} />
             </Reveal>
           </div>

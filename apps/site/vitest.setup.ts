@@ -40,3 +40,11 @@ class TestIntersectionObserver {
   }
 }
 vi.stubGlobal("IntersectionObserver", TestIntersectionObserver);
+
+// Radix Select scroll/focus APIs are supplied by browsers, not jsdom.
+class ResizeObserverStub { observe() {} unobserve() {} disconnect() {} }
+globalThis.ResizeObserver ??= ResizeObserverStub as unknown as typeof ResizeObserver;
+Element.prototype.scrollIntoView ??= function () {};
+Element.prototype.hasPointerCapture ??= function () { return false; };
+Element.prototype.setPointerCapture ??= function () {};
+Element.prototype.releasePointerCapture ??= function () {};

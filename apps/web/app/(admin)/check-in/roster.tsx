@@ -1,5 +1,7 @@
 "use client";
 
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Input } from "@/components/ui/input";
 import { useMemo, useState } from "react";
 import { Search, X } from "lucide-react";
 import { PhotoAvatar } from "@/components/PhotoAvatar";
@@ -53,31 +55,18 @@ function Filters({
     <div className="fieldnotes-roster-filters">
       <div className="fieldnotes-roster-search">
         <Search className="size-4" aria-hidden />
-        <input
+        <Input
           type="search"
           value={q}
           onChange={(e) => onQ(e.target.value)}
           placeholder="Name or bib number"
           aria-label={label}
         />
-        {q && <button type="button" className="fieldnotes-roster-search__clear" onClick={() => onQ("")} aria-label={`Clear ${label.toLowerCase()}`}><X className="size-3.5" aria-hidden /></button>}
+        {q && <Button variant="ghost" type="button" className="fieldnotes-roster-search__clear" onClick={() => onQ("")} aria-label={`Clear ${label.toLowerCase()}`}><X className="size-3.5" aria-hidden /></Button>}
       </div>
-      <div className="fieldnotes-roster-categories" aria-label="Filter by category">{["all", ...categories].map((c) => (
-        <button
-          key={c}
-          type="button"
-          onClick={() => onCategory(c)}
-          aria-pressed={category === c}
-          className={cn(
-            "cursor-pointer rounded-pill border px-2.5 py-1 text-[11.5px] font-semibold transition-colors",
-            category === c
-              ? "border-forest bg-forest text-white"
-              : "bg-card text-foreground hover:bg-muted",
-          )}
-        >
-          {c === "all" ? "All" : c}
-        </button>
-      ))}</div>
+      <ToggleGroup type="single" value={category} onValueChange={value => onCategory(value || "all")} className="fieldnotes-roster-categories" aria-label="Filter by category">
+        {["all", ...categories].map(c => <ToggleGroupItem key={c} value={c}>{c === "all" ? "All" : c}</ToggleGroupItem>)}
+      </ToggleGroup>
     </div>
   );
 }
@@ -123,7 +112,7 @@ export function Roster({ pending, done, categories, busy, sources, onCheckIn, on
 
   return (
     <div className="grid gap-3 lg:grid-cols-[1.32fr_1fr]">
-      <Card className="gap-0 overflow-hidden rounded-xl border py-0 shadow-card">
+      <Card className="gap-0 overflow-hidden border py-0">
         <div className="flex items-center gap-2.5 border-b px-3.5 py-[11px]">
           <b className="text-[13.5px] font-bold tracking-[-0.01em]">Not yet checked in</b>
           <span className="text-[11.5px] font-semibold text-muted-foreground">
@@ -134,7 +123,7 @@ export function Roster({ pending, done, categories, busy, sources, onCheckIn, on
           q={pendingQ} onQ={setPendingQ} category={pendingCat} onCategory={setPendingCat}
           categories={categories} label="Search runners not yet checked in"
         />
-        <Table className="text-[12.5px]">
+        <Table className="">
           <TableHeader>
             <TableRow>
               <TableHead>Runner</TableHead>
@@ -146,7 +135,7 @@ export function Roster({ pending, done, categories, busy, sources, onCheckIn, on
           <TableBody>
             {pendingRows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="py-8 text-center text-muted-foreground">
+                <TableCell colSpan={4} className="py-8 text-center">
                   {pending.length === 0 ? "Everyone is in." : "No runner matches that search."}
                 </TableCell>
               </TableRow>
@@ -188,7 +177,7 @@ export function Roster({ pending, done, categories, busy, sources, onCheckIn, on
         </Table>
       </Card>
 
-      <Card className="gap-0 overflow-hidden rounded-xl border py-0 shadow-card">
+      <Card className="gap-0 overflow-hidden border py-0">
         <div className="flex items-center gap-2.5 border-b px-3.5 py-[11px]">
           <b className="text-[13.5px] font-bold tracking-[-0.01em]">Recently checked in</b>
           <span className="text-[11.5px] font-semibold text-muted-foreground">{done.length} total</span>
@@ -197,7 +186,7 @@ export function Roster({ pending, done, categories, busy, sources, onCheckIn, on
           q={doneQ} onQ={setDoneQ} category={doneCat} onCategory={setDoneCat}
           categories={categories} label="Search runners already checked in"
         />
-        <Table className="text-[12.5px]">
+        <Table className="">
           <TableHeader>
             <TableRow>
               <TableHead>Runner</TableHead>
@@ -209,7 +198,7 @@ export function Roster({ pending, done, categories, busy, sources, onCheckIn, on
           <TableBody>
             {doneRows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="py-8 text-center text-muted-foreground">
+                <TableCell colSpan={4} className="py-8 text-center">
                   {done.length === 0 ? "Nobody has checked in yet." : "No runner matches that search."}
                 </TableCell>
               </TableRow>

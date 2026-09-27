@@ -1,5 +1,6 @@
 "use client";
 
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useEffect, useRef, useState } from "react";
 
 type TurnstileApi = {
@@ -119,13 +120,13 @@ export function TurnstileWidget({
   }, [resetKey]);
 
   if (!siteKey) {
-    return <p role="alert" className="text-sm text-destructive">Verification is temporarily unavailable.</p>;
+    return <Alert variant="destructive" role="alert" className=""><AlertDescription>Verification is temporarily unavailable.</AlertDescription></Alert>;
   }
 
   return (
     <div>
       <div ref={containerRef} aria-label="Bot verification" className="min-h-[65px]" />
-      {failed ? <p role="alert" className="text-sm text-destructive">Verification failed to load. Refresh and try again.</p> : null}
+      {failed ? <Alert variant="destructive" role="alert" className=""><AlertDescription>Verification failed to load. Refresh and try again.</AlertDescription></Alert> : null}
     </div>
   );
 }

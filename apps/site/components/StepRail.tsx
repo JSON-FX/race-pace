@@ -13,7 +13,7 @@ const STEPS = ["Details", "Kit", "Confirm", "Pay"];
  *  through the one screen a runner spends the most time on. */
 export function StepRail({ current }: { current: number }) {
   return (
-    <ol className="no-print flex items-center gap-2" aria-label="Registration progress">
+    <ol data-rp-ui="fieldnotes" className="no-print flex items-center gap-2" aria-label="Registration progress">
       {STEPS.map((label, i) => {
         const n = i + 1;
         const state = n < current ? "done" : n === current ? "current" : "todo";

@@ -1,5 +1,6 @@
 "use client";
 
+
 import { registrationIdentity } from "@race-pace/shared";
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -55,13 +56,13 @@ export function TicketPanel({ registrationId, userId }: { registrationId: string
         <h1 className="text-[24px] font-semibold text-foreground">{title}</h1>
         <p className="mt-3 text-[15px] text-muted-foreground">{message}</p>
         {pending ? (
-          <Button asChild className="mt-8 h-auto rounded-pill px-8 py-4 text-[16px] font-semibold">
+          <Button asChild className="mt-8 h-auto px-8 py-4">
             <Link href={reg.data.bookingOrderId ? `/group/order/${reg.data.bookingOrderId}` : `/pay/${registrationId}`}>Complete payment</Link>
           </Button>
         ) : paid ? (
-          <Button onClick={() => reg.refetch()} className="mt-8 rounded-pill">Refresh ticket</Button>
+          <Button onClick={() => reg.refetch()} className="mt-8">Refresh ticket</Button>
         ) : null}
-        <Button asChild variant="outline" className="mt-4 rounded-pill">
+        <Button asChild variant="outline" className="mt-4">
           <Link href={historyUrl}>Back to {historyLabel}</Link>
         </Button>
       </div>
@@ -111,14 +112,14 @@ export function TicketPanel({ registrationId, userId }: { registrationId: string
         <Button
           type="button"
           onClick={() => window.print()}
-          className="h-auto gap-2 rounded-pill py-4 text-[16px] font-semibold"
+          className="h-auto gap-2 py-4"
         >
           <Printer size={17} /> Save as PDF / Print
         </Button>
         <p className="text-center text-[13px] text-muted-foreground">
           Save your ticket as a PDF or print it before race day. You can also find it in {historyLabel}.
         </p>
-        <Button asChild variant="outline" className="h-auto rounded-pill py-4 text-[15px] font-semibold">
+        <Button asChild variant="outline" className="h-auto py-4">
           <Link href={historyUrl}>Back to {historyLabel}</Link>
         </Button>
       </div>

@@ -1,6 +1,8 @@
 "use client";
 
+
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
+import { Pagination } from "@/components/ui/pagination";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PER_PAGE_OPTIONS, rangeLabel } from "@/lib/table-params";
@@ -31,10 +33,10 @@ export function DataTablePagination({
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-4 border-t border-divider px-4 py-3">
-      <div className="flex items-center gap-2.5 text-[13px] text-muted-foreground">
+      <div className="flex flex-wrap items-center gap-2.5 text-[13px] text-muted-foreground">
         <span>Rows per page</span>
         <Select value={String(per)} onValueChange={(v) => onPerChange(Number(v))}>
-          <SelectTrigger aria-label="Rows per page" className="h-8 w-[72px] rounded-lg">
+          <SelectTrigger aria-label="Rows per page" className="h-8 w-[72px]">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -47,12 +49,12 @@ export function DataTablePagination({
         <span className="tabular">{rangeLabel(page, per, total)}</span>
       </div>
 
-      <div className="flex items-center gap-1">
-        <Button variant="outline" size="icon" className="size-8 rounded-lg" aria-label="First page"
+      <Pagination className="mx-0 w-auto flex-wrap gap-1">
+        <Button variant="outline" size="icon" className="size-8" aria-label="First page"
           disabled={page <= 1} onClick={() => onPageChange(1)}>
           <ChevronsLeft className="size-4" />
         </Button>
-        <Button variant="outline" size="icon" className="size-8 rounded-lg" aria-label="Previous page"
+        <Button variant="outline" size="icon" className="size-8" aria-label="Previous page"
           disabled={page <= 1} onClick={() => onPageChange(page - 1)}>
           <ChevronLeft className="size-4" />
         </Button>
@@ -61,21 +63,21 @@ export function DataTablePagination({
             <span key={`gap-${i}`} className="px-1 text-sm text-muted-foreground" aria-hidden>…</span>
           ) : (
             <Button key={n} size="icon" aria-label={`Page ${n}`} aria-current={n === page ? "page" : undefined}
-              variant={n === page ? "default" : "outline"} className="size-8 rounded-lg tabular"
+              variant={n === page ? "default" : "outline"} className="size-8 tabular"
               onClick={() => onPageChange(n)}>
               {n}
             </Button>
           ),
         )}
-        <Button variant="outline" size="icon" className="size-8 rounded-lg" aria-label="Next page"
+        <Button variant="outline" size="icon" className="size-8" aria-label="Next page"
           disabled={page >= pageCount} onClick={() => onPageChange(page + 1)}>
           <ChevronRight className="size-4" />
         </Button>
-        <Button variant="outline" size="icon" className="size-8 rounded-lg" aria-label="Last page"
+        <Button variant="outline" size="icon" className="size-8" aria-label="Last page"
           disabled={page >= pageCount} onClick={() => onPageChange(pageCount)}>
           <ChevronsRight className="size-4" />
         </Button>
-      </div>
+      </Pagination>
     </div>
   );
 }

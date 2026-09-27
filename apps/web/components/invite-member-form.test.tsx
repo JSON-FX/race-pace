@@ -74,7 +74,8 @@ it("submits a selected event restriction for kit staff", async () => {
   await user.type(screen.getByLabelText("Invite email"), "crew@example.com");
   await user.click(screen.getByLabelText("Role"));
   await user.click(screen.getByRole("option", { name: "Race Kit" }));
-  await user.selectOptions(screen.getByLabelText("Event access"), "event-a");
+  await user.click(screen.getByRole("combobox", { name: "Event access" }));
+  await user.click(screen.getByRole("option", { name: "Trail A" }));
   await user.click(screen.getByRole("button", { name: "Invite" }));
   await waitFor(() =>
     expect(inviteMemberAction.mock.lastCall?.[1].get("eventScope")).toBe(

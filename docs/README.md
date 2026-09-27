@@ -18,6 +18,8 @@ ultra-trail event platform (Mindanao, Philippines).
 
 ## Web and admin readiness — September 2026
 
+Fieldnotes component revamp: [contract and audit](./specs/2026-09-27-fieldnotes-components.md), [source inventory](./specs/fieldnotes-components-audit.md), and [implementation plan](./plans/2026-09-27-fieldnotes-components.md). Implemented and locally validated; 39 shared primitives and component-only styling. [Verification evidence](./specs/fieldnotes-components-verification.md). [Annotation follow-up](./plans/2026-09-27-fieldnotes-annotations.md) and [latest annotation evidence](./specs/fieldnotes-annotations-verification.md) are complete locally. Staging release requested; integration and release checks are in progress.
+
 Organization admin Guide: [Video Library](./specs/2026-09-27-org-admin-guide.md) selected and implemented locally with Fieldnotes components. Search, super-admin upload/publishing, and private playback are verified. [Implementation plan](./plans/2026-09-27-org-admin-guide.md). Hosted staging role/upload/playback checks passed; production delivery and read-only checks are complete through [PR #168](https://github.com/JSON-FX/race-pace/pull/168). See the [release evidence](./operations/launch-progress.md).
 
 **Primary progress table:** [Launch progress](./operations/launch-progress.md). Update affected rows after each setup, implementation or verification step; show the next task and outstanding blockers.

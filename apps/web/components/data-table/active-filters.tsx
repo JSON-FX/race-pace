@@ -1,5 +1,7 @@
 "use client";
 
+
+import { Badge } from "@/components/ui/badge";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { FilterDef } from "./faceted-filter";
@@ -26,16 +28,16 @@ export function ActiveFilters({ defs, active, q, onRemove, onClearAll }: {
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       {chips.map((c) => (
-        <span key={c.key}
-          className="inline-flex items-center gap-1.5 rounded-pill bg-accent px-2.5 py-1 text-xs font-semibold text-accent-foreground">
+        <Badge variant="secondary" key={c.key}
+          className="inline-flex items-center gap-1.5 px-2.5 py-1">
           {c.text}
-          <button type="button" aria-label={c.aria} onClick={() => onRemove(c.key)}
-            className="opacity-60 transition-opacity hover:opacity-100">
+          <Button variant="ghost" type="button" aria-label={c.aria} onClick={() => onRemove(c.key)}
+            className="opacity-60">
             <X className="size-3" />
-          </button>
-        </span>
+          </Button>
+        </Badge>
       ))}
-      <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={onClearAll}>
+      <Button variant="ghost" size="sm" className="h-7" onClick={onClearAll}>
         Clear all
       </Button>
     </div>

@@ -1,5 +1,10 @@
 "use client";
 
+import { ChoiceGroup } from "@race-pace/ui";
+
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { saveReservationFeeTermsAction } from "@/lib/actions/commission";
@@ -21,22 +26,20 @@ function ReservationTermRow({ org }: { org: OrgCommissionRow }) {
         <p className="text-sm font-bold">{org.name}</p>
         <p className="text-xs text-muted-foreground">Charged for each reserved Race Passport when the reservation is paid.</p>
       </div>
-      <fieldset className="flex items-center gap-3 text-sm" aria-label={`Reservation Platform Fees type for ${org.name}`}>
-        <label className="flex items-center gap-1"><input type="radio" checked={type === "fixed"} onChange={() => setType("fixed")} /> Fixed</label>
-        <label className="flex items-center gap-1"><input type="radio" checked={type === "percent"} onChange={() => setType("percent")} /> Percent</label>
-      </fieldset>
-      <label className="flex items-center gap-1 text-sm">
+      <ChoiceGroup label={`Reservation Platform Fees type for ${org.name}`} value={type}
+        onValueChange={value => setType(value as "fixed" | "percent")} options={[{ value: "fixed", label: "Fixed" }, { value: "percent", label: "Percent" }]} />
+      <Label className="flex items-center gap-1">
         <span>{type === "fixed" ? "₱" : "%"}</span>
-        <input
+        <Input
           aria-label={`Reservation Platform Fees for ${org.name}`}
           type="number" min="0" max={type === "percent" ? "100" : undefined} step="0.01"
           value={type === "fixed" ? flat : percent}
           onChange={(event) => type === "fixed" ? setFlat(event.target.value) : setPercent(event.target.value)}
-          className="h-9 w-28 rounded-lg border bg-card px-2 text-right tabular-nums"
+          className="h-9 w-28 border px-2 text-right tabular-nums"
         />
-      </label>
+      </Label>
       <Button type="submit" size="sm" disabled={pending}>{pending ? "Saving…" : "Save"}</Button>
-      {state.error ? <p role="alert" className="text-xs text-destructive md:col-span-4">{state.error}</p> : null}
+      {state.error ? <Alert variant="destructive" role="alert" className="md:col-span-4"><AlertDescription>{state.error}</AlertDescription></Alert> : null}
       {state.success ? <p role="status" className="text-xs text-forest md:col-span-4">{state.success}</p> : null}
     </form>
   );

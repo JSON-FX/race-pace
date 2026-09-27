@@ -1,3 +1,6 @@
+import { Button } from "@/components/ui/button";
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, ChevronRight, ClipboardList, Plus, UserRound, UsersRound } from "lucide-react";
 import { formatPeso } from "@race-pace/shared";
 import Link from "next/link";
@@ -37,13 +40,13 @@ export function ParticipantPicker({
   return (
     <main className="bg-muted/45 px-4 py-8 sm:px-6 sm:py-12 lg:py-16">
       <div className="mx-auto w-full max-w-4xl">
-        <Link
+        <Button asChild variant="ghost"><Link
           href={`/events/${category.event_id}`}
-          className="mb-4 inline-flex min-h-11 items-center gap-2 rounded-pill px-1 text-[14px] font-semibold text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="mb-4 inline-flex min-h-11 items-center gap-2 px-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <ArrowLeft size={17} aria-hidden="true" />
           Back to event
-        </Link>
+        </Link></Button>
 
         <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-[0_20px_65px_rgb(var(--forest)/.10)]">
           <header className="bg-forest px-5 py-8 text-white sm:px-8 sm:py-10">
@@ -57,16 +60,16 @@ export function ParticipantPicker({
               Choose the Race Passport for this entry. Every participant receives a separate registration, payment and ticket.
             </p>
             <div className="mt-5 flex flex-wrap gap-2 font-mono-race text-[11px] font-semibold uppercase tracking-[0.8px] text-white/80">
-              <span className="rounded-pill border border-white/18 bg-white/8 px-3 py-2">{event.name}</span>
-              <span className="rounded-pill border border-white/18 bg-white/8 px-3 py-2">{formatPeso(category.base_price)}</span>
+              <Badge variant="secondary" className="whitespace-normal">{event.name}</Badge>
+              <Badge variant="secondary" className="whitespace-normal">{formatPeso(category.base_price)}</Badge>
             </div>
           </header>
 
           <div className="p-5 sm:p-8">
             {groupCheckoutEnabled && !reservationId ? (
-              <Link
+              <Button asChild variant="default" className="h-auto w-full whitespace-normal text-left"><Link
                 href={`/register/${category.id}/group`}
-                className="group flex min-h-16 items-center gap-4 rounded-xl bg-primary px-4 py-3.5 text-primary-foreground transition-colors hover:bg-primary-focus focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:px-5"
+                className="group flex min-h-16 items-center gap-4 px-4 py-3.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:px-5"
               >
                 <span className="grid size-11 shrink-0 place-items-center rounded-full bg-white/15">
                   <UsersRound size={21} aria-hidden="true" />
@@ -76,7 +79,7 @@ export function ParticipantPicker({
                   <span className="mt-0.5 block text-[13px] leading-5 text-primary-foreground/75">Reserve their slots in one payment.</span>
                 </span>
                 <ChevronRight size={19} className="shrink-0 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
-              </Link>
+              </Link></Button>
             ) : null}
 
             <div className={groupCheckoutEnabled && !reservationId ? "mt-7" : ""}>
@@ -95,12 +98,12 @@ export function ParticipantPicker({
                     const name = participantName(participant);
                     return (
                       <li key={participant.id}>
-                        <Link
+                        <Button asChild variant="outline" className="h-auto w-full whitespace-normal text-left"><Link
                           href={`/register/${category.id}?participant=${participant.id}${reservationId ? `&reservation_id=${reservationId}` : ""}`}
                           className={`group flex min-h-28 h-full items-center gap-4 rounded-xl border p-4 transition-[border-color,background-color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
                             isSelf
-                              ? "border-primary/35 bg-secondary/70 hover:border-primary"
-                              : "border-border bg-card hover:border-primary/60 hover:shadow-sm"
+                              ? "border-primary/35"
+                              : "border-border"
                           }`}
                         >
                           <span
@@ -120,41 +123,41 @@ export function ParticipantPicker({
                             {isSelf ? <span className="mt-0.5 block text-[13px] text-muted-foreground">{name}</span> : null}
                           </span>
                           <ChevronRight size={19} className="shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary" aria-hidden="true" />
-                        </Link>
+                        </Link></Button>
                       </li>
                     );
                   })}
                 </ul>
               ) : (
-                <div role="status" className="mt-4 rounded-xl border border-dashed border-border bg-muted/45 px-5 py-7 text-center">
-                  <UserRound size={24} className="mx-auto text-muted-foreground" aria-hidden="true" />
-                  <p className="mt-3 text-[14px] font-semibold">No complete Race Passports are ready yet.</p>
-                  <p className="mt-1 text-[13px] leading-5 text-muted-foreground">Create or complete one before continuing.</p>
-                </div>
+                <Empty role="status" className="mt-4 border border-dashed"><EmptyHeader>
+                  <EmptyMedia variant="icon"><UserRound aria-hidden="true" /></EmptyMedia>
+                  <EmptyTitle>No complete Race Passports are ready yet.</EmptyTitle>
+                  <EmptyDescription>Create or complete one before continuing.</EmptyDescription>
+                </EmptyHeader></Empty>
               )}
             </div>
 
             <div className="mt-7 grid gap-3 border-t border-divider pt-6 sm:grid-cols-2">
-              <Link
+              <Button asChild variant="outline" className="h-auto w-full whitespace-normal text-left"><Link
                 href="/profile"
-                className="group flex min-h-14 items-center gap-3 rounded-xl border border-border px-4 py-3 transition-colors hover:border-primary/60 hover:bg-secondary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="group flex min-h-14 items-center gap-3 border border-border px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <span className="grid size-9 shrink-0 place-items-center rounded-full bg-secondary text-secondary-foreground">
                   <Plus size={18} aria-hidden="true" />
                 </span>
                 <span className="min-w-0 flex-1 text-[14px] font-semibold">Create or complete a Race Passport</span>
                 <ChevronRight size={17} className="shrink-0 text-muted-foreground group-hover:text-primary" aria-hidden="true" />
-              </Link>
-              <Link
+              </Link></Button>
+              <Button asChild variant="outline" className="h-auto w-full whitespace-normal text-left"><Link
                 href="/bookings"
-                className="group flex min-h-14 items-center gap-3 rounded-xl border border-border px-4 py-3 transition-colors hover:border-primary/60 hover:bg-secondary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="group flex min-h-14 items-center gap-3 border border-border px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <span className="grid size-9 shrink-0 place-items-center rounded-full bg-secondary text-secondary-foreground">
                   <ClipboardList size={18} aria-hidden="true" />
                 </span>
                 <span className="min-w-0 flex-1 text-[14px] font-semibold">Bookings I manage</span>
                 <ChevronRight size={17} className="shrink-0 text-muted-foreground group-hover:text-primary" aria-hidden="true" />
-              </Link>
+              </Link></Button>
             </div>
           </div>
         </section>

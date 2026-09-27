@@ -1,3 +1,4 @@
+
 import Link from "next/link";
 import {
   ArrowUpRight,
@@ -49,19 +50,18 @@ export function LandingOptionNav({ active }: { active?: LandingOptionSlug }) {
           {LANDING_OPTIONS.map((option) => {
             const selected = option.slug === active;
             return (
-              <Link
-                key={option.slug}
+              <Button asChild variant={selected ? "secondary" : "ghost"} key={option.slug}><Link
+
                 href={`/landing-options/${option.slug}`}
                 aria-current={selected ? "page" : undefined}
                 title={option.name}
                 className={cn(
-                  "inline-flex min-h-11 min-w-11 snap-start items-center justify-center rounded-pill px-3 font-mono-race text-[11px] font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-w-0 sm:gap-2 sm:px-4",
-                  selected ? "bg-foreground text-background" : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                  "inline-flex min-h-11 min-w-11 snap-start items-center justify-center px-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-w-0 sm:gap-2 sm:px-4",
                 )}
               >
                 {option.number}
                 <span className="hidden md:inline">{option.name}</span>
-              </Link>
+              </Link></Button>
             );
           })}
         </nav>
@@ -73,7 +73,7 @@ export function LandingOptionNav({ active }: { active?: LandingOptionSlug }) {
 export function LandingActions({ inverse = false }: { inverse?: boolean }) {
   return (
     <div className="flex flex-col gap-3 sm:flex-row">
-      <Button asChild size="lg" className="h-12 rounded-pill px-6 text-[15px] font-bold shadow-none">
+      <Button asChild size="lg" className="h-12 px-6">
         <Link href="/events">
           Browse races
           <ArrowUpRight aria-hidden="true" />
@@ -84,8 +84,8 @@ export function LandingActions({ inverse = false }: { inverse?: boolean }) {
         size="lg"
         variant="outline"
         className={cn(
-          "h-12 rounded-pill px-6 text-[15px] font-bold shadow-none",
-          inverse && "border-white/35 bg-white/5 text-white hover:bg-white/12 hover:text-white",
+          "h-12 px-6",
+          inverse && "",
         )}
       >
         <Link href="/#organizers">List your race</Link>
@@ -98,13 +98,13 @@ export function JourneyCards({ compact = false }: { compact?: boolean }) {
   return (
     <div className="grid gap-4 md:grid-cols-3">
       {RUNNER_JOURNEY.map(({ icon: Icon, step, title, copy }) => (
-        <Card key={step} className={cn("gap-0 border-divider bg-card py-0 shadow-none", compact ? "rounded-xl" : "rounded-[24px]")}>
+        <Card key={step} className="gap-0 py-0">
           <CardHeader className="gap-5 px-6 pt-6 pb-0">
             <div className="flex items-center justify-between">
               <span className="grid size-11 place-items-center rounded-full bg-secondary text-secondary-foreground">
                 <Icon size={20} strokeWidth={1.8} aria-hidden="true" />
               </span>
-              <span className="font-mono-race text-[10px] font-bold tracking-[1px] text-muted-foreground">{step}</span>
+              <span className="font-mono-race text-2xl font-semibold tabular-nums text-primary">{step}</span>
             </div>
             <CardTitle className="font-display text-[22px] font-extrabold tracking-[-.6px]">{title}</CardTitle>
           </CardHeader>

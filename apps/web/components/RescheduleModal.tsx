@@ -1,5 +1,6 @@
 "use client";
 
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -26,16 +27,16 @@ export function RescheduleModal({ event, onClose, onDone }: { event: { id: strin
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="w-[380px] rounded-xl">
+      <DialogContent className="w-[380px]">
         <DialogHeader>
-          <DialogTitle className="text-[17px] font-bold">Reschedule event</DialogTitle>
+          <DialogTitle className="">Reschedule event</DialogTitle>
         </DialogHeader>
         <Input aria-label="New date" placeholder="YYYY-MM-DD" value={date} onChange={(e) => setDate(e.target.value)} />
         <Input aria-label="Note" placeholder="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
-        {error ? <span role="alert" className="text-[13px] text-destructive">{error}</span> : null}
+        {error ? <Alert variant="destructive" role="alert" className=""><AlertDescription>{error}</AlertDescription></Alert> : null}
         <DialogFooter>
-          <Button variant="outline" className="rounded-pill" onClick={onClose}>Cancel</Button>
-          <Button className="rounded-pill" disabled={busy} onClick={submit}>
+          <Button variant="outline" className="" onClick={onClose}>Cancel</Button>
+          <Button className="" disabled={busy} onClick={submit}>
             {busy ? "Saving…" : "Reschedule"}
           </Button>
         </DialogFooter>

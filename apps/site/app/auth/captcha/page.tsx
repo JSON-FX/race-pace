@@ -1,5 +1,6 @@
 "use client";
 
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useState } from "react";
 import { TurnstileWidget } from "@/components/TurnstileWidget";
 
@@ -27,9 +28,9 @@ export default function MobileCaptchaPage() {
         </div>
         <TurnstileWidget action="mobile_auth" onTokenChange={complete} />
         {error ? (
-          <p role="alert" className="text-sm text-destructive">
+          <Alert variant="destructive" role="alert" className=""><AlertDescription>
             Verification expired or failed. Complete the check again.
-          </p>
+          </AlertDescription></Alert>
         ) : null}
       </section>
     </main>

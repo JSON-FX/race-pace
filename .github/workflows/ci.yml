@@ -68,6 +68,11 @@ jobs:
           done
           cat /tmp/racepace-ci-edge.log
           exit 1
+      - name: Check Fieldnotes source and shared components
+        run: |
+          node scripts/audit-fieldnotes-components.mjs --verify
+          pnpm --filter @race-pace/ui typecheck
+          pnpm --filter @race-pace/ui test
       - name: Typecheck runner and admin
         run: |
           pnpm --filter site typecheck

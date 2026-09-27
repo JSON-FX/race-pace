@@ -1,5 +1,7 @@
 "use client";
 
+import { Spinner } from "@/components/ui/spinner";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Copy, Loader2, Plus, X } from "lucide-react";
@@ -186,11 +188,11 @@ export function NewOrgDialog() {
         </Button>
       </DialogTrigger>
 
-      <DialogContent className="max-h-[85vh] overflow-x-hidden overflow-y-auto rounded-xl sm:max-w-[460px]">
+      <DialogContent className="max-h-[85vh] overflow-x-hidden overflow-y-auto sm:max-w-[460px]">
         {inviteLink !== null || createdName ? (
           <>
             <DialogHeader>
-              <DialogTitle className="text-[17px] font-bold">{createdName} is live</DialogTitle>
+              <DialogTitle className="">{createdName} is live</DialogTitle>
               <DialogDescription className="text-[13px] text-muted-foreground">
                 {inviteDelivery === "sent" ? (
                   <>A sign-in email was sent to <span className="font-semibold">{email}</span>.</>
@@ -229,7 +231,7 @@ export function NewOrgDialog() {
         ) : (
           <>
             <DialogHeader>
-              <DialogTitle className="text-[17px] font-bold">New organization</DialogTitle>
+              <DialogTitle className="">New organization</DialogTitle>
               <DialogDescription className="text-[13px] text-muted-foreground">
                 Creates the organization and invites its first admin in one step. An organization
                 nobody can sign in to cannot be set up at all.
@@ -257,7 +259,7 @@ export function NewOrgDialog() {
                 />
                 <p id="org-slug-status" className="flex items-center gap-1 text-[12px] text-muted-foreground">
                   {slugState.checking ? (
-                    <><Loader2 className="size-3 animate-spin" aria-hidden /> Checking…</>
+                    <><Spinner className="size-3 animate-spin" aria-hidden /> Checking…</>
                   ) : slugState.available === true ? (
                     <><Check className="size-3 text-paid" aria-hidden /> <span className="text-paid">{slug} is available</span></>
                   ) : slugState.available === false ? (
@@ -361,7 +363,7 @@ export function NewOrgDialog() {
                 </p>
               ) : null}
 
-              {error ? <p role="alert" className="text-[13px] text-destructive">{error}</p> : null}
+              {error ? <Alert variant="destructive" role="alert" className=""><AlertDescription>{error}</AlertDescription></Alert> : null}
             </div>
 
             <DialogFooter>

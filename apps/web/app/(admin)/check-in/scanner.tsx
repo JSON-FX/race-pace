@@ -1,5 +1,8 @@
 "use client";
 
+import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Camera, CameraOff, Check, TriangleAlert, X } from "lucide-react";
 import { toast } from "sonner";
@@ -372,27 +375,27 @@ export function CheckInStation({ eventId, eventName, initialRows }: CheckInStati
             <span className="text-[11px] font-bold tracking-[0.09em] text-foreground/80">
               {listening ? "READY TO SCAN" : "SCANNER NOT LISTENING"}
             </span>
-            <span
+            <Badge variant="secondary"
               className={cn(
-                "rounded-pill px-2.5 py-[3px] text-[11px] font-bold",
-                listening ? "bg-foreground/15 text-foreground/90" : "border border-foreground/20 text-foreground/50",
+                "px-2.5 py-[3px]",
+                listening ? "" : "border border-foreground/20",
               )}
             >
               {listening ? "Keystrokes captured" : "Click the page to listen"}
-            </span>
-            <span
+            </Badge>
+            <Badge variant="secondary"
               className={cn(
-                "rounded-pill px-2.5 py-[3px] text-[11px] font-bold",
-                cameraOn ? "bg-foreground/15 text-foreground/90" : "border border-foreground/20 text-foreground/50",
+                "px-2.5 py-[3px]",
+                cameraOn ? "" : "border border-foreground/20",
               )}
             >
               {cameraOn ? "Camera on" : "Camera off"}
-            </span>
+            </Badge>
             <Button
               type="button"
               size="xs"
               variant="ghost"
-              className="border border-foreground/25 text-foreground hover:bg-foreground/10"
+              className="border border-foreground/25"
               onClick={() => setCameraOn((v) => !v)}
             >
               {cameraOn ? <CameraOff aria-hidden /> : <Camera aria-hidden />}
@@ -402,8 +405,8 @@ export function CheckInStation({ eventId, eventName, initialRows }: CheckInStati
 
           {/* The primary input. Visually hidden but focusable — a 2D imager
               is a keyboard, so it just needs somewhere to type. */}
-          <label className="sr-only" htmlFor="wedge">Scanned ticket</label>
-          <input
+          <Label className="sr-only" htmlFor="wedge">Scanned ticket</Label>
+          <Input
             id="wedge"
             ref={inputRef}
             className="sr-only"
@@ -476,7 +479,7 @@ export function CheckInStation({ eventId, eventName, initialRows }: CheckInStati
                   type="button"
                   size="xs"
                   variant="ghost"
-                  className="border border-foreground/25 text-foreground hover:bg-foreground/10"
+                  className="border border-foreground/25"
                   onClick={() => {
                     const row = rows.find((r) => r.registration_id === result.registrationId);
                     if (row) void undo(row);

@@ -1,5 +1,9 @@
 "use client";
 
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useActionState, useEffect, useMemo, useState } from "react";
 import { ChevronRight, FileText } from "lucide-react";
 import { publishWaiverAction, selectEventWaiverAction, type WaiverPublishState } from "@/lib/actions/waivers";
@@ -85,7 +89,7 @@ export function WaiverForm({
             <input type="hidden" name="versionId" value={versionId} />
             <div className="grid gap-4">
               <div>
-                <Label htmlFor="waiver-title" className="mb-1.5 flex text-[12px] font-bold">
+                <Label htmlFor="waiver-title" className="mb-1.5 flex">
                   Version title
                   <span aria-hidden="true" className="ml-auto font-normal tabular-nums text-muted-foreground">{title.length} / 200</span>
                 </Label>
@@ -98,11 +102,11 @@ export function WaiverForm({
                   placeholder="Example: 2026 standard event waiver"
                   required
                   disabled={pending}
-                  className="h-11 rounded-[10px] bg-background"
+                  className="h-11"
                 />
               </div>
               <div>
-                <Label htmlFor="waiver-body" className="mb-1.5 block text-[12px] font-bold">Waiver text</Label>
+                <Label htmlFor="waiver-body" className="mb-1.5 block">Waiver text</Label>
                 <Textarea
                   id="waiver-body"
                   name="body"
@@ -112,18 +116,18 @@ export function WaiverForm({
                   placeholder="Paste the approved waiver text here…"
                   required
                   disabled={pending}
-                  className="min-h-44 resize-y rounded-[10px] bg-background leading-relaxed"
+                  className="min-h-44 resize-y leading-relaxed"
                 />
                 <p className="mt-1.5 text-[11px] text-muted-foreground">
                   Published versions cannot be edited. Existing acceptances retain their original version.
                 </p>
               </div>
-              <label className="flex items-start gap-3 rounded-xl border border-amber/25 bg-amber-tint/50 p-3.5">
-                <input
-                  type="checkbox"
+              <Label className="flex items-start gap-3 border p-3.5">
+                <Checkbox
+
                   name="reviewed"
                   checked={reviewed}
-                  onChange={(event) => setReviewed(event.target.checked)}
+                  onCheckedChange={(checked) => setReviewed(checked === true)}
                   disabled={pending}
                   required
                   className="mt-0.5 size-[18px] shrink-0 accent-primary"
@@ -134,12 +138,12 @@ export function WaiverForm({
                     Publishing creates a permanent, timestamped version.
                   </span>
                 </span>
-              </label>
+              </Label>
             </div>
-            {state.error ? <p role="alert" className="mt-3 text-[13px] text-destructive">{state.error}</p> : null}
+            {state.error ? <Alert variant="destructive" role="alert" className="mt-3"><AlertDescription>{state.error}</AlertDescription></Alert> : null}
             {state.success ? <p role="status" className="mt-3 text-[13px] text-muted-foreground">{state.success}</p> : null}
             <div className="mt-4 flex justify-end">
-              <Button type="submit" disabled={pending || !reviewed || !title.trim() || !body.trim()} className="h-10 rounded-[10px]">
+              <Button type="submit" disabled={pending || !reviewed || !title.trim() || !body.trim()} className="h-10">
                 {pending ? "Publishing…" : "Publish waiver version"}
               </Button>
             </div>
@@ -161,7 +165,7 @@ export function WaiverForm({
               <input type="hidden" name="orgId" value={orgId} />
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
-                  <Label htmlFor="waiver-event" className="mb-1.5 block text-[12px] font-bold">Event</Label>
+                  <Label htmlFor="waiver-event" className="mb-1.5 block">Event</Label>
                   <SearchableCombobox
                     id="waiver-event"
                     name="eventId"
@@ -177,7 +181,7 @@ export function WaiverForm({
                   />
                 </div>
                 <div>
-                  <Label htmlFor="event-waiver-version" className="mb-1.5 block text-[12px] font-bold">Published waiver</Label>
+                  <Label htmlFor="event-waiver-version" className="mb-1.5 block">Published waiver</Label>
                   <SearchableCombobox
                     id="event-waiver-version"
                     name="waiverId"
@@ -196,14 +200,14 @@ export function WaiverForm({
               <p className="mt-2 text-[11px] text-muted-foreground">
                 Participants with an open registration form must review the newly selected version.
               </p>
-              {eventState.error ? <p role="alert" className="mt-2 text-[13px] text-destructive">{eventState.error}</p> : null}
+              {eventState.error ? <Alert variant="destructive" role="alert" className="mt-2"><AlertDescription>{eventState.error}</AlertDescription></Alert> : null}
               {eventState.success ? <p role="status" className="mt-2 text-[13px] text-muted-foreground">{eventState.success}</p> : null}
               <div className="mt-3 flex justify-end">
                 <Button
                   disabled={eventPending || !eventId || !waiverId}
                   type="submit"
                   variant="outline"
-                  className="h-10 rounded-[10px]"
+                  className="h-10"
                 >
                   {eventPending ? "Saving…" : "Use waiver for event"}
                 </Button>
@@ -218,9 +222,9 @@ export function WaiverForm({
             <h3 className="text-[13px] font-bold">Published versions</h3>
             <p className="mt-0.5 text-[10.5px] text-muted-foreground">Permanent history with the original text.</p>
           </div>
-          <span className="rounded-pill bg-muted px-2 py-1 text-[9px] font-bold uppercase tracking-wide text-muted-foreground">
+          <Badge variant="secondary" className="px-2 py-1 uppercase">
             Immutable
-          </span>
+          </Badge>
         </div>
         {versions.length === 0 ? (
           <p className="rounded-xl border border-dashed bg-muted/30 px-4 py-8 text-center text-[12px] text-muted-foreground">
@@ -229,21 +233,21 @@ export function WaiverForm({
         ) : (
           <div className="grid gap-2">
             {versions.map((version, index) => (
-              <details key={version.id} className="group rounded-xl border bg-background">
-                <summary className="flex min-h-12 cursor-pointer list-none items-center gap-2.5 px-3 py-2.5 [&::-webkit-details-marker]:hidden">
-                  <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-90" aria-hidden="true" />
+              <Collapsible key={version.id} className="group min-w-0 rounded-xl border bg-background">
+                <CollapsibleTrigger className="flex min-h-12 w-full min-w-0 cursor-pointer list-none items-center gap-2.5 px-3 py-2.5 text-left [&::-webkit-details-marker]:hidden">
+                  <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-90" aria-hidden="true" />
                   <span className="min-w-0 flex-1">
                     <strong className="block truncate text-[12px]">{version.title}</strong>
                     <span className="block text-[10px] text-muted-foreground">Published {fmtDate(version.published_at)}</span>
                   </span>
                   {index === 0 ? (
-                    <span className="rounded-pill bg-secondary px-2 py-1 text-[9px] font-bold text-secondary-foreground">Latest</span>
+                    <Badge variant="secondary" className="px-2 py-1">Latest</Badge>
                   ) : null}
-                </summary>
+                </CollapsibleTrigger><CollapsibleContent forceMount className="data-[state=closed]:hidden">
                 <p className="whitespace-pre-wrap break-words px-10 pb-4 text-[12px] leading-relaxed text-muted-foreground">
                   {version.body}
                 </p>
-              </details>
+              </CollapsibleContent></Collapsible>
             ))}
           </div>
         )}

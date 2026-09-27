@@ -16,7 +16,7 @@ export default function Loading() {
 
       <div className="grid gap-3 lg:grid-cols-2">
         {Array.from({ length: 2 }, (_, col) => (
-          <Card key={col} className="gap-0 rounded-xl border py-0 shadow-card">
+          <Card key={col} className="gap-0 border py-0">
             <div className="border-b p-4"><Skeleton className="h-4 w-36" /></div>
             <div className="border-b p-3"><Skeleton className="h-8 w-full" /></div>
             {Array.from({ length: 4 }, (_, i) => (

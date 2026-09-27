@@ -104,7 +104,7 @@ describe("EventsTable", () => {
       await user.click(screen.getByRole("button", { name: /actions for dahilayan sky ultra/i }));
       await user.click(screen.getByRole("menuitem", { name: "Cancel event" }));
 
-      const dialog = await screen.findByRole("dialog");
+      const dialog = await screen.findByRole("alertdialog");
       expect(within(dialog).getByText(/Cancel “Dahilayan Sky Ultra”/)).toBeInTheDocument();
       await user.click(within(dialog).getByText("Cancel event"));
       await waitFor(() => expect(mockCancel).toHaveBeenCalledWith("e1", ""));

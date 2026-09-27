@@ -93,12 +93,12 @@ it("filters users and expands managed Race Passport details in the inspector", a
 
   const dialog = await screen.findByRole("dialog");
   expect(within(dialog).getByText("alina@example.com")).toBeInTheDocument();
-  const maya = within(dialog).getByText("Maya Santos").closest("details");
-  expect(maya).toHaveAttribute("open");
+  const maya = within(dialog).getByText("Maya Santos").closest('[data-slot="collapsible"]');
+  expect(maya).toHaveAttribute("data-state", "open");
   await events.click(within(dialog).getByText("Maya Santos"));
-  expect(maya).not.toHaveAttribute("open");
+  expect(maya).toHaveAttribute("data-state", "closed");
   await events.click(within(dialog).getByText("Maya Santos"));
-  expect(maya).toHaveAttribute("open");
+  expect(maya).toHaveAttribute("data-state", "open");
   expect(within(dialog).getByText(/Managed Race Passport/)).toBeInTheDocument();
   expect(within(dialog).getByText("Ridge Runners")).toBeInTheDocument();
   expect(within(dialog).getByText("maya@example.com")).toBeInTheDocument();
@@ -129,9 +129,9 @@ it("shows the account passport and lets two managed passports expand independent
   await events.click(within(dialog).getByText("Maya Santos"));
   await events.click(within(dialog).getAllByText("Nico Santos")[0]);
   expect(within(dialog).getAllByText("Participant email (unverified)")).toHaveLength(2);
-  expect(within(dialog).getAllByText("Nico Santos")[0].closest("details")).toHaveAttribute("open");
-  expect(within(dialog).getByText("Maya Santos").closest("details")).toHaveAttribute("open");
-  const nico = within(dialog).getAllByText("Nico Santos")[0].closest("details") as HTMLElement;
+  expect(within(dialog).getAllByText("Nico Santos")[0].closest('[data-slot="collapsible"]')).toHaveAttribute("data-state", "open");
+  expect(within(dialog).getByText("Maya Santos").closest('[data-slot="collapsible"]')).toHaveAttribute("data-state", "open");
+  const nico = within(dialog).getAllByText("Nico Santos")[0].closest('[data-slot="collapsible"]') as HTMLElement;
   expect(within(nico).getByText("Previously saved name")).toBeInTheDocument();
   expect(within(nico).getByText("Saved helper contact")).toBeInTheDocument();
   expect(within(nico).getAllByText("Not provided").length).toBeGreaterThan(0);
@@ -149,4 +149,15 @@ it("requires confirmation before suspending an account", async () => {
   await events.click(within(confirmation).getByRole("button", { name: "Suspend user" }));
   expect(invoke).toHaveBeenCalledWith("platform-users", { body: { action: "suspend", user_id: "u1" } });
   expect((await screen.findAllByText("Suspended")).length).toBeGreaterThan(0);
+});
+
+
+it("uses Philippine dates for timestamps and preserves a Passport's birth day", async () => {
+  const events = userEvent.setup();
+  render(<UsersDirectory initialUsers={[{ ...user, createdAt: "2026-09-25T18:30:00Z" }]} />);
+  expect(screen.getByText("Sep 26, 2026")).toBeInTheDocument();
+  expect(screen.queryByText("Sep 25, 2026")).not.toBeInTheDocument();
+  await events.click(screen.getByRole("button", { name: "View Alina Santos" }));
+  const dialog = await screen.findByRole("dialog");
+  expect(within(dialog).getByText("Jun 14, 2010")).toBeInTheDocument();
 });

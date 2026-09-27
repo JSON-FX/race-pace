@@ -72,7 +72,7 @@ export default async function RegistrationsPage({
     return (
       <div className="fieldnotes-admin-workspace" data-fieldnotes-section="Race control / Participants">
         <h1 className="mb-5 text-[21px] font-bold tracking-[-0.02em]">Registrations</h1>
-        <Card className="gap-0 overflow-hidden rounded-xl border py-0 shadow-card">
+        <Card className="gap-0 overflow-hidden border py-0">
           <TableEmptyState title="No events yet" description="Create an event before you can take registrations." />
         </Card>
       </div>

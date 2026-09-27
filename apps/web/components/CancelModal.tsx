@@ -1,8 +1,9 @@
 "use client";
 
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogCancel } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cancelEventAction } from "../lib/actions/events";
@@ -23,21 +24,21 @@ export function CancelModal({ event, onClose, onDone }: { event: { id: string; n
   }
 
   return (
-    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="w-[380px] rounded-xl">
-        <DialogHeader>
-          <DialogTitle className="text-[17px] font-bold">Cancel “{event.name}”?</DialogTitle>
-          <DialogDescription className="text-[13px] text-muted-foreground">Registrations are kept; refunds are handled from Payments.</DialogDescription>
-        </DialogHeader>
+    <AlertDialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <AlertDialogContent className="w-[380px]">
+        <AlertDialogHeader>
+          <AlertDialogTitle className="">Cancel “{event.name}”?</AlertDialogTitle>
+          <AlertDialogDescription className="text-[13px] text-muted-foreground">Registrations are kept; refunds are handled from Payments.</AlertDialogDescription>
+        </AlertDialogHeader>
         <Input aria-label="Cancel note" placeholder="Reason (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
-        {error ? <span role="alert" className="text-[13px] text-destructive">{error}</span> : null}
-        <DialogFooter>
-          <Button variant="outline" className="rounded-pill" onClick={onClose}>Keep it</Button>
-          <Button variant="destructive" className="rounded-pill" disabled={busy} onClick={submit}>
+        {error ? <Alert variant="destructive" role="alert" className=""><AlertDescription>{error}</AlertDescription></Alert> : null}
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={onClose}>Keep it</AlertDialogCancel>
+          <Button variant="destructive" className="" disabled={busy} onClick={submit}>
             {busy ? "Cancelling…" : "Cancel event"}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

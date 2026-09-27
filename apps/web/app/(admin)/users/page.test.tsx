@@ -25,8 +25,21 @@ it("404s a non-platform administrator before loading user data", async () => {
 
 it("loads the platform directory for a super administrator", async () => {
   getMyRoles.mockResolvedValue({ capabilities: ["manage_platform"], isSuperAdmin: true });
-  getPlatformUsers.mockResolvedValue([{ id: "u1" }]);
+  getPlatformUsers.mockResolvedValue([{ id: "u1", passports: [] }]);
   render(await UsersPage());
   expect(screen.getByRole("heading", { name: "Registered users" })).toBeInTheDocument();
   expect(screen.getByText("1 directory users")).toBeInTheDocument();
+});
+
+
+it("counts accounts and unique managed Passports, excluding own Passports", async () => {
+  getMyRoles.mockResolvedValue({ capabilities: ["manage_platform"], isSuperAdmin: true });
+  getPlatformUsers.mockResolvedValue([
+    { id: "u1", passports: [{ id: "own-1", relationship: "own" }, { id: "managed-1", relationship: "managed" }] },
+    { id: "u2", passports: [{ id: "own-2", relationship: "own" }, { id: "managed-1", relationship: "managed" }, { id: "managed-2", relationship: "managed" }] },
+  ]);
+  render(await UsersPage());
+  const totals = screen.getByRole("region", { name: "Platform totals" });
+  expect(totals).toHaveTextContent("Registered users2");
+  expect(totals).toHaveTextContent("Managed Passports2");
 });

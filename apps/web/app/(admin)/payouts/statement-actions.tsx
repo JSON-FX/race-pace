@@ -1,5 +1,6 @@
 "use client";
 
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Plus } from "lucide-react";
@@ -79,14 +80,14 @@ export function OpenStatementControl({ events }: { events: OpenableEvent[] }) {
           label="Event to open a statement for"
           className="w-[290px]"
         />
-        <Button className="rounded-pill" disabled={!selected || busy} onClick={submit}>
+        <Button className="" disabled={!selected || busy} onClick={submit}>
           <Plus />
           {busy ? "Opening…" : "Open statement"}
         </Button>
       </div>
 
       <AlertDialog open={confirming} onOpenChange={(o) => { if (!o && !busy) setConfirming(false); }}>
-        <AlertDialogContent className="w-[420px] rounded-xl">
+        <AlertDialogContent className="w-[420px]">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-[17px] font-bold">
               {selected?.name} hasn&apos;t finished yet
@@ -158,16 +159,16 @@ export function SettleStatementButton({ statement }: {
       <Button
         size="sm"
         variant={recovery ? "outline" : "default"}
-        className="rounded-pill"
+        className=""
         onClick={() => { setError(null); setReference(""); setNote(""); setOpen(true); }}
       >
         {verb}
       </Button>
 
       <Dialog open={open} onOpenChange={(o) => { if (!busy) setOpen(o); }}>
-        <DialogContent className="w-[420px] rounded-xl">
+        <DialogContent className="w-[420px]">
           <DialogHeader>
-            <DialogTitle className="text-[17px] font-bold">
+            <DialogTitle className="">
               {recovery ? `Recover ${amount} from ${statement.org_name}?` : `Pay ${amount} to ${statement.org_name}?`}
             </DialogTitle>
             <DialogDescription className="text-[13px] text-muted-foreground">
@@ -183,7 +184,7 @@ export function SettleStatementButton({ statement }: {
           </DialogHeader>
 
           <div className="grid gap-1.5">
-            <Label htmlFor="payout-reference" className="text-[12.5px]">
+            <Label htmlFor="payout-reference" className="">
               {recovery ? "Recovery reference" : "Transfer reference"}
             </Label>
             <Input
@@ -194,7 +195,7 @@ export function SettleStatementButton({ statement }: {
             />
           </div>
           <div className="grid gap-1.5">
-            <Label htmlFor="payout-note" className="text-[12.5px]">Note (optional)</Label>
+            <Label htmlFor="payout-note" className="">Note (optional)</Label>
             <Input
               id="payout-note"
               placeholder="Anything worth remembering"
@@ -203,13 +204,13 @@ export function SettleStatementButton({ statement }: {
             />
           </div>
 
-          {error ? <span role="alert" className="text-[13px] text-destructive">{error}</span> : null}
+          {error ? <Alert variant="destructive" role="alert" className=""><AlertDescription>{error}</AlertDescription></Alert> : null}
 
           <DialogFooter>
-            <Button variant="outline" className="rounded-pill" disabled={busy} onClick={() => setOpen(false)}>
+            <Button variant="outline" className="" disabled={busy} onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button className="rounded-pill" disabled={busy} onClick={submit}>
+            <Button className="" disabled={busy} onClick={submit}>
               {busy ? "Recording…" : verb}
             </Button>
           </DialogFooter>

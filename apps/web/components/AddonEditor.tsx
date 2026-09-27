@@ -1,5 +1,6 @@
 "use client";
 
+
 import type { AddonDraft } from "../lib/actions/events";
 import { Card } from "./ui/card";
 import { Input } from "./ui/input";
@@ -17,7 +18,7 @@ export function AddonEditor({ rows, onChange }: { rows: AddonDraft[]; onChange: 
     <Card className="gap-0 p-5">
       <div className="flex items-center justify-between">
         <h2 className="text-[15px] font-bold tracking-[-0.01em]">Add-ons</h2>
-        <Button variant="ghost" size="sm" onClick={add} className="h-auto p-0 text-xs font-semibold text-primary hover:bg-transparent">+ Add</Button>
+        <Button variant="ghost" size="sm" onClick={add} className="h-auto p-0">+ Add</Button>
       </div>
       <p className="mt-1 text-[11px] text-muted-foreground">
         Price changes automatically refresh unpaid checkouts. Paid registrations keep their accepted prices.
@@ -31,9 +32,9 @@ export function AddonEditor({ rows, onChange }: { rows: AddonDraft[]; onChange: 
       ) : null}
       {rows.map((r, i) => (
         <div key={r.id ?? r.tempId} className={`grid items-center gap-2 border-t border-divider py-2.5 ${GRID}`}>
-          <Input aria-label="Add-on name" placeholder="Event singlet" className="h-auto rounded-lg px-2.5 py-[7px] text-[13px]" value={r.name} onChange={(e) => set(i, { name: e.target.value })} />
-          <Input aria-label="Add-on price" placeholder="₱" type="number" step="0.01" className="h-auto rounded-lg px-2.5 py-[7px] text-[13px]" value={peso(r.price)} onChange={(e) => set(i, { price: cent(e.target.value) })} />
-          <Button aria-label="Remove add-on" variant="ghost" size="icon" onClick={() => onChange(rows.filter((_, j) => j !== i))} className="h-auto w-auto p-0 text-base text-destructive hover:bg-transparent">×</Button>
+          <Input aria-label="Add-on name" placeholder="Event singlet" className="h-auto px-2.5 py-[7px]" value={r.name} onChange={(e) => set(i, { name: e.target.value })} />
+          <Input aria-label="Add-on price" placeholder="₱" type="number" step="0.01" className="h-auto px-2.5 py-[7px]" value={peso(r.price)} onChange={(e) => set(i, { price: cent(e.target.value) })} />
+          <Button aria-label="Remove add-on" variant="ghost" size="icon" onClick={() => onChange(rows.filter((_, j) => j !== i))} className="h-auto w-auto p-0">×</Button>
         </div>
       ))}
     </Card>

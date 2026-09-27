@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import * as React from "react";
 import Link from "next/link";
 import Image from "next/image";
@@ -110,19 +111,17 @@ export function SiteNav({ signedIn }: { signedIn: boolean }) {
           {items.map((item) => {
             const active = isActive(pathname, item.href);
             return (
-              <Link
-                key={item.href}
+              <Button asChild key={item.href} variant="ghost" className="px-2.5 sm:px-4"><Link
                 href={item.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "relative rounded-pill px-2.5 py-2 text-[11px] font-semibold transition-colors sm:px-4 sm:text-[13px]",
-                  active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
+                  "relative px-2.5 py-2 sm:px-4",
                 )}
               >
                 {active ? (
                   <motion.span
                     layoutId="nav-pill"
-                    className="absolute inset-0 rounded-pill bg-background shadow-[0_1px_3px_rgb(0_0_0/0.13)]"
+                    className="absolute inset-0 rounded-[14px] bg-accent"
                     transition={
                       reduced
                         ? { duration: 0 }
@@ -137,29 +136,26 @@ export function SiteNav({ signedIn }: { signedIn: boolean }) {
                       that reports pending, and neither of them has one. */}
                   <LinkPending className="ml-0 size-2.5" />
                 </span>
-              </Link>
+              </Link></Button>
             );
           })}
         </nav>
 
         <div className="flex shrink-0 items-center gap-2">
           {signedIn ? (
-            <button
+            <Button variant="outline"
               type="button"
               onClick={logOut}
               disabled={leaving}
-              className="hidden items-center gap-1.5 rounded-pill border border-border px-4 py-2.5 text-[13px] font-semibold text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground disabled:opacity-60 sm:inline-flex"
+              className="hidden items-center gap-1.5 border px-4 py-2.5 disabled:opacity-60 sm:inline-flex"
             >
               <LogOut size={15} aria-hidden="true" />
               {leaving ? "Logging out…" : "Log out"}
-            </button>
+            </Button>
           ) : (
-            <Link
-              href="/sign-in"
-              className="rounded-pill bg-primary px-2.5 py-2.5 text-[11px] font-semibold text-primary-foreground transition-colors hover:bg-primary-focus sm:px-5 sm:text-[13px]"
-            >
+            <Button asChild className="px-2.5 sm:px-5"><Link href="/sign-in">
               Sign in
-            </Link>
+            </Link></Button>
           )}
 
         </div>

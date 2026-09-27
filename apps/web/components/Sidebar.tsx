@@ -1,5 +1,7 @@
 "use client";
 
+
+import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
@@ -29,17 +31,16 @@ function NavItem({ to, label, icon: Icon, count }: Item & { count?: number }) {
             {label}
           </span>
           {count != null ? (
-            <span
+            <Badge variant="secondary"
               className={cn(
-                "rounded-pill px-[7px] py-px text-[11px] font-semibold tabular",
+                "px-[7px] py-px tabular",
                 // `ml-auto` moved to the pending spinner's wrapper below so the
                 // two can't both claim it and fight over the right edge.
                 count != null && "ml-auto",
-                isActive ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
               )}
             >
               {count}
-            </span>
+            </Badge>
           ) : null}
           {/* Marks WHICH destination is loading. The top bar says a navigation
               is happening; this says which one, which matters when a mis-click
@@ -126,7 +127,7 @@ export function Sidebar({
               type="submit"
               variant="ghost"
               size="sm"
-              className="text-[12px] font-semibold text-destructive"
+              className=""
             >
               Sign out
             </Button>

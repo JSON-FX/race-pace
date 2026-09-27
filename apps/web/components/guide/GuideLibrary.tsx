@@ -2,10 +2,13 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { BookOpen, CalendarDays, Check, ChevronDown, ClipboardList, CreditCard, FileVideo, Play, Plus, QrCode, Search, ShieldCheck, Upload, Users, X } from "lucide-react";
+import { BookOpen, CalendarDays, Check, ClipboardList, CreditCard, FileVideo, Play, Plus, QrCode, Search, ShieldCheck, Upload, Users, X } from "lucide-react";
 import { Button } from "@/components/fieldnotes/button";
 import { Progress } from "@/components/fieldnotes/progress";
 import { Field } from "@/components/fieldnotes/field";
+import { FormSelect } from "@race-pace/ui";
+import { Button as PrimitiveButton } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -92,7 +95,7 @@ function GuideUpload({ guide, onSaved, onClose, restoreFocus }: { guide: GuideVi
       <fieldset disabled={busy}>
         <Field ref={titleInput} className="gd-field" name="title" label="Title" required maxLength={160} defaultValue={guide?.title} placeholder="e.g. Create and publish your event" />
         <label className="gd-field">Description<Textarea name="description" required maxLength={2000} rows={3} defaultValue={guide?.description} placeholder="What will an org admin learn?" /></label>
-        <label className="gd-field">Topic<select name="topic" defaultValue={guide?.topic ?? GUIDE_TOPICS[0]}>{GUIDE_TOPICS.map(t => <option key={t}>{t}</option>)}</select></label>
+        <label className="gd-field">Topic<FormSelect name="topic" defaultValue={guide?.topic ?? GUIDE_TOPICS[0]}>{GUIDE_TOPICS.map(t => <option key={t}>{t}</option>)}</FormSelect></label>
         <label className="gd-upload-zone"><Upload /><strong>{file ? file.name : guide ? "Replace video (optional)" : "Choose your video"}</strong><span>MP4 or WebM · Up to 100 MB · Up to four hours</span>
           <Input type="file" aria-label="Video file" accept="video/mp4,video/webm" aria-describedby={error ? "guide-upload-error" : undefined}
             onChange={e => { const next = e.target.files?.[0] ?? null; const invalid = next ? guideFileError(next) : null;
@@ -102,7 +105,7 @@ function GuideUpload({ guide, onSaved, onClose, restoreFocus }: { guide: GuideVi
           {progress !== null && <div className="gd-upload-progress"><Progress value={progress} aria-label="Video upload progress" /><span aria-hidden="true">{progress}%</span></div>}
         </div>}
         <p className="gd-upload-note"><ShieldCheck />Drafts are visible only to super admins. Published guides are shared with all org admins.</p>
-        {error && <p id="guide-upload-error" className="gd-form-error" role="alert">{error}</p>}
+        {error && <Alert id="guide-upload-error" variant="destructive" className="gd-form-error" role="alert"><AlertDescription>{error}</AlertDescription></Alert>}
         <div className="gd-form-actions"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
           <Button type="submit" variant="outline" value="draft">Save draft</Button><Button type="submit" value="published">{guide?.is_published ? "Save changes" : "Publish guide"}</Button></div>
       </fieldset>
@@ -134,11 +137,11 @@ export function GuideLibrary({ guides, isSuperAdmin }: { guides: GuideVideo[]; i
   return <div className="gd-root gd-main">
     <header className="gd-header"><div><h1>Guide</h1><p>Know your way around. Run your race with confidence.</p></div>
       {isSuperAdmin && <div className="gd-actions"><Button variant="outline" onClick={() => { setManage(!manage); resetFilters(); }}>{manage ? "Browse guides" : "Manage guides"}</Button><Button onClick={() => openUpload(null)}><Plus />Upload video</Button></div>}</header>
-    {notice && <div className="gd-notice" role="status"><Check /><span>{notice}</span><button onClick={() => setNotice("")} aria-label="Dismiss notification"><X /></button></div>}
+    {notice && <div className="gd-notice" role="status"><Check /><span>{notice}</span><PrimitiveButton variant="ghost" onClick={() => setNotice("")} aria-label="Dismiss notification"><X /></PrimitiveButton></div>}
     <div className="gd-tools"><div className="gd-search"><Search aria-hidden="true" /><Input ref={search} type="search" aria-label="Search guides" placeholder="Search by title, topic, or description…" value={query} onChange={e => setQuery(e.target.value)} />
-      {query && <button className="gd-clear" onClick={() => { setQuery(""); search.current?.focus(); }} aria-label="Clear search"><X /></button>}</div>
-      <label className="gd-sort"><span className="gd-sr">Sort guides</span><select value={sort} onChange={e => setSort(e.target.value)}><option value="recommended">Recommended</option><option value="az">Title A–Z</option><option value="shortest">Shortest first</option></select><ChevronDown /></label></div>
-    <div className="gd-topics" aria-label="Filter by topic">{topics.map(t => <button key={t} aria-pressed={topic === t} onClick={() => setTopic(t)}>{t}</button>)}</div>
+      {query && <PrimitiveButton variant="ghost" className="gd-clear" onClick={() => { setQuery(""); search.current?.focus(); }} aria-label="Clear search"><X /></PrimitiveButton>}</div>
+      <label className="gd-sort"><span className="gd-sr">Sort guides</span><FormSelect value={sort} onChange={e => setSort(e.target.value)}><option value="recommended">Recommended</option><option value="az">Title A–Z</option><option value="shortest">Shortest first</option></FormSelect></label></div>
+    <div className="gd-topics" aria-label="Filter by topic">{topics.map(t => <PrimitiveButton variant="ghost" key={t} aria-pressed={topic === t} onClick={() => setTopic(t)}>{t}</PrimitiveButton>)}</div>
     {!filtered.length ? <div className="gd-empty"><Search /><h2>{!available.length ? "Guides are on their way" : "No matching guides"}</h2>
       <p>{!available.length ? "Video guides published by Race Pace will appear here." : "Try a shorter search, another topic, or clear your filters."}</p>
       {!!available.length && <Button variant="outline" onClick={resetFilters}>Clear filters</Button>}
@@ -147,17 +150,17 @@ export function GuideLibrary({ guides, isSuperAdmin }: { guides: GuideVideo[]; i
         <p>Published guides are visible to org admins. Drafts are visible only to super admins.</p>
         {filtered.map(g => <div key={g.id} className="gd-manage-row"><FileVideo /><div><h3>{g.title}</h3><p>{g.topic} · {g.is_published ? "Published" : "Draft"}</p></div><Button variant="outline" onClick={() => openUpload(g)}>Edit guide</Button></div>)}</section>
         : <>
-          {!query.trim() && topic === "All guides" && featured && <section className="gd-feature"><button className="gd-feature-image" onClick={() => openWatch(featured.id)} aria-label={`Watch ${featured.title}`}><Thumbnail guide={featured} /></button>
+          {!query.trim() && topic === "All guides" && featured && <section className="gd-feature"><PrimitiveButton variant="ghost" className="gd-feature-image" onClick={() => openWatch(featured.id)} aria-label={`Watch ${featured.title}`}><Thumbnail guide={featured} /></PrimitiveButton>
             <div className="gd-feature-copy"><span className="gd-topic-label">{featured.topic}</span><h2>{featured.title}</h2><p>{featured.description}</p><Button onClick={() => openWatch(featured.id)}><Play />Watch walkthrough <span>{guideDuration(featured.duration_seconds)}</span></Button></div></section>}
           <div className="gd-section-title"><h2>{query ? "Search results" : "Browse video guides"}</h2><p className="gd-count" role="status">{filtered.length} {filtered.length === 1 ? "guide" : "guides"}{topic !== "All guides" ? ` in ${topic}` : " available"}{query ? ` matching “${query}”` : ""}</p></div>
-          <div className="gd-video-grid">{filtered.map(g => <button className="gd-video-card" key={g.id} onClick={() => openWatch(g.id)}><Thumbnail guide={g} /><span className="gd-topic-label">{g.topic}</span><h3>{g.title}</h3><p>{g.description}</p></button>)}</div>
+          <div className="gd-video-grid">{filtered.map(g => <PrimitiveButton variant="ghost" className="gd-video-card" key={g.id} onClick={() => openWatch(g.id)}><Thumbnail guide={g} /><span className="gd-topic-label">{g.topic}</span><h3>{g.title}</h3><p>{g.description}</p></PrimitiveButton>)}</div>
         </>}
     <footer className="gd-footer"><ShieldCheck />Guides from Race Pace. Available to every organization admin.</footer>
     <Dialog open={!!watch} onOpenChange={open => { if (!open) setWatchId(null); }}><DialogContent className="gd-dialog gd-watch-dialog" onCloseAutoFocus={e => { e.preventDefault(); restoreFocus(); }}>
       {watch && <><DialogHeader><DialogTitle>{watch.title}</DialogTitle><DialogDescription>{watch.topic} · {guideDuration(watch.duration_seconds)}</DialogDescription></DialogHeader>
         <Player guide={watch} /><p className="gd-watch-description">{watch.description}</p>
         {available.some(g => g.topic === watch.topic && g.id !== watch.id && g.is_published) && <div className="gd-related"><h3>More in {watch.topic}</h3>
-          {available.filter(g => g.topic === watch.topic && g.id !== watch.id && g.is_published).slice(0, 3).map(g => <button key={g.id} onClick={() => setWatchId(g.id)}>{g.title}<Play aria-hidden="true" /></button>)}</div>}</>}
+          {available.filter(g => g.topic === watch.topic && g.id !== watch.id && g.is_published).slice(0, 3).map(g => <PrimitiveButton variant="ghost" key={g.id} onClick={() => setWatchId(g.id)}>{g.title}<Play aria-hidden="true" /></PrimitiveButton>)}</div>}</>}
     </DialogContent></Dialog>
     {upload && isSuperAdmin && <GuideUpload guide={upload.guide} restoreFocus={restoreFocus} onClose={() => setUpload(null)} onSaved={published => {
       setUpload(null); setNotice(published ? "Guide published. Org admins can now watch it." : "Draft saved. Only super admins can see it.");

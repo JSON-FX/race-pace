@@ -1,5 +1,8 @@
 "use client";
 
+import { Spinner } from "@/components/ui/spinner";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Map as MlMap, Marker, NavigationControl, AttributionControl, type GeoJSONSource } from "maplibre-gl";
 import { Undo2, Redo2, Trash2, MapPin, Check, X, Loader2 } from "lucide-react";
@@ -11,6 +14,7 @@ import {
 } from "@race-pace/shared";
 import { buildRoute } from "../lib/snap";
 import { Button } from "./ui/button";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "./ui/dialog";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 /**
@@ -30,12 +34,15 @@ export function CourseDrawEditor({
   center,
   onCancel,
   onSave,
+  onReturnFocus,
 }: {
   initialRoute: RoutePoint[] | null;
   center: [number, number];
   onCancel: () => void;
   onSave: (route: RoutePoint[]) => void;
+  onReturnFocus?: () => void;
 }) {
+  const returnFocus = useRef(typeof document === "undefined" ? null : document.activeElement as HTMLElement | null);
   const holder = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MlMap | null>(null);
   const markers = useRef<Marker[]>([]);
@@ -239,7 +246,10 @@ export function CourseDrawEditor({
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-background">
+    <Dialog open onOpenChange={(open) => { if (!open) onCancel(); }}>
+    <DialogContent data-fullscreen="true" showCloseButton={false} className="inset-0 top-0 left-0 flex h-dvh w-screen max-w-none translate-x-0 translate-y-0 flex-col gap-0 p-0 sm:max-w-none" onCloseAutoFocus={(event) => { event.preventDefault(); if (onReturnFocus) onReturnFocus(); else returnFocus.current?.focus(); }}>
+      <DialogTitle className="sr-only">Draw the course</DialogTitle>
+      <DialogDescription className="sr-only">Place waypoints on the map. Cancel keeps the original course. Use this course saves the displayed route.</DialogDescription>
       <div className="flex flex-wrap items-center gap-2 border-b border-divider px-5 py-3">
         <span className="mr-2 text-[14px] font-semibold">Draw the course</span>
 
@@ -259,16 +269,16 @@ export function CourseDrawEditor({
           <Trash2 size={14} className="mr-1.5" /> Clear
         </Button>
 
-        <label className="ml-2 inline-flex cursor-pointer items-center gap-2 rounded-md border border-border px-3 py-1.5 text-[13px]">
-          <input type="checkbox" checked={snap} onChange={(e) => setSnap(e.target.checked)} />
+        <Label className="ml-2 inline-flex cursor-pointer items-center gap-2 border px-3 py-1.5">
+          <Checkbox  checked={snap} onCheckedChange={(checked) => setSnap(checked === true)} />
           Snap to trails
-        </label>
+        </Label>
 
         <div className="ml-auto flex items-center gap-4">
           <span className="text-[13px] text-muted-foreground">
             {routing ? (
               <span className="inline-flex items-center gap-1.5">
-                <Loader2 size={13} className="animate-spin" /> routing…
+                <Spinner size={13} className="animate-spin" /> routing…
               </span>
             ) : (
               <>
@@ -325,7 +335,8 @@ export function CourseDrawEditor({
           </div>
         ) : null}
       </div>
-    </div>
+    </DialogContent>
+    </Dialog>
   );
 }
 

@@ -1,3 +1,6 @@
+import { Badge } from "@/components/ui/badge";
+import { Status } from "@race-pace/ui";
+
 import { notFound } from "next/navigation";
 import { Landmark, Percent, ShieldCheck, TrendingUp, Wallet } from "lucide-react";
 import { getMyRoles } from "@/lib/queries/roles";
@@ -57,9 +60,9 @@ export default async function CommissionPage() {
         <b className="text-[13.5px] font-bold">Platform scope</b>
         <span className="text-[12px] font-semibold text-white/60">All organizations · super admin</span>
         <span className="flex-1" />
-        <span className="rounded-pill bg-white/15 px-2.5 py-[3px] text-[11px] font-bold tabular-nums">
+        <Badge variant="secondary" className="px-2.5 py-[3px] tabular-nums">
           {orgs.length} org{orgs.length === 1 ? "" : "s"}
-        </span>
+        </Badge>
       </div>
 
       <div className="mb-[14px] flex items-start justify-between gap-4">
@@ -140,7 +143,7 @@ export default async function CommissionPage() {
       </KpiRow>
 
       {orgs.length === 0 ? (
-        <Card className="gap-0 overflow-hidden rounded-xl border py-0 shadow-card">
+        <Card className="gap-0 overflow-hidden border py-0">
           <TableEmptyState
             title="No organizations yet"
             description="Commercial terms are set per organization. Provision one and its fee and refund policy will appear here."
@@ -148,12 +151,12 @@ export default async function CommissionPage() {
         </Card>
       ) : (
         <>
-          <Card className="gap-0 overflow-hidden rounded-xl border py-0 shadow-card">
+          <Card className="gap-0 overflow-hidden border py-0">
             <CardHead title="Rate per organization" aside="Applies to future registrations only" />
             <FeeTermsTable orgs={orgs} />
         </Card>
 
-        <Card className="gap-0 overflow-hidden rounded-xl border py-0 shadow-card">
+        <Card className="gap-0 overflow-hidden border py-0">
           <CardHead title="Reservation Platform Fees" aside="Separate from registration commission" />
           <ReservationTermsTable orgs={orgs} />
         </Card>
@@ -161,14 +164,14 @@ export default async function CommissionPage() {
           {/* Refund policy sits on THIS page, under the fee table: one org's
               commercial terms belong on one screen, or an operator negotiating
               with an organizer has to visit two. Design §7. */}
-          <Card className="mt-3 gap-0 overflow-hidden rounded-xl border py-0 shadow-card">
+          <Card className="mt-3 gap-0 overflow-hidden border py-0">
             <CardHead title="Refund policy" aside="What a cancelling runner gets back" />
             <RefundTermsTable orgs={orgs} />
           </Card>
         </>
       )}
 
-      <Card className="mt-3 gap-0 overflow-hidden rounded-xl border py-0 shadow-card">
+      <Card className="mt-3 gap-0 overflow-hidden border py-0">
         <CardHead title="Commission by event" aside="Where the fee actually came from" />
         {events.length === 0 ? (
           <TableEmptyState
@@ -176,7 +179,7 @@ export default async function CommissionPage() {
             description="Fees are struck per registration at confirmation. The first paid entry on any event will show up here."
           />
         ) : (
-          <Table className="text-[12.5px]">
+          <Table className="">
             <TableHeader>
               <TableRow className="hover:bg-transparent">
                 <TableHead className={TH}>Event</TableHead>
@@ -194,19 +197,19 @@ export default async function CommissionPage() {
             <TableBody>
               {events.map((e) => (
                 <TableRow key={e.event_id}>
-                  <TableCell className="px-[14px] py-2.5 font-semibold">{e.event_name}</TableCell>
-                  <TableCell className="px-[14px] text-muted-foreground">{e.org_name}</TableCell>
+                  <TableCell className="px-[14px] py-2.5">{e.event_name}</TableCell>
+                  <TableCell className="px-[14px]">{e.org_name}</TableCell>
                   <TableCell className="px-[14px] text-right tabular-nums">{e.paid_count.toLocaleString()}</TableCell>
                   <TableCell className="px-[14px] text-right tabular-nums">{peso(e.gross)}</TableCell>
                   <TableCell className="px-[14px]">
                     {/* Read off the payments themselves, not off the org's
                         current terms — the fee was frozen per row, so an event
                         that straddled a change honestly reads as blended. */}
-                    <span className="inline-flex items-center rounded-pill bg-info-tint px-2 py-0.5 text-[10.5px] font-bold text-info">
+                    <Status tone="info" className="inline-flex items-center px-2 py-0.5">
                       {e.charged}
-                    </span>
+                    </Status>
                   </TableCell>
-                  <TableCell className="px-[14px] text-right font-semibold tabular-nums">{peso(e.commission)}</TableCell>
+                  <TableCell className="px-[14px] text-right tabular-nums">{peso(e.commission)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -214,7 +217,7 @@ export default async function CommissionPage() {
         )}
       </Card>
 
-      <Card className="mt-3 gap-0 overflow-hidden rounded-xl border py-0 shadow-card">
+      <Card className="mt-3 gap-0 overflow-hidden border py-0">
         <CardHead title="Reservation Platform Fees earned" aside="Separate from registration commission" />
         {reservationRows.length ? <Table>
           <TableHeader><TableRow>
@@ -224,11 +227,11 @@ export default async function CommissionPage() {
             <TableHead className={`${TH} text-right`}>Platform Fees</TableHead>
           </TableRow></TableHeader>
           <TableBody>{reservationRows.map((row) => <TableRow key={row.eventId}>
-            <TableCell className="px-[14px] font-semibold">{row.eventName}</TableCell>
+            <TableCell className="px-[14px]">{row.eventName}</TableCell>
             <TableCell className="px-[14px]">{row.orgName}</TableCell>
             <TableCell className="px-[14px] text-right">{row.paidCount}</TableCell>
             <TableCell className="px-[14px] text-right">{peso(row.grossCents)}</TableCell>
-            <TableCell className="px-[14px] text-right font-semibold">{peso(row.platformFeeCents)}</TableCell>
+            <TableCell className="px-[14px] text-right">{peso(row.platformFeeCents)}</TableCell>
           </TableRow>)}</TableBody>
         </Table> : <div className="px-4 py-6 text-sm text-muted-foreground">No paid reservations yet.</div>}
       </Card>

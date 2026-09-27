@@ -47,7 +47,7 @@ it("shows a platform super admin the unresolved count and provider warning", asy
 
   render(await CheckoutReviewsPage());
   expect(screen.getByText("2 unresolved")).toBeInTheDocument();
-  expect(screen.getByText("Provider verification required.")).toBeInTheDocument();
+  expect(screen.getByText("Verify each checkout with PayMongo")).toBeInTheDocument();
   expect(screen.getByText("Trail 40")).toBeInTheDocument();
   expect(screen.getByText("₱1,250.50")).toBeInTheDocument();
   expect(screen.getByText("reg-1")).toBeInTheDocument();

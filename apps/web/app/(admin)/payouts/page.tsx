@@ -1,3 +1,5 @@
+import { Badge } from "@/components/ui/badge";
+
 import { notFound } from "next/navigation";
 import { ShieldCheck, Banknote, Landmark, PauseCircle, CheckCircle2 } from "lucide-react";
 import { getMyRoles } from "@/lib/queries/roles";
@@ -82,9 +84,9 @@ export default async function PayoutsPage() {
         <b className="text-[13.5px] font-bold">Platform scope</b>
         <span className="text-[12px] font-semibold text-white/60">All organizations · super admin</span>
         <span className="grow" />
-        <span className="rounded-pill bg-white/15 px-[9px] py-[3px] text-[11px] font-bold tabular-nums">
+        <Badge variant="secondary" className="px-[9px] py-[3px] tabular-nums">
           {peso(kpis.totalOwedCents)} owed
-        </span>
+        </Badge>
       </div>
 
       <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
@@ -138,14 +140,14 @@ export default async function PayoutsPage() {
         />
       </KpiRow>
 
-      <Card className="gap-0 overflow-hidden rounded-xl border py-0 shadow-card">
+      <Card className="gap-0 overflow-hidden border py-0">
         {rows.length === 0 ? (
           <TableEmptyState
             title="No payout statements yet"
             description="Statements are cut manually, one per event. Choose an event above to open the first one."
           />
         ) : (
-          <Table className="text-[12.5px]">
+          <Table className="">
             <TableHeader>
               <TableRow className="hover:bg-transparent">
                 <TableHead>Event</TableHead>
@@ -213,7 +215,7 @@ export default async function PayoutsPage() {
                         sign, the words "owed back", and the destructive tone.
                         Anyone reading in greyscale, or colour-blind, still
                         gets an unambiguous answer. */}
-                    <TableCell className={cn("py-2.5 text-right tabular-nums", owedBack && "text-destructive")}>
+                    <TableCell className={cn("py-2.5 text-right tabular-nums", owedBack && "")}>
                       <div className="font-bold">
                         {owedBack ? `${MINUS}${peso(Math.abs(row.net_owed_cents))}` : peso(row.net_owed_cents)}
                       </div>
@@ -235,7 +237,7 @@ export default async function PayoutsPage() {
                         <Button
                           size="sm"
                           variant="outline"
-                          className="rounded-pill"
+                          className=""
                           disabled
                           title="This event has not finished. Refresh the statement after it ends, then record the payout."
                         >
@@ -300,7 +302,7 @@ export default async function PayoutsPage() {
       <section className="mt-8" aria-labelledby="reservation-payouts-heading">
         <h2 id="reservation-payouts-heading" className="text-lg font-bold">Early reservation payouts</h2>
         <p className="mt-1 text-sm text-muted-foreground">These separate charges are settled after the event finishes.</p>
-        <Card className="mt-4 gap-0 overflow-x-auto rounded-xl border py-0 shadow-card">
+        <Card className="mt-4 gap-0 overflow-x-auto border py-0">
           {reservationRows.length ? <Table>
             <TableHeader><TableRow>
               <TableHead>Event</TableHead><TableHead className="text-right">Paid</TableHead>
@@ -316,7 +318,7 @@ export default async function PayoutsPage() {
                 <TableCell className="text-right tabular-nums">{peso("gross_cents" in amount ? amount.gross_cents : amount.grossCents)}</TableCell>
                 <TableCell className="text-right tabular-nums">{peso("platform_fee_cents" in amount ? amount.platform_fee_cents : amount.platformFeeCents)}</TableCell>
                 <TableCell className="text-right tabular-nums">{peso("processor_fee_cents" in amount ? amount.processor_fee_cents : amount.processorFeeCents)}</TableCell>
-                <TableCell className="text-right font-semibold tabular-nums">{peso("net_to_org_cents" in amount ? amount.net_to_org_cents : amount.netToOrgCents)}</TableCell>
+                <TableCell className="text-right tabular-nums">{peso("net_to_org_cents" in amount ? amount.net_to_org_cents : amount.netToOrgCents)}</TableCell>
                 <TableCell>{row.statement?.status === "paid" ? <span className="text-xs">Paid · {row.statement.reference}</span>
                   : row.eventFinished ? <ReservationPayoutControls eventId={row.eventId} statement={row.statement} />
                   : <span className="text-xs text-muted-foreground">After event end</span>}</TableCell>

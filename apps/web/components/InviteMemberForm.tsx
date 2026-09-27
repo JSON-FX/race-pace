@@ -1,5 +1,6 @@
 "use client";
 
+import { FormSelect } from "@race-pace/ui";
 import { useActionState, useState } from "react";
 import { inviteMemberAction, type TeamState } from "@/lib/actions/team";
 import { ASSIGNABLE_ROLES, ROLE_LABELS } from "@/lib/team-roles";
@@ -55,10 +56,10 @@ export function InviteMemberForm({
         </SelectContent>
       </Select>
       {(role === "marshal" || role === "claiming") && (
-        <select
+        <FormSelect
           name="eventScope"
           aria-label="Event access"
-          className="h-9 max-w-60 rounded-lg border bg-background px-2 text-sm"
+          className="h-9 max-w-60 border px-2"
           defaultValue=""
         >
           <option value="">All organization events</option>
@@ -67,7 +68,7 @@ export function InviteMemberForm({
               {event.name}
             </option>
           ))}
-        </select>
+        </FormSelect>
       )}
       <Button type="submit" disabled={pending}>
         {pending ? "Inviting…" : "Invite"}
