@@ -12,7 +12,7 @@ const TITLES: Record<string, string> = {
   "/dashboard": "Dashboard", "/events": "Events", "/registrations": "Registrations",
   "/race-kits": "Race kits", "/payments": "Payments", "/check-in": "Race-day check-in", "/settings": "Settings",
   "/organizations": "Organizations", "/commission": "Commission", "/payouts": "Payout statements",
-  "/checkout-reviews": "Checkout reviews",
+  "/checkout-reviews": "Checkout reviews", "/guide": "Guide",
 };
 
 export function TopBar({
