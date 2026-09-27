@@ -1,0 +1,5 @@
+node_modules/
+dist/
+verification/
+public/fieldnotes/guide-assets/*.mp4
+node_modules

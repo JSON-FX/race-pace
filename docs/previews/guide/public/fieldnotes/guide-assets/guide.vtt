@@ -1,0 +1,256 @@
+WEBVTT
+
+00:00:00.800 --> 00:00:06.750
+Create an event, prepare registration, and help every runner reach their own race ticket.
+
+00:00:07.367 --> 00:00:13.167
+We will cover personal Race Passports, managed Passports, and group booking when available.
+
+00:00:13.767 --> 00:00:19.417
+The screens use fictional examples. No events or payments are created in production.
+
+00:00:21.233 --> 00:00:26.458
+Sign in as an organization admin and select the correct organization.
+
+00:00:27.067 --> 00:00:30.542
+Open Events in the sidebar, then choose New event.
+
+00:00:31.167 --> 00:00:34.592
+Start with Draft while you prepare the event details.
+
+00:00:36.400 --> 00:00:40.725
+Enter the Event name, then review the generated Public event link.
+
+00:00:41.333 --> 00:00:47.233
+Use lowercase words and hyphens. The public link becomes fixed after publication.
+
+00:00:47.833 --> 00:00:51.883
+Choose the Discipline, and enter the Date for a regular event.
+
+00:00:52.500 --> 00:00:56.500
+Keep Status as Draft until the event is ready to publish.
+
+00:00:58.300 --> 00:01:03.500
+If the date or distances are still undecided, check Display as coming soon.
+
+00:01:04.100 --> 00:01:11.225
+A public Coming Soon page needs five fields: name, public link, discipline, image, and description.
+
+00:01:11.833 --> 00:01:15.608
+The event date and race categories can be completed later.
+
+00:01:17.433 --> 00:01:21.408
+Write a clear Description explaining what runners can expect.
+
+00:01:22.033 --> 00:01:26.283
+In Images, choose Add images and upload your event photos.
+
+00:01:26.900 --> 00:01:30.875
+Choose the star on the image you want as the featured image.
+
+00:01:31.500 --> 00:01:36.450
+You can add up to eight images. The runner page displays the event gallery.
+
+00:01:38.267 --> 00:01:42.542
+Location and Venue can wait while you confirm the meeting point.
+
+00:01:43.167 --> 00:01:48.242
+Course details, the route, elevation gain, and cutoff hours are optional.
+
+00:01:48.867 --> 00:01:53.142
+Schedule, inclusions, and add-ons can also be filled later.
+
+00:01:53.767 --> 00:02:00.042
+End date and Flag-off are optional. Set registration and kit deadlines when you need them.
+
+00:02:00.667 --> 00:02:07.817
+Before opening registration, finish the event date, category allocation, and assigned organizer waiver.
+
+00:02:09.633 --> 00:02:15.583
+For Coming Soon, enable Notify me if you want runners to receive the opening email.
+
+00:02:16.200 --> 00:02:21.000
+Enable Reserve now only if you want paid event-place reservations.
+
+00:02:21.600 --> 00:02:25.875
+Enter the Reservation fee and a future Entry payment due date.
+
+00:02:26.500 --> 00:02:32.925
+Set Total event slots in Categories. Runners will not see remaining reservation capacity.
+
+00:02:33.533 --> 00:02:41.158
+The reservation fee is separate and nonrefundable. Unpaid registration by the deadline releases the place.
+
+00:02:42.967 --> 00:02:47.342
+Total event slots is the source of truth for event capacity.
+
+00:02:47.967 --> 00:02:53.517
+Choose Add distance and fill Code, Label, Price, and Slots for each category.
+
+00:02:54.133 --> 00:03:00.708
+Category slots divide the total. Here, two hundred plus one hundred equals three hundred places.
+
+00:03:01.333 --> 00:03:09.058
+Coming Soon can leave places unallocated. Opening registration requires the full total to be allocated.
+
+00:03:09.667 --> 00:03:16.992
+A reservation holds an event place. The runner chooses an available category when registration opens.
+
+00:03:18.800 --> 00:03:24.175
+Choose Save event to save your draft or publish the completed Coming Soon page.
+
+00:03:24.800 --> 00:03:30.550
+Open the public event link to check the title, description, featured image, and gallery.
+
+00:03:31.167 --> 00:03:35.867
+A draft is preparation. It is not an open registration page.
+
+00:03:37.667 --> 00:03:42.717
+Before opening registration, go to Settings and find Organizer waiver.
+
+00:03:43.333 --> 00:03:48.483
+If needed, enter your approved waiver text and choose Publish waiver version.
+
+00:03:49.100 --> 00:03:53.500
+In Event waiver, select the saved event and the Published waiver.
+
+00:03:54.100 --> 00:04:00.475
+Choose Use waiver for event. Each participant must review and personally accept that version.
+
+00:04:02.300 --> 00:04:05.425
+Return to Events and edit the saved event.
+
+00:04:06.033 --> 00:04:10.958
+Confirm the Date, Total event slots, and complete category allocation.
+
+00:04:11.567 --> 00:04:14.992
+Change Status to Open, then choose Save event.
+
+00:04:15.600 --> 00:04:20.775
+Review the public page again. Available categories now have a Join button.
+
+00:04:22.600 --> 00:04:26.175
+On the runner site, open Races and choose the event.
+
+00:04:26.800 --> 00:04:31.975
+Read the date, venue, course information, inclusions, and category prices.
+
+00:04:32.600 --> 00:04:36.700
+Find your distance and choose Join. Sign in when prompted.
+
+00:04:37.300 --> 00:04:42.225
+Your Race Passport supplies participant information during registration.
+
+00:04:44.033 --> 00:04:49.658
+On a Coming Soon page, choose Reserve now to select the Passports you want to reserve.
+
+00:04:50.267 --> 00:04:55.842
+Select only your own Passport for yourself, or include the managed Passports you need.
+
+00:04:56.467 --> 00:05:01.517
+Each selected Passport adds one reservation fee and its Platform Fees.
+
+00:05:02.133 --> 00:05:09.483
+A paid reservation holds a place, not a race ticket. Complete registration and payment before its deadline.
+
+00:05:10.100 --> 00:05:14.675
+Notify me is the email option. It does not reserve a place.
+
+00:05:16.500 --> 00:05:21.050
+On Who is joining, choose Register myself for your personal entry.
+
+00:05:21.667 --> 00:05:25.942
+To register someone else, choose their Managed Race Passport card.
+
+00:05:26.567 --> 00:05:32.117
+Use Create or complete a Race Passport if their profile is missing or incomplete.
+
+00:05:32.733 --> 00:05:37.608
+Choose Register several participants when the event offers group checkout.
+
+00:05:39.433 --> 00:05:44.283
+Check your Race Passport details and the emergency contact information.
+
+00:05:44.900 --> 00:05:50.425
+Use Edit Race Passport if anything needs correcting, then return to registration.
+
+00:05:51.033 --> 00:05:56.858
+Choose Continue. On Make this entry yours, fill required kit and event questions.
+
+00:05:57.467 --> 00:06:02.317
+Add optional extras only if you want them, then continue to the review.
+
+00:06:04.133 --> 00:06:08.708
+On One last look, check the runner, kit selections, and entry costs.
+
+00:06:09.333 --> 00:06:13.258
+Open Read event waiver and read the organizer terms.
+
+00:06:13.867 --> 00:06:20.242
+The participant must personally accept the waiver. For a managed Passport, pass them the device.
+
+00:06:20.867 --> 00:06:26.917
+After acceptance, choose Continue to payment. Payment is still needed to secure the ticket.
+
+00:06:28.733 --> 00:06:33.783
+In Your roster, select the personal or managed Passports joining this booking.
+
+00:06:34.400 --> 00:06:39.425
+You can select just yourself, just managed participants, or a combination.
+
+00:06:40.033 --> 00:06:45.533
+Choose an available category for each runner, then Continue with the selected runners.
+
+00:06:46.133 --> 00:06:53.033
+Complete each runner’s kit details and questions. Each participant must personally accept their waiver.
+
+00:06:53.633 --> 00:06:59.833
+Review Booking summary. One payment covers the booking, and each runner gets a separate ticket.
+
+00:07:01.633 --> 00:07:06.608
+For a single entry, review Payment summary and choose Continue to checkout.
+
+00:07:07.233 --> 00:07:11.958
+For a group booking, review the runners and choose Continue to PayMongo.
+
+00:07:12.567 --> 00:07:19.542
+PayMongo shows the enabled payment methods, actual processing fee, and final total before payment.
+
+00:07:20.167 --> 00:07:26.917
+Complete payment within the displayed hold time. Opening checkout alone does not confirm payment.
+
+00:07:28.733 --> 00:07:32.683
+Return to Race Pace and wait for payment confirmation.
+
+00:07:33.300 --> 00:07:39.550
+If payment is pending, no ticket is ready yet. Check the status before trying another payment.
+
+00:07:40.167 --> 00:07:45.392
+After group payment is confirmed, choose View QR ticket beside each runner.
+
+00:07:46.000 --> 00:07:51.525
+Your own entries are in My Races. Entries you manage are in Bookings I manage.
+
+00:07:52.133 --> 00:07:57.933
+Open the correct runner’s ticket and choose Save as PDF or Print for race day.
+
+00:07:59.733 --> 00:08:04.433
+Back in the admin site, open Registrations and select the event.
+
+00:08:05.033 --> 00:08:09.083
+Search for the runner and check that the registration is Paid.
+
+00:08:09.700 --> 00:08:16.375
+Managed participants have individual registration records, even when one group payment covers them.
+
+00:08:17.000 --> 00:08:23.175
+Coming Soon reservations appear separately. They do not replace completed event registrations.
+
+00:08:25.000 --> 00:08:30.875
+Prepare the event, assign the waiver, allocate category slots, and open registration.
+
+00:08:31.500 --> 00:08:36.400
+Choose the right Passports, review each entry, and complete secure payment.
+
+00:08:37.000 --> 00:08:42.175
+Confirm payment and keep each runner’s own QR ticket ready for race day.

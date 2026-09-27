@@ -1,7 +1,17 @@
 # Web and admin launch progress
 
-Updated: 2026-09-26. Overall: MVP RELEASED; FIELDNOTES ADMIN AND TRAIL ATLAS ORGANIZERS IN PRODUCTION; OWNER CHECKOUT PENDING.
+Updated: 2026-09-27. Overall: MVP RELEASED; FIELDNOTES ADMIN AND TRAIL ATLAS ORGANIZERS IN PRODUCTION; OWNER CHECKOUT PENDING.
 Scope: runner website and admin only. The first release is a controlled pilot with one organizer and PayMongo. Production contains real organizer and event data; add no synthetic data.
+
+### Organization admin Guide — 2026-09-27
+
+| Work | Status | Blocker | Next task |
+|---|---|---|---|
+| Design selection | **Owner selected Video Library; Fieldnotes adapters and approved responsive composition synchronized into the application.** | None. | Preserve selected composition during staging review. |
+| Local implementation | **Guide route, navigation, search/filter/sort, real upload, title/description/topic editing, drafts/publishing, generated thumbnails, and private video playback implemented on `codex/org-guide-prototypes`, based on staging `1188768`.** | None locally. | Review implementation report. |
+| Permission and UI checks | **Private metadata/object RLS, org-admin shared published reads, super-admin writes, draft/orphan denial, real browser upload/playback, two-org access, keyboard focus, and desktop/tablet/mobile fit verified. Typechecks, app builds, and tests pass.** | Hosted checks remain pending. | Apply migration `20260927010129` and reviewed app revision to staging under the owner's staging release authorization. |
+| Hosted delivery | **No Guide code, migration, sample row, or media deployed to staging or production.** | Owner authorized staging release; deployment in progress. | Verify hosted Storage global cap and full role/upload/playback flow before production promotion. |
+
 
 ### Coming Soon events and paid reservations
 
