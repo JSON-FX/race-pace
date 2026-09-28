@@ -5,14 +5,15 @@ import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
+import { ChevronsUpDown, LogOut, Moon, Sun } from "lucide-react";
+import { useTheme } from "next-themes";
 import {
   Sidebar as UISidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent,
   SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarRail,
 } from "@/components/ui/sidebar";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { PhotoAvatar } from "@/components/PhotoAvatar";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { ThemeToggle } from "./ThemeToggle";
 import { LinkPending } from "./NavProgress";
 import { signOutAction } from "@/lib/actions/auth";
 import type { MyRoles } from "@/lib/queries/roles";
@@ -53,11 +54,12 @@ function NavItem({ to, label, icon: Icon, count }: Item & { count?: number }) {
 }
 
 export function Sidebar({
-  roles, email, orgName, orgLogoUrl, counts,
-}: { roles: MyRoles; email: string; orgName: string | null; orgLogoUrl?: string | null; counts: NavCounts }) {
+  roles, email, orgName, userAvatarUrl, counts,
+}: { roles: MyRoles; email: string; orgName: string | null; userAvatarUrl?: string | null; counts: NavCounts }) {
   const local = email.split("@")[0] || "admin";
   const initials = local.slice(0, 2).toUpperCase();
   const role = roles.isSuperAdmin ? "Super admin" : ROLE_LABELS[roles.role as AssignableRole] ?? "Staff";
+  const { resolvedTheme, setTheme } = useTheme();
 
   return (
     <UISidebar collapsible="icon">
@@ -106,33 +108,40 @@ export function Sidebar({
         ) : null}
       </SidebarContent>
 
-      <SidebarFooter>
-        <div className="flex items-center gap-2.5 border-t border-sidebar-border px-2 pt-3">
-          {/* The org's own logo, the same one on its public event pages — this
-              footer names the organization the admin is signed in to, so showing
-              its branding beats two letters of an email local-part. */}
-          <PhotoAvatar
-            url={orgLogoUrl}
-            className="size-[30px]"
-            fallbackClassName="bg-accent text-[11.5px] font-bold text-accent-foreground"
-            fallback={initials}
-          />
-          <div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
-            <div className="truncate text-[12.5px] font-bold">{local}</div>
-            <div className="text-[10.5px] text-muted-foreground">{role}</div>
-          </div>
-          <ThemeToggle />
-          <form action={signOutAction} className="group-data-[collapsible=icon]:hidden">
-            <Button
-              type="submit"
-              variant="ghost"
-              size="sm"
-              className=""
-            >
-              Sign out
-            </Button>
-          </form>
-        </div>
+      <SidebarFooter className="border-t border-sidebar-border">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <SidebarMenuButton size="lg" title="Account" aria-label={`Account actions for ${local}`} className="min-w-0">
+                  <PhotoAvatar
+                    url={userAvatarUrl}
+                    className="size-8"
+                    fallbackClassName="bg-accent text-[11.5px] font-bold text-accent-foreground"
+                    fallback={initials}
+                  />
+                  <span className="grid min-w-0 flex-1 text-left leading-tight group-data-[collapsible=icon]:hidden">
+                    <span className="truncate text-[12.5px] font-bold">{local}</span>
+                    <span className="truncate text-[10.5px] text-muted-foreground">{role}</span>
+                  </span>
+                  <ChevronsUpDown className="ml-auto size-4 group-data-[collapsible=icon]:hidden" aria-hidden="true" />
+                </SidebarMenuButton>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent side="top" align="start" className="min-w-48">
+                <DropdownMenuItem onSelect={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}>
+                  {resolvedTheme === "dark" ? <Sun /> : <Moon />}
+                  Toggle dark mode
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <form action={signOutAction}>
+                  <DropdownMenuItem asChild>
+                    <button type="submit" className="w-full"><LogOut />Sign out</button>
+                  </DropdownMenuItem>
+                </form>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarFooter>
       <SidebarRail />
     </UISidebar>

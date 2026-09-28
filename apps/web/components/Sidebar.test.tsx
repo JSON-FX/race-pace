@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import type { MyRoles } from "@/lib/queries/roles";
 import type { Capability } from "@/lib/capabilities";
@@ -86,6 +87,28 @@ it("shows the caller's email-derived name and role label", () => {
   renderSidebar(roles({ isSuperAdmin: true }));
   expect(screen.getByText("admin")).toBeInTheDocument();
   expect(screen.getByText("Super admin")).toBeInTheDocument();
+});
+
+it("keeps the signed-in user's avatar when the active organization changes", () => {
+  const userAvatarUrl = "https://example.test/admin-avatar.png";
+  const r = roles({ isSuperAdmin: true, capabilities: SUPER_CAPS });
+  const view = (orgName: string) => <SidebarProvider>
+    <Sidebar roles={r} email="admin@racepace.test" orgName={orgName} userAvatarUrl={userAvatarUrl} counts={null} />
+  </SidebarProvider>;
+  const { rerender } = render(view("First organization"));
+  const account = screen.getByRole("button", { name: "Account actions for admin" });
+  expect(account.querySelector("img")).toHaveAttribute("src", userAvatarUrl);
+
+  rerender(view("Second organization"));
+  expect(screen.getByText("Second organization")).toBeInTheDocument();
+  expect(account.querySelector("img")).toHaveAttribute("src", userAvatarUrl);
+});
+
+it("keeps theme and sign-out actions in the account menu", async () => {
+  renderSidebar(roles({ isSuperAdmin: true, capabilities: SUPER_CAPS }));
+  await userEvent.click(screen.getByRole("button", { name: "Account actions for admin" }));
+  expect(screen.getByRole("menuitem", { name: "Toggle dark mode" })).toBeInTheDocument();
+  expect(screen.getByRole("menuitem", { name: "Sign out" })).toBeInTheDocument();
 });
 
 it("shows nav-count pills for Events and Registrations when counts are provided", () => {

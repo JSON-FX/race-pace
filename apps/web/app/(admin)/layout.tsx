@@ -34,10 +34,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const orgContext = await getOrgContext();
 
   const orgId = requireOrgId(roles);
-  // One getOrg call for both the name badge and the sidebar footer's logo;
-  // it is cache()d, so this stays a single round trip.
+  // The organization name changes with the switcher. The account photo must
+  // always come from the signed-in user's own profile.
   const org = orgId ? await getOrg(orgId) : null;
   const orgName = org?.name ?? null;
+  const { data: profile } = await supabase.from("profiles").select("avatar_url").eq("id", user.id).maybeSingle();
   // Sidebar nav-count pills (Events, Registrations) are real data, not
   // props threaded from a page. A bare super_admin with orgId: null has no
   // org to count against — counts stays null and Sidebar renders the nav
@@ -55,7 +56,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         roles={roles}
         email={user.email ?? ""}
         orgName={orgName}
-        orgLogoUrl={org?.logo_url ?? null}
+        userAvatarUrl={profile?.avatar_url ?? null}
         counts={counts}
         orgContext={orgContext}
       >
