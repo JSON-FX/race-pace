@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/sidebar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { PhotoAvatar } from "@/components/PhotoAvatar";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { LinkPending } from "./NavProgress";
 import { signOutAction } from "@/lib/actions/auth";
@@ -135,7 +136,7 @@ export function Sidebar({
                 <DropdownMenuSeparator />
                 <form action={signOutAction}>
                   <DropdownMenuItem asChild>
-                    <button type="submit" className="w-full"><LogOut />Sign out</button>
+                    <Button type="submit" variant="ghost" size="sm" className="w-full justify-start"><LogOut />Sign out</Button>
                   </DropdownMenuItem>
                 </form>
               </DropdownMenuContent>
