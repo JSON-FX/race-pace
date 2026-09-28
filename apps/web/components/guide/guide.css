@@ -70,7 +70,7 @@ button:hover .gd-recording + .gd-play { transform: scale(1.08); }
 .gd-section-title h2 { font-size: 18px; font-weight: 650; letter-spacing: -.015em; }
 .gd-count { color: var(--gd-muted-foreground); font-size: 12px; }
 .gd-video-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); column-gap: 24px; row-gap: 30px; }
-.gd-video-card { text-align: left; padding: 0; display: block; }
+.gd-video-card { align-self: start; text-align: left; padding: 0; display: block; }
 .gd-video-card h3 { font-size: 15px; font-weight: 650; line-height: 1.35; margin-top: 4px; }
 .gd-video-card p { font-size: 12px; color: var(--gd-muted-foreground); line-height: 1.6; margin-top: 7px; }
 .gd-topic-label { display: block; font-size: 11px; color: var(--gd-muted-foreground); }
