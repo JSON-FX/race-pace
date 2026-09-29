@@ -46,6 +46,7 @@ export default async function ReservationPage({ params, searchParams }: {
       <p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-300">Race Pace / Early reservation</p>
       <h1 className="mt-3 text-4xl font-black uppercase tracking-tight sm:text-6xl">{event.name}</h1>
       <ReservationStatusPanel id={id} initialStatus={reservation.status} returned={returned === "1"}
+        categoryBound={categoryPlaces.length > 0}
         remaining={places?.length ? places.filter((place) => place.status === "held").length : reservation.status === "converted" ? 0 : 1} />
       <section className="mt-6 rounded-xl border border-white/20 p-5" aria-label="Reserved Race Passports">
         <h2 className="text-sm font-bold uppercase tracking-wider">{reservation.quantity} {reservation.quantity === 1 ? "event place" : "event places"}</h2>
