@@ -1,0 +1,7 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Responsive review · Race Pace proposal</title>
+<style>body{margin:0;background:#e8eee3;font:14px system-ui;color:#1d3829}header{display:flex;gap:12px;align-items:center;padding:12px 20px;background:#fff}button,a{font:inherit;color:inherit}button{padding:9px 15px;border:1px solid #c4d0c1;background:white;border-radius:8px;cursor:pointer}button[aria-pressed=true]{background:#176341;color:white}main{padding:20px;overflow:auto}iframe{display:block;margin:auto;border:1px solid #c4d0c1;background:white;width:390px;height:844px}a{margin-left:auto}</style>
+<header><strong>Responsive review</strong><button data-width="390" aria-pressed="true">Mobile · 390</button><button data-width="768" aria-pressed="false">Tablet · 768</button><button data-width="1280" aria-pressed="false">Desktop · 1280</button><a href="./index.html">Full preview</a></header>
+<main><iframe title="Race Pace responsive prototype" src="./index.html#editor"></iframe></main>
+<script>document.querySelectorAll('button').forEach(button=>button.onclick=()=>{document.querySelector('iframe').style.width=button.dataset.width+'px';document.querySelector('iframe').style.height=button.dataset.width==='390'?'844px':'1000px';document.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));});</script>
+</html>

@@ -58,6 +58,7 @@ jobs:
           ADMIN_APP_URL=http://localhost:3001
           EMAIL_PROVIDER=mailpit
           MAILPIT_SMTP_HOST=inbucket
+          PUBLIC_FUNCTIONS_URL=http://127.0.0.1:54521/functions/v1
           EOF
           echo 'SUPABASE_FUNCTIONS_ENV_FILE=/tmp/racepace-ci-functions.env' >> "$GITHUB_ENV"
           nohup pnpm exec supabase functions serve --no-verify-jwt --env-file /tmp/racepace-ci-functions.env > /tmp/racepace-ci-edge.log 2>&1 &

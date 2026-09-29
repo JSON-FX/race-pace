@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import type { EventRow, CategoryRow, AddonRow } from "@/lib/events";
 import type { MyEntry } from "@/lib/entry";
 import { EventPageBody } from "../EventPageBody";
@@ -36,7 +36,7 @@ function renderBody(
   categories = [cat()],
   addons: AddonRow[] = [],
   closed = false,
-  opts: { myEntry?: MyEntry | null; registrationClosesAt?: string | null } = {},
+  opts: { myEntry?: MyEntry | null; registrationClosesAt?: string | null; screeningRequestId?: string } = {},
 ) {
   return render(
     <EventPageBody
@@ -45,6 +45,7 @@ function renderBody(
       addons={addons}
       closed={closed}
       myEntry={opts.myEntry ?? null}
+      screeningRequestId={opts.screeningRequestId}
       registrationClosesAt={opts.registrationClosesAt ?? null}
     />,
   );
@@ -62,6 +63,15 @@ describe("EventPageBody — distances", () => {
     renderBody({}, [cat({ slots_taken: 120 })]);
     expect(screen.getByText("Sold out")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Join/ })).not.toBeInTheDocument();
+  });
+
+  it("uses ledger availability when review holds fill general capacity but reservations remain", () => {
+    renderBody({}, [cat({ slots_taken: 18, general_available: 0, total_available: 20,
+      reservation_available: 20, reservation_enabled: true, reservation_slots: 20,
+      reservation_fee_cents: 50000, reservation_sales_close_at: "2099-01-01T00:00:00Z" })]);
+    expect(screen.getByText("General entries full")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Join 60K Ultra/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Reserve for/ })).toBeInTheDocument();
   });
 
   it("says registration is closed — not 'sold out' — once the event closes", () => {
@@ -319,12 +329,13 @@ describe("EventPageBody — sections appear only when they have data", () => {
   });
 
   it("shows inclusions when populated and omits the section when not", () => {
-    const { unmount } = renderBody({ inclusions: ["Race kit, bib, and timing chip"] });
+    const { unmount } = renderBody({}, [cat({ inclusions: ["Race kit, bib, and timing chip"] })]);
+    fireEvent.click(screen.getByRole("button", { name: "What’s included" }));
     expect(screen.getByText("Race kit, bib, and timing chip")).toBeInTheDocument();
     unmount();
 
-    renderBody({ inclusions: [] });
-    expect(screen.queryByText("In your entry")).not.toBeInTheDocument();
+    renderBody({}, [cat({ inclusions: [] })]);
+    expect(screen.queryByText("What’s included")).not.toBeInTheDocument();
   });
 
   it("shows add-ons when there are any, and omits the section when there are none", () => {
@@ -388,4 +399,9 @@ describe("EventPageBody — hero", () => {
     renderBody({ status_note: "Rescheduled due to typhoon." });
     expect(screen.getByText("Rescheduled due to typhoon.")).toBeInTheDocument();
   });
+});
+
+it("links back to the runner's existing screening request", () => {
+  renderBody({}, [cat()], [], false, { screeningRequestId: "held-request" });
+  expect(screen.getByRole("link", { name: "View my request" })).toHaveAttribute("href", "/prescreening/held-request");
 });

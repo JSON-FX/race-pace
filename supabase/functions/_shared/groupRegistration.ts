@@ -15,6 +15,7 @@ const participant = z.object({
 }).strict();
 
 export const groupReservationInputSchema = z.object({
+  prescreening_batch_id: z.string().uuid().optional(),
   event_id: z.string().uuid(),
   category_id: z.string().uuid().optional(),
   idempotency_key: z.string().uuid(),

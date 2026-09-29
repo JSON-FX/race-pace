@@ -28,7 +28,12 @@ async function latestNote(svc: ReturnType<typeof service>, userId: string) {
 async function cloneEvent(svc: ReturnType<typeof service>, over: Record<string, unknown>) {
   const base = (await svc.from("events").select("*").eq("id", EVENT).single()).data!;
   const { id: _i, created_at: _c, ...rest } = base;
-  return (await svc.from("events").insert({ ...rest, ...over }).select().single()).data!;
+  const event = await svc.from("events").insert({ ...rest, ...over }).select().single();
+  if (event.error) throw event.error;
+  const category = await svc.from("categories").insert({ event_id: event.data.id, org_id: event.data.org_id,
+    code: "test", label: "Test", base_price: 100000, slots_total: 100 }).select("id").single();
+  if (category.error) throw category.error;
+  return { ...event.data, category_id: category.data.id };
 }
 async function notesFor(
   svc: ReturnType<typeof service>, userId: string, type: string, eventId?: string,
@@ -147,7 +152,7 @@ describe("event-change trigger", () => {
     const runner = await makeUser(`et_run_${Date.now()}@test.dev`);
     const ev = await cloneEvent(svc, { name: `ET ${Date.now()}`, status: "open" });
     await svc.from("registrations").insert({
-      org_id: ev.org_id, event_id: ev.id, category_id: CATEGORY,
+      org_id: ev.org_id, event_id: ev.id, category_id: ev.category_id,
       user_id: runner.id, status: "paid", total_amount: 100000, waiver_version_id: ev.waiver_version_id,
     });
 
@@ -204,7 +209,7 @@ describe("event reminders", () => {
     const inDays = (n: number) => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
     const ev = await cloneEvent(svc, { name: `RM ${Date.now()}`, status: "open", event_date: inDays(7) });
     await svc.from("registrations").insert({
-      org_id: ev.org_id, event_id: ev.id, category_id: CATEGORY,
+      org_id: ev.org_id, event_id: ev.id, category_id: ev.category_id,
       user_id: runner.id, status: "paid", total_amount: 100000, waiver_version_id: ev.waiver_version_id,
     });
 

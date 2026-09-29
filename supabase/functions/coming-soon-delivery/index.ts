@@ -1,3 +1,4 @@
+import { renderPrescreeningEmail } from "../_shared/prescreeningEmail.ts";
 import { serviceClient } from "../_shared/supabase.ts";
 import { isAuthorizedBearer } from "../_shared/authz.ts";
 import { sendEmail } from "../_shared/email.ts";
@@ -31,6 +32,31 @@ Deno.serve(async (req) => {
     for (const job of jobs ?? []) {
       let failure: string | null = null;
       try {
+        if (job.type === "prescreening_ready" || job.type === "prescreening_rejected" || job.type === "prescreening_submitted") {
+          const [user, batch] = await Promise.all([
+            db.auth.admin.getUserById(job.user_id),
+            db.from("prescreening_batches").select("id,event_id,booked_by_user_id,status,checkout_intent,payment_deadline_at,events(name),prescreening_applications(id,participant_name,is_managed,decision,rejection_reason,categories(label))")
+              .eq("id", job.payload.batch_id).single(),
+          ]);
+          if (user.error || !user.data.user?.email_confirmed_at || !user.data.user.email || batch.error ||
+            batch.data.booked_by_user_id !== job.user_id || batch.data.event_id !== job.event_id) throw new Error("delivery_read_failed");
+          const b = batch.data;
+          const event = b.events as unknown as { name: string };
+          const applications = b.prescreening_applications as unknown as {id:string;participant_name:string;is_managed:boolean;decision:string;rejection_reason:string|null;categories:{label:string}}[];
+          const relevant = applications.filter(a => job.type === "prescreening_submitted" ? true : job.type === "prescreening_ready" ? a.decision !== "rejected" : a.id === job.payload.application_id);
+          if (!relevant.length) throw new Error("delivery_read_failed");
+          const message = renderPrescreeningEmail({ type: job.type, eventName: event.name,
+            requestUrl: `${site}/prescreening/${b.id}`, intent: b.checkout_intent as "entry" | "reservation",
+            participants: relevant.map(a => ({ name: a.participant_name, category: a.categories.label, decision: a.decision, managed: a.is_managed })),
+            currentStatus: b.status === "ready" && b.payment_deadline_at && Date.parse(b.payment_deadline_at) <= Date.now() ? "expired" : b.status,
+            reason: relevant[0].rejection_reason ?? undefined,
+            deadline: b.payment_deadline_at ? new Intl.DateTimeFormat("en-PH", { timeZone: "Asia/Manila", dateStyle: "long", timeStyle: "short" }).format(new Date(b.payment_deadline_at)) : undefined,
+          });
+          const result = await sendEmail(user.data.user.email, message.subject, message.html, message.text,
+            { idempotencyKey: `screening:${job.id}:${job.payload.delivery_id ?? "initial"}` });
+          if (!result.ok) throw new Error("send_failed");
+          sent++;
+        } else {
         const [user, event, reservation] = await Promise.all([
           db.auth.admin.getUserById(job.user_id),
           db.from("events").select("id,name,slug,status,reservation_deadline_at").eq("id", job.event_id).single(),
@@ -64,6 +90,7 @@ Deno.serve(async (req) => {
         const result = await sendEmail(user.data.user.email, message.subject, message.html, message.text);
         if (!result.ok) throw new Error("send_failed");
         sent++;
+        }
       } catch {
         failure = "delivery_failed";
         failed++;

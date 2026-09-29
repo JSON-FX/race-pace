@@ -68,6 +68,10 @@ export default async function EventPage({ params, searchParams }: PageParams) {
 
   const { data: { user } } = await db.auth.getUser();
 
+  const { data: screeningRequest } = user ? await db.from("prescreening_batches").select("id")
+    .eq("event_id", event.id).eq("booked_by_user_id", user.id).in("status", ["reviewing", "ready"])
+    .order("created_at", { ascending: false }).limit(1).maybeSingle() : { data: null };
+
   if (event.status === "coming_soon") {
     const { data: reservation } = user ? await db.from("event_reservations")
       .select("id,status,quantity").eq("event_id", event.id).eq("user_id", user.id)
@@ -80,8 +84,8 @@ export default async function EventPage({ params, searchParams }: PageParams) {
         .eq("reservation_id", reservation.id).maybeSingle(),
     ]) : [{ data: null }, { data: null }];
     return <><SiteHeader /><main><ComingSoonEventPage
-      event={event} userEmail={user?.email ?? null} reservation={reservation ?? null}
-      reservedPassports={placesResult.data ?? []} reservationPayment={paymentResult.data}
+      event={event} categories={await fetchCategories(db, event.id)} userEmail={user?.email ?? null} reservation={reservation ?? null}
+      screeningRequestId={screeningRequest?.id ?? null} reservedPassports={placesResult.data ?? []} reservationPayment={paymentResult.data}
     /></main></>;
   }
 
@@ -91,7 +95,7 @@ export default async function EventPage({ params, searchParams }: PageParams) {
     fetchCategories(db, event.id),
     fetchAddons(db, event.id),
     fetchMyEntry(db, event.id, user?.id ?? null),
-    user ? db.from("event_reservations").select("id,status,quantity,registration_deadline_at")
+    user ? db.from("event_reservations").select("id,status,quantity,registration_deadline_at,reservation_request")
       .eq("event_id", event.id).eq("user_id", user.id).eq("status", "paid")
       .order("created_at", { ascending: false }).limit(1).maybeSingle().then((result) => result.data) : Promise.resolve(null),
   ]);
@@ -111,11 +115,13 @@ export default async function EventPage({ params, searchParams }: PageParams) {
         <EventPageBody
           event={event}
           categories={categories}
+          screeningRequestId={screeningRequest?.id ?? null}
           addons={addons}
           closed={closed}
           myEntry={myEntry}
           registrationClosesAt={event.registration_closes_at}
-          reservationId={paidReservation && Date.parse(paidReservation.registration_deadline_at) > Date.now() ? paidReservation.id : null}
+          reservationId={paidReservation && (paidReservation.reservation_request || Date.parse(paidReservation.registration_deadline_at) > Date.now()) ? paidReservation.id : null}
+          categoryReservation={!!paidReservation?.reservation_request}
           reservationRemaining={reservationRemaining}
         />
       </main>

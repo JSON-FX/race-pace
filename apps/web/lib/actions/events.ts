@@ -14,6 +14,7 @@ const eventSaveError = (error: { code?: string; message?: string } | null) => {
   if (error?.message?.includes("event_waiver_required_for_publishing")) return WAIVER_PUBLISH_ERROR;
   if (error?.code === "23505" && error.message?.includes("events_slug_unique")) return "That public link is already in use. Choose another one.";
   if (error?.message?.includes("event_slug_locked")) return "The public link cannot be changed after the event is published.";
+  if (error?.message?.includes("event_deadline_below_promised_window")) return "Registration must stay open through the payment deadline already promised to approved runners.";
   return GENERIC_ERROR;
 };
 
@@ -22,6 +23,9 @@ const eventSaveError = (error: { code?: string; message?: string } | null) => {
 export type CategoryDraft = {
   id?: string; tempId?: string; code: string; label: string; distance_km: number | null; base_price: number; slots_total: number;
   elevation_gain_m: number | null; cutoff_hours: number | null; blurb: string | null;
+  reservation_enabled?: boolean; reservation_slots?: number; reservation_fee_cents?: number | null;
+  reservation_sales_close_at?: string | null; entry_payment_deadline_at?: string | null;
+  inclusions?: string[]; prescreening_enabled?: boolean; prescreening_requirement?: string | null;
 };
 export type AddonDraft = { id?: string; tempId?: string; name: string; price: number };
 export type EventDraft = {
@@ -42,15 +46,13 @@ const EVENT_COLS = (e: EventDraft) => ({
   org_id: e.org_id, name: e.name, slug: e.slug,
   city_psgc_code: e.city_psgc_code, region_name: e.region_name, province_name: e.province_name, city_name: e.city_name, venue: e.venue,
   event_date: e.event_date, end_date: e.end_date, flag_off: e.flag_off, status: e.status, discipline: e.discipline,
-  coming_soon_notify_enabled: e.coming_soon_notify_enabled, coming_soon_reserve_enabled: e.coming_soon_reserve_enabled,
-  reservation_fee_cents: e.reservation_fee_cents, reservation_deadline_at: e.reservation_deadline_at,
-  total_event_slots: e.total_event_slots,
+  coming_soon_notify_enabled: e.coming_soon_notify_enabled,
   check_in_required: e.check_in_required,
   registration_closes_at: e.registration_closes_at, kit_edit_closes_at: e.kit_edit_closes_at,
   elevation_gain_m: e.elevation_gain_m, cutoff_hours: e.cutoff_hours,
   start_lat: e.start_lat, start_lng: e.start_lng, finish_lat: e.finish_lat, finish_lng: e.finish_lng,
   route: e.route,
-  description: e.description, hero_image_url: e.hero_image_url, gallery: e.gallery, schedule: e.schedule, inclusions: e.inclusions,
+  description: e.description, hero_image_url: e.hero_image_url, gallery: e.gallery, schedule: e.schedule,
 });
 
 /**
@@ -147,10 +149,11 @@ export async function saveEventAction(_prev: EditorState, formData: FormData): P
   }
   const kitError = kitCutoffError(sanitized);
   if (kitError) return { error: kitError };
+  const categoryRows = [];
   for (const c of payload.categories.current) {
-    if (!categoryInputSchema.safeParse(c).success) {
-      return { error: "Fix the category rows (code, label, non-negative price/slots, gain 0-30000m, cut-off 0-240h)." };
-    }
+    const parsedCategory = categoryInputSchema.safeParse(c);
+    if (!parsedCategory.success) return { error: parsedCategory.error.issues[0]?.message ?? "Check the category settings." };
+    categoryRows.push({ ...parsedCategory.data, id: c.id, tempId: c.tempId });
   }
   const capacityError = eventCapacityError(sanitized, payload.categories.current);
   if (capacityError) return { error: capacityError };
@@ -171,7 +174,6 @@ export async function saveEventAction(_prev: EditorState, formData: FormData): P
   // "cancelled" is allowed here, and only because it was already true in
   // the database, not because the client claimed it.
   let currentStatus: string | null = null;
-  let currentTotalSlots: number | null = null;
   if (eventId) {
     const cur = await supabase.from("events").select("status,check_in_required,slug,slug_locked_at,total_event_slots").eq("id", eventId).single();
     if (cur.error) {
@@ -179,10 +181,6 @@ export async function saveEventAction(_prev: EditorState, formData: FormData): P
       return { error: GENERIC_ERROR };
     }
     currentStatus = cur.data.status;
-    currentTotalSlots = cur.data.total_event_slots;
-    if (currentTotalSlots != null && sanitized.total_event_slots === null && sanitized.status !== "draft") {
-      return { error: "A published event must keep its total event slots." };
-    }
     if ((currentStatus !== "draft" || cur.data.slug_locked_at) && cur.data.slug && sanitized.slug !== cur.data.slug) {
       return { error: "The public link cannot be changed after the event is published." };
     }
@@ -201,10 +199,6 @@ export async function saveEventAction(_prev: EditorState, formData: FormData): P
   if (!statusOk) {
     return { error: "Fix the event fields (invalid status)." };
   }
-  if ((sanitized.status === "open" || sanitized.status === "almost_full") &&
-    sanitized.total_event_slots === null && (!eventId || currentStatus === "coming_soon")) {
-    return { error: "Set total event slots before opening registration." };
-  }
 
   const event: EventDraft = { ...sanitized, id: eventId };
   // An early reservation promises an event place, while categories can be
@@ -212,8 +206,7 @@ export async function saveEventAction(_prev: EditorState, formData: FormData): P
   // the database can verify their combined capacity at the status change.
   const deferredOpening = currentStatus === "coming_soon" &&
     (event.status === "open" || event.status === "almost_full");
-  const deferredCapacityUpdate = !!eventId && event.total_event_slots !== null &&
-    (currentTotalSlots === null || event.total_event_slots < currentTotalSlots);
+
 
   let finalEventId = eventId;
   if (!finalEventId) {
@@ -231,7 +224,6 @@ export async function saveEventAction(_prev: EditorState, formData: FormData): P
     // for when it's ever wrong (stale roles cache, org reassignment, etc.).
     const upd = await supabase.from("events").update(EVENT_COLS({
       ...event, status: deferredOpening ? "coming_soon" : event.status,
-      total_event_slots: deferredCapacityUpdate ? currentTotalSlots : event.total_event_slots,
     })).eq("id", finalEventId).select("id");
     if (upd.error) {
       console.error("[events] event update failed", { eventId: finalEventId, error: upd.error });
@@ -240,73 +232,18 @@ export async function saveEventAction(_prev: EditorState, formData: FormData): P
     if (!upd.data || upd.data.length === 0) return { error: GENERIC_ERROR };
   }
 
-  // The diff itself is computed against the client-supplied
-  // payload.categories.original / payload.addons.original — exactly as
-  // reconcileChildren always had it (ported verbatim, byte-identical to the
-  // old lib/eventWrites.ts). What changed for security is scoping every
-  // write below to `finalEventId` with `.eq("event_id", finalEventId)`:
-  // RLS on categories/addons only checks the PARENT event's org
-  // (categories_delete_org_admin etc.), not that a given row belongs to
-  // THIS event, so without that `.eq` a stale tab, a double-submit racing
-  // router.refresh(), or a crafted request naming another event's (same
-  // org) category id in `original` could delete/update it. `.eq("id", …)`
-  // ALONE against a foreign id already matches zero rows and is a no-op —
-  // the `.eq("event_id", …)` is what makes that explicit and load-bearing
-  // rather than incidental.
-  //
-  // Deliberately NOT re-deriving `original` from a fresh DB query (an
-  // earlier version of this fix did, and it was wrong): the diff needs to
-  // reflect what THIS SAVE REQUEST believes existed when the form was
-  // loaded, not what the DB holds right now. If tab A adds category X and
-  // saves, then a stale tab B (which never saw X) saves, a DB-derived
-  // `original` would see X as "already there" and compute it as "no longer
-  // present in tab B's `current`" — silently deleting tab A's category (and
-  // throwing a confusing "has registrations" error if X already has
-  // registrations by then). The client-supplied `original` correctly
-  // leaves X alone, since tab B never claimed to know about it.
   const childErrors: string[] = [];
-  const cat = reconcileChildren(payload.categories.original, payload.categories.current);
-  // Free places before allocating them elsewhere. The database checks every
-  // intermediate category write against the event total, including direct API writes.
-  for (const id of cat.toDelete) {
-    const r = await supabase.from("categories").delete().eq("id", id).eq("event_id", finalEventId);
-    if (r.error) childErrors.push(`Couldn't remove a category — it has registrations.`);
-  }
-  let currentCategorySlots = new Map<string, number>();
-  if (event.total_event_slots !== null && cat.toUpdate.length) {
-    const rows = await supabase.from("categories").select("id,slots_total").eq("event_id", finalEventId);
-    if (rows.error) {
-      console.error("[events] category capacity lookup failed", { eventId: finalEventId, error: rows.error });
-      childErrors.push("Category capacity could not be checked. Please try again.");
-    } else {
-      currentCategorySlots = new Map((rows.data ?? []).map((row) => [row.id, row.slots_total]));
-    }
-  }
-  const orderedUpdates = [...cat.toUpdate].sort((a, b) =>
-    (a.slots_total - (currentCategorySlots.get(a.id ?? "") ?? a.slots_total)) -
-    (b.slots_total - (currentCategorySlots.get(b.id ?? "") ?? b.slots_total)));
-  for (const c of childErrors.length ? [] : orderedUpdates) {
-    const r = await supabase.from("categories").update({ code: c.code, label: c.label, distance_km: c.distance_km, base_price: c.base_price, slots_total: c.slots_total, elevation_gain_m: c.elevation_gain_m, cutoff_hours: c.cutoff_hours, blurb: c.blurb }).eq("id", c.id).eq("event_id", finalEventId);
-    if (r.error) {
-      console.error("[events] category update failed", { eventId: finalEventId, categoryId: c.id, error: r.error });
-      childErrors.push(`Category "${c.label}" couldn't be saved.`);
-    }
-  }
-  for (const c of childErrors.length ? [] : cat.toInsert) {
-    const r = await supabase.from("categories").insert({ org_id: event.org_id, event_id: finalEventId, code: c.code, label: c.label, distance_km: c.distance_km, base_price: c.base_price, slots_total: c.slots_total, elevation_gain_m: c.elevation_gain_m, cutoff_hours: c.cutoff_hours, blurb: c.blurb });
-    if (r.error) {
-      console.error("[events] category insert failed", { eventId: finalEventId, code: c.code, error: r.error });
-      childErrors.push(`Category "${c.label}" couldn't be saved.`);
-    }
-  }
-
-  if (deferredCapacityUpdate && !childErrors.length) {
-    const capacity = await supabase.from("events").update({ total_event_slots: event.total_event_slots })
-      .eq("id", finalEventId).select("id");
-    if (capacity.error || !capacity.data?.length) {
-      console.error("[events] event capacity update failed", { eventId: finalEventId, error: capacity.error });
-      childErrors.push("Categories were saved, but total event slots could not be updated. Please try again.");
-    }
+  const categoriesSaved = await supabase.rpc("save_event_categories", {
+    p_event: finalEventId, p_original: payload.categories.original.map(c => c.id), p_categories: categoryRows,
+  });
+  if (categoriesSaved.error) {
+    console.error("[events] category transaction failed", { eventId: finalEventId, code: categoriesSaved.error.code });
+    const message = categoriesSaved.error.message;
+    childErrors.push(message.includes("existing_places") || categoriesSaved.error.code === "23503"
+      ? "These categories have held or registered runners. Keep enough slots and preserve their categories."
+      : message.includes("promised_window") ? "Keep the payment deadline promised to approved runners."
+      : message.includes("terms_required_for_existing_requests") ? "Keep the reservation fee and full entry deadline for existing requests. You can turn off new reservation sales."
+      : "Category settings could not be saved. Check the allocation and deadlines, then try again.");
   }
 
   const add = reconcileChildren(payload.addons.original, payload.addons.current);

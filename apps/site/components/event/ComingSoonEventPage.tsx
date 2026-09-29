@@ -1,4 +1,6 @@
 "use client";
+import type { CategoryRow } from "@/lib/events";
+import { CategoryRequirements, CategoryReservationAction } from "./CategoryAdmission";
 
 
 import { ArrowRight } from "lucide-react";
@@ -137,8 +139,10 @@ function passportName(passport: RunnerPassport): string {
     || (passport.claimed_user_id ? "My Race Passport" : "Managed Race Passport");
 }
 
-export function ComingSoonEventPage({ event, userEmail, reservation, reservedPassports = [], reservationPayment = null }: {
+export function ComingSoonEventPage({ event, userEmail, reservation, reservedPassports = [], reservationPayment = null, categories = [], screeningRequestId = null }: {
+  screeningRequestId?: string | null;
   event: EventRow; userEmail: string | null; reservation: ExistingReservation;
+  categories?: CategoryRow[];
   reservedPassports?: { participant_name: string; is_managed: boolean }[];
   reservationPayment?: { status: string; amount_cents: number; processor_fee_cents: number | null } | null;
 }) {
@@ -158,12 +162,14 @@ export function ComingSoonEventPage({ event, userEmail, reservation, reservedPas
   const discipline = DISCIPLINE_LABELS[event.discipline as EventDiscipline] ?? event.discipline ?? "Race";
   const images = [event.hero_image_url, ...event.gallery].filter((url): url is string => !!url)
     .filter((url, index, all) => all.indexOf(url) === index);
-  const canReserve = !!event.coming_soon_reserve_enabled && fee > 0 &&
+  const hasCategoryAdmissions = categories.some(category => category.reservation_enabled || category.prescreening_enabled);
+  const categoryReservationsOpen = categories.some(category => category.reservation_enabled && category.reservation_available !== 0 && category.reservation_sales_close_at && Date.parse(category.reservation_sales_close_at) > Date.now());
+  const canReserve = !hasCategoryAdmissions && !!event.coming_soon_reserve_enabled && fee > 0 &&
     !!event.reservation_deadline_at && new Date(event.reservation_deadline_at).getTime() > Date.now();
   const signInHref = `/sign-in?next=${encodeURIComponent(eventPublicPath(event))}`;
 
   useEffect(() => {
-    if (!userEmail || reservation || !event.coming_soon_reserve_enabled) return;
+    if (!userEmail || reservation || !event.coming_soon_reserve_enabled || hasCategoryAdmissions) return;
     let active = true;
     listPassports().then((items) => {
       if (!active) return;
@@ -172,7 +178,7 @@ export function ComingSoonEventPage({ event, userEmail, reservation, reservedPas
       if (own) setSelectedPassportIds([own.id]);
     }).catch(() => { if (active) setPassportError("Race Passports could not be loaded. Refresh and try again."); });
     return () => { active = false; };
-  }, [userEmail, reservation, event.coming_soon_reserve_enabled]);
+  }, [userEmail, reservation, event.coming_soon_reserve_enabled, hasCategoryAdmissions]);
 
   function togglePassport(id: string) {
     setSelectedPassportIds((current) => current.includes(id)
@@ -257,15 +263,23 @@ export function ComingSoonEventPage({ event, userEmail, reservation, reservedPas
             <div><dt>DISCIPLINE</dt><dd>{discipline}</dd></div>
             <div><dt>REGISTRATION</dt><dd>COMING SOON</dd></div>
             <div><dt>EVENT DATE</dt><dd>{event.event_date ?? "TO BE ANNOUNCED"}</dd></div>
-            <div><dt>RESERVED ENTRY DUE</dt><dd>{event.coming_soon_reserve_enabled ? shortDeadline : "NOT APPLICABLE"}</dd></div>
+            <div><dt>RESERVED ENTRY DUE</dt><dd>{hasCategoryAdmissions && !reservation ? "BY CATEGORY" : event.coming_soon_reserve_enabled ? shortDeadline : "NOT APPLICABLE"}</dd></div>
           </dl>
-          {canReserve ? <Button asChild variant="default" className="dossier-primary-cta"><a href="#dossier-reserve">Reserve now<ArrowRight aria-hidden /></a></Button>
+          {categoryReservationsOpen ? <Button asChild className="dossier-primary-cta"><a href="#category-reservations">Choose your category<ArrowRight aria-hidden /></a></Button> : canReserve ? <Button asChild variant="default" className="dossier-primary-cta"><a href="#dossier-reserve">Reserve now<ArrowRight aria-hidden /></a></Button>
             : event.coming_soon_notify_enabled ? <Button asChild variant="default" className="dossier-primary-cta"><a href="#dossier-notify">Notify me<ArrowRight aria-hidden /></a></Button> : null}
         </div>
       </section>
       <div className="dossier-content">
         <section className="dossier-description"><p>{event.description}</p></section>
-        {event.coming_soon_reserve_enabled ? (
+        {screeningRequestId && <section className="dossier-section"><div className="dossier-section-inner flex flex-wrap items-center justify-between gap-3"><p>Your request is saved. View held Passports, review decisions, and payment details.</p><Button asChild variant="outline"><Link href={`/prescreening/${screeningRequestId}`}>View my request</Link></Button></div></section>}
+        {!!categories.length && <section className="dossier-section" id="category-reservations"><div className="dossier-section-inner">
+          <h2 className="text-2xl font-bold">Choose your category</h2><p className="mt-2 text-sm">Each category has its own inclusions and entry requirements.</p>
+          <div className="mt-6 divide-y">{categories.map(category => <article key={category.id} className="grid gap-5 py-6 md:grid-cols-[minmax(0,1fr)_280px]">
+            <div><h3 className="text-lg font-bold">{category.label}</h3><p className="mt-2 text-sm">{category.blurb}</p><CategoryRequirements category={category} /></div>
+            <div>{category.reservation_enabled ? <CategoryReservationAction category={category} /> : <p className="text-sm">Registration opens soon. Reservations are not available for this category.</p>}</div>
+          </article>)}</div><Link href="/prescreening" className="text-sm font-semibold underline">View my requests</Link>
+        </div></section>}
+        {event.coming_soon_reserve_enabled && (!hasCategoryAdmissions || reservation) ? (
           <section className="dossier-section" id="dossier-reserve"><div className="dossier-section-inner">
             <h2>RESERVE YOUR PLACE</h2>
             <div className="dossier-reservation">
@@ -327,7 +341,7 @@ export function ComingSoonEventPage({ event, userEmail, reservation, reservedPas
           <dl className="dossier-essentials">
             <div><dt>EVENT DATE</dt><dd>{event.event_date ?? "To be announced"}</dd></div>
             <div><dt>DISCIPLINE</dt><dd>{discipline}</dd></div>
-            <div><dt>ENTRY PAYMENT DEADLINE</dt><dd>{event.coming_soon_reserve_enabled ? deadline : "Not applicable"}</dd></div>
+            <div><dt>ENTRY PAYMENT DEADLINE</dt><dd>{hasCategoryAdmissions && !reservation ? "See each category" : event.coming_soon_reserve_enabled ? deadline : "Not applicable"}</dd></div>
             <div><dt>REGISTRATION</dt><dd>Opens later</dd></div>
           </dl>
         </div></section>

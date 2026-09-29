@@ -1,3 +1,4 @@
+import { reconcileExpiredGroup } from "../_shared/groupExpiry.ts";
 import { isAuthorizedBearer } from "../_shared/authz.ts";
 import { confirmPayment } from "../_shared/confirm.ts";
 import { pmExpireCheckoutSession, pmGetCheckoutSession, pmMethodFromSession } from "../_shared/paymongo.ts";
@@ -18,7 +19,7 @@ Deno.serve(async (req) => {
   const ids = (candidateRead.data ?? []) as string[];
   if (!ids.length) return json({ processed: 0, outcomes: {} });
   const { data: reservations, error } = await db.from("event_reservations")
-    .select("id,status,checkout_expires_at,registration_deadline_at,events(status),reservation_payments(status,provider_ref,checkout_request)")
+    .select("id,status,checkout_expires_at,registration_deadline_at,events(status),event_reservation_places(participant_passport_id,status,category_id,entry_payment_deadline_at,categories(entry_payment_deadline_at)),reservation_payments(status,provider_ref,checkout_request)")
     .in("id", ids);
   if (error) return json({ error: "candidate_read_failed" }, 503);
   const results: Record<string, number> = {};
@@ -28,9 +29,13 @@ Deno.serve(async (req) => {
     const payment = (Array.isArray(reservation.reservation_payments)
       ? reservation.reservation_payments[0] : reservation.reservation_payments) as
       { status: string; provider_ref: string | null; checkout_request: unknown } | null;
+    const places = reservation.event_reservation_places as unknown as { participant_passport_id:string;status:string;category_id:string|null;entry_payment_deadline_at:string|null;categories:{entry_payment_deadline_at:string|null}|null }[];
+    const duePassports = new Set((places ?? []).filter(p => p.status === "held" &&
+      (p.category_id !== null || event?.status !== "coming_soon") &&
+      Math.max(Date.parse(p.entry_payment_deadline_at ?? reservation.registration_deadline_at), Date.parse(p.categories?.entry_payment_deadline_at ?? p.entry_payment_deadline_at ?? reservation.registration_deadline_at)) <= Date.now()).map(p => p.participant_passport_id));
     const due = reservation.status === "pending"
       ? Date.parse(reservation.checkout_expires_at) <= Date.now()
-      : event?.status !== "coming_soon" && Date.parse(reservation.registration_deadline_at) <= Date.now();
+      : places?.length ? duePassports.size > 0 : event?.status !== "coming_soon" && Date.parse(reservation.registration_deadline_at) <= Date.now();
     if (!due) continue;
     try {
       if (!payment) { count("payment_missing"); continue; }
@@ -46,15 +51,24 @@ Deno.serve(async (req) => {
             continue;
           }
           if (session.status !== "expired") { count("provider_session_active"); continue; }
+          const finished = await db.rpc("finish_reservation_checkout_expiry", { p_reservation: reservation.id, p_session: session.id,
+            p_evidence: { source: "paymongo_get", status: "expired" } });
+          if (finished.error) throw new Error("release_write_failed");
+          count(String(finished.data)); continue;
         }
       } else {
         const { data: entries, error: entryError } = await db.from("registrations")
-          .select("id,status,payments(provider,provider_ref,checkout_request)")
+          .select("id,status,participant_passport_id,booking_order_id,payments(provider,provider_ref,checkout_request)")
           .eq("event_reservation_id", reservation.id).in("status", ["pending", "paid"]);
         if (entryError) throw new Error("entry_read_failed");
-        if (entries?.some((entry) => entry.status === "paid")) { count("already_converted"); continue; }
         let unresolved = false;
         for (const entry of entries ?? []) {
+          if (entry.status === "paid" || (places?.length && !duePassports.has(entry.participant_passport_id))) continue;
+          if (entry.booking_order_id) {
+            const outcome = await reconcileExpiredGroup(entry.booking_order_id);
+            if (!["reconciled", "expired", "cancelled"].includes(outcome)) unresolved = true;
+            continue;
+          }
           const entryPayment = (Array.isArray(entry.payments) ? entry.payments[0] : entry.payments) as
             { provider: string; provider_ref: string | null; checkout_request: unknown } | null;
           if (!entryPayment || (entryPayment.provider === "paymongo" && !entryPayment.provider_ref && entryPayment.checkout_request)) {
@@ -74,6 +88,10 @@ Deno.serve(async (req) => {
               break;
             }
             if (session.status !== "expired") { unresolved = true; break; }
+            const finished = await db.rpc("finish_paymongo_checkout_expiry", { p_registration_id: entry.id, p_session_id: session.id,
+              p_provider_evidence: { source: "paymongo_get", status: "expired" } });
+            if (finished.error || !["expired", "already_final"].includes(finished.data)) unresolved = true;
+            continue;
           }
           const expired = await db.from("registrations").update({ status: "expired", expires_at: null })
             .eq("id", entry.id).eq("status", "pending").select("id");

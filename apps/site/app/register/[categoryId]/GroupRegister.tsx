@@ -29,24 +29,27 @@ export type GroupPassport = {
 type Line = { categoryId: string; addonIds: string[]; shirtSize: string; values: Record<string, unknown>; accepted: boolean };
 const emptyLine = (categoryId: string): Line => ({ categoryId, addonIds: [], shirtSize: "", values: {}, accepted: false });
 
-export function GroupRegister({ userId, initialCategory, categories, event, passports, addons, fields, waiver }: {
+export function GroupRegister({ userId, initialCategory, categories, event, passports, addons, fields, waiver, prescreening, reservation }: {
   userId: string; initialCategory: CategoryRow; categories: CategoryRow[]; event: EventRow; passports: GroupPassport[];
+  prescreening?: { id: string; participants: RosterSelection[] };
+  reservation?: { id: string; participants: RosterSelection[] };
   addons: AddonRow[]; fields: FormFieldRow[]; waiver: { id: string; title: string; body: string };
 }) {
   const router = useRouter();
-  const storageKey = `rp:group:${userId}:${event.id}`;
+  const lockedRoster = prescreening ?? reservation;
+  const storageKey = `rp:group:${userId}:${event.id}${lockedRoster ? `:${lockedRoster.id}` : ""}`;
   const [key, setKey] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
   const [lines, setLines] = useState<Record<string, Line>>({});
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [ready, setReady] = useState(false);
-  const [step, setStep] = useState<"roster" | "details">("roster");
+  const [step, setStep] = useState<"roster" | "details">(lockedRoster ? "details" : "roster");
   const eventFields = useMemo(() => fields.filter(f => !isProfileKey(f.key)), [fields]);
   const rosterCategories = useMemo(() => [...categories]
     .sort((a, b) => Number(b.id === initialCategory.id) - Number(a.id === initialCategory.id))
     .map(category => ({ id: category.id, label: category.label, price: category.base_price,
-      available: Math.max(0, category.slots_total - category.slots_taken) })), [categories, initialCategory.id]);
+      available: category.general_available ?? Math.max(0, category.slots_total - category.slots_taken) })), [categories, initialCategory.id]);
 
   useEffect(() => {
     try {
@@ -57,8 +60,14 @@ export function GroupRegister({ userId, initialCategory, categories, event, pass
         ...emptyLine(initialCategory.id), ...line, categoryId: line.categoryId ?? initialCategory.id, accepted: false,
       }])));
     } catch { setKey(crypto.randomUUID()); }
+    if (lockedRoster) {
+      setSelected(lockedRoster.participants.map(p => p.passportId));
+      setLines(current => Object.fromEntries(lockedRoster.participants.map(p => [p.passportId, {
+        ...emptyLine(p.categoryId), ...current[p.passportId], categoryId: p.categoryId, accepted: false,
+      }])));
+    }
     setReady(true);
-  }, [storageKey, passports, initialCategory.id]);
+  }, [storageKey, passports, initialCategory.id, lockedRoster]);
 
   useEffect(() => {
     if (!ready || !key) return;
@@ -109,7 +118,7 @@ export function GroupRegister({ userId, initialCategory, categories, event, pass
       }, {});
       for (const [categoryId, count] of Object.entries(categoryCounts)) {
         const category = categories.find(value => value.id === categoryId);
-        if (!category || count > Math.max(0, category.slots_total - category.slots_taken)) {
+        if (!category || (!lockedRoster && count > (category.general_available ?? Math.max(0, category.slots_total - category.slots_taken)))) {
           throw new GroupCheckoutError("category_capacity_exhausted", undefined, categoryId);
         }
       }
@@ -138,7 +147,7 @@ export function GroupRegister({ userId, initialCategory, categories, event, pass
         };
       });
       setBusy(true);
-      const result = await reserveGroup({ event_id: event.id, waiver_version_id: waiver.id, idempotency_key: key, participants });
+      const result = await reserveGroup({ event_id: event.id, waiver_version_id: waiver.id, idempotency_key: key, participants, ...(prescreening ? { prescreening_batch_id: prescreening.id } : {}) });
       if (result.status !== "pending") throw new GroupCheckoutError("order_not_pending");
       try { sessionStorage.removeItem(storageKey); } catch { /* No storage access. */ }
       router.replace(`/group/order/${result.order_id}`);
@@ -195,7 +204,13 @@ export function GroupRegister({ userId, initialCategory, categories, event, pass
                 {selectedParticipants.map(participant => <li key={participant.id} className="flex items-start justify-between gap-4 py-3 first:pt-0"><div className="min-w-0"><p className="truncate text-sm font-bold text-[#14211a]">{participant.name}</p><p className="mt-0.5 truncate text-xs text-[#657069]">{participant.category?.label}</p></div><span className="shrink-0 font-mono-race text-xs font-semibold text-[#14211a]">{formatPeso(participant.category?.base_price ?? 0)}</span></li>)}
               </ul>}
               <div className="mt-4 flex items-center justify-between border-t border-[#dce3de] pt-4"><div><p className="text-xs text-[#657069]">Entry subtotal</p><p className="mt-1 text-[11px] text-[#859089]">Add-ons come next</p></div><p className="font-display text-xl font-bold text-[#14211a]">{formatPeso(entryTotal)}</p></div>
-              <Button className="mt-5 h-12 w-full" disabled={!ready || selected.length === 0} onClick={() => { setError(null); setStep("details"); }}>Continue with {selected.length} runner{selected.length === 1 ? "" : "s"}<ArrowRight aria-hidden="true" /></Button>
+              <Button className="mt-5 h-12 w-full" disabled={!ready || selected.length === 0} onClick={() => {
+                setError(null);
+                if (selectedParticipants.some(p => p.category?.prescreening_enabled)) {
+                  const query = new URLSearchParams({ event: event.id, category: initialCategory.id, intent: "entry", roster: JSON.stringify(rosterSelections) });
+                  router.push(`/prescreening/new?${query}`);
+                } else setStep("details");
+              }}>Continue with {selected.length} runner{selected.length === 1 ? "" : "s"}<ArrowRight aria-hidden="true" /></Button>
               <div className="mt-4 flex items-center justify-center gap-2 text-[11px] text-[#657069]"><ShieldCheck className="size-3.5 text-[#0c6d3b]" aria-hidden="true" />Nothing is charged on this step.</div>
             </div>
           </div>
@@ -207,7 +222,7 @@ export function GroupRegister({ userId, initialCategory, categories, event, pass
   return <div className="bg-[#f5f5f1] px-2.5 py-[18px] sm:px-[18px] sm:py-[30px] lg:pb-[72px]">
     <section className="mx-auto w-full max-w-[980px] overflow-hidden rounded-[18px] bg-white shadow-[0_24px_70px_rgba(17,42,29,0.11)] sm:rounded-3xl">
     <header className="bg-[#103226] px-[22px] py-7 text-white sm:px-10 sm:py-9">
-      <Button variant="ghost" type="button" onClick={() => { setError(null); setStep("roster"); }} className="inline-flex min-h-11 items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80"><ArrowLeft className="size-4" aria-hidden="true" />Back to roster</Button>
+      <Button variant="ghost" type="button" onClick={() => { if (lockedRoster) router.push(prescreening ? `/prescreening/${prescreening.id}` : `/reservations/${reservation!.id}`); else { setError(null); setStep("roster"); } }} className="inline-flex min-h-11 items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80"><ArrowLeft className="size-4" aria-hidden="true" />{lockedRoster ? "Back to held places" : "Back to roster"}</Button>
       <p className="mt-5 font-eyebrow text-[11px] font-bold uppercase tracking-[0.24em] text-[#79d9a7]">Group registration · Step 2 of 3</p>
       <h1 className="mt-3 font-display text-[clamp(2rem,5vw,3.25rem)] font-bold leading-none tracking-[-0.04em]">Complete each runner’s entry.</h1>
       <p className="mt-4 max-w-2xl text-sm leading-6 text-white/70 sm:text-base">Review each category, add event details, and let every participant accept the waiver personally.</p>
@@ -225,6 +240,7 @@ export function GroupRegister({ userId, initialCategory, categories, event, pass
         <CardContent>
         {!valid ? <p className="mt-2 text-sm text-destructive">Complete this Race Passport before booking.</p> : null}
         <div className="space-y-5">
+          {!!selectedCategory?.inclusions?.length && <div><h3 className="text-sm font-semibold">What’s included in {selectedCategory.label}</h3><ul className="mt-2 list-disc pl-5 text-sm">{selectedCategory.inclusions.map((item,i) => <li key={i}>{item}</li>)}</ul></div>}
           <div><Label className="block" htmlFor={`shirt-${passport.id}`}>Shirt size</Label>
             <Select value={lines[passport.id]?.shirtSize || "saved"} onValueChange={value => updateLine(passport.id, { shirtSize: value === "saved" ? "" : value })}>
               <SelectTrigger id={`shirt-${passport.id}`} className="mt-2 h-11 w-full"><SelectValue /></SelectTrigger>

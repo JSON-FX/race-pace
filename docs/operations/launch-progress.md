@@ -3,6 +3,19 @@
 Updated: 2026-09-27. Overall: MVP RELEASED; FIELDNOTES ADMIN AND TRAIL ATLAS ORGANIZERS IN PRODUCTION; OWNER CHECKOUT PENDING.
 Scope: runner website and admin only. The first release is a controlled pilot with one organizer and PayMongo. Production contains real organizer and event data; add no synthetic data.
 
+### Category reservations and pre-screening — 2026-09-29
+
+| Work | Status | Blocker | Next task |
+|---|---|---|---|
+| Feature plan and compatibility rules | Approved by owner | None | Preserve the active event and additive compatibility during implementation. |
+| Interactive HTML proposal | Owner approved on 29 September 2026 | None | Implement approved forms and states. |
+| Storybook proposal | Eighteen approved proposal states plus a new submission-email template; current typecheck, four catalog builds and local publication passed | Application parity pending | Promote approved design into canonical application controls. |
+| Application/backend implementation | Local forms, private resumable proofs, review/payment guards, capacity projection, category reservations, conversion, expiry, and durable emails implemented; review in progress. Admin proof dialog now matches the two-column proposal. | Final review and hosted provider acceptance pending | Commit the reviewed candidate and run hosted staging acceptance. Local rejection, alternative category, cancellation and submission/approval email delivery passed. |
+| Local verification | Fresh 177-migration replay and legacy 170-slot upgrade rehearsal passed; runner 497, admin 1004, backend/shared 826, shared UI 13 tests passed. Final maintenance regressions and the full backend run pass. Both app typechecks and isolated builds passed after their latest changes. | Reduced-motion acceptance and hosted staging pending | Record final revision and full validation evidence. |
+| Hosted staging and production | Not changed | Implementation and all required staging checks | Validate exact staging revision before any production promotion. |
+
+Evidence: [design proposal](../specs/2026-09-29-category-prescreening-prototype.md), [plan](../plans/2026-09-29-category-prescreening.md), and [prototype report](../../.claude/reports/category-prescreening-prototype-report.md), and [implementation report](../../.claude/reports/2026-09-29-category-prescreening-report.md). Earlier production counts are planning evidence and require a fresh release inventory. No production writes or charges occurred.
+
 ### Fieldnotes component revamp — 2026-09-27
 
 | Work | Status | Blocker | Next task |

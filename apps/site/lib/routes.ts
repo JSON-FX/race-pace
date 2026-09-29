@@ -1,6 +1,6 @@
 /** Route prefixes that require a signed-in runner. Kept pure and separate from
  *  middleware.ts so the decision is unit-testable without a Next runtime. */
-export const PROTECTED_PREFIXES = ["/register", "/pay", "/ticket", "/races", "/profile"];
+export const PROTECTED_PREFIXES = ["/prescreening", "/register", "/pay", "/ticket", "/races", "/profile"];
 
 export function isProtectedPath(pathname: string): boolean {
   return PROTECTED_PREFIXES.some(

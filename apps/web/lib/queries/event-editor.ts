@@ -1,3 +1,4 @@
+import type { CategoryDraft } from "@/lib/actions/events";
 import { createClient } from "@/lib/supabase/server";
 import type { EventDiscipline, RoutePoint } from "@race-pace/shared";
 import type { ScheduleItem } from "@/lib/validation";
@@ -17,11 +18,7 @@ export type EditorEvent = {
   route: RoutePoint[] | null;
   hero_image_url: string | null; gallery: string[]; schedule: ScheduleItem[]; inclusions: string[];
 };
-export type EditorCategory = {
-  id: string; code: string; label: string; distance_km: number | null; base_price: number;
-  slots_total: number; slots_taken: number; elevation_gain_m: number | null;
-  cutoff_hours: number | null; blurb: string | null;
-};
+export type EditorCategory = CategoryDraft & { id: string; slots_taken: number };
 export type EditorAddon = { id: string; name: string; price: number };
 export type EditorData = { event: EditorEvent; categories: EditorCategory[]; addons: EditorAddon[] };
 
@@ -44,7 +41,7 @@ export async function getEventForEditor(id: string): Promise<EditorData | null> 
 
   const [cats, adds] = await Promise.all([
     supabase.from("categories")
-      .select("id,code,label,distance_km,base_price,slots_total,slots_taken,elevation_gain_m,cutoff_hours,blurb")
+      .select("id,code,label,distance_km,base_price,slots_total,slots_taken,elevation_gain_m,cutoff_hours,blurb,reservation_enabled,reservation_slots,reservation_fee_cents,reservation_sales_close_at,entry_payment_deadline_at,inclusions,prescreening_enabled,prescreening_requirement")
       .eq("event_id", id).order("base_price", { ascending: false }),
     supabase.from("addons").select("id,name,price").eq("event_id", id).order("created_at"),
   ]);

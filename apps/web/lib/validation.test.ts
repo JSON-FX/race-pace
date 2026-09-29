@@ -15,14 +15,13 @@ it("accepts only stable lowercase event slugs", () => {
 });
 const validCategory = { code: "21k", label: "21K", distance_km: 21, base_price: 150000, slots_total: 100, elevation_gain_m: null, cutoff_hours: null, blurb: null };
 
-it("treats the event total as capacity while categories partition it", () => {
+it("derives capacity from categories and requires slots before opening", () => {
   const categories = [{ slots_total: 2 }, { slots_total: 1 }];
-  expect(eventCapacityError({ status: "coming_soon", total_event_slots: 4 }, categories)).toBeNull();
-  expect(eventCapacityError({ status: "draft", total_event_slots: 2 }, categories)).toMatch(/exceed total event slots/);
-  expect(eventCapacityError({ status: "draft", total_event_slots: null }, categories)).toMatch(/Set total event slots/);
-  expect(eventCapacityError({ status: "open", total_event_slots: 4 }, categories)).toMatch(/Allocate all 4/);
-  expect(eventCapacityError({ status: "open", total_event_slots: 3 }, categories)).toBeNull();
-  expect(eventCapacityError({ status: "coming_soon", total_event_slots: 4 }, [])).toBeNull();
+  for (const total_event_slots of [null, 0, 2, 999]) {
+    expect(eventCapacityError({ status: "open", total_event_slots }, categories)).toBeNull();
+  }
+  expect(eventCapacityError({ status: "open", total_event_slots: 999 }, [])).toMatch(/Add a category/);
+  expect(eventCapacityError({ status: "coming_soon", total_event_slots: null }, [])).toBeNull();
 });
 
 it("category rejects empty code and negative price", () => {
