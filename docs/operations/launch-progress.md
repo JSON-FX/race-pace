@@ -1,13 +1,13 @@
 # Web and admin launch progress
 
-Updated: 2026-09-27. Overall: MVP RELEASED; FIELDNOTES ADMIN AND TRAIL ATLAS ORGANIZERS IN PRODUCTION; OWNER CHECKOUT PENDING.
+Updated: 2026-09-30. Overall: MVP RELEASED; FIELDNOTES ADMIN AND TRAIL ATLAS ORGANIZERS IN PRODUCTION; OWNER CHECKOUT PENDING.
 Scope: runner website and admin only. The first release is a controlled pilot with one organizer and PayMongo. Production contains real organizer and event data; add no synthetic data.
 
 ### Category reservations and pre-screening — 2026-09-30
 
 | Completed | Blockers | Next task |
 | --- | --- | --- |
-| Approved prototype and Storybook proposals implemented; full local checks and hosted functional acceptance passed, including native 10 MB uploads and selected-participant GCash refunds. | Exact staging CI retry and final production preflight remain. QR Ph test refunds are rejected by the staging provider; the app preserves tickets/holds on uncertainty. | Record the final revision, promote staging → main only after required checks pass, verify real production data, then sync main → staging. |
+| Category reservations, pre-screening, booker emails and 10 MB proof uploads deployed through PR #194. Both production apps Ready at `7dbecc4`; backend bundles match tested staging. Existing 25 registrations, payment amounts, ticket fingerprints, 140-slot capacity and eight inclusions preserved. | None for release. Known staging QR Ph refund limitation and pre-existing admin hydration warning are documented. | Main → staging sync completed through PR #195; production remains at `7dbecc4`. Owner can configure new categories. |
 
 Current evidence: [release and acceptance record](category-screening-release-20260930.md). The entries below are historical checkpoints, superseded by that record.
 
