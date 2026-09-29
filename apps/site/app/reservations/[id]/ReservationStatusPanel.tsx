@@ -6,8 +6,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
-export function ReservationStatusPanel({ id, initialStatus, returned, remaining }: {
-  id: string; initialStatus: string; returned: boolean; remaining: number;
+export function ReservationStatusPanel({ id, initialStatus, returned, remaining, categoryBound = false }: {
+  id: string; initialStatus: string; returned: boolean; remaining: number; categoryBound?: boolean;
 }) {
   const [status, setStatus] = useState(initialStatus);
   const router = useRouter();
@@ -36,7 +36,7 @@ export function ReservationStatusPanel({ id, initialStatus, returned, remaining 
     <p className="mt-2 text-2xl font-black capitalize">{status.replaceAll("_", " ")}</p>
     <p className="mt-2 text-sm leading-relaxed text-white/70">
       {status === "converted" ? "Your held places are complete. Converted entries and tickets are in My Races."
-        : status === "paid" ? `${remaining} event ${remaining === 1 ? "place is" : "places are"} held. Choose an available category for each Race Passport when registration opens, then pay for entry before the deadline.`
+        : status === "paid" ? `${remaining} event ${remaining === 1 ? "place is" : "places are"} held. ${categoryBound ? "Your selected categories are saved. Complete entry details and pay for entry when registration is open, before each participant’s deadline." : "Choose an available category for each Race Passport when registration opens, then pay for entry before the deadline."}`
         : status === "pending" ? "Your checkout is still pending. A reservation is secured only after PayMongo confirms payment."
         : status === "review_required" ? "We received a payment update that needs review. Your selected places remain held while we reconcile it."
         : "This reservation no longer holds an event place."}
