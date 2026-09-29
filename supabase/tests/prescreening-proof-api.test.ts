@@ -84,6 +84,23 @@ describe("private proof Edge verification",()=>{
     expect((await call({action:"verify",upload_id:invalid.upload_id})).status).toBe(422);
     const incomplete=await prepare();expect((await call({action:"verify",upload_id:incomplete.upload_id})).status).toBe(409);
   });
+  it("verifies genuine 20MP images across repeated formats without retaining decoded heaps",async()=>{
+    for(const name of ["20mp-rgb.png","20mp-progressive.jpeg","20mp.webp","20mp-rgba16.png","20mp-lossless.webp","20mp-rgb.png","48mp.png","48mp.jpeg"]) {
+      const ticket=await prepare();
+      const bytes=readFileSync(new URL(`./fixtures/proofs/${name}`,import.meta.url));
+      const mime=name.endsWith("png")?"image/png":name.endsWith("jpeg")?"image/jpeg":"image/webp";
+      expect((await caller.storage.from("prescreening-proofs").upload(ticket.object_path,bytes,{contentType:mime})).error).toBeNull();
+      const verified=await call({action:"verify",upload_id:ticket.upload_id});
+      expect(verified.status,`${name}: ${await verified.clone().text()}`).toBe(200);
+      const record=(await db.query("select size_bytes,content_type,verified_at from prescreening_uploads where id=$1",[ticket.upload_id])).rows[0];
+      expect(Number(record.size_bytes)).toBe(bytes.length);expect(record.content_type).toBe(mime);expect(record.verified_at).not.toBeNull();
+    }
+    const oversized=await prepare(),bytes=readFileSync(new URL("./fixtures/proofs/over20mp.png",import.meta.url));
+    expect((await caller.storage.from("prescreening-proofs").upload(oversized.object_path,bytes,{contentType:"image/png"})).error).toBeNull();
+    const verified=await call({action:"verify",upload_id:oversized.upload_id});
+    expect(verified.status,await verified.clone().text()).toBe(200);
+    expect((await db.query("select verified_at from prescreening_uploads where id=$1",[oversized.upload_id])).rows[0].verified_at).not.toBeNull();
+  });
   it("allows only the submitted application's own organization reviewer to view proof",async()=>{
     const ticket=await prepare();
     const bytes=readFileSync(new URL("./fixtures/proofs/valid.png",import.meta.url));

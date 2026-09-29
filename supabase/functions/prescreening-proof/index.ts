@@ -79,7 +79,14 @@ Deno.serve(async req => {
   if (downloaded.error) return json({ error: "proof_upload_incomplete" }, 409);
   try {
     const bytes = new Uint8Array(await downloaded.data.arrayBuffer());
-    const contentType = await verifyProofImage(bytes);
+    const signed = await db.storage.from("prescreening-proofs").createSignedUrl(upload.object_path, 120);
+    if (signed.error) return json({ error: "proof_unavailable" }, 503);
+    const proofUrl = new URL(signed.data.signedUrl);
+    if (Deno.env.get("SUPABASE_URL") === "http://kong:8000" && !Deno.env.get("DENO_DEPLOYMENT_ID")) {
+      const gateway = Deno.env.get("PUBLIC_FUNCTIONS_URL");
+      if (gateway) { const publicUrl = new URL(gateway); proofUrl.protocol = publicUrl.protocol; proofUrl.host = publicUrl.host; }
+    }
+    const contentType = await verifyProofImage(bytes, { upload_id: upload.id, object_path: upload.object_path, url: proofUrl.toString() });
     const verified = await db.from("prescreening_uploads").update({ verified_at: new Date().toISOString(), size_bytes: bytes.length, content_type: contentType })
       .eq("id", upload.id).select("id").single();
     if (verified.error) return json({ error: "proof_unavailable" }, 503);

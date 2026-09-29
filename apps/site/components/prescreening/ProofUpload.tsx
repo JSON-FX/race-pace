@@ -58,7 +58,7 @@ export function ProofUpload({ passportId, categoryId, name, disabled, onVerified
       <Input id={`proof-${passportId}`} aria-label={`Choose proof image for ${name}`} type="file" accept="image/jpeg,image/png,image/webp" disabled={disabled || busy}
         className="sr-only" onChange={event => { const selected = event.target.files?.[0]; if (selected) choose(selected); }} />
       <span>or drag and drop it here</span>
-      <span>JPEG, PNG, or WebP · up to 10 MB · 20 megapixels maximum</span>
+      <span>JPEG, PNG, or WebP · up to 10 MB</span>
     </label>
     {busy && <div role="status" className="text-xs"><Progress aria-label={`Uploading proof for ${name}`} max={100} value={progress} className="w-full" />{progress === 100 ? "Verifying image…" : `Uploading ${progress}%`}</div>}
     {verified && <p role="status" className="flex items-center gap-2 text-sm text-primary"><Check className="size-4" aria-hidden="true" />{file?.name} · ready to submit</p>}
