@@ -39,3 +39,24 @@ it("lets an admin check a pending refund without changing its note or amount", a
   expect(mocks.refund).toHaveBeenCalledWith("r", undefined, 95500);
   expect(mocks.success).not.toHaveBeenCalled();
 });
+it("routes a group participant and explains cancellation without an unsupported note", async () => {
+  mocks.refund.mockResolvedValue({ ok: true, refund_amount: 95500 });
+  render(<RefundModal registration={{ id: "r", full_name: "QA", total_amount: 100000, booking_order_id: "order" }} onClose={vi.fn()} onDone={vi.fn()} />);
+  await screen.findByText("Refund ₱955?");
+  expect(mocks.preview).toHaveBeenCalledWith("r", "order");
+  expect(screen.getByText(/This refunds only QA's entry/)).toHaveTextContent(/Other participants stay registered/);
+  expect(screen.queryByLabelText("Refund note")).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Confirm refund" }));
+  expect(mocks.refund).toHaveBeenCalledWith("r", undefined, 95500, "order");
+});
+it("reconciles an existing group request after reopening without offering a new refund", async () => {
+  mocks.preview.mockResolvedValue({ ok: true, existing_request: true, refund_amount: 95500 });
+  mocks.refund.mockResolvedValue({ ok: true, pending: true });
+  render(<RefundModal registration={{ id: "r", full_name: "QA", total_amount: 100000, booking_order_id: "order" }} onClose={vi.fn()} onDone={vi.fn()} />);
+  const check = await screen.findByRole("button", { name: "Check refund status" });
+  expect(screen.getByText(/An earlier refund request exists/)).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Confirm refund" })).not.toBeInTheDocument();
+  await userEvent.click(check);
+  expect(mocks.refund).toHaveBeenCalledWith("r", undefined, 95500, "order");
+  expect(mocks.success).not.toHaveBeenCalled();
+});
