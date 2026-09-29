@@ -9,6 +9,7 @@ const messages: Record<string, string> = {
   admissions_paused: "New requests are temporarily paused. Existing requests, held slots, and payment deadlines remain unchanged.",
   payment_provider_unavailable: "Payment is temporarily unavailable. Your existing holds and payment deadline are unchanged. Please contact the organizer if the deadline is approaching.",
   payment_methods_unavailable: "Payment methods could not be loaded. Try again; your original payment deadline stays the same.",
+  payment_method_unavailable: "This payment method is unavailable for this merchant. Choose another method. Your held slots and original payment deadline stay the same.",
   category_capacity_exhausted: "There are not enough places in a selected category. No slots were held. Update your selection and try again.",
   event_capacity_exhausted: "This event no longer has enough places. No slots were held.",
   participant_already_held: "A selected Passport already has a held place or registration for this event. Open your existing request or booking.",
