@@ -248,7 +248,9 @@ export function RegistrationDetail({ row, onClose, onRefunded }: {
         {/* ── Refund ─────────────────────────────────────────────────────── */}
         <div className="flex shrink-0 items-center justify-between gap-3 border-t border-border bg-muted/40 px-[18px] py-3">
           <span className="text-[11.5px] leading-snug text-muted-foreground">
-            {REFUND_REASON[row.payment_status ?? ""] ?? "No payment is recorded for this entry."}
+            {row.booking_order_id && row.payment_status === "paid"
+              ? "Refunding this participant cancels their ticket and releases their slot. Other participants stay registered."
+              : REFUND_REASON[row.payment_status ?? ""] ?? "No payment is recorded for this entry."}
           </span>
           <Button
             variant="destructive"
@@ -262,7 +264,7 @@ export function RegistrationDetail({ row, onClose, onRefunded }: {
 
         {refunding ? (
           <RefundModal
-            registration={{ id: row.id, full_name: row.full_name, total_amount: row.total_amount }}
+            registration={{ id: row.id, full_name: row.full_name, total_amount: row.total_amount, booking_order_id: row.booking_order_id }}
             onClose={() => setRefunding(false)}
             // `revalidatePath` inside refundRegistrationAction already
             // re-renders the server page with fresh data — this callback
