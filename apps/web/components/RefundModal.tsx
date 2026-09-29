@@ -10,7 +10,7 @@ import { refundRegistrationAction, previewRefundAction, type RefundResponse } fr
 import { peso } from "@/lib/format";
 
 export function RefundModal({ registration, onClose, onDone }: {
-  registration: { id: string; full_name: string | null; total_amount: number };
+  registration: { id: string; full_name: string | null; total_amount: number; booking_order_id?: string | null };
   onClose: () => void;
   onDone: () => void;
 }) {
@@ -20,20 +20,25 @@ export function RefundModal({ registration, onClose, onDone }: {
   const [preview, setPreview] = useState<RefundResponse | null>(null);
   useEffect(() => {
     let active = true;
-    previewRefundAction(registration.id).then((result) => {
+    const request = registration.booking_order_id
+      ? previewRefundAction(registration.id, registration.booking_order_id)
+      : previewRefundAction(registration.id);
+    request.then((result) => {
       if (active) { setPreview(result); if (!result.ok) setError(result.error ?? "Could not load refund."); }
     }).catch(() => { if (active) setError("Could not load refund. Close and try again."); });
     return () => { active = false; };
-  }, [registration.id]);
-  const ready = preview?.ok && !preview.pending && !preview.already && Number.isSafeInteger(preview.refund_amount);
-  const canCheck = preview?.ok && preview.pending;
+  }, [registration.id, registration.booking_order_id]);
+  const ready = preview?.ok && !preview.pending && !preview.already && !preview.existing_request && Number.isSafeInteger(preview.refund_amount);
+  const canCheck = preview?.ok && (preview.pending || preview.existing_request);
   const amount = ready ? peso(preview!.refund_amount!) : "";
 
   async function submit() {
     if ((!ready && !canCheck) || busy) return;
     setBusy(true); setError(null);
     let res: RefundResponse;
-    try { res = await refundRegistrationAction(registration.id, note || undefined, preview!.refund_amount); }
+    try { res = registration.booking_order_id
+      ? await refundRegistrationAction(registration.id, undefined, preview!.refund_amount, registration.booking_order_id)
+      : await refundRegistrationAction(registration.id, note || undefined, preview!.refund_amount); }
     catch { res = { ok: false, error: "Could not confirm the result. Close and reopen to check before retrying." }; }
     setBusy(false);
     if (!res.ok) { setError(res.error ?? "Refund failed."); return; }
@@ -51,7 +56,9 @@ export function RefundModal({ registration, onClose, onDone }: {
         <AlertDialogHeader>
           <AlertDialogTitle className="">{ready ? `Refund ${amount}?` : "Review refund"}</AlertDialogTitle>
           <AlertDialogDescription className="text-[13px] text-muted-foreground">
-            A full refund releases {registration.full_name ?? "this runner"}&apos;s slot. A partial refund keeps the ticket and slot active. Completed refunds cannot be undone.
+            {registration.booking_order_id
+              ? `This refunds only ${registration.full_name ?? "this runner"}'s entry. Once confirmed, their ticket is cancelled and their slot is released, even when fees are retained. Other participants stay registered. Completed refunds cannot be undone.`
+              : <>A full refund releases {registration.full_name ?? "this runner"}&apos;s slot. A partial refund keeps the ticket and slot active. Completed refunds cannot be undone.</>}
           </AlertDialogDescription>
         </AlertDialogHeader>
         {ready ? <dl className="text-sm space-y-2">
@@ -59,8 +66,8 @@ export function RefundModal({ registration, onClose, onDone }: {
           <div>Retained fees: {peso(preview!.retained_fees!)}</div>
           <div>Returned to runner: {amount}</div>
           <p>Platform and processing fees are retained, along with any organizer refund fee.</p>
-        </dl> : !error ? <p>{preview?.pending ? "Refund pending. The slot stays reserved until the provider confirms it." : preview?.already ? "This registration was already refunded." : "Loading refund amount…"}</p> : null}
-        <Input disabled={!!canCheck} aria-label="Refund note" placeholder="Reason (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
+        </dl> : !error ? <p>{preview?.existing_request ? "An earlier refund request exists. Check its current status before taking further action." : preview?.pending ? "Refund pending. The slot stays reserved until the provider confirms it." : preview?.already ? "This registration was already refunded." : "Loading refund amount…"}</p> : null}
+        {!registration.booking_order_id && <Input disabled={!!canCheck} aria-label="Refund note" placeholder="Reason (optional)" value={note} onChange={(e) => setNote(e.target.value)} />}
         {error ? <Alert variant="destructive" role="alert" className=""><AlertDescription>{error}</AlertDescription></Alert> : null}
         <AlertDialogFooter>
           <AlertDialogCancel onClick={onClose}>Keep it</AlertDialogCancel>

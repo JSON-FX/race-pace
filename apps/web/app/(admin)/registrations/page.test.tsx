@@ -32,6 +32,7 @@ const ReservationRosterSection = vi.hoisted(() => vi.fn(() => null));
 vi.mock("./kpi-section", () => ({ RegistrationsKpiSection }));
 vi.mock("./table-section", () => ({ RegistrationsTableSection }));
 vi.mock("./reservation-section", () => ({ ReservationRosterSection }));
+vi.mock("./prescreening-approvals", () => ({ PrescreeningApprovals: () => null }));
 
 const {
   listOrgEventOptions, getOrgRegistrationCount, getOrgPendingRegistrationCount, getMyRoles,

@@ -36,8 +36,8 @@ async function account() {
   if (login.error) throw login.error;
   return { id: created.data.user.id, token: login.data.session!.access_token };
 }
-async function reserve(mixedCategories = false) {
-  const input = groupReservationInputSchema.parse({ event_id: event, ...(mixedCategories ? {} : { category_id: category }), waiver_version_id: waiver, idempotency_key: randomUUID(), participants: [self, guest].map((id) => ({
+async function reserve(mixedCategories = false, batchId?: string) {
+  const input = groupReservationInputSchema.parse({ event_id: event, ...(mixedCategories ? {} : { category_id: category }), waiver_version_id: waiver, idempotency_key: randomUUID(), ...(batchId ? { prescreening_batch_id: batchId } : {}), participants: [self, guest].map((id) => ({
     participant_passport_id: id, ...(mixedCategories ? { category_id: id === self ? category : category2 } : {}), addon_ids: id === guest ? [addon] : [], waiver_accepted: true, waiver_acceptance_method: id === self ? "signed_in_self" : "participant_on_helper_device",
   })) });
   const rows = await svc.from("runner_passports").select("*").in("id", [self, guest]);
@@ -92,6 +92,7 @@ beforeEach(async () => {
   vi.clearAllMocks();
   mail.send.mockResolvedValue({ok:true});
   provider.create.mockResolvedValue({ sessionId: "cs_mocksession", checkoutUrl: "https://checkout.paymongo.com/mock" });
+  provider.retrieve.mockResolvedValue({data:{id:"cs_mocksession",attributes:{status:"active",payments:[]}}});
   await db.query("delete from booking_refund_lines where org_id=$1", [org]);
   await db.query("delete from booking_refund_requests where org_id=$1", [org]);
   await db.query("delete from booking_order_deliveries where org_id=$1", [org]);
@@ -101,6 +102,8 @@ beforeEach(async () => {
   await db.query("delete from booking_payment_dispatches where org_id=$1", [org]);
   await db.query("delete from booking_payment_attempts where org_id=$1", [org]);
   await db.query("delete from registrations where event_id=$1", [event]);
+  await db.query("delete from prescreening_applications where event_id=$1", [event]);
+  await db.query("delete from prescreening_batches where event_id=$1", [event]);
   await db.query("delete from booking_orders where event_id=$1", [event]);
   await db.query("update organizations set fee_mode='pass_on',commission_type='fixed',commission_flat_cents=1000,commission_rate=0.03,is_active=true where id=$1", [org]);
   await db.query("update categories set base_price=case when id=$1 then 100000 else 175000 end,slots_total=20,slots_taken=0 where id=any($2::uuid[])", [category, [category, category2]]);
@@ -119,6 +122,8 @@ afterAll(async () => {
   await db.query("delete from booking_payment_dispatches where org_id=$1", [org]);
   await db.query("delete from booking_payment_attempts where org_id=$1", [org]);
   await db.query("delete from registrations where event_id=$1", [event]);
+  await db.query("delete from prescreening_applications where event_id=$1", [event]);
+  await db.query("delete from prescreening_batches where event_id=$1", [event]);
   await db.query("delete from booking_orders where event_id=$1", [event]);
   await db.query("delete from events where id=$1", [event]);
   await db.query("delete from organizer_waiver_versions where id=$1", [waiver]);
@@ -275,6 +280,19 @@ it("keeps the endpoint disabled by default and validates authentication and meth
 async function cancelCall(order: string, bearer = token) {
   return cancelHandler(new Request("http://localhost/group-order-cancel", { method: "POST", headers: { Authorization: `Bearer ${bearer}`, "content-type": "application/json" }, body: JSON.stringify({ order_id: order }) }));
 }
+it("cancelling an approved entry booking releases its screening holds without restarting the timer", async () => {
+  const request={event_id:event,idempotency_key:randomUUID(),checkout_intent:"entry",participants:[
+    {participant_passport_id:self,category_id:category},{participant_passport_id:guest,category_id:category2},
+  ]};
+  const batch=(await db.query("select prescreening_submit($1,$2) id",[actor,request])).rows[0].id;
+  const deadline=(await db.query("select payment_deadline_at from prescreening_batches where id=$1",[batch])).rows[0].payment_deadline_at;
+  const order=await reserve(true,batch);
+  expect((await db.query("select count(*) from event_capacity_claims($1)",[event])).rows[0].count).toBe("2");
+  expect((await cancelCall(order)).status).toBe(200);
+  expect((await db.query("select status,payment_deadline_at from prescreening_batches where id=$1",[batch])).rows[0]).toEqual({status:"cancelled",payment_deadline_at:deadline});
+  expect((await db.query("select count(*) from event_capacity_claims($1)",[event])).rows[0].count).toBe("0");
+  expect((await cancelCall(order)).status).toBe(200);
+});
 it("cancels an unpaid group atomically and is idempotent", async () => {
   const order = await reserve(true);
   const response = await cancelCall(order);
@@ -427,6 +445,10 @@ it("reallocates the entire expired group when capacity is available", async () =
 it("keeps late capture but issues no partial tickets when the whole group no longer fits", async () => {
   const attempt = await prepared(); await groupCall(attempt.id);
   await db.query("update registrations set status='expired',expires_at=null where booking_order_id=$1", [attempt.booking_order_id]);
+  // An unresolved provider checkout still owns its places. Only a reconciled
+  // expired attempt permits reallocation before a late capture is received.
+  await expect(db.query("update categories set slots_total=1 where id=$1", [category])).rejects.toThrow("category_capacity_below_existing_places");
+  await db.query("update booking_payment_attempts set status='expired' where id=$1", [attempt.id]);
   await db.query("update categories set slots_total=1 where id=$1", [category]);
   provider.retrieve.mockResolvedValue(providerCapture(attempt));
   const response = await groupCall(attempt.id, "verify"); expect(await response.json()).toEqual({ status: "reconciliation_required" });
@@ -733,4 +755,24 @@ it("recovers expired delivery leases and refuses stale completion and client cla
  expect((await svc.rpc("booking_delivery_finish",{p_order:order,p_lease:first.data[0].lease_token,p_error:null})).data).toBe(false);
  expect((await sessionClient().rpc("booking_delivery_claim",{p_limit:1})).error?.code).toBe("42501");
  expect((await svc.rpc("booking_delivery_finish",{p_order:order,p_lease:second.data[0].lease_token,p_error:null})).data).toBe(true);
+});
+
+
+it("replaces an expired provider attempt without renewing the group's hold", async () => {
+  const { startGroupPayment, verifyGroupPayment } = await import("../functions/_shared/groupPaymentService");
+  const order = await reserve();
+  const before = (await db.query("select expires_at from booking_orders where id=$1", [order])).rows[0].expires_at;
+  const prepared = await svc.rpc("booking_order_prepare_payment", args(order));
+  expect(prepared.error).toBeNull();
+  const id = prepared.data.id;
+  await startGroupPayment(actor,id);
+  provider.retrieve.mockResolvedValue({data:{id:"cs_mocksession",attributes:{status:"expired",payments:[]}}});
+  expect(await verifyGroupPayment(id)).toEqual({status:"expired"});
+  expect((await db.query("select status,expires_at from booking_orders where id=$1", [order])).rows[0]).toEqual({status:"pending",expires_at:before});
+  const next = await svc.rpc("booking_order_prepare_payment", args(order));
+  expect(next.error).toBeNull();
+  expect(next.data.id).not.toBe(id);
+  expect((await db.query("select status,expires_at from registrations where booking_order_id=$1", [order])).rows)
+    .toEqual([{status:"pending",expires_at:before},{status:"pending",expires_at:before}]);
+  expect((await db.query("select session_id from booking_payment_dispatches where attempt_id=$1", [id])).rows[0].session_id).toBe("cs_mocksession");
 });

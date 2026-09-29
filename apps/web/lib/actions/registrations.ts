@@ -4,13 +4,13 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 
 export type RefundResponse = {
-  ok: boolean; error?: string; pending?: boolean; already?: boolean;
+  ok: boolean; error?: string; pending?: boolean; already?: boolean; existing_request?: boolean;
   refund_amount?: number; total_paid?: number; retained_fees?: number;
 };
 
-async function requestRefund(body: Record<string, unknown>): Promise<RefundResponse> {
+async function requestRefund(body: Record<string, unknown>, group = false): Promise<RefundResponse> {
   const supabase = await createClient();
-  const { data, error } = await supabase.functions.invoke("admin-refund", { body });
+  const { data, error } = await supabase.functions.invoke(group ? "admin-group-refund" : "admin-refund", { body });
   if (error) {
     const context = (error as { context?: Response }).context;
     const detail = await context?.json?.().catch(() => null);
@@ -23,19 +23,36 @@ async function requestRefund(body: Record<string, unknown>): Promise<RefundRespo
       : context?.status === 404 ? "Registration not found."
       : "Could not confirm the refund result. Close and reopen this dialog to check before retrying." };
   }
+  if (group) {
+    const amounts = { refund_amount: data?.refund_amount, total_paid: data?.total_paid, retained_fees: data?.retained_fees };
+    if (data?.status === "preview") return { ok: true, ...amounts, existing_request: !!data.request_id };
+    if (data?.status === "pending") return { ok: true, ...amounts, pending: true };
+    if (data?.status === "succeeded") return { ok: true, ...amounts };
+    return { ok: false, error: data?.status === "failed"
+      ? "The provider reported a failed refund. Contact platform support before starting another attempt."
+      : data?.status === "review_required"
+        ? "This refund needs a payment provider review. Contact platform support."
+        : "Could not confirm the refund result. Close and reopen this dialog to check before retrying." };
+  }
   if (data?.ok !== true) return { ok: false, error: "Could not confirm the refund result. Please refresh." };
   return data as RefundResponse;
 }
 
-export async function previewRefundAction(registrationId: string): Promise<RefundResponse> {
-  return requestRefund({ registration_id: registrationId, preview: true });
+export async function previewRefundAction(registrationId: string, bookingOrderId?: string): Promise<RefundResponse> {
+  return bookingOrderId
+    ? requestRefund({ order_id: bookingOrderId, registration_ids: [registrationId], idempotency_key: registrationId, preview: true }, true)
+    : requestRefund({ registration_id: registrationId, preview: true });
 }
 
 /** The edge function recomputes the amount; the preview is only a confirmation guard. */
 export async function refundRegistrationAction(
-  registrationId: string, note?: string, expectedAmount?: number,
+  registrationId: string, note?: string, expectedAmount?: number, bookingOrderId?: string,
 ): Promise<RefundResponse> {
-  const result = await requestRefund({ registration_id: registrationId, note: note ?? null, expected_amount: expectedAmount });
+  // A stable per-participant key survives uncertain responses and dialog reopen.
+  // Always select the participant: omitting registration_ids refunds the whole order.
+  const result = bookingOrderId
+    ? await requestRefund({ order_id: bookingOrderId, registration_ids: [registrationId], idempotency_key: registrationId, preview: false, expected_amount: expectedAmount }, true)
+    : await requestRefund({ registration_id: registrationId, note: note ?? null, expected_amount: expectedAmount });
   if (result.ok) {
     revalidatePath("/registrations");
     revalidatePath("/payments");

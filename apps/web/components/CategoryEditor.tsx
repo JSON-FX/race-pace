@@ -1,6 +1,7 @@
 "use client";
 
 
+import { CategorySettings } from "./CategorySettings";
 import { Trash2 } from "lucide-react";
 import type { CategoryDraft } from "../lib/actions/events";
 import { Input } from "./ui/input";
@@ -127,6 +128,7 @@ export function CategoryEditor({
               />
             </Field>
           </div>
+          <CategorySettings category={r} onChange={patch => set(i, patch)} />
         </div>
       ))}
     </div>

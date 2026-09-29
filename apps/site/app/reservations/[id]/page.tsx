@@ -21,12 +21,16 @@ export default async function ReservationPage({ params, searchParams }: {
   const { data: { user } } = await db.auth.getUser();
   if (!user) redirect(`/sign-in?next=${encodeURIComponent(`/reservations/${id}`)}`);
   const { data: reservation } = await db.from("event_reservations")
-    .select("id,event_id,user_id,status,quantity,reservation_fee_cents,platform_fee_cents,registration_deadline_at,events(id,slug,name,status),reservation_payments(amount_cents,processor_fee_cents,checkout_url,status)")
+    .select("id,event_id,user_id,status,quantity,reservation_fee_cents,platform_fee_cents,reservation_total_fee_cents,reservation_total_platform_fee_cents,registration_deadline_at,events(id,slug,name,status),reservation_payments(amount_cents,processor_fee_cents,checkout_url,status)")
     .eq("id", id).maybeSingle();
   if (!reservation || reservation.user_id !== user.id) notFound();
+  const { data: screeningBatch, error: screeningError } = await db.from("prescreening_batches")
+    .select("id").eq("event_reservation_id", id).eq("booked_by_user_id", user.id).maybeSingle();
+  if (screeningError) throw screeningError;
   const { data: places, error: placesError } = await db.from("event_reservation_places")
-    .select("id,participant_name,status").eq("reservation_id", id).order("created_at");
+    .select("id,participant_name,participant_passport_id,category_id,status,entry_payment_deadline_at,categories(label,inclusions,entry_payment_deadline_at)").eq("reservation_id", id).order("created_at");
   if (placesError) throw placesError;
+  const categoryPlaces = (places ?? []).filter(p => p.category_id && p.status === "held");
   const event = reservation.events as unknown as { id: string; slug: string | null; name: string; status: string };
   const relatedPayment = reservation.reservation_payments as unknown as {
     amount_cents: number; processor_fee_cents: number | null; checkout_url: string | null; status: string;
@@ -42,16 +46,22 @@ export default async function ReservationPage({ params, searchParams }: {
       <p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-300">Race Pace / Early reservation</p>
       <h1 className="mt-3 text-4xl font-black uppercase tracking-tight sm:text-6xl">{event.name}</h1>
       <ReservationStatusPanel id={id} initialStatus={reservation.status} returned={returned === "1"}
+        categoryBound={categoryPlaces.length > 0}
         remaining={places?.length ? places.filter((place) => place.status === "held").length : reservation.status === "converted" ? 0 : 1} />
       <section className="mt-6 rounded-xl border border-white/20 p-5" aria-label="Reserved Race Passports">
         <h2 className="text-sm font-bold uppercase tracking-wider">{reservation.quantity} {reservation.quantity === 1 ? "event place" : "event places"}</h2>
         {places?.length ? <ul className="mt-3 space-y-2 text-sm text-white/80">{places.map((place) =>
-          <li key={place.id} className="flex justify-between gap-4"><span>{place.participant_name}</span><span className="capitalize">{place.status.replaceAll("_", " ")}</span></li>
+          <li key={place.id} className="flex justify-between gap-4"><span>{place.participant_name}{place.category_id && <span className="mt-1 block text-xs">{(place.categories as unknown as {label:string})?.label}</span>}</span><span className="capitalize">{place.status.replaceAll("_", " ")}</span></li>
         )}</ul> : <p className="mt-2 text-sm text-white/70">Your event place is reserved.</p>}
       </section>
+      {!!categoryPlaces.length && <div className="mt-5 space-y-3">{categoryPlaces.map(place => {
+        const category = place.categories as unknown as {label:string;inclusions:string[];entry_payment_deadline_at:string|null};
+        const due = Math.max(Date.parse(place.entry_payment_deadline_at ?? ""),Date.parse(category?.entry_payment_deadline_at ?? place.entry_payment_deadline_at ?? ""));
+        return <div key={place.id} className="rounded-lg border border-white/20 p-4 text-sm"><p className="font-semibold">{place.participant_name} · {category?.label}</p><p className="mt-2">Entry payment due {new Intl.DateTimeFormat("en-PH",{timeZone:"Asia/Manila",dateStyle:"medium",timeStyle:"short"}).format(new Date(due))} PHT</p>{!!category?.inclusions?.length && <ul className="mt-2 list-disc pl-4">{category.inclusions.map((item,i)=><li key={i}>{item}</li>)}</ul>}</div>;
+      })}</div>}
       <dl className="mt-6 space-y-3 border-t border-white/20 pt-5 text-sm">
-        <div className="flex justify-between gap-4"><dt>Reservation fee{reservation.quantity > 1 ? ` × ${reservation.quantity}` : ""}</dt><dd>{pesos(reservation.reservation_fee_cents * reservation.quantity)}</dd></div>
-        <div className="flex justify-between gap-4"><dt>Platform Fees{reservation.quantity > 1 ? ` × ${reservation.quantity}` : ""}</dt><dd>{pesos(reservation.platform_fee_cents * reservation.quantity)}</dd></div>
+        <div className="flex justify-between gap-4"><dt>Reservation fee{reservation.reservation_total_fee_cents == null && reservation.quantity > 1 ? ` × ${reservation.quantity}` : ""}</dt><dd>{pesos((reservation.reservation_total_fee_cents ?? reservation.reservation_fee_cents * reservation.quantity))}</dd></div>
+        <div className="flex justify-between gap-4"><dt>Platform Fees{reservation.reservation_total_fee_cents == null && reservation.quantity > 1 ? ` × ${reservation.quantity}` : ""}</dt><dd>{pesos((reservation.reservation_total_platform_fee_cents ?? reservation.platform_fee_cents * reservation.quantity))}</dd></div>
         <div className="flex justify-between gap-4"><dt>PayMongo fee</dt><dd>{pesos(payment?.processor_fee_cents)}</dd></div>
         <div className="flex justify-between gap-4 border-t border-white/20 pt-3 font-bold"><dt>Charged total</dt><dd>{payment?.status === "paid" ? pesos(payment.amount_cents) : "Shown at PayMongo checkout"}</dd></div>
       </dl>
@@ -59,9 +69,11 @@ export default async function ReservationPage({ params, searchParams }: {
         ? "Your reservation became a paid event entry. The separate reservation fee remains nonrefundable."
         : <>Complete registration and secure entry payment by {deadline} PHT. The reservation fee is nonrefundable and separate from the later registration price. If you miss the deadline, your held place returns to event inventory.</>}</p>
       <div className="mt-7 flex flex-wrap gap-3">
+        {reservation.status === "paid" && categoryPlaces.length > 0 && ["open","almost_full"].includes(event.status) && <Button asChild><Link href={`/register/${categoryPlaces[0].category_id}/group?reservation=${reservation.id}`}>Complete entry for held Passports</Link></Button>}
         {reservation.status === "converted" ? <Button asChild variant="default"><Link href="/races"
           className="px-5 py-3">View my race</Link></Button> : null}
-        {reservation.status === "pending" && payment?.checkout_url ? <Button asChild variant="default"><a href={payment.checkout_url}
+        {reservation.status === "pending" && screeningBatch ? <Button asChild><Link href={`/prescreening/${screeningBatch.id}`}>Continue reservation payment</Link></Button> : null}
+        {reservation.status === "pending" && !screeningBatch && payment?.checkout_url ? <Button asChild variant="default"><a href={payment.checkout_url}
           className="px-5 py-3">Continue PayMongo checkout</a></Button> : null}
         <Button asChild variant="outline"><Link href={eventPublicPath(event)} className="border border-white/35 px-5 py-3">View event</Link></Button>
       </div>

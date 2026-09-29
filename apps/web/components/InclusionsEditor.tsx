@@ -18,11 +18,11 @@ function swap<T>(arr: T[], i: number, j: number): T[] {
 // line per row, display-only there. Empty is the current state of every
 // event and is valid: the site omits the whole section when the array is
 // empty, so organizers add rows over time.
-export function InclusionsEditor({ rows, onChange }: { rows: string[]; onChange: (r: string[]) => void }) {
+export function InclusionsEditor({ rows, onChange, embedded = false }: { rows: string[]; onChange: (r: string[]) => void; embedded?: boolean }) {
   const set = (i: number, value: string) => onChange(rows.map((r, j) => (j === i ? value : r)));
   const add = () => onChange([...rows, ""]);
   return (
-    <Card className="gap-0 p-5">
+    <Card className={embedded ? "gap-0 border-0 bg-transparent p-0 shadow-none" : "gap-0 p-5"}>
       <div className="flex items-center justify-between">
         <h2 className="text-[15px] font-bold tracking-[-0.01em]">What's included</h2>
         <Button variant="ghost" size="sm" onClick={add} className="h-auto p-0">+ Add</Button>

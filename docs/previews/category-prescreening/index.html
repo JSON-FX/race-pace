@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Category reservations & pre-screening · Race Pace design preview</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="preview-bar">
+    <div class="preview-title"><span class="preview-dot"></span><strong>Design preview</strong><span class="preview-caption">Local sample data only</span></div>
+    <nav aria-label="Prototype screens" id="screen-nav"></nav>
+    <button class="btn quiet compact" id="demo-tools-toggle" aria-expanded="false" aria-controls="demo-tools">Preview states <span aria-hidden="true">⌄</span></button>
+  </header>
+  <section class="demo-tools" id="demo-tools" hidden aria-label="Preview controls">
+    <div class="field"><label for="event-state">Event state</label><select id="event-state"><option value="open">Registration open</option><option value="coming_soon">Coming soon</option></select></div>
+    <div class="field"><label for="scenario">Request state</label><select id="scenario"><option value="pending">Awaiting review</option><option value="mixed">Runner needs review · managed Passport does not</option><option value="mixed-managed">Managed Passport needs review · runner does not</option><option value="partial">One approved, one pending</option><option value="ready">All approved · 72 hours to pay</option><option value="rejected">One rejected</option><option value="expired">Payment window expired</option><option value="unavailable">No slots available</option><option value="deadline">Approval blocked by deadline</option><option value="email-failed">Approval email failed</option><option value="empty">No requests</option></select></div>
+    <div class="field"><label for="upload-case">Proof validation preview</label><select id="upload-case"><option value="exact">Exactly 10 MB</option><option value="oversize">Over 10 MB</option><option value="invalid">Invalid image content</option><option value="type">Unsupported file type</option></select></div><button class="btn secondary compact" id="test-upload">Try upload case</button>
+    <p>Simulated clock: <strong>1 Oct 2026, 9:00 AM PHT</strong>.<br>No accounts, messages, payments, or uploaded files leave this preview.</p>
+    <button class="btn secondary compact" id="reset-demo">Reset preview</button>
+  </section>
+  <div id="app"></div>
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+  <dialog id="dialog" aria-labelledby="dialog-title"><div id="dialog-content"></div></dialog>
+  <script src="./prototype.js"></script>
+</body>
+</html>

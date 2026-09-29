@@ -64,7 +64,7 @@ describe("admin event writes", () => {
     const client = new Client({ connectionString: dbUrl });
     await client.connect();
     try {
-      const allowed = ["code", "label", "distance_km", "base_price", "slots_total", "elevation_gain_m", "cutoff_hours", "blurb"];
+      const allowed = ["code", "label", "distance_km", "base_price", "slots_total", "elevation_gain_m", "cutoff_hours", "blurb", "reservation_enabled", "reservation_slots", "reservation_fee_cents", "reservation_sales_close_at", "entry_payment_deadline_at", "inclusions", "prescreening_enabled", "prescreening_requirement"];
       const update = await client.query<{ column_name: string }>(
         `select column_name from information_schema.column_privileges
           where grantee='authenticated' and table_schema='public'

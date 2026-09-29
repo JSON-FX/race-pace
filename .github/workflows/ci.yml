@@ -58,7 +58,11 @@ jobs:
           ADMIN_APP_URL=http://localhost:3001
           EMAIL_PROVIDER=mailpit
           MAILPIT_SMTP_HOST=inbucket
+          PUBLIC_FUNCTIONS_URL=http://127.0.0.1:54521/functions/v1
+          PROOF_VERIFIER_SECRET=ci-only-proof-verifier-secret-never-used-outside-runner
           EOF
+          proof_host=$(docker inspect supabase_db_race-pace --format '{{range .NetworkSettings.Networks}}{{.Gateway}}{{end}}')
+          echo "PROOF_VERIFIER_URL=http://${proof_host}:3000/api/internal/prescreening-proof" >> /tmp/racepace-ci-functions.env
           echo 'SUPABASE_FUNCTIONS_ENV_FILE=/tmp/racepace-ci-functions.env' >> "$GITHUB_ENV"
           nohup pnpm exec supabase functions serve --no-verify-jwt --env-file /tmp/racepace-ci-functions.env > /tmp/racepace-ci-edge.log 2>&1 &
           for attempt in {1..30}; do
@@ -67,6 +71,23 @@ jobs:
             sleep 2
           done
           cat /tmp/racepace-ci-edge.log
+          exit 1
+      - name: Start native proof verifier
+        run: |
+          set -a
+          . ./.env.local
+          set +a
+          export NEXT_PUBLIC_SUPABASE_URL="$API_URL"
+          export NEXT_PUBLIC_SUPABASE_ANON_KEY="$ANON_KEY"
+          export PROOF_VERIFIER_SECRET=ci-only-proof-verifier-secret-never-used-outside-runner
+          setsid pnpm --filter site dev > /tmp/racepace-ci-proof.log 2>&1 &
+          echo "$!" > /tmp/racepace-ci-proof.pid
+          for attempt in {1..30}; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:3000/api/internal/prescreening-proof || true)
+            if [ "$code" = "401" ]; then exit 0; fi
+            sleep 2
+          done
+          cat /tmp/racepace-ci-proof.log
           exit 1
       - name: Check Fieldnotes source and shared components
         run: |
@@ -83,6 +104,13 @@ jobs:
           pnpm --filter web test
       - name: Test database, functions and shared contracts
         run: pnpm test
+      - name: Stop native proof verifier before isolated builds
+        if: always()
+        run: |
+          if [ -f /tmp/racepace-ci-proof.pid ]; then
+            proof_pid=$(cat /tmp/racepace-ci-proof.pid)
+            kill -- "-$proof_pid" || true
+          fi
       - name: Build runner and admin
         run: |
           set -a

@@ -1,0 +1,21 @@
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, expect, it, vi } from "vitest";
+const proof=vi.hoisted(()=>({prepare:vi.fn(),upload:vi.fn(),verify:vi.fn()}));
+vi.mock("@/lib/prescreening",()=>({screeningOperation:proof.prepare,uploadProof:proof.upload,verifyProof:proof.verify,validateProofFile:()=>null}));
+import { ProofUpload } from "./ProofUpload";
+beforeEach(()=>vi.clearAllMocks());
+it("retries verification without overwriting an uploaded private proof",async()=>{
+  const ticket={upload_id:"proof-1",bucket:"prescreening-proofs",object_path:"private/proof-1"};
+  proof.prepare.mockResolvedValue(ticket);
+  proof.upload.mockImplementation(async(_file,_ticket,_progress,_signal,onUploaded)=>{onUploaded();throw new Error("Verification temporarily unavailable");});
+  proof.verify.mockResolvedValue(undefined);
+  const verified=vi.fn();
+  render(<ProofUpload passportId="passport-1" categoryId="70k" name="Alex" onVerified={verified}/>);
+  fireEvent.change(screen.getByLabelText("Choose proof image for Alex"),{target:{files:[new File(["proof"],"proof.png",{type:"image/png"})]}});
+  fireEvent.click(await screen.findByRole("button",{name:"Retry verification"}));
+  await waitFor(()=>expect(verified).toHaveBeenLastCalledWith("proof-1"));
+  expect(proof.prepare).toHaveBeenCalledTimes(1);
+  expect(proof.upload).toHaveBeenCalledTimes(1);
+  expect(proof.verify).toHaveBeenCalledWith(ticket);
+  expect(screen.getByRole("status")).toHaveTextContent("proof.png · ready to submit");
+});

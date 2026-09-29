@@ -58,9 +58,13 @@ export default async function RegisterPage({ params, searchParams }: { params: P
     redirect(`/events/${category.event_id}?closed=${categoryId}`);
   }
 
+  if (category.prescreening_enabled && !reservationId) {
+    redirect(`/prescreening/new?event=${event.id}&category=${category.id}&intent=entry`);
+  }
+
   // Slot state is authoritative on the server at submit time, but there is no
   // reason to walk a runner through three steps just to reject them.
-  if (category.slots_taken >= category.slots_total) {
+  if (!reservationId && (category.general_available ?? category.slots_total - category.slots_taken) <= 0) {
     redirect(`/events/${category.event_id}?soldout=${categoryId}`);
   }
 

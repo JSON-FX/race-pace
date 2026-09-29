@@ -16,7 +16,6 @@ import { eventInputSchema, categoryInputSchema, addonInputSchema, sanitizeListFi
 import { CategoryEditor, addCategory } from "@/components/CategoryEditor";
 import { AddonEditor } from "@/components/AddonEditor";
 import { ScheduleEditor } from "@/components/ScheduleEditor";
-import { InclusionsEditor } from "@/components/InclusionsEditor";
 import { EventImagesEditor } from "@/components/EventImagesEditor";
 import { PsgcAddressField } from "@/components/PsgcAddressField";
 import { FormSection, Field, SectionRail, StickySaveBar, type SectionMeta } from "@/components/form-section";
@@ -61,7 +60,7 @@ function editorDraft(data: EditorData): EventDraft {
 
 function seedCats(data: EditorData): CategoryDraft[] {
   return data.categories.map((c) => ({
-    id: c.id, code: c.code, label: c.label, distance_km: c.distance_km, base_price: c.base_price,
+    ...c, id: c.id, code: c.code, label: c.label, distance_km: c.distance_km, base_price: c.base_price,
     slots_total: c.slots_total, elevation_gain_m: c.elevation_gain_m, cutoff_hours: c.cutoff_hours, blurb: c.blurb,
   }));
 }
@@ -149,19 +148,12 @@ export function EventEditorForm({ initial, orgId, checkInDefault = true, canEdit
     if (event.end_date && event.event_date && event.end_date < event.event_date) return "End date can't be before the start date.";
     const kitError = kitCutoffError(event);
     if (kitError) return kitError;
-    for (const c of cats) if (!categoryInputSchema.safeParse(c).success) return "Fix the category rows (code, label, non-negative price/slots, gain 0-30000m, cut-off 0-240h).";
+    for (const c of cats) { const parsed = categoryInputSchema.safeParse(c); if (!parsed.success) return parsed.error.issues[0]?.message ?? "Check the category settings."; }
     const capacityError = eventCapacityError(event, cats);
     if (capacityError) return capacityError;
-    if ((event.status === "open" || event.status === "almost_full") && event.total_event_slots === null &&
-      (!initial || initial.event.status === "coming_soon")) {
-      return "Set total event slots before opening registration.";
-    }
-    if (initial?.event.total_event_slots != null && event.total_event_slots === null && event.status !== "draft") {
-      return "A published event must keep its total event slots.";
-    }
     for (const a of addons) if (!addonInputSchema.safeParse(a).success) return "Fix the add-on rows (name, non-negative price).";
     return null;
-  }, [event, cats, addons, initial]);
+  }, [event, cats, addons]);
 
   function onSave() {
     if (invalid) { setError(invalid); return; }
@@ -171,7 +163,7 @@ export function EventEditorForm({ initial, orgId, checkInDefault = true, canEdit
     const sanitized = sanitizeListFields(event);
     const payload = {
       event: { ...sanitized, id: event.id, org_id: event.org_id || orgId || "" },
-      categories: { current: cats, original: origCats },
+      categories: { current: cats.map(c => ({ ...categoryInputSchema.parse(c), id: c.id, tempId: c.tempId })), original: origCats },
       addons: { current: addons, original: origAddons },
     };
     const fd = new FormData();
@@ -211,7 +203,6 @@ export function EventEditorForm({ initial, orgId, checkInDefault = true, canEdit
     { id: "sec-categories", label: "Categories", count: cats.length, done: cats.length > 0 },
     { id: "sec-images", label: "Images", done: !!event.hero_image_url || (event.gallery?.length ?? 0) > 0 },
     { id: "sec-schedule", label: "Schedule", count: event.schedule?.length ?? 0, done: (event.schedule?.length ?? 0) > 0 },
-    { id: "sec-inclusions", label: "Inclusions", count: event.inclusions?.length ?? 0, done: (event.inclusions?.length ?? 0) > 0 },
     { id: "sec-addons", label: "Add-ons", count: addons.length, done: addons.length > 0 },
   ];
 
@@ -370,25 +361,7 @@ export function EventEditorForm({ initial, orgId, checkInDefault = true, canEdit
                       onCheckedChange={(checked) => set({ coming_soon_notify_enabled: checked === true })} />
                     <span><strong className="block">Notify me</strong><span className="text-muted-foreground">Email followers when registration opens.</span></span>
                   </Label>
-                  <Label className="flex items-start gap-3">
-                    <Checkbox  aria-label="Enable Reserve now" checked={event.coming_soon_reserve_enabled}
-                      onCheckedChange={(checked) => set({ coming_soon_reserve_enabled: checked === true })} />
-                    <span><strong className="block">Reserve now</strong><span className="text-muted-foreground">A separate, nonrefundable charge holds one event place.</span></span>
-                  </Label>
-                  {event.coming_soon_reserve_enabled ? (
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <Field label="Reservation fee (₱)" required hint="Runner also pays Platform Fees and PayMongo processing.">
-                        <Input aria-label="Reservation fee in pesos" type="number" min="0.01" step="0.01" className={inputCls}
-                          value={event.reservation_fee_cents == null ? "" : (event.reservation_fee_cents / 100).toFixed(2)}
-                          onChange={(e) => set({ reservation_fee_cents: e.target.value === "" ? null : Math.round(Number(e.target.value) * 100) })} />
-                      </Field>
-                      <Field label="Entry payment due" required hint="Reservations expire if registration remains unpaid.">
-                        <Input aria-label="Reservation entry payment deadline" type="datetime-local" className={inputCls}
-                          value={toLocalInput(event.reservation_deadline_at)}
-                          onChange={(e) => set({ reservation_deadline_at: fromLocalInput(e.target.value) })} />
-                      </Field>
-                    </div>
-                  ) : null}
+
                 </div>
               ) : null}
             </div>
@@ -449,18 +422,9 @@ export function EventEditorForm({ initial, orgId, checkInDefault = true, canEdit
             }
           >
             <div className="space-y-4">
-              <Field label="Total event slots" required={event.coming_soon_reserve_enabled || cats.length > 0}
-                hint="Event-wide capacity. Category slots divide this total; the coming soon page never shows remaining places.">
-                <Input aria-label="Total event slots" type="number" min="1" step="1" className={`${inputCls} max-w-48`}
-                  value={event.total_event_slots ?? ""}
-                  onChange={(e) => set({ total_event_slots: e.target.value === "" ? null : Number(e.target.value) })} />
-              </Field>
-              {event.total_event_slots !== null ? (
-                <p className="text-[12px] text-muted-foreground" aria-live="polite">
-                  {allocatedSlots} of {event.total_event_slots} slots allocated to categories
-                  {allocatedSlots <= event.total_event_slots ? ` · ${event.total_event_slots - allocatedSlots} unallocated` : " · over capacity"}
-                </p>
-              ) : null}
+              <p className="rounded-lg bg-muted p-3 text-sm" aria-live="polite">
+                <strong>{allocatedSlots} total event slots</strong><span className="ml-2 text-muted-foreground">Calculated from category slots.</span>
+              </p>
               <CategoryEditor rows={cats} onChange={setCats} />
             </div>
           </FormSection>
@@ -471,10 +435,6 @@ export function EventEditorForm({ initial, orgId, checkInDefault = true, canEdit
 
           <FormSection id="sec-schedule" title="Race-morning schedule" hideTitle>
             <ScheduleEditor rows={event.schedule} onChange={(schedule) => set({ schedule })} />
-          </FormSection>
-
-          <FormSection id="sec-inclusions" title="What's included" hideTitle>
-            <InclusionsEditor rows={event.inclusions} onChange={(inclusions) => set({ inclusions })} />
           </FormSection>
 
           <FormSection id="sec-addons" title="Add-ons" hideTitle>

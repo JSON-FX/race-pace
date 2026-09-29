@@ -1,0 +1,226 @@
+[
+  {
+    "slug": "org-provision",
+    "version": 16,
+    "verify_jwt": true,
+    "ezbr_sha256": "b80aa4dfe4f6154229938d485bd26fd990d42ad64d8a85b5a0bcf237cfe0c76f",
+    "status": "ACTIVE"
+  },
+  {
+    "slug": "org-members",
+    "version": 15,
+    "verify_jwt": true,
+    "ezbr_sha256": "fe74a46d4791ee13d475f700081606f14a3ae0e1c11b10f773e8748be668f93e",
+    "status": "ACTIVE"
+  },
+  {
+    "slug": "registrations-checkout",
+    "version": 21,
+    "verify_jwt": true,
+    "ezbr_sha256": "a52477b54d7fedf6e5db48f38d17e91d439a721e9a74d8eb67803c5442c057b0",
+    "status": "ACTIVE"
+  },
+  {
+    "slug": "payment-session",
+    "version": 21,
+    "verify_jwt": true,
+    "ezbr_sha256": "21ea3684cfdbae66e0e616ad578882a0ce46a6f2a8334813cf03cece53fa003d",
+    "status": "ACTIVE"
+  },
+  {
+    "slug": "payment-verify",
+    "version": 20,
+    "verify_jwt": true,
+    "ezbr_sha256": "52845f15d341a2fd1dcfc9386b216682e62099923c536adc70f02ee75c617519",
+    "status": "ACTIVE"
+  },
+  {
+    "slug": "payments-webhook",
+    "version": 20,
+    "verify_jwt": false,
+    "ezbr_sha256": "064620815f74d19f03a45aaf09bbe3cfa197129e53fe412c4da5850eb341926d",
+    "status": "ACTIVE"
+  },
+  {
+    "slug": "send-ticket-email",
+    "version": 12,
+    "verify_jwt": false,
+    "ezbr_sha256": "35771be6b0d0ad6859ad5504fece202d256525d83c1cefc088fad0515c6b218c",
+    "status": "ACTIVE"
+  },
+  {
+    "slug": "ticket-qr",
+    "version": 10,
+    "verify_jwt": false,
+    "ezbr_sha256": "4527fbae63a4c50473e78f019363b39ed8ab9428158b7a8d60cfec7e6e1a90b9",
+    "status": "ACTIVE"
+  },
+  {
+    "slug": "kit-release",
+    "version": 10,
+    "verify_jwt": true,
+    "ezbr_sha256": "2a0ca20b42bc7a0120b0f8585e6dbe8b21f653f5bd8b0e85deb351c49c6cbe21",
+    "status": "ACTIVE"
+  },
+  {
+    "slug": "check-in",
+    "version": 11,
+    "verify_jwt": true,
+    "ezbr_sha256": "a61d71b37461805d0c1e0e7a9cfb5e1895124487ac6b4c1d86d6960ca2672a64",
+    "status": "ACTIVE"
+  },
+  {
+    "slug": "admin-refund",
+    "version": 11,
+    "verify_jwt": true,
+    "ezbr_sha256": "00f960957d9a5ffc531fa0888b7a2068001cca2e886402402f5f95fc84eaf12d",
+    "status": "ACTIVE"
+  },
+  {
+    "slug": "group-ticket-delivery",
+    "version": 13,
+    "verify_jwt": false,
+    "ezbr_sha256": "592d9c2d60ed90c1a95de17ca39d767a8be19eb73265786bfed259999da99da1",
+    "status": "ACTIVE"
+  },
+  {
+    "slug": "group-payment-prepare",
+    "version": 10,
+    "verify_jwt": true,
+    "ezbr_sha256": "ba0c202cc68ec8d1a78afa294e6d9050907394ad6708a2046e30aeca5ba1c362",
+    "status": "ACTIVE"
+  },
+  {
+    "slug": "group-payment",
+    "version": 12,
+    "verify_jwt": true,
+    "ezbr_sha256": "cb66788e55c4dc4b9661dbf8c5703187ed5c3c65b2bf79916e5c14a39bdb68aa",
+    "status": "ACTIVE"
+  },
+  {
+    "slug": "expire-paymongo-checkouts",
+    "version": 12,
+    "verify_jwt": false,
+    "ezbr_sha256": "9582f4a9fa1f032693da302de13818af2be650576fcf135e10096ed471840810",
+    "status": "ACTIVE"
+  },
+  {
+    "slug": "admin-group-refund",
+    "version": 9,
+    "verify_jwt": true,
+    "ezbr_sha256": "409a4c76941a09ac92b3b2b5c24e8b4ea4b14b41cb1551f7d9d5cf88b1016d0f",
+    "status": "ACTIVE"
+  },
+  {
+    "slug": "organizer-inquiry",
+    "version": 11,
+    "verify_jwt": true,
+    "ezbr_sha256": "0aa63d906e7cd8df0979aaebb665a43fa2c25bcd1083084789d035910e724500",
+    "status": "ACTIVE"
+  },
+  {
+    "slug": "reprice-event-checkouts",
+    "version": 10,
+    "verify_jwt": true,
+    "ezbr_sha256": "87417edcf5067be1f20fa5e0492d4ca5e664fc6d8f6c9e13df88e3ab7b6334ea",
+    "status": "ACTIVE"
+  },
+  {
+    "slug": "send-lifecycle-email",
+    "version": 9,
+    "verify_jwt": false,
+    "ezbr_sha256": "ec9ad4553c0ac782086540741240f5009bb2311a7fab01e13f3739b558579a89",
+    "status": "ACTIVE"
+  },
+  {
+    "slug": "platform-users",
+    "version": 5,
+    "verify_jwt": true,
+    "ezbr_sha256": "70a90cbda4a0f491587751835a4311550268c5c2fa3f73c0e74ed1814f46bed8",
+    "status": "ACTIVE"
+  },
+  {
+    "slug": "group-reservations",
+    "version": 6,
+    "verify_jwt": true,
+    "ezbr_sha256": "87569f1411b7fbd6ca341d893f1ce5841b624f05562da1aabad1d8c9a872de81",
+    "status": "ACTIVE"
+  },
+  {
+    "slug": "send-push",
+    "version": 4,
+    "verify_jwt": false,
+    "ezbr_sha256": "4954c438a001a6834c0a651a722b78c4665a92a3254f64b4390bd7b122bf4046",
+    "status": "ACTIVE"
+  },
+  {
+    "slug": "fake-checkout",
+    "version": 5,
+    "verify_jwt": false,
+    "ezbr_sha256": "03b4915a174750ec4e58def40b487e66840dbea96ccbeff8baab4a475c68856e",
+    "status": "ACTIVE"
+  },
+  {
+    "slug": "group-order-cancel",
+    "version": 2,
+    "verify_jwt": true,
+    "ezbr_sha256": "9f383cd44bbee9be10002f7bd9d49e2986a788a7b06587ba7d70f83483f4c84e",
+    "status": "ACTIVE"
+  },
+  {
+    "slug": "reservation-checkout",
+    "version": 3,
+    "verify_jwt": true,
+    "ezbr_sha256": "5cde65891fa81b0e4c2940b222acc10384a0bfe76543fe21b9bf2612005d4d64",
+    "status": "ACTIVE"
+  },
+  {
+    "slug": "reservation-verify",
+    "version": 3,
+    "verify_jwt": true,
+    "ezbr_sha256": "c99abdec83ef1e7a5cd86d922790ed2b01af70dddf383785539b82e9aa2b5e2c",
+    "status": "ACTIVE"
+  },
+  {
+    "slug": "coming-soon-subscribe",
+    "version": 2,
+    "verify_jwt": true,
+    "ezbr_sha256": "71797ee5fd8fbf34c81a3f4a9567d67c8e6a45e1dcb8e9593a8e139871ff5440",
+    "status": "ACTIVE"
+  },
+  {
+    "slug": "coming-soon-delivery",
+    "version": 3,
+    "verify_jwt": false,
+    "ezbr_sha256": "53ac0ee6c452416fcacb0872a736c8554d055c3341acf2efe2bce365fc99a0ec",
+    "status": "ACTIVE"
+  },
+  {
+    "slug": "expire-coming-soon-reservations",
+    "version": 3,
+    "verify_jwt": false,
+    "ezbr_sha256": "cb49fa031631c85bdcbb71ab390c4646ef493135f5b81e206533556c5bbfe1bc",
+    "status": "ACTIVE"
+  },
+  {
+    "slug": "prescreening-maintenance",
+    "version": 2,
+    "verify_jwt": false,
+    "ezbr_sha256": "9970fab09288c7b1ec5898b4b79fe48ec91d6dcd9a9098446f6915c6e1f35ace",
+    "status": "ACTIVE"
+  },
+  {
+    "slug": "prescreening-proof",
+    "version": 3,
+    "verify_jwt": true,
+    "ezbr_sha256": "58b113bce858c2505e04c667001c3e6cb11c1a5e765ab66badee13129ff619f6",
+    "status": "ACTIVE"
+  },
+  {
+    "slug": "prescreening-submit",
+    "version": 2,
+    "verify_jwt": true,
+    "ezbr_sha256": "dc6c21faf476e71da2ba83565c42d2209efbd75a6fb16f4054b2295b1eaebefb",
+    "status": "ACTIVE"
+  }
+]

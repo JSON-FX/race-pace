@@ -56,6 +56,14 @@ export type CategoryRow = {
   elevation_gain_m?: number | null;
   cutoff_hours?: number | null;
   blurb?: string | null;
+  reservation_enabled?: boolean; reservation_slots?: number; reservation_fee_cents?: number | null;
+  reservation_sales_close_at?: string | null; entry_payment_deadline_at?: string | null;
+  inclusions?: string[]; prescreening_enabled?: boolean; prescreening_requirement?: string | null;
+  total_available?: number; general_available?: number; reservation_available?: number;
+};
+
+type CategoryAvailability = {
+  category_id: string; total_available: number; general_available: number; reservation_available: number;
 };
 
 export type AddonRow = { id: string; name: string; price: number };
@@ -73,7 +81,7 @@ export type FormFieldRow = {
 const EVENT_COLS =
   "id,org_id,waiver_version_id,name,slug,place,region,event_date,end_date,elevation_gain_m,cutoff_hours,flag_off,status,hero_image_url,description,gallery,original_date,status_note,city_psgc_code,region_name,province_name,city_name,venue,inclusions,discipline,schedule,start_lat,start_lng,finish_lat,finish_lng,route,registration_closes_at,coming_soon_notify_enabled,coming_soon_reserve_enabled,reservation_fee_cents,reservation_deadline_at,total_event_slots,categories(slots_total,slots_taken,distance_km)";
 const CAT_COLS =
-  "id,event_id,org_id,code,label,distance_km,base_price,slots_total,slots_taken,elevation_gain_m,cutoff_hours,blurb";
+  "id,event_id,org_id,code,label,distance_km,base_price,slots_total,slots_taken,elevation_gain_m,cutoff_hours,blurb,reservation_enabled,reservation_slots,reservation_fee_cents,reservation_sales_close_at,entry_payment_deadline_at,inclusions,prescreening_enabled,prescreening_requirement";
 
 /** Postgres `numeric` crosses JSON as a STRING, not a number — PostgREST does
  *  that deliberately so arbitrary-precision decimals survive the trip. Left
@@ -150,13 +158,19 @@ export async function fetchCategories(db: SupabaseClient, eventId: string): Prom
     .from("categories").select(CAT_COLS).eq("event_id", eventId)
     .order("base_price", { ascending: false });
   if (error) throw error;
-  return (data ?? []) as CategoryRow[];
+  const { data: availability, error: availabilityError } = await db.rpc("category_availability", { p_event: eventId });
+  if (availabilityError) throw availabilityError;
+  const counts = new Map<string, CategoryAvailability>(((availability ?? []) as CategoryAvailability[]).map(row => [row.category_id, row]));
+  return ((data ?? []) as CategoryRow[]).map(category => ({ ...category, ...counts.get(category.id) }));
 }
 
 export async function fetchCategory(db: SupabaseClient, categoryId: string): Promise<CategoryRow | null> {
   const { data, error } = await db.from("categories").select(CAT_COLS).eq("id", categoryId).maybeSingle();
   if (error) throw error;
-  return (data ?? null) as CategoryRow | null;
+  if (!data) return null;
+  const { data: availability, error: availabilityError } = await db.rpc("category_availability", { p_event: data.event_id });
+  if (availabilityError) throw availabilityError;
+  return { ...(data as CategoryRow), ...((availability ?? []) as CategoryAvailability[]).find(row => row.category_id === categoryId) };
 }
 
 export async function fetchAddons(db: SupabaseClient, eventId: string): Promise<AddonRow[]> {

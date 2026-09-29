@@ -4,7 +4,7 @@ import { expect, it } from "vitest";
 
 const dbUrl = process.env.DB_URL ?? "postgresql://postgres:postgres@127.0.0.1:54522/postgres";
 
-it("keeps category allocations within event capacity and requires a complete split before opening", async () => {
+it("derives event capacity from categories while preserving legacy categoryless opening protection", async () => {
   const db = new Client({ connectionString: dbUrl });
   await db.connect();
   await db.query("begin");
@@ -27,37 +27,23 @@ it("keeps category allocations within event capacity and requires a complete spl
       "insert into public.categories(org_id,event_id,code,label,base_price,slots_total) values($1,$2,'A','A',1000,2) returning id",
       [org, event],
     )).rows[0]!.id;
-    await db.query("savepoint overflow");
-    await expect(db.query(
+    await db.query(
       "insert into public.categories(org_id,event_id,code,label,base_price,slots_total) values($1,$2,'B','B',1000,2)",
       [org, event],
-    )).rejects.toMatchObject({ message: "event_categories_exceed_total_capacity" });
-    await db.query("rollback to savepoint overflow");
-
-    await db.query("savepoint total_reduction");
-    await expect(db.query("update public.events set total_event_slots=1 where id=$1", [event]))
-      .rejects.toMatchObject({ message: "event_categories_exceed_total_capacity" });
-    await db.query("rollback to savepoint total_reduction");
-
-    await db.query("savepoint null_capacity");
-    await expect(db.query("update public.events set total_event_slots=null where id=$1", [event]))
-      .rejects.toMatchObject({ message: "published_event_capacity_required" });
-    await db.query("rollback to savepoint null_capacity");
-
-    await db.query(
-      "insert into public.categories(org_id,event_id,code,label,base_price,slots_total) values($1,$2,'B','B',1000,1)",
-      [org, event],
     );
-    await db.query("savepoint category_growth");
-    await expect(db.query("update public.categories set slots_total=3 where id=$1", [first]))
-      .rejects.toMatchObject({ message: "event_categories_exceed_total_capacity" });
-    await db.query("rollback to savepoint category_growth");
+    expect((await db.query("select total_event_slots from events where id=$1", [event])).rows[0].total_event_slots).toBe(4);
+    // Legacy browser writes cannot override the category-owned projection.
+    await db.query("update events set total_event_slots=1 where id=$1", [event]);
+    expect((await db.query("select total_event_slots from events where id=$1", [event])).rows[0].total_event_slots).toBe(4);
+    await db.query("update events set total_event_slots=null where id=$1", [event]);
+    expect((await db.query("select total_event_slots from events where id=$1", [event])).rows[0].total_event_slots).toBe(4);
+    await db.query("update categories set slots_total=3 where id=$1", [first]);
 
     await db.query("select set_config('request.jwt.claim.role','service_role',true)");
     await db.query("update public.events set status='open' where id=$1", [event]);
     expect((await db.query<{ status: string; total_event_slots: number }>(
       "select status,total_event_slots from public.events where id=$1", [event],
-    )).rows[0]).toMatchObject({ status: "open", total_event_slots: 3 });
+    )).rows[0]).toMatchObject({ status: "open", total_event_slots: 5 });
   } finally {
     await db.query("rollback");
     await db.end();

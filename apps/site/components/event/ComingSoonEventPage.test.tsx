@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ComingSoonEventPage } from "./ComingSoonEventPage";
-import type { EventRow } from "@/lib/events";
+import type { CategoryRow, EventRow } from "@/lib/events";
 import type { RunnerPassport } from "@/lib/passports";
 
 const { from, invoke } = vi.hoisted(() => ({ from: vi.fn(), invoke: vi.fn() }));
@@ -24,6 +24,21 @@ const event = {
 } satisfies EventRow;
 
 describe("ComingSoonEventPage Passport selection", () => {
+  it("routes new requests through category admission while preserving an older paid reservation", () => {
+    const category = {
+      id: "category", event_id: event.id, org_id: event.org_id, code: "70k", label: "70K Ultra Trail",
+      distance_km: 70, base_price: 350000, slots_total: 100, slots_taken: 0,
+      reservation_enabled: false, prescreening_enabled: true, prescreening_requirement: "Finish a 50 km race.",
+    } satisfies CategoryRow;
+    const page = render(<ComingSoonEventPage event={event} userEmail="runner@example.test" reservation={null} categories={[category]} />);
+    expect(screen.getByText("Finish a 50 km race.")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "RESERVE YOUR PLACE" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Reserve now" })).not.toBeInTheDocument();
+    page.rerender(<ComingSoonEventPage event={event} userEmail="runner@example.test"
+      reservation={{ id: "older", status: "paid", quantity: 1 }} categories={[category]} />);
+    expect(screen.getByRole("heading", { name: "RESERVE YOUR PLACE" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "View reservation" })).toHaveAttribute("href", "/reservations/older");
+  });
   it.each([
     ["expired", false],
     ["pending", true],
