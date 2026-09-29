@@ -151,16 +151,9 @@ export function EventEditorForm({ initial, orgId, checkInDefault = true, canEdit
     for (const c of cats) { const parsed = categoryInputSchema.safeParse(c); if (!parsed.success) return parsed.error.issues[0]?.message ?? "Check the category settings."; }
     const capacityError = eventCapacityError(event, cats);
     if (capacityError) return capacityError;
-    if ((event.status === "open" || event.status === "almost_full") && event.total_event_slots === null &&
-      (!initial || initial.event.status === "coming_soon")) {
-      return "Set total event slots before opening registration.";
-    }
-    if (initial?.event.total_event_slots != null && event.total_event_slots === null && event.status !== "draft") {
-      return "A published event must keep its total event slots.";
-    }
     for (const a of addons) if (!addonInputSchema.safeParse(a).success) return "Fix the add-on rows (name, non-negative price).";
     return null;
-  }, [event, cats, addons, initial]);
+  }, [event, cats, addons]);
 
   function onSave() {
     if (invalid) { setError(invalid); return; }
