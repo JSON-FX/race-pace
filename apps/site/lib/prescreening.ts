@@ -21,7 +21,7 @@ const messages: Record<string, string> = {
   proof_size_invalid: "Choose an image no larger than 10 MB.",
   proof_image_invalid: "This image could not be read. Choose a valid JPEG, PNG, or WebP image.",
   proof_type_invalid: "Choose a JPEG, PNG, or WebP image.",
-  proof_dimensions_too_large: "Resize this image to 20 megapixels or less, then try again.",
+  proof_dimensions_too_large: "This image could not be processed. Try another JPEG, PNG, or WebP up to 10 MB.",
   proof_upload_incomplete: "The upload is incomplete. Retry the upload before submitting.",
   idempotency_conflict: "This request was already submitted with different details. Open My requests before starting another.",
   extend_payment_deadline_before_approval: "The organizer needs to extend the payment deadline before this request can proceed.",

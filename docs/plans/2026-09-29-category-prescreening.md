@@ -1,6 +1,6 @@
 # Category reservations and pre-screening
 
-Status: HTML prototype approved by the owner on 29 September 2026. Application implementation is underway in the isolated worktree. Staging acceptance and production release remain unstarted.
+Status: HTML prototype approved by the owner on 29 September 2026. Application implementation and local validation are complete. Hosted staging acceptance is in progress. Production release remains blocked until the required staging checks and fresh production inventory pass.
 
 ## Execution contract
 
@@ -14,7 +14,7 @@ Worktree: `codex/category-prescreening-prototype`, created from `origin/staging`
 - Category reservation allocation is part of capacity: 100 total minus 20 reservation equals 80 general slots. Category settings include enablement, separate nonrefundable fee, allocation, sales cutoff, and full entry payment deadline.
 - Reservations work during Coming Soon and open registration. Sales cutoff releases unsold allocation to general availability while preserving participant holds.
 - Inclusions belong to categories and follow the selected category through runner flows.
-- Optional category pre-screening has a required requirement description when enabled. Each own or managed Passport supplies one JPEG, PNG, or WebP image, maximum 10,000,000 bytes, labeled 10 MB. Runner explanation is optional.
+- Optional category pre-screening has a required requirement description when enabled. Each own or managed Passport supplies one JPEG, PNG, or WebP image, maximum 10,000,000 bytes, labeled 10 MB. On 30 September the owner explicitly removed the custom 20-megapixel limit; native decoder safety protections remain enabled. Runner explanation is optional.
 - A successfully submitted request atomically holds every requested participant slot. Uploading alone holds nothing. Pending reviews have no automatic expiry. Existing entries are grandfathered when requirements are enabled.
 - Approval precedes reservation or entry payment and belongs to the participant/category. It carries into reservation conversion without a second screening.
 - Preserve mixed-category groups and managed Passport selection. One group payment becomes available only when every remaining participant is approved.
