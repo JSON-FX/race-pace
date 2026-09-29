@@ -14,7 +14,7 @@ export default async function EventReservationsPage({ params }: { params: Promis
   const { data: event } = await db.from("events").select("id,org_id,name,status").eq("id", id).maybeSingle();
   if (!event || (!roles?.isSuperAdmin && event.org_id !== roles?.orgId)) notFound();
   const { data: reservations, error } = await db.from("event_reservations")
-    .select("id,email,status,quantity,reservation_fee_cents,platform_fee_cents,registration_deadline_at,paid_at,created_at,reservation_payments(amount_cents,processor_fee_cents,net_to_org_cents,status)")
+    .select("id,email,status,quantity,reservation_fee_cents,platform_fee_cents,reservation_total_fee_cents,reservation_total_platform_fee_cents,registration_deadline_at,paid_at,created_at,reservation_payments(amount_cents,processor_fee_cents,net_to_org_cents,status)")
     .eq("event_id", id).order("created_at", { ascending: false }).limit(501);
   if (error) throw error;
   if ((reservations?.length ?? 0) > 500) throw new Error("Reservation roster exceeds its safe page size.");
@@ -57,8 +57,8 @@ export default async function EventReservationsPage({ params }: { params: Promis
             </TableCell>
             <TableCell className="p-4 capitalize">{reservation.status.replaceAll("_", " ")}</TableCell>
             <TableCell className="p-4">{new Intl.DateTimeFormat("en-PH", { timeZone: "Asia/Manila", dateStyle: "medium", timeStyle: "short" }).format(new Date(reservation.registration_deadline_at))} PHT</TableCell>
-            <TableCell className="p-4 text-right tabular-nums">{peso(reservation.reservation_fee_cents * reservation.quantity)}</TableCell>
-            <TableCell className="p-4 text-right tabular-nums">{peso(reservation.platform_fee_cents * reservation.quantity)}</TableCell>
+            <TableCell className="p-4 text-right tabular-nums">{peso((reservation.reservation_total_fee_cents ?? reservation.reservation_fee_cents * reservation.quantity))}</TableCell>
+            <TableCell className="p-4 text-right tabular-nums">{peso((reservation.reservation_total_platform_fee_cents ?? reservation.platform_fee_cents * reservation.quantity))}</TableCell>
             <TableCell className="p-4 text-right tabular-nums">{payment?.processor_fee_cents == null ? "Pending" : peso(payment.processor_fee_cents)}</TableCell>
             <TableCell className="p-4 text-right tabular-nums">{payment?.status === "paid" ? peso(payment.amount_cents) : "Pending"}</TableCell>
           </TableRow>;

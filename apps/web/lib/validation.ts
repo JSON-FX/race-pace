@@ -57,7 +57,7 @@ export const eventInputSchema = z.object({
   coming_soon_reserve_enabled: z.boolean(),
   reservation_fee_cents: z.number().int().positive().nullable(),
   reservation_deadline_at: isoDateTimeStr,
-  total_event_slots: z.number().int().positive().nullable(),
+  total_event_slots: z.number().int().nonnegative().nullable(),
   discipline: z.enum(EVENT_DISCIPLINES),
   check_in_required: z.boolean(),
   registration_closes_at: isoDateTimeStr,
@@ -88,14 +88,6 @@ export function comingSoonPublicationError(e: z.infer<typeof eventInputSchema>):
   if (!e.name.trim() || !e.slug || !e.hero_image_url || !e.description?.trim()) {
     return "Coming soon needs an event name, public link, discipline, image, and description.";
   }
-  if (e.coming_soon_reserve_enabled) {
-    if (!e.reservation_fee_cents || !e.total_event_slots || !e.reservation_deadline_at) {
-      return "Reserve now needs a fee, total event slots, and a registration payment deadline.";
-    }
-    if (new Date(e.reservation_deadline_at).getTime() <= Date.now()) {
-      return "The reservation payment deadline must be in the future.";
-    }
-  }
   return null;
 }
 
@@ -105,15 +97,8 @@ export function eventCapacityError(
   categories: { slots_total: number }[],
 ): string | null {
   const allocated = categories.reduce((sum, category) => sum + category.slots_total, 0);
-  if (categories.length > 0 && event.total_event_slots === null) {
-    return "Set total event slots before adding category slots.";
-  }
-  if (event.total_event_slots !== null && allocated > event.total_event_slots) {
-    return `Category slots (${allocated}) exceed total event slots (${event.total_event_slots}).`;
-  }
-  if ((event.status === "open" || event.status === "almost_full") &&
-    event.total_event_slots !== null && allocated !== event.total_event_slots) {
-    return `Allocate all ${event.total_event_slots} event slots across categories before opening registration.`;
+  if ((event.status === "open" || event.status === "almost_full") && allocated <= 0) {
+    return "Add a category with slots before opening registration.";
   }
   return null;
 }
@@ -189,6 +174,25 @@ export const categoryInputSchema = z.object({
     .refine((v) => Math.round(v * 10) === v * 10, "At most one decimal place")
     .nullable(),
   blurb: z.string().nullable(),
+  reservation_enabled: z.boolean().default(false),
+  reservation_slots: intNonNeg.default(0),
+  reservation_fee_cents: z.number().int().positive().nullable().default(null),
+  reservation_sales_close_at: isoDateTimeStr.default(null),
+  entry_payment_deadline_at: isoDateTimeStr.default(null),
+  inclusions: z.array(z.string().trim().max(INCLUSION_MAX_LEN, "Keep each inclusion under 140 characters.")).default([]).transform(rows => rows.filter(Boolean)),
+  prescreening_enabled: z.boolean().default(false),
+  prescreening_requirement: z.string().trim().max(4000).nullable().default(null),
+}).superRefine((c, context) => {
+  const issue = (message: string, path: string) => context.addIssue({ code: z.ZodIssueCode.custom, message, path: [path] });
+  if (c.reservation_slots > c.slots_total) issue("Reservation slots cannot exceed category capacity.", "reservation_slots");
+  if (c.reservation_enabled) {
+    if (!c.reservation_slots || !c.reservation_fee_cents || !c.reservation_sales_close_at || !c.entry_payment_deadline_at) {
+      issue("Reservations need slots, a fee, and both deadlines.", "reservation_enabled");
+    } else if (new Date(c.entry_payment_deadline_at) <= new Date(c.reservation_sales_close_at)) {
+      issue("Full entry payment must be due after reservation sales close.", "entry_payment_deadline_at");
+    }
+  }
+  if (c.prescreening_enabled && !c.prescreening_requirement) issue("Describe the pre-screening requirement.", "prescreening_requirement");
 });
 export const addonInputSchema = z.object({
   name: z.string().trim().min(1, "Name required"),

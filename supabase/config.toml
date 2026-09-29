@@ -475,3 +475,13 @@ verify_jwt = false
 
 [functions.expire-coming-soon-reservations]
 verify_jwt = false
+
+[functions.prescreening-proof]
+verify_jwt = true
+static_files = ["./functions/prescreening-proof/codecs/*.wasm"]
+
+[functions.prescreening-submit]
+verify_jwt = true
+
+[functions.prescreening-maintenance]
+verify_jwt = false

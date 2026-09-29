@@ -1,4 +1,5 @@
 "use client";
+import { CategoryRequirements, CategoryReservationAction, screeningHref } from "./CategoryAdmission";
 
 import { Button } from "@/components/ui/button";
 import { Status } from "@race-pace/ui";
@@ -16,7 +17,6 @@ import { Reveal, ParallaxLayer, CountUp, ScrollProgress } from "./motion-primiti
 import {
   RaceEssentials,
   RaceMorning,
-  WhatsIncluded,
   AddonsSection,
   GalleryCarousel,
   CourseLocator,
@@ -48,6 +48,8 @@ export function EventPageBody({
   registrationClosesAt,
   reservationId = null,
   reservationRemaining = 0,
+  categoryReservation = false,
+  screeningRequestId = null,
 }: {
   event: EventRow;
   categories: CategoryRow[];
@@ -63,6 +65,8 @@ export function EventPageBody({
   registrationClosesAt: string | null;
   reservationId?: string | null;
   reservationRemaining?: number;
+  categoryReservation?: boolean;
+  screeningRequestId?: string | null;
 }) {
   const layout = disciplineLayout(event.discipline);
   const trail = layout === "profile";
@@ -75,7 +79,7 @@ export function EventPageBody({
   const cutoff = longest?.cutoff_hours ?? event.cutoff_hours;
   const showGain = trail && gain != null;
   const showCutoff = trail && cutoff != null && cutoff > 0;
-  const slotsLeft = categories.reduce((n, c) => n + Math.max(0, c.slots_total - c.slots_taken), 0);
+  const slotsLeft = categories.reduce((n, c) => n + (c.total_available ?? Math.max(0, c.slots_total - c.slots_taken)), 0);
   const tone = { dark: trail };
 
   // The page-level CTAs (hero + closing band) have to agree with the row-level
@@ -231,11 +235,17 @@ export function EventPageBody({
       ) : null}
 
       {/* ── Distances ──────────────────────────────────────────────── */}
+      {screeningRequestId && <section className={trail ? "border-t border-white/10 bg-white/[0.04]" : "border-t border-black/10 bg-primary/5"}>
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-5 py-5 text-sm sm:px-8">
+          <p>You have an existing request for this event. View your held Passports, decisions, and payment deadline.</p>
+          <Button asChild variant="outline"><Link href={`/prescreening/${screeningRequestId}`}>View my request</Link></Button>
+        </div>
+      </section>}
       {reservationId && reservationRemaining > 0 ? (
         <section className={trail ? "border-t border-white/10 bg-white/[0.04]" : "border-t border-black/10 bg-primary/5"}>
           <div className="mx-auto max-w-6xl px-5 py-5 text-sm sm:px-8">
-            <strong>Your early reservation has {reservationRemaining} {reservationRemaining === 1 ? "place" : "places"} awaiting entry payment.</strong> Choose an available category for each Race Passport before the reservation deadline. The reservation fee remains a separate charge.
-            <div className="mt-3 flex flex-wrap gap-2">{categories.filter((category) => category.slots_taken < category.slots_total).map((category) =>
+            <strong>Your early reservation has {reservationRemaining} {reservationRemaining === 1 ? "place" : "places"} awaiting entry payment.</strong> {categoryReservation ? "Your Passports and categories are already selected. Complete entry payment before their deadlines." : "Choose an available category for each Race Passport before the reservation deadline."} The reservation fee remains a separate charge.
+            <div className="mt-3 flex flex-wrap gap-2">{categoryReservation ? <Button asChild variant="outline"><Link href={`/reservations/${reservationId}`}>View reserved Passports</Link></Button> : categories.filter((category) => (category.general_available ?? category.slots_total - category.slots_taken) > 0).map((category) =>
               <Button asChild variant="outline" key={category.id}><Link  href={`/register/${category.id}?reservation_id=${reservationId}`} className="border border-current px-3 py-2">
                 Register for {category.label}
               </Link></Button>
@@ -256,7 +266,7 @@ export function EventPageBody({
 
           <ul className="mt-10">
             {categories.map((c, i) => (
-              <DistanceRow key={c.id} category={c} index={i} trail={trail} closed={closed} myEntry={myEntry} reservationId={reservationId} hideCapacity={event.total_event_slots != null} />
+              <DistanceRow key={c.id} category={c} index={i} trail={trail} closed={closed} myEntry={myEntry} reservationId={categoryReservation ? null : reservationId} hideCapacity={event.total_event_slots != null} />
             ))}
           </ul>
         </div>
@@ -268,7 +278,6 @@ export function EventPageBody({
       <RaceEssentials event={event} tone={tone} />
       <CourseLocator event={event} tone={tone} />
       <RaceMorning event={event} tone={tone} />
-      <WhatsIncluded event={event} tone={tone} />
       <AddonsSection addons={addons} tone={tone} />
       <GalleryCarousel event={event} tone={tone} />
       {event.waiver_version_id && !closed ? (
@@ -352,7 +361,7 @@ function DistanceRow({
   reservationId: string | null;
   hideCapacity: boolean;
 }) {
-  const remaining = Math.max(0, category.slots_total - category.slots_taken);
+  const remaining = category.general_available ?? Math.max(0, category.slots_total - category.slots_taken);
   const soldOut = remaining === 0;
   // Closed beats sold-out in the message: "Sold out" on a cancelled race tells
   // a runner to look for next year's edition of something that isn't running.
@@ -361,7 +370,7 @@ function DistanceRow({
   // would walk them into a 409 they could have been told about here.
   const enterable = !soldOut && !closed && !myEntry;
   const scarce = !hideCapacity && !soldOut && remaining <= 15;
-  const pct = Math.min(100, Math.round((category.slots_taken / Math.max(1, category.slots_total)) * 100));
+  const pct = Math.min(100, Math.round(((category.slots_total - (category.total_available ?? category.slots_total - category.slots_taken)) / Math.max(1, category.slots_total)) * 100));
   // The distance the runner actually holds reads as "here is your entry"; any
   // other distance of the same event reads as "you already have an entry,
   // elsewhere" — two different states, so they get two different treatments
@@ -428,6 +437,8 @@ function DistanceRow({
           {category.blurb ? (
             <p className={`mt-3 max-w-[52ch] text-[14.5px] leading-relaxed ${dim}`}>{category.blurb}</p>
           ) : null}
+
+          <CategoryRequirements category={category} />
 
           {/* Fill bar doubles as scarcity signal without relying on colour
               alone — the width itself carries the message. */}
@@ -498,15 +509,16 @@ function DistanceRow({
             <Badge variant="secondary"
               className="inline-flex w-full items-center justify-center px-6 py-3"
             >
-              {closed ? "Registration closed" : "Sold out"}
+              {closed ? "Registration closed" : (category.reservation_available ?? 0) > 0 ? "General entries full" : "Sold out"}
             </Badge>
           ) : (
             <RainbowButton asChild className="h-auto w-full rounded-pill px-6 py-3 text-[14.5px] font-semibold">
-              <Link href={`/register/${category.id}${reservationId ? `?reservation_id=${reservationId}` : ""}`} aria-label={`Join ${category.label} — ${formatPeso(category.base_price)}`}>
-                Join
+              <Link href={category.prescreening_enabled && !reservationId ? screeningHref(category, "entry") : `/register/${category.id}${reservationId ? `?reservation_id=${reservationId}` : ""}`} aria-label={`${category.prescreening_enabled && !reservationId ? "Request pre-screening for" : "Join"} ${category.label} — ${formatPeso(category.base_price)}`}>
+                {category.prescreening_enabled && !reservationId ? "Request pre-screening" : "Join"}
               </Link>
             </RainbowButton>
           )}
+          {!myEntry && !closed && !reservationId && <CategoryReservationAction category={category} />}
         </div>
       </div>
     </Reveal>

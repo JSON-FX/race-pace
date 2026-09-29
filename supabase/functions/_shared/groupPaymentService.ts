@@ -25,7 +25,13 @@ export async function startGroupPayment(actor: string, attemptId: string) {
     returnUrl: returnUrl.toString() });
   const claim = await db.rpc("booking_payment_claim_dispatch", { p_actor: actor, p_attempt: attemptId, p_request: body, p_livemode: livemode });
   if (claim.error) throw new Error(claim.error.message);
-  if (claim.data.action !== "dispatch") return claim.data;
+  if (claim.data.action !== "dispatch") {
+    if (claim.data.action === "ready") {
+      const state = await verifyGroupPayment(attemptId);
+      if (state.status !== "pending") return { action: state.status };
+    }
+    return claim.data;
+  }
   try {
     const session = await createGroupSession(body, a.id, secret);
     const bound = await db.rpc("booking_payment_bind_session", { p_attempt: attemptId, p_session: session.sessionId, p_url: session.checkoutUrl });
@@ -54,7 +60,16 @@ export async function verifyGroupPayment(attemptId: string) {
   if (order.error || lines.error || !lines.data?.length) throw new Error("order_entries_changed");
   const raw = await retrieveGroupSession(dispatch.data.session_id, secret);
   const captures = extractGroupCaptures(raw);
-  if (!captures.length) return { status: "pending" };
+  if (!captures.length) {
+    const sessionStatus = (raw as { data?: { attributes?: { status?: string } } })?.data?.attributes?.status;
+    if (sessionStatus === "expired") {
+      const retried = await db.rpc("booking_payment_retry_expired", { p_attempt: attemptId, p_session: dispatch.data.session_id,
+        p_evidence: { source: "paymongo_get", status: "expired" } });
+      if (retried.error) throw new Error("payment_confirmation_unavailable");
+      if (retried.data === true) return { status: "expired" };
+    }
+    return { status: "pending" };
+  }
   const tokens: Record<string, string> = {};
   for (const line of lines.data) tokens[line.registration_id] = await mintTicketToken({ rid: line.registration_id, eid: order.data.event_id, iat: Math.floor(Date.now() / 1000) }, signingSecret);
   const states: string[] = [];

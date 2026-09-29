@@ -32,7 +32,11 @@ Deno.serve(async (req) => {
         if (typeof reservationId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(reservationId)) {
           return json({ error: "invalid_reservation" }, 400);
         }
-        const result = await verifyReservationPayment(reservationId);
+        const rawGeneration = resource?.attributes?.metadata?.reservation_checkout_generation;
+        const generation = rawGeneration === undefined ? undefined : Number(rawGeneration);
+        if (generation !== undefined && (!Number.isSafeInteger(generation) || generation < 0)) return json({ error: "invalid_reservation_attempt" }, 400);
+        const sessionId = type === "checkout_session.payment.paid" ? resource?.id : undefined;
+        const result = await verifyReservationPayment(reservationId, generation, sessionId);
         if (result.status === "error" || result.status === "pending") return json({ error: "reservation_capture_not_visible" }, 503);
         return json({ ok: true, reservation_id: reservationId, status: result.status });
       }

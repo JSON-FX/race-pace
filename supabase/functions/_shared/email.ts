@@ -63,7 +63,7 @@ export function renderTicketEmail(input: TicketEmailInput): { subject: string; h
 
 /** Explicit sandbox transport for local QA; Resend remains the default. Returns a result rather than
  *  throwing: a failed email must never fail a confirmed payment. */
-export type SendEmailOptions = { replyTo?: string };
+export type SendEmailOptions = { replyTo?: string; idempotencyKey?: string };
 
 export async function sendEmail(
   to: string,
@@ -108,7 +108,7 @@ export async function sendEmail(
   try {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
-      headers: { "authorization": `Bearer ${apiKey}`, "content-type": "application/json" },
+      headers: { "authorization": `Bearer ${apiKey}`, "content-type": "application/json", ...(options.idempotencyKey ? { "Idempotency-Key": options.idempotencyKey } : {}) },
       body: JSON.stringify({
         from,
         to: [to],

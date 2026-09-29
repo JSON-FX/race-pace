@@ -92,7 +92,9 @@ export function GroupOrder({ orderId, initialStatus, entryTotal, eventName, cate
     try {
       const session = await startGroupPayment(attempt.id);
       if (session.action === "ready" && session.checkout_url) { window.location.assign(session.checkout_url); return; }
-      setError("PayMongo is preparing your checkout. Check the booking status shortly.");
+      setError(session.action === "expired"
+        ? "This checkout expired. Review a new payment below. Your original payment deadline still applies."
+        : session.action === "paid" ? null : "PayMongo is preparing your checkout. Check the booking status shortly.");
       await refresh();
     } catch (cause) {
       const code = cause instanceof GroupCheckoutError ? cause.code : "payment_unavailable";

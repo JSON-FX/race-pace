@@ -20,16 +20,17 @@ function chain(result: unknown) {
   return b;
 }
 
-const { getMyRoles, from, invoke, revalidatePath } = vi.hoisted(() => ({
+const { getMyRoles, from, rpc, invoke, revalidatePath } = vi.hoisted(() => ({
   getMyRoles: vi.fn(),
   from: vi.fn(),
+  rpc: vi.fn(),
   invoke: vi.fn(),
   revalidatePath: vi.fn(),
 }));
 
 vi.mock("@/lib/queries/roles", () => ({ getMyRoles }));
 vi.mock("next/cache", () => ({ revalidatePath }));
-vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ from, functions: { invoke } }) }));
+vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ from, rpc, functions: { invoke } }) }));
 
 import { reconcileChildren } from "@/lib/reconcile-children";
 import { saveEventAction, cancelEventAction, rescheduleEventAction, type EventDraft, type CategoryDraft } from "./events";
@@ -59,7 +60,8 @@ function savePayload(event: Partial<EventDraft> = {}, children: {
   const fd = new FormData();
   fd.set("payload", JSON.stringify({
     event: baseEvent(event),
-    categories: children.categories ?? { current: [], original: [] },
+    categories: children.categories ?? { current: [{ code: "21k", label: "21K", distance_km: 21,
+      base_price: 10000, slots_total: 10, elevation_gain_m: null, cutoff_hours: null, blurb: null }], original: [] },
     addons: children.addons ?? { current: [], original: [] },
   }));
   return fd;
@@ -68,6 +70,7 @@ function savePayload(event: Partial<EventDraft> = {}, children: {
 beforeEach(() => {
   getMyRoles.mockReset();
   from.mockReset();
+  rpc.mockReset().mockResolvedValue({ data: [], error: null });
   invoke.mockReset().mockResolvedValue({ data: { outcomes: { unchanged: 0 } }, error: null });
   revalidatePath.mockClear();
 });
@@ -84,41 +87,26 @@ describe("reconcileChildren", () => {
 });
 
 describe("saveEventAction", () => {
-  it("rejects forged category allocations above the event total before database writes", async () => {
+  it("ignores a forged event total and saves category settings transactionally", async () => {
     getMyRoles.mockResolvedValue(roles());
-    const category: CategoryDraft = { code: "21k", label: "21K", distance_km: 21,
-      base_price: 10000, slots_total: 4, elevation_gain_m: null, cutoff_hours: null, blurb: null };
-    const res = await saveEventAction({}, savePayload({ total_event_slots: 3 }, {
-      categories: { current: [category], original: [] },
+    const insert = chain({ data: { id: "e1" }, error: null });
+    from.mockReturnValueOnce(insert);
+    const res = await saveEventAction({}, savePayload({ total_event_slots: 999 }));
+    expect(res.error).toBeUndefined();
+    expect(insert.insert).not.toHaveBeenCalledWith(expect.objectContaining({ total_event_slots: expect.anything() }));
+    expect(rpc).toHaveBeenCalledWith("save_event_categories", expect.objectContaining({
+      p_event: "e1", p_original: [], p_categories: [expect.objectContaining({ slots_total: 10 })],
     }));
-    expect(res.error).toMatch(/exceed total event slots/);
-    expect(from).not.toHaveBeenCalled();
   });
 
-  it("reduces category allocation before lowering the stored event total", async () => {
+  it("reports a held-capacity conflict without repricing unpaid checkouts", async () => {
     getMyRoles.mockResolvedValue(roles());
-    const existing = chain({ data: { status: "draft", check_in_required: true,
-      slug: "apo-sky-ultra", slug_locked_at: null, total_event_slots: 4 }, error: null });
-    const initialUpdate = chain({ data: [{ id: "e1" }], error: null });
-    const allocation = chain({ data: [{ id: "c1", slots_total: 3 }, { id: "c2", slots_total: 1 }], error: null });
-    const reducedCategory = chain({ data: null, error: null });
-    const otherCategory = chain({ data: null, error: null });
-    const finalUpdate = chain({ data: [{ id: "e1" }], error: null });
-    from.mockReturnValueOnce(existing).mockReturnValueOnce(initialUpdate)
-      .mockReturnValueOnce(allocation).mockReturnValueOnce(reducedCategory)
-      .mockReturnValueOnce(otherCategory).mockReturnValueOnce(finalUpdate);
-    const category = (id: string, code: string, slots_total: number): CategoryDraft => ({
-      id, code, label: code, distance_km: null, base_price: 10000, slots_total,
-      elevation_gain_m: null, cutoff_hours: null, blurb: null,
-    });
-    const res = await saveEventAction({}, savePayload({ id: "e1", total_event_slots: 3 }, {
-      categories: { original: [{ id: "c1" }, { id: "c2" }],
-        current: [category("c1", "A", 2), category("c2", "B", 1)] },
-    }));
-    expect(res.error).toBeUndefined();
-    expect(initialUpdate.update).toHaveBeenCalledWith(expect.objectContaining({ total_event_slots: 4 }));
-    expect(finalUpdate.update).toHaveBeenCalledWith({ total_event_slots: 3 });
-    expect(reducedCategory.update).toHaveBeenCalledWith(expect.objectContaining({ slots_total: 2 }));
+    from.mockReturnValueOnce(chain({ data: { status: "draft", check_in_required: true }, error: null }))
+      .mockReturnValueOnce(chain({ data: [{ id: "e1" }], error: null }));
+    rpc.mockResolvedValueOnce({ data: null, error: { code: "P0001", message: "category_has_existing_places" } });
+    const res = await saveEventAction({}, savePayload({ id: "e1" }));
+    expect(res.error).toMatch(/held or registered/);
+    expect(invoke).not.toHaveBeenCalled();
   });
 
   it("refuses a non-admin/editor caller without touching the database", async () => {
@@ -216,7 +204,6 @@ describe("saveEventAction", () => {
     from.mockReturnValueOnce(chain({ data: { status: "coming_soon", check_in_required: true,
       slug: "apo-sky-ultra", slug_locked_at: null, total_event_slots: 2 }, error: null }))
       .mockReturnValueOnce(chain({ data: [{ id: "e1" }], error: null }))
-      .mockReturnValueOnce(chain({ data: null, error: null }))
       .mockReturnValueOnce(chain({ data: null, error: { message: "event_waiver_required_for_publishing" } }));
     const res = await saveEventAction({}, savePayload({ id: "e1", status: "open",
       event_date: "2026-12-12", total_event_slots: 2 }, {
@@ -335,78 +322,20 @@ describe("saveEventAction", () => {
     expect(res.error).toBeUndefined();
   });
 
-  // The diff itself still trusts the client-supplied `original` array —
-  // ported verbatim from lib/eventWrites.ts, unchanged. What closes the
-  // cross-event hole is `.eq("event_id", finalEventId)` on every
-  // category/add-on write below: a delete/update naming a row id that
-  // belongs to a DIFFERENT event (even one in the caller's own org, so RLS
-  // alone wouldn't catch it) now matches zero rows instead of succeeding.
-  // (An earlier version of this fix instead re-derived `original` from a
-  // fresh DB query — that was reverted: it changes reconcileChildren's
-  // semantics so that a second, stale tab's save can delete a category a
-  // FIRST tab just added, since the DB now "knows about" it but the stale
-  // tab's `current` doesn't. `.eq` alone has no such side effect.)
-  it("scopes every category/add-on write to the event actually being saved, so a foreign row id is a no-op", async () => {
-    getMyRoles.mockResolvedValue(roles({}));
-    const statusChain = chain({ data: { status: "draft" }, error: null });
-    const updateChain = chain({ data: [{ id: "e1" }], error: null });
-    // Zero rows matched: "other-event-cat" belongs to a different event, so
-    // `.eq("id", "other-event-cat").eq("event_id", "e1")` matches nothing —
-    // this is what actually stops the cross-event delete, not an error.
-    const deleteChain = chain({ data: null, error: null });
-    from.mockReturnValueOnce(statusChain).mockReturnValueOnce(updateChain).mockReturnValueOnce(deleteChain);
-
-    // The payload claims the event's original categories were
-    // ["other-event-cat"] — a category id belonging to some OTHER event in
-    // the same org — and the current list is empty, so reconcileChildren
-    // computes it as "no longer present" and a delete is attempted.
-    const res = await saveEventAction({}, savePayload({ id: "e1" }, {
-      categories: { current: [], original: [{ id: "other-event-cat" }] },
-    }));
-
-    expect(res.error).toBeUndefined();
-    expect(deleteChain.delete).toHaveBeenCalled();
-    expect(deleteChain.eq).toHaveBeenCalledWith("id", "other-event-cat");
-    // This is the actual fix under test: without it, the delete would only
-    // be scoped by "id", and RLS (which checks the PARENT event's org, not
-    // that the row belongs to THIS event) would let it through.
-    expect(deleteChain.eq).toHaveBeenCalledWith("event_id", "e1");
-  });
-
-  // The concurrent-edit case this fix must NOT break: tab A adds category X
-  // and saves; a stale tab B (whose `original` was captured before X
-  // existed) saves next. Because `original` is trusted from B's OWN
-  // payload rather than re-fetched from the DB, X is simply never a
-  // candidate for `toDelete` — reconcileChildren only deletes ids present
-  // in `original` and absent from `current`, and B's `original` never knew
-  // X existed in the first place. No DB round trip is needed to prove this;
-  // it falls out of reconcileChildren's definition once `original` is the
-  // payload's, which is exactly what this test pins down: the action makes
-  // no extra "what are this event's current categories" lookup at all.
-  it("makes no extra DB lookup to re-derive `original` — a stale tab's save cannot see (or delete) another tab's newer category", async () => {
-    getMyRoles.mockResolvedValue(roles({}));
-    const statusChain = chain({ data: { status: "draft" }, error: null });
-    const updateChain = chain({ data: [{ id: "e1" }], error: null });
-    const deleteChain = chain({ data: null, error: null });
-    from.mockReturnValueOnce(statusChain).mockReturnValueOnce(updateChain).mockReturnValueOnce(deleteChain);
-
-    // Tab B's `original` only ever knew about "b-cat" (captured on load,
-    // before tab A added "a-cat"). B's `current` drops "b-cat" (the
-    // organizer deleted it in tab B) — "a-cat" is not mentioned anywhere in
-    // B's payload, because B never knew it existed.
+  it("passes only the editor's original IDs to the category transaction", async () => {
+    getMyRoles.mockResolvedValue(roles());
+    from.mockReturnValueOnce(chain({ data: { status: "draft", check_in_required: true }, error: null }))
+      .mockReturnValueOnce(chain({ data: [{ id: "e1" }], error: null }));
     const res = await saveEventAction({}, savePayload({ id: "e1" }, {
       categories: { current: [], original: [{ id: "b-cat" }] },
     }));
-
     expect(res.error).toBeUndefined();
-    // Exactly 3 calls total: status lookup, event update, the ONE delete
-    // (for "b-cat", the row B's own payload named). No 4th call fetching
-    // "what categories does e1 actually have" — that lookup is what would
-    // have surfaced "a-cat" and put it at risk of deletion.
-    expect(from).toHaveBeenCalledTimes(3);
-    expect(deleteChain.eq).toHaveBeenCalledWith("id", "b-cat");
-    expect(deleteChain.eq).not.toHaveBeenCalledWith("id", "a-cat");
+    expect(from).toHaveBeenCalledTimes(2);
+    expect(rpc).toHaveBeenCalledWith("save_event_categories", {
+      p_event: "e1", p_original: ["b-cat"], p_categories: [],
+    });
   });
+
 });
 
 describe("cancelEventAction", () => {

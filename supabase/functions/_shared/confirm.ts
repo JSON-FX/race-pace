@@ -116,7 +116,7 @@ export async function confirmPayment(
     // the type level, and `a + b` is `string` to TypeScript — which erases every
     // column type on `reg` (this file used to do exactly that, and typed `reg`
     // as an error object for its whole length).
-    .select("id,event_id,event_reservation_id,total_amount,status,organizations(commission_type,commission_rate,commission_flat_cents),payments(amount,provider,provider_ref,raw,checkout_fee_mode,checkout_platform_fee,checkout_provider_managed_fee)")
+    .select("id,event_id,event_reservation_id,prescreening_application_id,total_amount,status,organizations(commission_type,commission_rate,commission_flat_cents),payments(amount,provider,provider_ref,raw,checkout_fee_mode,checkout_platform_fee,checkout_provider_managed_fee)")
     .eq("id", registrationId)
     .single();
   if (!reg) return { ok: false, error: "not_found", status: 404 };
@@ -390,8 +390,8 @@ export async function confirmPayment(
     p_processor_fee_predicted: processorFeePredicted,
     p_processor_fee_source: processorFeeSource,
   };
-  const { data: result, error } = reg.event_reservation_id
-    ? await db.rpc("confirm_reserved_registration_tx", {
+  const { data: result, error } = reg.event_reservation_id || reg.prescreening_application_id
+    ? await db.rpc(reg.event_reservation_id ? "confirm_reserved_registration_tx" : "confirm_screened_registration_tx", {
       ...rpcArgs,
       p_provider_paid_at: paymentTerms?.provider === "paymongo"
         ? reportedPaidCaptures(raw)[0]?.paidAt ?? null

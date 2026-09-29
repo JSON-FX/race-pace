@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { EVENT_DISCIPLINES, DISCIPLINE_LABELS } from "@race-pace/shared";
 import type { EditorData } from "@/lib/queries/event-editor";
@@ -38,6 +38,16 @@ function lastSavedEvent() {
   return JSON.parse(fd.get("payload") as string).event;
 }
 
+function lastSavedCategory() {
+  const fd = mockSaveEventAction.mock.calls.at(-1)![1] as FormData;
+  return JSON.parse(fd.get("payload") as string).categories.current[0];
+}
+function addInclusion() {
+  fireEvent.click(within(screen.getByRole("heading", { name: "What's included" }).parentElement!).getByRole("button", { name: "+ Add" }));
+}
+function addSchedule() {
+  fireEvent.click(within(screen.getByRole("heading", { name: "Race-morning schedule" }).parentElement!).getByRole("button", { name: "+ Add" }));
+}
 function editorData(overrides: Partial<EditorData["event"]> = {}): EditorData {
   return {
     event: {
@@ -52,7 +62,9 @@ function editorData(overrides: Partial<EditorData["event"]> = {}): EditorData {
       gallery: [], schedule: [], inclusions: [],
       ...overrides,
     },
-    categories: [],
+    categories: [{ id: "c1", code: "21k", label: "21K", distance_km: 21,
+      base_price: 10000, slots_total: 10, slots_taken: 0, elevation_gain_m: null,
+      cutoff_hours: null, blurb: null, inclusions: overrides.inclusions ?? [] }],
     addons: [],
   };
 }
@@ -70,18 +82,13 @@ it("explains that price edits refresh unpaid checkouts", () => {
   expect(screen.getByText(/Paid registrations keep their accepted prices/)).toBeInTheDocument();
 });
 
-it("keeps event capacity outside Coming Soon and blocks category over-allocation", () => {
-  const data = editorData({ status: "draft", total_event_slots: 4 });
-  data.categories = [{ id: "c1", code: "21k", label: "21K", distance_km: 21,
-    base_price: 10000, slots_total: 3, slots_taken: 0, elevation_gain_m: null,
-    cutoff_hours: null, blurb: null }];
-  render(<EventEditorForm initial={data} orgId="a1" />);
-  expect(screen.getByLabelText("Total event slots")).toHaveValue(4);
-  expect(screen.getByText(/3 of 4 slots allocated to categories/)).toBeInTheDocument();
+it("derives event capacity from category slots without an editable total", async () => {
+  render(<EventEditorForm initial={editorData({ total_event_slots: 999 })} orgId="a1" />);
+  expect(screen.queryByLabelText("Total event slots")).not.toBeInTheDocument();
   fireEvent.change(screen.getByLabelText("Slots"), { target: { value: "5" } });
   fireEvent.click(screen.getByText("Save event"));
-  expect(screen.getByText(/Category slots \(5\) exceed total event slots \(4\)/)).toBeInTheDocument();
-  expect(mockSaveEventAction).not.toHaveBeenCalled();
+  await waitFor(() => expect(mockSaveEventAction).toHaveBeenCalled());
+  expect(lastSavedCategory().slots_total).toBe(5);
 });
 
 it("blocks save on an empty name, then saves a valid new event", async () => {
@@ -259,13 +266,12 @@ it("adds, edits, reorders, and removes schedule rows, saving the final order", a
   // The event details / images / schedule / categories / add-ons sections each
   // render their own "+ Add" control — the schedule editor's is the first one
   // in DOM order (EventImagesEditor, ScheduleEditor, CategoryEditor, AddonEditor).
-  const scheduleAdd = (await screen.findAllByText("+ Add"))[0]!;
-  fireEvent.click(scheduleAdd);
+  addSchedule();
   fireEvent.change(screen.getByLabelText("Schedule time"), { target: { value: "07:00" } });
   fireEvent.change(screen.getByLabelText("Schedule label"), { target: { value: "Cut-off, 10K" } });
 
   // add a second row that should end up first once we move it up
-  fireEvent.click(screen.getAllByText("+ Add")[0]!);
+  addSchedule();
   const times = screen.getAllByLabelText("Schedule time");
   const labels = screen.getAllByLabelText("Schedule label");
   fireEvent.change(times[1]!, { target: { value: "04:30" } });
@@ -286,19 +292,17 @@ it("adds, edits, reorders, and removes schedule rows, saving the final order", a
 it("adds, edits, reorders, and removes inclusion rows, saving the final order", async () => {
   render(<EventEditorForm initial={editorData()} orgId="a1" />);
 
-  const addButtons = await screen.findAllByText("+ Add");
-  // EventImagesEditor, ScheduleEditor, InclusionsEditor, CategoryEditor, AddonEditor.
-  fireEvent.click(addButtons[1]!);
+  addInclusion();
   fireEvent.change(screen.getByLabelText("Inclusion"), { target: { value: "Six aid stations with hot food" } });
 
-  fireEvent.click(screen.getAllByText("+ Add")[1]!);
+  addInclusion();
   const lines = screen.getAllByLabelText("Inclusion");
   fireEvent.change(lines[1]!, { target: { value: "Race kit, bib, and timing chip" } });
   fireEvent.click(screen.getAllByLabelText("Move inclusion up")[1]!);
 
   fireEvent.click(screen.getByText("Save event"));
   await waitFor(() => expect(mockSaveEventAction).toHaveBeenCalled());
-  expect(lastSavedEvent().inclusions).toEqual([
+  expect(lastSavedCategory().inclusions).toEqual([
     "Race kit, bib, and timing chip",
     "Six aid stations with hot food",
   ]);
@@ -339,13 +343,12 @@ it("a blank inclusion row left alongside a real one is dropped rather than saved
   render(<EventEditorForm initial={editorData({ inclusions: ["Finisher medal and summit certificate"] })} orgId="a1" />);
 
   // Leave a second, blank row alongside the existing one — it must not reach save as ''.
-  const addButtons = await screen.findAllByText("+ Add");
-  fireEvent.click(addButtons[1]!);
+  addInclusion();
   fireEvent.change(screen.getAllByLabelText("Inclusion")[1]!, { target: { value: "   " } });
 
   fireEvent.click(screen.getByText("Save event"));
   await waitFor(() => expect(mockSaveEventAction).toHaveBeenCalled());
-  expect(lastSavedEvent().inclusions).toEqual(["Finisher medal and summit certificate"]);
+  expect(lastSavedCategory().inclusions).toEqual(["Finisher medal and summit certificate"]);
 });
 
 it("removing every inclusion row persists an empty array rather than null", async () => {
@@ -354,20 +357,19 @@ it("removing every inclusion row persists an empty array rather than null", asyn
   fireEvent.click(await screen.findByLabelText("Remove inclusion"));
   fireEvent.click(screen.getByText("Save event"));
   await waitFor(() => expect(mockSaveEventAction).toHaveBeenCalled());
-  expect(lastSavedEvent().inclusions).toEqual([]);
+  expect(lastSavedCategory().inclusions).toEqual([]);
 });
 
 it("blocks save with a visible message when an inclusion line is over the length cap", async () => {
-  render(<EventEditorForm initial={null} orgId="a1" />);
+  render(<EventEditorForm initial={editorData()} orgId="a1" />);
   fireEvent.change(screen.getByLabelText("Event name"), { target: { value: "Apo Sky Ultra" } });
 
-  const addButtons = await screen.findAllByText("+ Add");
-  fireEvent.click(addButtons[1]!);
+  addInclusion();
   // Bypass the input's maxLength (fireEvent.change sets the DOM value directly)
   // so the over-length case actually reaches validation instead of native truncation.
   fireEvent.change(screen.getByLabelText("Inclusion"), { target: { value: "x".repeat(141) } });
 
   fireEvent.click(screen.getByText("Save event"));
-  expect(await screen.findByText(/Fix the event fields/)).toBeInTheDocument();
+  expect(await screen.findByText(/Keep each inclusion under 140/)).toBeInTheDocument();
   expect(mockSaveEventAction).not.toHaveBeenCalled();
 });

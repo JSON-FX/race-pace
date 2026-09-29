@@ -33,6 +33,15 @@ const AUTH_PREDICATES = [
 // breaks. Nothing else in `public` should be authenticated-executable without a deliberate edit
 // to this list.
 const AUTHENTICATED_ALLOWLIST = new Set([
+  // Published event aggregates include held places without exposing participant records.
+  "category_availability",
+  // Organizer review checks the application tenant before making an audited decision.
+  "prescreening_review",
+  "prescreening_cancel",
+  "prescreening_email_status",
+  "prescreening_resend_email",
+  // Atomic editor writes verify the parent tenant and preserve unseen rows.
+  "save_event_categories",
   // Safe financial projection filters each private allocation by owning org.
   "admin_group_financial_lines",
   // Creates only the caller's managed Passport; ownership and collision tests cover this grant.
@@ -92,7 +101,7 @@ const AUTHENTICATED_ALLOWLIST = new Set([
 // state (the original three were explicitly out of scope for every migration in this series) — not
 // something to "fix" by revoking anon, which would violate that constraint and risk exactly the
 // outage it warns about.
-const ANON_ALLOWLIST = new Set(AUTH_PREDICATES);
+const ANON_ALLOWLIST = new Set([...AUTH_PREDICATES, "category_availability"]);
 
 async function signedIn(email: string): Promise<SupabaseClient> {
   const c = createClient(url, anonKey, { auth: { persistSession: false } });

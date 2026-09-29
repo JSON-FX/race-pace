@@ -62,3 +62,5 @@ export function fieldEditPolicy(key: string): FieldEditPolicy {
 export * from "./passport.ts";
 
 export * from "./groupRegistration.ts";
+
+export * from "./prescreening.ts";

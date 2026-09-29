@@ -208,7 +208,7 @@ export type RegistrationRow = {
 // type level, and `a + b` is `string` to TypeScript, which erases every column
 // type on the result.
 const REG_SELECT =
-  "id,user_id,booked_by_user_id,booking_order_id,status,total_amount,ticket_token,org_id,event_id,expires_at,custom_data,organizations(name,is_active,fee_mode,commission_type,commission_rate,commission_flat_cents,refund_policy,refund_fee_cents),events(name,status,event_date,original_date,status_note,place,city_name,province_name,hero_image_url,inclusions,registration_closes_at,kit_edit_closes_at,check_in_required),categories(label,distance_km,base_price),registration_addons(price),payments(checkout_url,created_at,method,amount,platform_fee,net_to_org,provider,provider_ref,status,checkout_fee_mode,checkout_platform_fee,checkout_provider_managed_fee)";
+  "id,user_id,booked_by_user_id,booking_order_id,status,total_amount,ticket_token,org_id,event_id,expires_at,custom_data,organizations(name,is_active,fee_mode,commission_type,commission_rate,commission_flat_cents,refund_policy,refund_fee_cents),events(name,status,event_date,original_date,status_note,place,city_name,province_name,hero_image_url,inclusions,registration_closes_at,kit_edit_closes_at,check_in_required),categories(label,distance_km,base_price,inclusions),registration_addons(price),payments(checkout_url,created_at,method,amount,platform_fee,net_to_org,provider,provider_ref,status,checkout_fee_mode,checkout_platform_fee,checkout_provider_managed_fee)";
 
 export function mapReg(r: any): RegistrationRow {
   const payment = Array.isArray(r.payments) ? r.payments[0] : r.payments;
@@ -245,7 +245,7 @@ export function mapReg(r: any): RegistrationRow {
     refundFeeCents: org?.refund_fee_cents ?? null,
     eventHeroUrl: r.events?.hero_image_url ?? null,
     basePrice: checkoutBasePrice,
-    inclusions: r.events?.inclusions ?? null,
+    inclusions: r.categories?.inclusions ?? r.events?.inclusions ?? null,
     // Defaulting to `absorb` rather than throwing: a missing embed must render
     // the sticker price, never an unpriced screen. It is also the column's own
     // default, so the only rows that reach `pass_on` are ones a super admin
