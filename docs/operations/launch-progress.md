@@ -3,17 +3,13 @@
 Updated: 2026-09-27. Overall: MVP RELEASED; FIELDNOTES ADMIN AND TRAIL ATLAS ORGANIZERS IN PRODUCTION; OWNER CHECKOUT PENDING.
 Scope: runner website and admin only. The first release is a controlled pilot with one organizer and PayMongo. Production contains real organizer and event data; add no synthetic data.
 
-### Category reservations and pre-screening — 2026-09-29
+### Category reservations and pre-screening — 2026-09-30
 
-| Work | Status | Blocker | Next task |
-|---|---|---|---|
-| Feature plan and compatibility rules | Approved by owner | None | Preserve the active event and additive compatibility during implementation. |
-| Interactive HTML proposal | Owner approved on 29 September 2026 | None | Implement approved forms and states. |
-| Storybook proposal | Eighteen approved proposal states plus a new submission-email template; current typecheck, four catalog builds and local publication passed | Application parity pending | Promote approved design into canonical application controls. |
-| Application/backend implementation | Local forms, private resumable proofs, review/payment guards, capacity projection, category reservations, conversion, expiry, and durable emails implemented; review in progress. Admin proof dialog now matches the two-column proposal. | Final review and hosted provider acceptance pending | Commit the reviewed candidate and run hosted staging acceptance. Local rejection, alternative category, cancellation and submission/approval email delivery passed. |
-| Local verification | Fresh 177-migration replay and legacy 170-slot upgrade rehearsal passed; runner 497, admin 1004, backend/shared 826, shared UI 13 tests passed. Final maintenance regressions and the full backend run pass. Both app typechecks and isolated builds passed after their latest changes. | Reduced-motion acceptance and hosted staging pending | Record final revision and full validation evidence. |
-| Hosted staging | PR #188 merged at `68bc4d0d512134c2a14c0406e682e2aed9bfd74d`; both applications and all required backend changes deployed. Hosted acceptance in progress. | New-event form retained a legacy total-slot check; isolated correction validated locally. Payment/provider and full hosted regression acceptance remain incomplete. | Deploy the form correction to staging and finish acceptance. |
-| Production | Unchanged | All required staging checks must pass | Repeat production inventory and recovery checks before promotion. |
+| Completed | Blockers | Next task |
+| --- | --- | --- |
+| Approved prototype and Storybook proposals implemented; full local checks and hosted functional acceptance passed, including native 10 MB uploads and selected-participant GCash refunds. | Exact staging CI retry and final production preflight remain. QR Ph test refunds are rejected by the staging provider; the app preserves tickets/holds on uncertainty. | Record the final revision, promote staging → main only after required checks pass, verify real production data, then sync main → staging. |
+
+Current evidence: [release and acceptance record](category-screening-release-20260930.md). The entries below are historical checkpoints, superseded by that record.
 
 Evidence: [design proposal](../specs/2026-09-29-category-prescreening-prototype.md), [plan](../plans/2026-09-29-category-prescreening.md), and [prototype report](../../.claude/reports/category-prescreening-prototype-report.md), and [implementation report](../../.claude/reports/2026-09-29-category-prescreening-report.md). Earlier production counts are planning evidence and require a fresh release inventory. No production writes or charges occurred.
 

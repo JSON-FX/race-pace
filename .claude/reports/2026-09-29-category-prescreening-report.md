@@ -64,7 +64,7 @@ The new `prescreening-maintenance` worker uses the existing payment-expiry secre
 
 ## Implementation limits to review
 
-Image decoding enforces 20 megapixels as well as the requested decimal 10 MB cap to bound memory in the Edge worker. The form explains this. This additional decoder limit must be included in design/acceptance review; the requested exact byte boundary is tested for all supported file types.
+Superseded on 30 September: the owner removed the custom 20-megapixel limit. The final contract is 10,000,000 bytes (10 MB), with private native Sharp verification and native codec safeguards. Actual hosted 48 MP PNG/JPEG and exact-byte-boundary uploads passed; see docs/operations/category-screening-release-20260930.md.
 
 Local Supabase and both Next applications use isolated ports to preserve unrelated development work. No feature scope or production-safety gate has been waived.
 
