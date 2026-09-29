@@ -104,6 +104,33 @@ it("blocks save on an empty name, then saves a valid new event", async () => {
   await waitFor(() => expect(mockPush).toHaveBeenCalledWith("/events"));
 });
 
+it.each(["open", "almost_full"])("submits a new %s event using category capacity", async (status) => {
+  const user = userEvent.setup();
+  render(<EventEditorForm initial={null} orgId="a1" />);
+  fireEvent.change(screen.getByLabelText("Event name"), { target: { value: "Category capacity race" } });
+  fireEvent.click(screen.getByText("+ Add distance"));
+  fireEvent.change(screen.getByLabelText("Category code"), { target: { value: "21k" } });
+  fireEvent.change(screen.getByLabelText("Category label"), { target: { value: "21K" } });
+  fireEvent.change(screen.getByLabelText("Slots"), { target: { value: "12" } });
+  await user.click(screen.getByLabelText("Status"));
+  await user.click(screen.getByRole("option", { name: status.replaceAll("_", " ") }));
+  fireEvent.click(screen.getByText("Save event"));
+  await waitFor(() => expect(mockSaveEventAction).toHaveBeenCalled());
+  expect(lastSavedEvent()).toMatchObject({ status, total_event_slots: null });
+  expect(lastSavedCategory().slots_total).toBe(12);
+});
+
+it("opens a coming-soon event with categories and no legacy event total", async () => {
+  const user = userEvent.setup();
+  render(<EventEditorForm initial={editorData({ status: "coming_soon", total_event_slots: null })} orgId="a1" />);
+  await user.click(screen.getByLabelText("Status"));
+  await user.click(screen.getByRole("option", { name: "open" }));
+  fireEvent.click(screen.getByText("Save event"));
+  await waitFor(() => expect(mockSaveEventAction).toHaveBeenCalled());
+  expect(lastSavedEvent()).toMatchObject({ status: "open", total_event_slots: null });
+  expect(lastSavedCategory().slots_total).toBe(10);
+});
+
 it("generates a public link from the event name and lets a draft customize it", () => {
   render(<EventEditorForm initial={null} orgId="a1" />);
   fireEvent.change(screen.getByLabelText("Event name"), { target: { value: "Peñafrancia Trail & Ultra" } });
