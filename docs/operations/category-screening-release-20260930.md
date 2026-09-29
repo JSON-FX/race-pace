@@ -1,20 +1,20 @@
 # Category reservations and pre-screening release — 30 September 2026
 
-Status: hosted functional acceptance passed; exact revision CI and final production preflight remain required.
+Status: released to production; production verification and main → staging synchronization passed.
 Owner deadline: 07:20 Philippine time. A deadline does not waive a required check.
 
 ## Reviewed source and deployed applications
 
 Feature PRs #188–192 merged through staging. Current application/backend source is
 `12cc81ab94a50368c3f07bc248454785ad667122` (PR #192). The two feature checks
-`36634982101` and `36635008116` passed. Exact-merge CI `36636073092` passed tests/typechecks but hit the known intermittent next/font Google loader error. An unchanged-source retry is running; production waits for a passing run.
+`36634982101` and `36635008116` passed. Exact-merge CI `36636073092` passed tests/typechecks but hit the known intermittent next/font Google loader error. The unchanged-source retry passed. Final staging `70570e8b40cb35675922dad2eb1e3cb9a39a128c` passed exact CI `36639014741`, and production promotion CI `36640027885` passed.
 
 | Application | Deployment | State and alias |
 | --- | --- | --- |
-| Runner | `dpl_3MA9v5LiDZq521Rtpuc34jsj7EFZ` | Ready; staging.racepace.com.ph |
-| Admin | `dpl_J7kmLDp8FE9V8KmoarSvCdimZM5f` | Ready; staging-admin.racepace.com.ph |
+| Runner | `dpl_9jDy4FcGYyazMX7sKuD63YX5vGht` | Ready; staging.racepace.com.ph |
+| Admin | `dpl_HUND1SE1Jk1z7tdjsTPraxVs3H8H` | Ready; staging-admin.racepace.com.ph |
 
-Vercel API independently confirmed both commit identities, Ready state and aliases.
+These final staging deployments serve `70570e8b40cb35675922dad2eb1e3cb9a39a128c`. Vercel API and Browser script IDs independently confirmed both commit identities, Ready state and aliases.
 The final release-record commit changes documentation only. Compare application/backend trees
 before promoting that record; do not treat a different source tree as tested.
 
@@ -111,7 +111,7 @@ Pre-existing pg_net placement and leaked-password-protection warnings were not c
 
 ## Production baseline and recovery
 
-No production change has been made. Main is `7577ded79dd1fa3a29ff7e916445342f3037b759`.
+Pre-cutover checkpoint: production main was `7577ded79dd1fa3a29ff7e916445342f3037b759`.
 Fresh read-only inventory supersedes the planning snapshot:
 
 - Yalabyalam Backyard Ultra, event `3f29e7df-fe90-44a6-bfa4-219ffeaad816`, open.
@@ -127,7 +127,36 @@ before promotion and preserve legitimate registrations arriving during the relea
 
 The earlier QR Ph test refund failed closed. Provider readback showed zero refunds; replaying the same synthetic request returned HTTP 400 `parameter_invalid`: refunds are not allowed for source type qrph on this staging account. No live request was made. The unknown local test request remains preserved for audit, with both original entries and claims intact. The supported GCash refund above verifies the application path; this does not establish QR Ph refund support for either merchant account. The signed-in Point Sports dashboard test key differs from the staging merchant credential, so verification used the matching configured staging key without changing provider settings.
 
-Production promotion remains blocked until exact-revision CI and the final preflight pass.
-Then use staging → main, additive backend before dependent apps, new admissions paused through
-helper/function bootstrap, read-only production verification, and main → staging synchronization.
+At the earlier checkpoint, production promotion remained blocked until exact-revision CI and the final preflight passed. Both gates subsequently passed; see the production record below.
+The release followed staging → main, additive backend before dependent apps, new admissions paused through
+helper/function bootstrap, and read-only production verification. Main → staging synchronization follows.
 Keep additive schema and forward-fix if older code cannot understand newly created holds.
+
+## Production promotion — 30 September 2026
+
+PR #194 merged staging `70570e8b40cb35675922dad2eb1e3cb9a39a128c` into main at `7dbecc4c4160600e60648d2dd16e4b31d8e3f229` at 06:41 PHT. Exact staging CI `36639014741` and promotion CI `36640027885` passed. The application/backend trees match the accepted staging source.
+
+Eighteen additive migrations were applied before the dependent apps. Production now has 177 migrations through `20260929191739`; the independent history readback and clean CLI dry run agree. The first bulk Edge deployment returned an internal provider error. Individual retries succeeded; all 17 changed production functions are Active and match staging bundle hashes and JWT settings. The local-only fake checkout was not deployed.
+
+New admissions remained paused through backend/helper bootstrap. Production proof verification uses the canonical www runner hostname and a dedicated secret. The Edge and Vercel secret fingerprints match. Existing PayMongo, Resend, expiry-worker and other secret fingerprints did not change. Production live payment mode remained unchanged. The private proof bucket permits JPEG/PNG/WebP up to 10,000,000 bytes.
+
+Both prescreening jobs are active. SQL readiness/expiry runs each minute and the authenticated HTTP maintenance worker every five minutes. The direct worker probe returned 200 with zero pending work, and scheduled executions succeeded. Function logs during 06:31–06:42 PHT contained no error/warning or memory/CPU shutdown records.
+
+Fresh inventory before and after migrations/functions found no changes to the recorded event/category/registration/payment fields or ticket fingerprints. There were 25 registrations (16 paid, six expired, three cancelled), 21 payment records, zero reservations, 140 category slots and 16 occupied claims. All eight inclusions copied exactly and in order. New reservation and pre-screening flags stayed false. Zero production proof uploads or applications were created.
+
+Security readback confirmed RLS and explicit grants. New advisor notices are expected: service-only proof-cleanup/history tables deny clients by having no client policy; published category availability intentionally permits anonymous access; authenticated review/editor RPCs enforce tenant/identity checks. These cases passed the access regression suite. Existing pg_net placement and leaked-password warnings remain outside this release.
+
+| Production app | Ready deployment | Canonical alias |
+| --- | --- | --- |
+| Runner | `dpl_4CLutQRpVgBVJEZefb2VLpgK9wUB` | www.racepace.com.ph |
+| Admin | `dpl_2HjotuiLsKbgTrDv4qWLoe795gvn` | admin.racepace.com.ph |
+
+Both deployments are Ready at the production merge. Browser script deployment IDs match the Vercel API. The native helper returned 401 without authorization and 400 for authenticated empty input; the Edge proof function returned 401 anonymously. New admissions were enabled at approximately 06:44 PHT after these checks. The pause-secret digest confirms false; all existing provider secret fingerprints remain unchanged.
+
+Browser read-only checks verified the derived 140-slot total, category reservation/pre-screening switches off, all eight ordered category inclusions, the existing public Join action/price, payment artwork, and the empty Pre-screening approvals table. No event form was saved. Existing records and ticket fingerprints remained unchanged after both apps deployed. The runner had no console warnings/errors. The admin editor's recoverable React 418 hydration warning occurred on both the previous and new deployments; it was present in the pre-release baseline and is not claimed fixed here.
+
+No synthetic production data, payment, refund, proof upload or email was created. Real financial acceptance remains owner-operated. Full upload/payment/email/review interactions were exercised with synthetic staging fixtures.
+
+Both production public bundles reference only `whaqarofxdlzxrelbcrq`, with no staging Supabase reference. The existing Join action redirects unauthenticated runners to sign-in with the category return path preserved. [Production function versions and hashes](category-screening-production-functions-20260930.json) are recorded for the 17 changed slugs.
+
+Production merge CI `36641044139` passed all checks. Sync PR [#195](https://github.com/JSON-FX/race-pace/pull/195) passed CI `36641429578` and merged main into staging at `b7d5622724dea3f2df048b84ae3d19fe8d482be1` at 06:55 PHT. Main is again an ancestor of staging, and application/backend trees are identical. This final evidence update changes documentation only.
