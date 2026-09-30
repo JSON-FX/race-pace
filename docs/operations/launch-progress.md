@@ -949,7 +949,7 @@ The registration inspector follow-up also passed actual app checks at 1280×720,
 
 | Completed | Blockers | Next task |
 | --- | --- | --- |
-| All approved session changes live in both production apps; event summary and organization reset read back; 2,483 required CI tests passed | No production blocker; sync-back PR pending its required check | Merge this release evidence with main back into staging |
+| All approved session changes live in both production apps; event summary and organization reset read back; 2,483 required CI tests passed | No blocker; PR #216 synchronized the prior release | Prior release synchronized; category-slots follow-up tracked below |
 
 Owner explicitly authorized production release of all current-session changes and waived additional local test suites for urgency. Required GitHub `web-admin-validate` remains enforced. Technical promotion follows staging into main, then sync-back. No test fixture or payment may be created in production. This session changes no migration, Edge Function, provider configuration, secrets or dependency. Existing staging-only payment recovery content is documentation only; its application/backend changes are already in main.
 
@@ -957,10 +957,14 @@ Scoped feature commits: `490da7e` (browser refinements), `adebd43` (Coming Soon 
 
 See [Reservations review](../../.claude/code-reviews/2026-09-30-reservations-page.md), [implementation report](../../.claude/reports/2026-09-30-reservations-page-report.md), and [category fee investigation](../issues/2026-09-30-coming-soon-category-fees.md). Exact release commits, deployment IDs, backend boundaries, failed font-build retry, live readback and limitations are recorded in the [release evidence](session-ui-release-20260930.md). PR #214 staged the approved code; PR #215 released it to production at `1b26152413af70fef1a969fa431d00ba58d0ce47`. Both production apps are Ready. The live Kibalabag summary matched 29 total, 23 paid, ₱5,062.43 collected and six pending at read time. No production fixtures or financial transactions were created.
 
-## September 30 Reservations category slots — implemented
+## September 30 Reservations category slots — live
 
 | Completed | Blockers | Next task |
 | --- | --- | --- |
-| Canonical category availability read, total/general/reservation cards, explicit unpublished and disabled states | Bounded visual readback and required GitHub release checks pending | Release to production, verify matching counts, then sync staging |
+| Category cards verified in production; both staging apps run matching source; desktop and phone readback passed | No application blocker | Main-to-staging sync accompanies this release evidence; record final readback on its PR |
 
 User explicitly authorized urgent production release and staging sync. Additional local suites remain waived for this session; enforced GitHub checks remain required. No backend, provider, migration, payment or production fixture change. [Report](../../.claude/reports/2026-09-30-reservation-category-slots-report.md) and [review](../../.claude/code-reviews/2026-09-30-reservation-category-slots.md).
+
+Direct production delivery and subsequent staging deployment are verified at `c4c63d8`. Feature PR #217 merged at staging `68b685a`; both exact merge deployments are Ready and use staging Supabase. All 2,483 required CI tests passed; an unchanged retry resolved the existing duplicate-run font-loader failure. No test fixture or transaction occurred in production. [Exact evidence and scoped exception](reservation-category-slots-release-20260930.md).
+
+PR #218 aligned protected main at `f2f1b3e662b637d192471bdb44320831dad75fc6`. Both exact main deployments are Ready with production aliases and database identity. Fresh live reads matched the canonical ledger again, including two new 25k reservations during delivery. This evidence-only change carries main back into staging without changing application or backend content. Final ancestry/deployment readback is attached to its staging PR.
