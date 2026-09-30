@@ -36,8 +36,10 @@ Both Ready deployments own the correct staging aliases at that exact staging com
 - Admin: `dpl_8WSiobLbpE4D4A7kZ6egz5teCF5V`, `staging-admin.racepace.com.ph`.
 
 The runner events page and authenticated admin discount page loaded in the browser.
-Both pages' downloaded JavaScript bundles reference staging Supabase and contain no
-production Supabase project reference.
+Loaded client bundles from admin registrations and the runner profile reference staging
+Supabase and contain no production Supabase project reference. The discount page's
+initial scripts do not instantiate the Supabase browser client, so the check includes
+loaded dynamic assets from the authenticated client pages.
 
 Migration `20260930083846` is applied; staging now has 180 migrations. Both function body
 hashes match the reviewed SQL: `discount_create` MD5 `c26b3bc1e2deeb44c41252bbfc730493`,
