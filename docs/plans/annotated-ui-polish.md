@@ -43,3 +43,9 @@ HTML options and Storybook proposals built. Desktop/tablet/mobile HTML reviewed,
 Owner selected A and authorized integration and staging-to-production release after verification.
 
 Full local backend suite passed: 827 tests. Both isolated builds passed; the final checklist typography polish is being rebuilt before commit. Staging and production baseline readbacks confirm 177 migration versions. Final hosted browser acceptance remains required.
+
+## Hosted anchor correction
+
+The first staging acceptance found that a section anchor scrolled the hidden outer shell by 66 pixels. Its header moved to y=-66 even though window.scrollY stayed zero. The sr-only course file input was absolutely positioned outside the static inner scroll container, extending the SidebarInset scroll area. Make rp-scroll its positioning container and use overflow-clip for the viewport shell, which must never become a second scroll container. Recheck desktop/tablet/mobile anchor jumps, keyboard focus, scroll-spy, save bar and page tables on the corrected staging revision before promotion.
+
+Mobile acceptance also measured a 224-pixel inclusion area inside the preserved category row at a 390-pixel viewport. A viewport breakpoint incorrectly split that narrow area into two columns. Use a 390-pixel container query for the inclusion block so narrow categories retain one readable column and wide categories retain checklist A's two columns. Storybook adds the narrow category context and stays synced with the production component.
