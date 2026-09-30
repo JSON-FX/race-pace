@@ -20,6 +20,8 @@ Reviewed the local `codex/org-discounts` diff against staging `70fc678`. Scope i
 | High | Actual absorbed processing costs must not create negative organizer proceeds. | Single confirmation parks an invalid capture for reconciliation; new group allocations enforce nonnegative net inside the fulfillment transaction. |
 | Medium | Complimentary registrations need cancellation without a zero-value refund. | Use existing cancellation RPC with explicit zero-settlement evidence, capacity release and ticket cancellation. Redemption remains consumed. Browser acceptance passed. |
 | Medium | Tablet discount type was clipped and Passport removal had a 36-pixel target. | Responsive field reflow, Lucide X, 44-pixel target. Fresh reviewer scored both resolved, disposition ship. |
+| Medium | Mixed free and paid groups reported the entire capture as complimentary for GCash, Maya and QR Ph. | Aggregate payment method now comes from positive-gross allocations. Three regressions reproduce the original defect and pass after correction; free participant rows remain complimentary. |
+| Medium | Complimentary Method badges hid their only label because they had no brand marks. | Show text when there are no marks. The regression failed before the fix and passes afterward. |
 | Low | New admin route inherited the Dashboard breadcrumb. | Added Discounts title for list and detail paths. Browser readback passed. |
 
 ## Verified boundaries

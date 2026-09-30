@@ -159,7 +159,7 @@ export function MethodBadge({ method, status, height = 28 }: { method: string | 
       {marks.map((mark) => (
         <Mark key={mark} mark={mark} height={height} />
       ))}
-      <span className={kind === "known" ? "sr-only" : "text-muted-foreground"}>{label}</span>
+      <span className={marks.length > 0 ? "sr-only" : "text-muted-foreground"}>{label}</span>
     </Badge>
   );
 }

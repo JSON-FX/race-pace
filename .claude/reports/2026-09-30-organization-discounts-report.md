@@ -65,3 +65,15 @@ Initial full-page screenshots displaced fixed navigation. Recaptures used ordina
 No commit, push, pull request, migration deployment, or application deployment was performed. Before production, the exact revision must pass CI and hosted staging, including PayMongo test-mode capture/refund/session-expiry acceptance, provider fee absorption, and approved pre-screening checkout. Existing group rollout flags remain the deployment authority. Native app code entry and reservation-deposit discounts are intentionally outside this feature.
 
 For release, deploy migration `20260930053856`, the new `discount-checkout` function, and the changed function bundles including consumers of shared confirmation/group-payment code: `registrations-checkout`, `payment-session`, `payment-verify`, `payments-webhook`, `group-payment`, `group-payment-prepare`, `expire-paymongo-checkouts`, `expire-coming-soon-reservations`, and `reprice-event-checkouts`. Rebuild the local `fake-checkout` bundle for future local acceptance. No new hosted secret is required. Preserve environment-specific provider and group rollout settings.
+
+## Staging submission review
+
+PR #202 targets `staging`. A fresh payment/security review found two medium reporting issues:
+mixed free/paid group methods and a visually hidden complimentary badge. Both were reproduced by
+regression tests and fixed before merge. A second review of these changes found no unresolved issue.
+
+The amended, still local-only migration replayed successfully with all 178 migrations. Focused
+backend validation passed 87 tests across discounts, group payment preparation/settlement/reporting,
+and function grants. All 19 MethodBadge tests and the admin typecheck passed. These checks supplement
+the complete local suites and builds above; exact-head GitHub CI remains the merge gate. Staging
+backend and application deployment evidence will be recorded after the reviewed merge.
