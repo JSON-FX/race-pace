@@ -3,6 +3,11 @@ import { revalidatePath } from "next/cache";
 import { discountInputSchema } from "@race-pace/shared";
 import { createClient } from "@/lib/supabase/server";
 import { getMyRoles, requireOrgId } from "@/lib/queries/roles";
+export type DiscountPassportOption = {
+  id: string;
+  label: string;
+  email: string | null;
+};
 export async function createDiscounts(
   raw: unknown,
 ): Promise<{ error?: string; created?: number }> {
@@ -55,7 +60,7 @@ export async function setDiscountActive(
 }
 export async function searchDiscountPassports(
   query: string,
-): Promise<{ id: string; label: string }[]> {
+): Promise<DiscountPassportOption[]> {
   const roles = await getMyRoles(),
     org = requireOrgId(roles);
   if (!org || (!roles?.isOrgAdmin && !roles?.isSuperAdmin))
