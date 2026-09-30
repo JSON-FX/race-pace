@@ -83,12 +83,13 @@ found two medium reporting issues; both were reproduced, fixed and re-reviewed b
 ## Remaining promotion checks
 
 This is staging delivery, not production approval. Before a production release, complete the remaining
-hosted mixed-group/free-group matrix, pass-on special-fee absorption, provider expiry/retry and refund
-matrix, and email delivery acceptance. Local tests cover these core calculations and safety guards;
+hosted mixed-group/free-group matrix, approved pre-screening checkout, pass-on special-fee absorption,
+provider expiry/retry and refund matrix, and email delivery acceptance. Local tests cover these core calculations and safety guards;
 they are not a substitute for the outstanding provider journeys.
 
-Desktop/tablet/phone design acceptance is recorded in the existing design evidence. This staging
-smoke test did not repeat that entire responsive matrix.
+Desktop/tablet/phone design acceptance for single checkout and admin is recorded in the existing
+design evidence. Group browser coverage is tablet-only. This staging smoke test did not repeat
+that entire responsive matrix.
 
 ## Evidence files
 
