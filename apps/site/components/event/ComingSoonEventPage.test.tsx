@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { ComingSoonEventPage } from "./ComingSoonEventPage";
 import type { CategoryRow, EventRow } from "@/lib/events";
 import type { RunnerPassport } from "@/lib/passports";
@@ -22,6 +22,54 @@ const event = {
   coming_soon_reserve_enabled: true, reservation_fee_cents: 50000,
   reservation_platform_fee_cents: 1500, reservation_deadline_at: "2027-10-15T15:59:00Z",
 } satisfies EventRow;
+
+const pricedCategory = {
+  id: "category", event_id: event.id, org_id: event.org_id, code: "70k", label: "70K Ultra Trail",
+  distance_km: 70, base_price: 350000, slots_total: 100, slots_taken: 0,
+  reservation_enabled: false, reservation_fee_cents: 20000,
+  reservation_sales_close_at: "2027-10-15T15:59:00Z",
+  prescreening_enabled: false, prescreening_requirement: "Finish a 50 km race.",
+} satisfies CategoryRow;
+
+describe("ComingSoonEventPage category registration fees", () => {
+  it.each([
+    ["plain", false, false],
+    ["screening only", false, true],
+    ["reservation", true, false],
+    ["screened reservation", true, true],
+  ])("shows the entry price for a %s category independently of its reservation fee", (_, reservation, screening) => {
+    render(<ComingSoonEventPage event={event} userEmail={null} reservation={null}
+      categories={[{ ...pricedCategory, reservation_enabled: reservation, prescreening_enabled: screening }]} />);
+    const article = within(screen.getByRole("article"));
+    expect(article.getByText("Registration fee")).toBeInTheDocument();
+    expect(article.getByText("₱3,500.00")).toBeInTheDocument();
+    if (reservation) {
+      expect(article.getByText(/Reservation fee: ₱200.00/)).toBeInTheDocument();
+      expect(article.getByRole("link", { name: screening ? "Request reservation review" : "Reserve for ₱200.00" }))
+        .toHaveAttribute("href", `/prescreening/new?event=${event.id}&category=${pricedCategory.id}&intent=reservation`);
+    } else {
+      expect(article.getByText(/Reservations are not available/)).toBeInTheDocument();
+    }
+  });
+
+  it("keeps each registration amount with its own category", () => {
+    render(<ComingSoonEventPage event={event} userEmail={null} reservation={null}
+      categories={[pricedCategory, { ...pricedCategory, id: "42k", label: "42K Trail", base_price: 275050 }]} />);
+    const articles = screen.getAllByRole("article");
+    expect(within(articles[0]).getByText("₱3,500.00")).toBeInTheDocument();
+    expect(within(articles[0]).queryByText("₱2,750.50")).not.toBeInTheDocument();
+    expect(within(articles[1]).getByText("₱2,750.50")).toBeInTheDocument();
+  });
+
+  it("omits zero/default prices without presenting a free registration", () => {
+    render(<ComingSoonEventPage event={event} userEmail={null} reservation={null}
+      categories={[{ ...pricedCategory, base_price: 0 }]} />);
+    const article = within(screen.getByRole("article"));
+    expect(article.queryByText("Registration fee")).not.toBeInTheDocument();
+    expect(article.queryByText("₱0.00")).not.toBeInTheDocument();
+    expect(article.getByText(/Registration opens soon/)).toBeInTheDocument();
+  });
+});
 
 describe("ComingSoonEventPage Passport selection", () => {
   it("routes new requests through category admission while preserving an older paid reservation", () => {
