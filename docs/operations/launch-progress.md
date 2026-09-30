@@ -3,13 +3,13 @@
 Updated: 2026-09-30. Overall: MVP RELEASED; FIELDNOTES ADMIN AND TRAIL ATLAS ORGANIZERS IN PRODUCTION; OWNER CHECKOUT PENDING.
 Scope: runner website and admin only. The first release is a controlled pilot with one organizer and PayMongo. Production contains real organizer and event data; add no synthetic data.
 
-### Payment synchronization incident — local validation, 2026-09-30
+### Payment synchronization incident — staging accepted, 2026-09-30
 
 | Completed | Blockers | Next task |
 | --- | --- | --- |
-| Provider-paid reservation and disabled webhook confirmed; handler correction, recurring reconciliation, health alerts and reservation retries implemented; local CI and focused regressions passed | Customer still pending and live webhook still disabled at this checkpoint; hosted staging acceptance required | Release through staging, verify provider test recovery, then reconcile production and restore delivery |
+| PR #208 at `231265b`; exact CI, both staging apps, 179 migrations and all 16 function bundles verified. Provider test recovery, group settlement, webhook replays and private worker authentication passed. | Customer remains pending and live webhook remains disabled until production release. | Promote staging, reconcile the actual capture, restore live delivery and verify reports and schedules. |
 
-Evidence: [investigation](../issues/issue-production-paid-status-sync-2026-09-30.md), [implementation plan](../plans/payment-status-recovery.md), [review](../../.claude/code-reviews/2026-09-30-payment-status-recovery.md).
+Evidence: [staging acceptance](payment-status-recovery-staging-20260930.md), [investigation](../issues/issue-production-paid-status-sync-2026-09-30.md), [implementation plan](../plans/payment-status-recovery.md), [review](../../.claude/code-reviews/2026-09-30-payment-status-recovery.md).
 
 ### Organization discounts — production release, 2026-09-30
 
