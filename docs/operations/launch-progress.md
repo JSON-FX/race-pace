@@ -3,13 +3,13 @@
 Updated: 2026-09-30. Overall: MVP RELEASED; FIELDNOTES ADMIN AND TRAIL ATLAS ORGANIZERS IN PRODUCTION; OWNER CHECKOUT PENDING.
 Scope: runner website and admin only. The first release is a controlled pilot with one organizer and PayMongo. Production contains real organizer and event data; add no synthetic data.
 
-### Payment synchronization incident — staging accepted, 2026-09-30
+### Payment synchronization incident — production recovered, 2026-09-30
 
 | Completed | Blockers | Next task |
 | --- | --- | --- |
-| PR #208 at `231265b`; exact CI, both staging apps, 179 migrations and all 16 function bundles verified. Provider test recovery, group settlement, webhook replays and private worker authentication passed. | Customer remains pending and live webhook remains disabled until production release. | Promote staging, reconcile the actual capture, restore live delivery and verify reports and schedules. |
+| PR #212 at `6ff9a18`; both production apps Ready. All 180 migrations and 15 affected function bundles match staging. Three real paid reservations recovered, including the reported customer; registration and finance ledgers audited. Live webhook restored and its previously failing event replay succeeded. Five-minute recovery and watchdog schedules are healthy. | None for payment recovery. External provider outages and mismatched captures remain monitored operational conditions. | Complete this documentation-only main → staging synchronization; retain automated recovery and operator alerts. |
 
-Evidence: [staging acceptance](payment-status-recovery-staging-20260930.md), [investigation](../issues/issue-production-paid-status-sync-2026-09-30.md), [implementation plan](../plans/payment-status-recovery.md), [review](../../.claude/code-reviews/2026-09-30-payment-status-recovery.md).
+Evidence: [production recovery](payment-status-recovery-production-20260930.md), [staging acceptance](payment-status-recovery-staging-20260930.md), [investigation](../issues/issue-production-paid-status-sync-2026-09-30.md), and [runbook](payment-status-recovery.md). The production release also includes the already-validated [discount runner search](discount-runner-search-staging-20260930.md).
 
 ### Organization discounts — production release, 2026-09-30
 
