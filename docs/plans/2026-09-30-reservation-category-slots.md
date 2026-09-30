@@ -1,6 +1,6 @@
 # Reservations category availability
 
-Status: implementation authorized; urgent production release and subsequent staging sync authorized.
+Status: implemented, verified live in production, and deployed to staging; protected main alignment completed; final main-to-staging sync accompanies the release evidence.
 
 ## Requirement and design
 
