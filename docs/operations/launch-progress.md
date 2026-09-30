@@ -3,6 +3,14 @@
 Updated: 2026-09-30. Overall: MVP RELEASED; FIELDNOTES ADMIN AND TRAIL ATLAS ORGANIZERS IN PRODUCTION; OWNER CHECKOUT PENDING.
 Scope: runner website and admin only. The first release is a controlled pilot with one organizer and PayMongo. Production contains real organizer and event data; add no synthetic data.
 
+### Payment synchronization incident — local validation, 2026-09-30
+
+| Completed | Blockers | Next task |
+| --- | --- | --- |
+| Provider-paid reservation and disabled webhook confirmed; handler correction, recurring reconciliation, health alerts and reservation retries implemented; local CI and focused regressions passed | Customer still pending and live webhook still disabled at this checkpoint; hosted staging acceptance required | Release through staging, verify provider test recovery, then reconcile production and restore delivery |
+
+Evidence: [investigation](../issues/issue-production-paid-status-sync-2026-09-30.md), [implementation plan](../plans/payment-status-recovery.md), [review](../../.claude/code-reviews/2026-09-30-payment-status-recovery.md).
+
 ### Organization discounts — staging release, 2026-09-30
 
 | Completed | Blockers | Next task |
