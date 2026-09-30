@@ -11,13 +11,13 @@ Scope: runner website and admin only. The first release is a controlled pilot wi
 
 Evidence: [investigation](../issues/issue-production-paid-status-sync-2026-09-30.md), [implementation plan](../plans/payment-status-recovery.md), [review](../../.claude/code-reviews/2026-09-30-payment-status-recovery.md).
 
-### Organization discounts — staging release, 2026-09-30
+### Organization discounts — production release, 2026-09-30
 
 | Completed | Blockers | Next task |
 | --- | --- | --- |
-| PR #202 merged at `55a6c5f`; both staging apps Ready; 178 migrations and 13 matching function bundles verified. Exact staging CI, code creation, apply/remove, free ticket, discounted PayMongo test capture, and reporting passed. | Discount-specific staging acceptance passed, including mixed/free groups, absorbed fees, provider expiry/retry, discounted refund, approved screening checkout and delivered Resend email. | Promote staging → main after production preflight; deploy the same backend and verify production safely. |
+| PR #205 released at `7a2fc22`; both production applications Ready. All 178 migrations and 13 function bundles match staging. Existing 29 registrations and 22 payments retained their pre-migration values. Hosted staging financial/email acceptance and production-safe checks passed. | None for discount functionality. Live payment/refund acceptance remains owner-operated. | Use Discounts in the organization admin. Main → staging synchronization completed through PR #206. |
 
-Evidence: [staging release and acceptance record](organization-discounts-staging-20260930.md). Production remains unchanged.
+Evidence: [production release record](organization-discounts-production-20260930.md) and [staging acceptance](organization-discounts-staging-20260930.md). No production test data or automated live transaction was created.
 
 ### Category reservations and pre-screening — 2026-09-30
 
