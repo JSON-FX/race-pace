@@ -1,0 +1,9 @@
+# Complete session release review
+
+Integration combines three scoped feature commits from this session. Application diff against current staging includes browser navigation/cards/organization avatars/profile activity, centered registration inspector and native row action, Coming Soon positive registration prices, and the event-scoped Reservations workspace. No backend, workflow, dependency, provider or environment-source change exists. Existing staging-to-main differences are documentation for previously released payment recovery.
+
+The older UI branch required only documentation conflict resolution. Current discount/payment source and production recovery evidence were retained. Standalone scoped reviews cover details; current integration reads confirmed payment/refund guards, actual ledger amount/date usage, managed-runner separation, organization/event membership, truthful completed-event profile basis, selected rounded-rectangle navigation, and category fee separation. The new roster supersedes the embedded Registrations roster; pre-screening approvals remain. Legacy reservation URLs still authorize before redirecting.
+
+Current source audit passes with 325 modules, 256 audited, zero native sites or duplicate primitives. Runner typecheck and isolated build passed. Reservations standalone admin typecheck/build passed. Integrated admin typecheck and build passed before publish. Additional local tests remain explicitly waived; mandatory GitHub CI will run. No hosted availability claim is made here.
+
+No unresolved scoped source finding. The review does not infer individual race finishes from completed events; the shipped profile states its existing paid completed-event basis. Full event metadata paging is presentation-only and non-atomic across concurrent changes. Provider actions and financial mutation behavior remain existing application boundaries.

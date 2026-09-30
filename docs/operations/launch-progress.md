@@ -944,3 +944,15 @@ Browser acceptance covered actual local app identity/date, forest actions, equal
 See the [implementation report and screenshots](../../.claude/reports/2026-09-30-browser-ui-refinements-report.md) and [PIV review](../../.claude/code-reviews/2026-09-30-browser-ui-refinements.md). The Storybook proposal is available locally. No commit, push, hosted change, migration source change, deployment or charge occurred.
 
 The registration inspector follow-up also passed actual app checks at 1280×720, 768×640, 390×844 and 320×568. All submitted values wrap and remain reachable through internal scrolling; identity and actions stay visible. Data-cell and keyboard opening, selection isolation, deep links, Escape, focus return and read-only refund review passed. Admin checks/build, shared UI checks/audit and catalog rebuild passed again. The served inspector preview is available in Storybook.
+
+## September 30 session release — implementation complete
+
+| Completed | Blockers | Next task |
+| --- | --- | --- |
+| Approved Reservations workspace; four event-wide cards; eight checkout fields; organization reset; Coming Soon registration fees; all earlier browser refinements and centered registration inspector | Required GitHub branch checks and hosted release/readback pending | Publish scoped staging integration, promote it to production, then synchronize main into staging |
+
+Owner explicitly authorized production release of all current-session changes and waived additional local test suites for urgency. Required GitHub `web-admin-validate` remains enforced. Technical promotion follows staging into main, then sync-back. No test fixture or payment may be created in production. This session changes no migration, Edge Function, provider configuration, secrets or dependency. Existing staging-only payment recovery content is documentation only; its application/backend changes are already in main.
+
+Scoped feature commits: `490da7e` (browser refinements), `adebd43` (Coming Soon category registration fees), and `97f378e` (Reservations workspace). The older UI branch merged with documentation-only conflicts; newer discount/payment evidence was preserved. Local Reservations admin typecheck/build and actual Browser phone/desktop reads passed. Source audit passed with 325 current modules after integration, 256 audited, zero native sites or duplicate primitives. Both integrated application typechecks and production builds passed. Earlier suite results remain revision-specific historical evidence, not proof of the integrated release.
+
+See [Reservations review](../../.claude/code-reviews/2026-09-30-reservations-page.md), [implementation report](../../.claude/reports/2026-09-30-reservations-page-report.md), and [category fee investigation](../issues/2026-09-30-coming-soon-category-fees.md). Hosted source/deployment IDs and readback will be recorded after delivery.
