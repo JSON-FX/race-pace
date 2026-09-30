@@ -2,6 +2,8 @@
 
 Source investigation: [production paid-status incident](../issues/issue-production-paid-status-sync-2026-09-30.md).
 
+Status: implemented and released through PR #212. [Production verification](../operations/payment-status-recovery-production-20260930.md) records customer recovery, provider replay, and recurring safeguards.
+
 ## Implementation
 
 - Resolve single-registration `payment.paid` notifications against the bound provider checkout. Preserve canonical checkout handling and durable duplicate/extra-capture checks. Failed inbox writes must return retryable responses.
