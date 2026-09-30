@@ -276,7 +276,10 @@ export function ComingSoonEventPage({ event, userEmail, reservation, reservedPas
           <h2 className="text-2xl font-bold">Choose your category</h2><p className="mt-2 text-sm">Each category has its own inclusions and entry requirements.</p>
           <div className="mt-6 divide-y">{categories.map(category => <article key={category.id} className="grid gap-5 py-6 md:grid-cols-[minmax(0,1fr)_280px]">
             <div><h3 className="text-lg font-bold">{category.label}</h3><p className="mt-2 text-sm">{category.blurb}</p><CategoryRequirements category={category} /></div>
-            <div>{category.reservation_enabled ? <CategoryReservationAction category={category} /> : <p className="text-sm">Registration opens soon. Reservations are not available for this category.</p>}</div>
+            <div>
+              {category.base_price > 0 && <div className="mb-4"><p className="text-xs opacity-80">Registration fee</p><p className="mt-1 text-2xl font-semibold tabular-nums">{pesos(category.base_price)}</p></div>}
+              {category.reservation_enabled ? <CategoryReservationAction category={category} /> : <p className="text-sm">Registration opens soon. Reservations are not available for this category.</p>}
+            </div>
           </article>)}</div><Link href="/prescreening" className="text-sm font-semibold underline">View my requests</Link>
         </div></section>}
         {event.coming_soon_reserve_enabled && (!hasCategoryAdmissions || reservation) ? (
