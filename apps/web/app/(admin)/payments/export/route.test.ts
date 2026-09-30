@@ -96,10 +96,10 @@ describe("GET /payments/export", () => {
     const lines = body.split("\r\n").filter(Boolean);
 
     expect(lines[0]).toBe(
-      "Registration ID,Event,Runner,Amount (PHP),Platform Fee (PHP),Processing Fee (PHP),Processing Fee Source,Stored Ledger Net to Org (PHP),Method,Status,Checkout Created At (UTC),Payment Confirmed At (UTC),Refunded Amount (PHP),Retained Gross (PHP),Current Platform Fees (PHP),Current Net to Org (PHP),Payment ID,Booking Order ID,Participant Count",
+      "Registration ID,Event,Runner,Amount (PHP),Platform Fee (PHP),Processing Fee (PHP),Processing Fee Source,Stored Ledger Net to Org (PHP),Method,Status,Checkout Created At (UTC),Payment Confirmed At (UTC),Refunded Amount (PHP),Retained Gross (PHP),Current Platform Fees (PHP),Current Net to Org (PHP),Payment ID,Booking Order ID,Participant Count,Discount Code,Discount (PHP)",
     );
     expect(lines[1]).toBe(
-      "reg-1,Dahilayan Sky Ultra,Ana Cruz,1500.00,45.00,15.00,predicted,1440.00,gcash,paid,2026-08-04T11:35:15.624Z,2026-08-04T12:00:00.000Z,0.00,1500.00,45.00,1440.00,payment-1,,1",
+      "reg-1,Dahilayan Sky Ultra,Ana Cruz,1500.00,45.00,15.00,predicted,1440.00,gcash,paid,2026-08-04T11:35:15.624Z,2026-08-04T12:00:00.000Z,0.00,1500.00,45.00,1440.00,payment-1,,1,,0.00",
     );
   });
 
@@ -278,5 +278,5 @@ it("exports one capture for a group and leaves unknown actual amounts blank", as
   expect(cells[5]).toBe("");
   expect(cells[7]).toBe("");
   expect(cells[15]).toBe("");
-  expect(cells.slice(16)).toEqual(["capture-1", "order-1", "3"]);
+  expect(cells.slice(16)).toEqual(["capture-1", "order-1", "3", "", "0.00"]);
 });

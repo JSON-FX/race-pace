@@ -101,7 +101,7 @@ describe("getPaymentAggregates", () => {
 
     expect(rpcMock).toHaveBeenCalledWith("admin_payment_aggregates", expect.objectContaining({ p_q: expectedPattern }));
 
-    const expectedOrArg = `full_name.ilike.${quotePostgrestValue(expectedPattern)},event_name.ilike.${quotePostgrestValue(expectedPattern)}`;
+    const expectedOrArg = `discount_code.ilike.${quotePostgrestValue(expectedPattern)},full_name.ilike.${quotePostgrestValue(expectedPattern)},event_name.ilike.${quotePostgrestValue(expectedPattern)}`;
     expect(orCapture).toHaveBeenCalledWith(expectedOrArg);
   });
 

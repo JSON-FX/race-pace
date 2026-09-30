@@ -1,4 +1,5 @@
 "use client";
+import { DiscountCodeField } from "@/components/checkout/DiscountCodeField";
 
 import { ChoiceGroup } from "@race-pace/ui";
 
@@ -45,7 +46,7 @@ export function PayPanel({ registrationId }: { registrationId: string }) {
   // after payment or refund, even when the original provider URL remains stored.
   if (reg.data.status !== "pending" && reg.data.status !== "expired") {
     const paid = reg.data.status === "paid";
-    const title = paid ? "Registration paid"
+    const title = paid ? reg.data.total_amount === 0 ? "Registration confirmed" : "Registration paid"
       : reg.data.status === "refunded" ? "Registration refunded"
         : reg.data.status === "cancelled" ? "Registration cancelled"
           : "Payment unavailable";
@@ -53,7 +54,7 @@ export function PayPanel({ registrationId }: { registrationId: string }) {
       <div className="mx-auto w-full max-w-2xl px-6 py-20 text-center">
         <h1 className="text-[26px] font-semibold tracking-[-0.5px] text-foreground">{title}</h1>
         <p className="mt-3 text-[15px] leading-relaxed text-muted-foreground">
-          {paid ? "Your registration is paid. You do not need to pay again." : "This registration can no longer be paid. Check My Races for its status."}
+          {paid ? "Your registration is confirmed. No further payment is needed." : "This registration can no longer be paid. Check My Races for its status."}
         </p>
         <Button asChild className="mt-8 h-auto px-8 py-4">
           <Link href={paid ? `/ticket/${registrationId}` : "/races"}>{paid ? "View ticket" : "Back to My Races"}</Link>
@@ -63,13 +64,13 @@ export function PayPanel({ registrationId }: { registrationId: string }) {
   }
 
   const total = reg.data.total_amount;
-  const { entry, addons } = breakdown(total, reg.data.basePrice);
+  const { entry, addons } = breakdown(reg.data.discountOriginalCents ?? total, reg.data.basePrice);
   const inclusions = reg.data.inclusions ?? [];
 
   // PayMongo v2 chooses the method and calculates the exact processing fee on
   // its hosted page. The frozen Race Pace fee is the only extra amount we can
   // honestly show before redirecting.
-  const passOn = reg.data.feeMode === "pass_on";
+  const passOn = total > 0 && reg.data.feeMode === "pass_on";
   const hostedPayMongo = reg.data.payment?.provider === "paymongo";
   const allowStoredFallback = reg.data.payment?.provider === "fake";
   const platformFee = reg.data.checkoutPlatformFee;
@@ -200,6 +201,7 @@ export function PayPanel({ registrationId }: { registrationId: string }) {
     sessionStorage.setItem("rp:paying", registrationId);
 
     const scoped = await createMethodCheckout(registrationId, method);
+    if (scoped.paid) { window.location.assign(`/ticket/${registrationId}`); return; }
     // The server's refusal is fresher than the rendered registration. In
     // particular, not_pending must never fall back to a pre-refund session.
     const url = scoped.code ? null :
@@ -237,23 +239,25 @@ export function PayPanel({ registrationId }: { registrationId: string }) {
       place={reg.data.eventPlace}
       amount={total + (passOn ? platformFee ?? 0 : 0)}
       amountLabel={passOn ? "Subtotal before processing" : "Total due"}
-      note={passOn ? "Payment processing is calculated at PayMongo checkout." : "The amount shown includes all fees for this entry."}
+      note={total === 0 ? "No payment or processing fees." : passOn ? "Payment processing is calculated at PayMongo checkout." : "The amount shown includes all fees for this entry."}
     >
       <RaceBibHeading step={4} icon={<Lock />} title="Finish your entry" description="Your slot is held while you complete the secure checkout." />
-      <div className={styles.holdBanner}><ShieldCheck size={18} aria-hidden="true" /><span><strong>Secure payment with PayMongo</strong><small>{passOn ? "You will see the exact processing fee before confirming payment." : "You will review the final amount before confirming payment."}</small></span></div>
+      {total > 0 && <div className={styles.holdBanner}><ShieldCheck size={18} aria-hidden="true" /><span><strong>Secure payment with PayMongo</strong><small>{passOn ? "You will see the exact processing fee before confirming payment." : "You will review the final amount before confirming payment."}</small></span></div>}
       <div className={styles.payGrid}>
         <section className={styles.reviewCard}>
           <h3>Payment summary</h3>
           <dl>
             <PaymentRow label="Entry fee" value={formatPeso(entry)} />
             {addons > 0 ? <PaymentRow label="Add-ons" value={`+${formatPeso(addons)}`} /> : null}
+            {(reg.data.discountAmountCents ?? 0) > 0 ? <PaymentRow label="Discount" value={`−${formatPeso(reg.data.discountAmountCents ?? 0)}`} /> : null}
             {passOn && platformFee !== null && platformFee > 0 ? <PaymentRow label="Taxes and fees" value={`+${formatPeso(platformFee)}`} /> : null}
             <PaymentRow label={passOn ? "Subtotal before processing" : "Subtotal"} value={formatPeso(total + (passOn ? platformFee ?? 0 : 0))} strong />
             {passOn ? <><PaymentRow label="Payment processing" value="Calculated by PayMongo" /><PaymentRow label="Final total" value="Shown on PayMongo" strong /></> : <PaymentRow label="Added at checkout" value="₱0.00" />}
           </dl>
-          {passOn ? <p className={styles.finePrint}>PayMongo calculates the processing fee for your chosen method. Review the exact fee and final total on its secure checkout before you confirm payment.</p> : <p className={styles.finePrint}>{platformFee !== null ? `${formatPeso(platformFee)} in Taxes and fees is included in this price. ` : ""}PayMongo’s actual processing fee is deducted after payment. Neither fee increases your total.</p>}
+          {total === 0 ? <p className={styles.finePrint}>All fees are waived for this entry.</p> : passOn ? <p className={styles.finePrint}>PayMongo calculates the processing fee for your chosen method. Review the exact fee and final total on its secure checkout before you confirm payment.</p> : <p className={styles.finePrint}>{platformFee !== null ? `${formatPeso(platformFee)} in Taxes and fees is included in this price. ` : ""}PayMongo’s actual processing fee is deducted after payment. Neither fee increases your total.</p>}
+          <DiscountCodeField registrationId={registrationId} code={reg.data.discountCode} savings={reg.data.discountAmountCents} absorbed={reg.data.discountAbsorbed} disabled={!reg.data.discountEditable || busy} restartable={!!reg.data.checkoutUrl && !busy} onApplied={() => reg.refetch()} onBusy={setBusy} />
         </section>
-        {hostedPayMongo ? <HostedPaymentMethods key={registrationId} registrationId={registrationId} total={total} passOn={passOn} /> :
+        {total === 0 ? <section className={styles.payMethods}><h3>Your entry is free</h3><p>No payment details needed. Confirm to receive your ticket.</p></section> : hostedPayMongo ? <HostedPaymentMethods key={registrationId} registrationId={registrationId} total={total} passOn={passOn} /> :
           <section className={styles.payMethods}>
             <h3>Pay with</h3>
             <p>Choose a payment method to continue.</p>
@@ -263,10 +267,10 @@ export function PayPanel({ registrationId }: { registrationId: string }) {
           </section>}
       </div>
       {inclusions.length > 0 ? <section className={styles.inclusions}><h3>What&apos;s included</h3><ul>{inclusions.map((item, index) => <li key={index}><Check size={15} aria-hidden="true" />{item}</li>)}</ul></section> : null}
-      <RefundNotice policy={reg.data.refundPolicy} retention={reg.data.refundFeeCents} />
+      {total > 0 && <RefundNotice policy={reg.data.refundPolicy} retention={reg.data.refundFeeCents} />}
       {error ? <Alert variant="destructive" role="alert" className={styles.error}><AlertDescription>{error}</AlertDescription></Alert> : null}
-      <div className={styles.actions}><Button type="button" disabled={busy} onClick={pay}>{busy ? "Opening…" : passOn ? "Continue to checkout" : `Pay ${formatPeso(due ?? total)}`} <ArrowRight size={16} aria-hidden="true" /></Button></div>
-      <p className={styles.securityNote}><Lock size={13} aria-hidden="true" /> Encrypted and secured by PayMongo</p>
+      <div className={styles.actions}><Button type="button" disabled={busy} onClick={pay}>{busy ? "Confirming…" : total === 0 ? "Confirm free registration" : passOn ? "Continue to checkout" : `Pay ${formatPeso(due ?? total)}`} <ArrowRight size={16} aria-hidden="true" /></Button></div>
+      {total > 0 && <p className={styles.securityNote}><Lock size={13} aria-hidden="true" /> Encrypted and secured by PayMongo</p>}
     </RaceBib>
   );
 }

@@ -151,7 +151,7 @@ describe("RegistrationsTable", () => {
     expect(screen.getByRole("columnheader", { name: "Team Name" })).toBeInTheDocument();
     expect(screen.getByText("Trail Friends")).toBeInTheDocument();
     expect(screen.queryByText("D-1042")).not.toBeInTheDocument();
-    expect(screen.getByText("—")).toBeInTheDocument();
+    expect(screen.getAllByText("—").length).toBeGreaterThan(0);
   });
 
   // Task 9: the Status column must be able to show a registration's own

@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { checkoutErrorMessage } from "@/lib/errors";
 import { RATE_METHOD, type FeeTerms, type ProcessorRate } from "@/lib/payment";
 
-export type CheckoutResult = { registration_id: string; checkout_url: string };
+export type CheckoutResult = { registration_id: string; checkout_url: string | null };
 
 /** Where PayMongo sends the runner after pay/cancel. Mobile uses a
  *  racepace:// deep link; the web equivalent is a real route. */
@@ -38,7 +38,7 @@ export async function startCheckout(input: RegistrationInput): Promise<CheckoutR
   // The registration id isn't known to the browser yet. The checkout function
   // adds it to the provider return URL after inserting the reservation.
   const origin = process.env.NEXT_PUBLIC_SITE_URL ?? window.location.origin;
-  const body = { ...input, return_url: `${origin}/pay/callback` };
+  const body = { ...input, defer_payment: true, return_url: `${origin}/pay/callback` };
   const { data, error } = await supabase.functions.invoke("registrations-checkout", { body });
   if (error) {
     // Edge Functions return their error code in the response BODY, not the
@@ -87,6 +87,7 @@ export async function verifyPayment(registrationId: string): Promise<{ status: s
  *  — `org_suspended` — was therefore routed straight around, to a live PayMongo
  *  page. */
 export type MethodCheckout = {
+  paid?: boolean;
   /** The scoped session, or null when none was minted. */
   url: string | null;
   /** The edge function's own error code when it refused, else null. Null also
@@ -124,7 +125,7 @@ export async function createMethodCheckout(registrationId: string, method: strin
       }
       return { url: null, code };
     }
-    return { url: (data as { checkout_url?: string })?.checkout_url ?? null, code: null };
+    return { url: (data as { checkout_url?: string })?.checkout_url ?? null, code: null, paid: data?.status === "paid" };
   } catch {
     return { url: null, code: null };
   }
@@ -154,6 +155,7 @@ export type RegistrationPayment = {
 };
 
 export type RegistrationRow = {
+  discountCode?: string | null; discountAmountCents?: number; discountOriginalCents?: number | null; discountAbsorbed?: boolean; discountEditable?: boolean;
   id: string; status: string; total_amount: number; ticket_token: string | null; org_id: string;
   /** The race this entry is for — needed to link back to its event page. */
   event_id: string;
@@ -208,7 +210,7 @@ export type RegistrationRow = {
 // type level, and `a + b` is `string` to TypeScript, which erases every column
 // type on the result.
 const REG_SELECT =
-  "id,user_id,booked_by_user_id,booking_order_id,status,total_amount,ticket_token,org_id,event_id,expires_at,custom_data,organizations(name,is_active,fee_mode,commission_type,commission_rate,commission_flat_cents,refund_policy,refund_fee_cents),events(name,status,event_date,original_date,status_note,place,city_name,province_name,hero_image_url,inclusions,registration_closes_at,kit_edit_closes_at,check_in_required),categories(label,distance_km,base_price,inclusions),registration_addons(price),payments(checkout_url,created_at,method,amount,platform_fee,net_to_org,provider,provider_ref,status,checkout_fee_mode,checkout_platform_fee,checkout_provider_managed_fee)";
+  "id,user_id,booked_by_user_id,booking_order_id,status,discount_code,discount_amount_cents,discount_original_cents,discount_snapshot,total_amount,ticket_token,org_id,event_id,expires_at,custom_data,organizations(name,is_active,fee_mode,commission_type,commission_rate,commission_flat_cents,refund_policy,refund_fee_cents),events(name,status,event_date,original_date,status_note,place,city_name,province_name,hero_image_url,inclusions,registration_closes_at,kit_edit_closes_at,check_in_required),categories(label,distance_km,base_price,inclusions),registration_addons(price),payments(checkout_url,created_at,method,amount,platform_fee,net_to_org,provider,provider_ref,status,checkout_fee_mode,checkout_platform_fee,checkout_provider_managed_fee,discount_checkout_state)";
 
 export function mapReg(r: any): RegistrationRow {
   const payment = Array.isArray(r.payments) ? r.payments[0] : r.payments;
@@ -222,7 +224,7 @@ export function mapReg(r: any): RegistrationRow {
   // total_amount and registration_addons are the checkout snapshot. Never mix
   // them with the category's current master price, which can change later.
   const checkoutBasePrice = typeof r.total_amount === "number"
-    ? Math.max(0, r.total_amount - addonTotal)
+    ? Math.max(0, (r.discount_original_cents ?? r.total_amount) - addonTotal)
     : r.categories?.base_price ?? null;
   // Normalised the same way `payments` is: PostgREST returns a to-one embed as
   // an object, but the shape it infers is not something this mapper should
@@ -233,6 +235,8 @@ export function mapReg(r: any): RegistrationRow {
   return {
     id: r.id, status: r.status, total_amount: r.total_amount,
     bookingOrderId: r.booking_order_id ?? null,
+    discountCode: r.discount_code ?? null, discountAmountCents: r.discount_amount_cents ?? 0, discountOriginalCents: r.discount_original_cents ?? null,
+    discountAbsorbed: r.discount_snapshot?.absorb_fees === true, discountEditable: payment?.discount_checkout_state === "prepared",
     ticket_token: r.ticket_token ?? null, org_id: r.org_id, event_id: r.event_id,
     participantUserId: r.user_id ?? null,
     bookedByUserId: r.booked_by_user_id ?? null,

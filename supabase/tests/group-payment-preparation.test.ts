@@ -77,6 +77,8 @@ beforeAll(async () => {
   await import("../functions/group-order-cancel/index");
 });
 beforeEach(async () => {
+  await db.query("delete from discount_redemptions where org_id=$1", [org]);
+  await db.query("delete from discount_codes where org_id=$1", [org]);
   settings.GROUP_RESERVATIONS_ENABLED = "true";
   settings.GROUP_PAYMENT_PREPARATION_ENABLED = "true";
   settings.GROUP_PAYMENTS_ENABLED = "true";
@@ -112,6 +114,8 @@ beforeEach(async () => {
   await db.query("update auth.users set email_confirmed_at=now() where id=$1", [actor]);
 });
 afterAll(async () => {
+  await db.query("delete from discount_redemptions where org_id=$1", [org]);
+  await db.query("delete from discount_codes where org_id=$1", [org]);
   vi.unstubAllGlobals();
   await db.query("delete from booking_refund_lines where org_id=$1", [org]);
   await db.query("delete from booking_refund_requests where org_id=$1", [org]);
@@ -614,6 +618,29 @@ it("rejects small positive refunds and preserves frozen amounts after credential
 function sessionClient(bearer = strangerToken) {
   return createClient(env.url, env.anonKey, { global: { headers: { Authorization: `Bearer ${bearer}` } }, auth: { persistSession: false } });
 }
+it.each(["gcash", "paymaya", "qrph"])("keeps %s as the captured method when a group includes a free participant", async method => {
+  const order = await reserve();
+  const freeRegistration = (await db.query("select id from registrations where booking_order_id=$1 and participant_passport_id=$2", [order, self])).rows[0].id;
+  await db.query("insert into discount_codes(org_id,code,kind,discount_type,value,coverage,created_by) values($1,'FREE100','regular','percent',10000,'subtotal',$2)", [org, actor]);
+  expect((await svc.rpc("discount_apply", { p_actor: actor, p_registration: freeRegistration, p_code: "FREE100" })).error).toBeNull();
+  const prepared = await svc.rpc("booking_order_prepare_payment", args(order, randomUUID(), method));
+  expect(prepared.error).toBeNull();
+  const attempt = prepared.data;
+  expect((await groupCall(attempt.id)).status).toBe(200);
+  provider.retrieve.mockResolvedValue(providerCapture(attempt));
+  expect(await (await groupCall(attempt.id, "verify")).json()).toEqual({ status: "paid" });
+  await db.query("insert into user_roles(user_id,org_id,role) values($1,$2,'admin')", [stranger, org]);
+  const admin = sessionClient();
+  const payment = await admin.from("admin_payments_v").select("method,participant_count").eq("booking_order_id", order).single();
+  expect(payment.error).toBeNull();
+  expect(payment.data).toEqual({ method, participant_count: 2 });
+  const filtered = await admin.from("admin_payments_v").select("payment_id").eq("booking_order_id", order).eq("method", method);
+  expect(filtered.error).toBeNull();
+  expect(filtered.data).toHaveLength(1);
+  const participant = await admin.from("admin_registrations_v").select("payment_method,payment_amount").eq("id", freeRegistration).single();
+  expect(participant.error).toBeNull();
+  expect(participant.data).toEqual({ payment_method: "complimentary", payment_amount: 0 });
+});
 async function payoutAdmin() {
   await db.query("insert into user_roles(user_id,org_id,role) values($1,null,'super_admin')", [actor]);
   return sessionClient(token);

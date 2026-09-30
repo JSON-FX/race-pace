@@ -152,6 +152,8 @@ export function RegistrationsTable({
         <span className="tabular text-muted-foreground">{fmtDateTime(row.original.created_at)}</span>
       ),
     },
+    { accessorKey: "discount_code", header: "Discount code", enableSorting: false, cell: ({ row }) => <span className="font-mono text-xs">{row.original.discount_code ?? "—"}</span> },
+    { accessorKey: "discount_amount_cents", header: "Discount", enableSorting: false, cell: ({ row }) => <span className="tabular">{row.original.discount_amount_cents ? peso(row.original.discount_amount_cents) : "—"}</span> },
     {
       accessorKey: "total_amount",
       header: "Base amount",

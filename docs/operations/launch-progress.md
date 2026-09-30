@@ -3,6 +3,14 @@
 Updated: 2026-09-30. Overall: MVP RELEASED; FIELDNOTES ADMIN AND TRAIL ATLAS ORGANIZERS IN PRODUCTION; OWNER CHECKOUT PENDING.
 Scope: runner website and admin only. The first release is a controlled pilot with one organizer and PayMongo. Production contains real organizer and event data; add no synthetic data.
 
+### Organization discounts — staging release, 2026-09-30
+
+| Completed | Blockers | Next task |
+| --- | --- | --- |
+| PR #202 merged at `55a6c5f`; both staging apps Ready; 178 migrations and 13 matching function bundles verified. Exact staging CI, code creation, apply/remove, free ticket, discounted PayMongo test capture, and reporting passed. | Discount-specific staging acceptance passed, including mixed/free groups, absorbed fees, provider expiry/retry, discounted refund, approved screening checkout and delivered Resend email. | Promote staging → main after production preflight; deploy the same backend and verify production safely. |
+
+Evidence: [staging release and acceptance record](organization-discounts-staging-20260930.md). Production remains unchanged.
+
 ### Category reservations and pre-screening — 2026-09-30
 
 | Completed | Blockers | Next task |
@@ -845,3 +853,28 @@ PR #197 merged into staging at `d250f5cc7bd2066b97d593450cbd632ea92cc4f0` after 
 The containment correction also makes the inclusion grid respond to its own width: a preserved mobile category row gives it only 224 pixels at a 390-pixel viewport. Narrow categories now use one column; wider categories retain the approved two-column checklist. Renewed local validation passed all 2,379 tests, app/shared UI typechecks and the Fieldnotes audit. The local backend rerun initially omitted SUPABASE_FUNCTIONS_ENV_FILE; correcting that local test setup restored all 827 tests without changing backend code. The original staging merge CI `36650662258` passed, but its failed visual anchor check still blocks production. The corrected source must pass hosted acceptance.
 
 Both corrected application builds passed. The runner build emits the 390-pixel container query for the inclusion grid. Storybook typechecks and all four catalogs passed again with the exact corrected component and a 224-pixel narrow-category story.
+
+PR #198 merged at `ea71c4970629d263c0b96c893bf53566a4fe8650` after push `36651654368` and PR `36651666562` passed. Both staging aliases are Ready at that commit: runner `dpl_33XjzGttLnoH7DUAsnP4unBW1Zqb`, admin `dpl_4k8KJH7oZiZm32LnTp64S32fCDSA`. Corrected hosted acceptance passed desktop native scrolling, keyboard anchor activation, fixed-header containment, tablet/phone sticky menus and save controls, and permanently visible responsive inclusions. Both served bundle sets contain only the staging Supabase reference. Exact merge CI `36652685993` passed; all required staging gates are complete. Fresh production inventory and all 31 function versions/hashes still match the baseline; PayMongo and Resend fingerprints are unchanged. Full acceptance details are in `annotated-ui-polish-release-20260930.md`.
+
+Production PR #199 passed `36653825676` and merged at `8ef3b4fedf2aa2757574bc84affbc30b7c96ab68`. Runner `dpl_GzzC1xhUSFZpjpuCW48q95Ra2MXG` and admin `dpl_GKfcsuEWGSNoFiTYXA6k6TVEvG3G` are Ready on their live aliases. Read-only browser and SQL checks passed: eight visible ordered inclusions, original entry price/action, four tables without status dots, matching White canvas/sidebar, centered collapsed logo and contained sticky-editor anchors. Live event capacity, participant/payment counts and all 31 function versions/hashes match the fresh baseline. The previous production runner reproduces the same 15-pixel phone hero overflow; the new checklist fits its own container. No production write or charge occurred. Main-to-staging synchronization is next.
+
+Exact production merge CI `36654699756` passed. Both production bundle sets reference production Supabase only; post-deploy provider fingerprints are unchanged. The live editor's Add and checkbox spacing readbacks passed. Sync PR #200 is open; application/backend content is identical between main and staging. The owned isolated test stack and function server are stopped.
+
+Sync PR #200 passed CI `36655141570` on its third attempt and merged at `d2fcc5ea1f571fe6b35da8d5e53a2a0b6c705fe7`. The first attempt hit an isolated runtime startup crash; the second passed tests but hit the intermittent Google font loader error. The unchanged-source third attempt passed every gate. Main is again an ancestor of staging; application, shared package, backend and workflow content match exactly. Final release documentation and public screenshot are prepared as a separate scoped handoff.
+
+| Completed | Blockers | Next |
+| --- | --- | --- |
+| All 13 annotations deployed and verified on staging and production; live data preserved; main synchronized into staging | None in the requested application scope | Publish the final audit record |
+
+
+## Organization discounts — local implementation, 2026-09-30
+
+| Completed | Blockers | Next task |
+| --- | --- | --- |
+| Org-admin codes, special batches, fee absorption, zero-charge single/group confirmation, reporting, and local validation | No local implementation blocker; hosted PayMongo and staging acceptance remain | On release authorization, commit this feature and open its PR into staging |
+
+Implemented in isolated branch `codex/org-discounts`, based on staging `70fc678`. The original dirty checkout and unrelated Hub work were preserved. Local checks passed: backend/shared 851 tests, runner 525, admin 1,017, shared UI 13, all relevant typechecks, both production builds, 178 migrations replayed, and the 320-module Fieldnotes source audit. Hub typechecks and all four catalogs built. No hosted data, payment, service configuration, deployment, commit, or push occurred.
+
+Browser checks covered applying/removing codes, full-discount single ticket issuance, a two-participant free booking with separate tickets, generation of two special fee-absorbing codes, discount columns in Payments and Registrations, and complimentary cancellation with its redemption still consumed. Checkout/admin responsive captures cover 1440, 768, and 390 pixels. Fresh design review resolved tablet selector clipping and the Passport removal target; its final fix verdict is ship. Group browser evidence is tablet-only. See [implementation report](../../.claude/reports/2026-09-30-organization-discounts-report.md) and [design evidence](../specs/2026-09-30-organization-discounts-design-evidence.md).
+
+Before production, validate the exact staging revision with PayMongo test-mode payments, absorbed fees, expiry/restart, refunds, and approved pre-screening checkout. Native-app code entry and reservation-deposit discounts remain outside the approved scope. The preview is a local Storybook implementation with fixture-only actions.

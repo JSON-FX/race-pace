@@ -12,7 +12,7 @@ const TITLES: Record<string, string> = {
   "/dashboard": "Dashboard", "/events": "Events", "/registrations": "Registrations",
   "/race-kits": "Race kits", "/payments": "Payments", "/check-in": "Race-day check-in", "/settings": "Settings",
   "/organizations": "Organizations", "/commission": "Commission", "/payouts": "Payout statements",
-  "/checkout-reviews": "Checkout reviews", "/guide": "Guide",
+  "/checkout-reviews": "Checkout reviews", "/guide": "Guide", "/discounts": "Discounts",
 };
 
 export function TopBar({
@@ -21,6 +21,7 @@ export function TopBar({
   const pathname = usePathname();
   const title = pathname === "/events/new" ? "Create event"
     : /^\/events\/[^/]+\/edit$/.test(pathname) ? "Edit event"
+    : pathname.startsWith("/discounts/") ? "Discounts"
     : TITLES[pathname] ?? "Dashboard";
 
   return (

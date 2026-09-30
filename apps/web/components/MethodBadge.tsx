@@ -46,6 +46,7 @@ export type MethodPresentation = {
 // that can appear": anything missing falls through to `unknown` below rather
 // than being dropped or guessed at.
 const KNOWN: Record<string, { label: string; marks: MarkKey[] }> = {
+  complimentary: { label: "Complimentary", marks: [] },
   // Card shows BOTH scheme marks, matching the public site and mobile —
   // "Card" alone doesn't tell an organizer whether a runner's Visa was
   // accepted. PayMongo reports the instrument, not the scheme, so which of
@@ -158,7 +159,7 @@ export function MethodBadge({ method, status, height = 28 }: { method: string | 
       {marks.map((mark) => (
         <Mark key={mark} mark={mark} height={height} />
       ))}
-      <span className={kind === "known" ? "sr-only" : "text-muted-foreground"}>{label}</span>
+      <span className={marks.length > 0 ? "sr-only" : "text-muted-foreground"}>{label}</span>
     </Badge>
   );
 }

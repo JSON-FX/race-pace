@@ -107,6 +107,8 @@ export function PaymentsTable({ rows, total, page, per, sort, activeFilters, q, 
       header: "Date",
       cell: ({ row }) => <span className="tabular text-muted-foreground">{fmtDate(row.original.created_at)}</span>,
     },
+    { accessorKey: "discount_code", header: "Discount code", enableSorting: false, cell: ({ row }) => <span className="font-mono text-xs">{row.original.discount_code ?? "—"}</span> },
+    { accessorKey: "discount_amount_cents", header: "Discount", enableSorting: false, cell: ({ row }) => <span className="tabular">{row.original.discount_amount_cents ? peso(row.original.discount_amount_cents) : "—"}</span> },
   ], []);
 
   return (

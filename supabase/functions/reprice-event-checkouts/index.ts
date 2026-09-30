@@ -32,7 +32,7 @@ Deno.serve(async (req) => {
 
   const { data: registrations, error } = await db.from("registrations")
     .select("id,total_amount,category_id,categories(label,base_price),organizations(fee_mode,commission_type,commission_rate,commission_flat_cents),registration_addons(addon_id,price,addons(price)),payments(provider,provider_ref,amount,checkout_fee_mode,checkout_provider_managed_fee,checkout_request)")
-    .eq("event_id", eventId).eq("status", "pending").is("booking_order_id", null);
+    .eq("event_id", eventId).eq("status", "pending").is("booking_order_id", null).is("discount_original_cents", null);
   if (error) return json({ error: "checkout_read_failed" }, 503);
 
   const outcomes: Record<string, number> = {};

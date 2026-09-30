@@ -39,6 +39,7 @@ export const ORG_ITEMS: NavItem[] = [
   { to: "/events", label: "Events", icon: CalendarDays, countKey: "events", requires: "manage_org" },
   { to: "/registrations", label: "Registrations", icon: ClipboardList, countKey: "registrations", requires: "manage_org" },
   { to: "/payments", label: "Payments", icon: CreditCard, requires: "manage_org" },
+  { to: "/discounts", label: "Discounts", icon: Percent, requires: "manage_team" },
   { to: "/race-kits", label: "Race kits", icon: PackageCheck, requires: "release_kits" },
   { to: "/check-in", label: "Check-in", icon: QrCode, requires: "check_in" },
   { to: "/team", label: "Team", icon: Users, requires: "manage_team" },
