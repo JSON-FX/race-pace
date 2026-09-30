@@ -131,7 +131,7 @@ export function EventsTable({ rows, total, page, per, sort, activeFilters, q, ca
                 <Link href={`/events/${row.original.id}/edit`}>Edit</Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <Link href={`/events/${row.original.id}/reservations`}>Early reservations</Link>
+                <Link href={`/reservations?event=${row.original.id}`}>Reservations</Link>
               </DropdownMenuItem>
               {row.original.slug ? (
                 <DropdownMenuItem

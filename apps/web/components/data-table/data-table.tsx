@@ -12,6 +12,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { useTableParams } from "@/lib/use-table-params";
 import type { SortState } from "@/lib/table-params";
 import { DataTableToolbar } from "./toolbar";
@@ -50,6 +51,9 @@ export type DataTableProps<TData> = {
   /** Give a horizontally scrollable table a keyboard-focusable named region. */
   scrollRegionLabel?: string;
   rowHref?: (row: TData) => string;
+  /** Open an in-page inspector without replacing the table's selection controls. */
+  onRowClick?: (row: TData) => void;
+  rowActionLabel?: (row: TData) => string;
   /** Query-param keys "Clear all" must NOT remove, beyond the `sort`/`per`
    *  it already preserves — e.g. Registrations passes `["event"]` so
    *  clearing filters can't navigate the admin off the event they're
@@ -68,7 +72,7 @@ export type DataTableProps<TData> = {
 export function DataTable<TData>({
   columns, data, total, page, per, sort, filterDefs, activeFilters, q,
   searchPlaceholder = "Search…", scrollRegionLabel, bulkActions = [], preserveOnClear,
-  getRowId, rowHref, emptyState, isError,
+  getRowId, rowHref, onRowClick, rowActionLabel, emptyState, isError,
 }: DataTableProps<TData>) {
   const params = useTableParams();
   const [selected, setSelected] = useState<Record<string, boolean>>({});
@@ -197,9 +201,9 @@ export function DataTable<TData>({
                 {table.getRowModel().rows.map((row) => (
                   <TableRow
                     key={row.id}
-                    className={cn(rowHref && "cursor-pointer")}
+                    className={cn((rowHref || onRowClick) && "cursor-pointer")}
                     onClick={
-                      rowHref
+                      rowHref || onRowClick
                         ? (e) => {
                             // Modifier clicks (cmd/ctrl/shift/alt) and
                             // non-primary buttons must fall through to
@@ -226,6 +230,7 @@ export function DataTable<TData>({
                             // their own click.
                             const target = e.target as HTMLElement;
                             if (target.closest("a,button,input,[role='checkbox']")) return;
+                            if (onRowClick) { onRowClick(row.original); return; }
                             (e.currentTarget.querySelector("a") as HTMLAnchorElement | null)?.click();
                           }
                         : undefined
@@ -234,6 +239,7 @@ export function DataTable<TData>({
                     {row.getVisibleCells().map((cell) => {
                       const body = flexRender(cell.column.columnDef.cell, cell.getContext());
                       const isPrimaryLink = !!rowHref && cell.column.id === firstDataColumnId;
+                      const isPrimaryAction = !!onRowClick && cell.column.id === firstDataColumnId;
                       // Same declaredColumnWidth() SortableHeader uses — only
                       // a caller-declared `size` (e.g. the `__select` column
                       // below) sets a width; tanstack's default of 150 must
@@ -243,16 +249,17 @@ export function DataTable<TData>({
                         <TableCell key={cell.id}
                           style={width !== undefined ? { width } : undefined}
                           className="py-3">
-                          {/* Exactly one real <a> per row, in the first data
-                              cell — not one per cell. An <a> cannot legally
-                              contain a <td>, so it wraps the cell instead of
-                              the row; the row's onClick above (and this
-                              being a real link) is what keeps the rest of
-                              the row clickable, keyboard-reachable and
-                              middle-clickable without turning a 6-column
-                              table into 150 tab stops for 25 destinations. */}
+                          {/* Keep one native link or action in the first
+                              visible data cell. Row clicks delegate to it,
+                              while keyboard users get one tab stop per row.
+                              A real link retains native modifier behavior. */}
                           {isPrimaryLink ? (
                             <Link href={rowHref!(row.original)} className="block">{body}</Link>
+                          ) : isPrimaryAction ? (
+                            <Button variant="ghost" type="button"
+                              className="h-auto w-full justify-start whitespace-normal px-0 text-left"
+                              aria-label={rowActionLabel?.(row.original) ?? "View details"}
+                              onClick={() => onRowClick!(row.original)}>{body}</Button>
                           ) : body}
                         </TableCell>
                       );

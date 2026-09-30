@@ -25,7 +25,7 @@ export function EventCard({ event, index }: { event: EventRow; index?: number })
   const badge = state === "open" ? null : STATE_BADGE[state];
 
   return (
-    <Card asChild className="gap-0 py-0"><Link
+    <Card asChild className="gap-0 border-primary py-0"><Link
       href={eventPublicPath(event)}
       className="group flex h-full flex-col overflow-hidden"
     >

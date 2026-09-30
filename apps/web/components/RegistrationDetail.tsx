@@ -2,7 +2,7 @@
 
 
 import { Badge } from "@/components/ui/badge";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { X } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { PhotoAvatar } from "@/components/PhotoAvatar";
@@ -19,6 +19,7 @@ import { RefundModal } from "./RefundModal";
 import { CopyButton } from "./CopyButton";
 import { avatarTint } from "./RunnerAvatar";
 import { RegistrationHistory } from "./RegistrationHistory";
+import "./registration-detail.css";
 
 /**
  * What the money band says, per payment status.
@@ -49,33 +50,21 @@ const REFUND_REASON: Record<string, string> = {
 };
 
 function Row({ label, value, mono }: { label: string; value: React.ReactNode; mono?: boolean }) {
-  return (
-    // items-start, not items-center: a long value (a club name, an address)
-    // wraps to two lines, and centring would float the label off its own row.
-    <div className="flex items-start justify-between gap-6 py-[3px] text-[12.5px]">
-      <dt className="shrink-0 text-muted-foreground">{label}</dt>
-      {/* Values WRAP rather than truncate (§6 truncation-strategy) — this modal
-          exists to show the full value, so hiding half of it behind an ellipsis
-          would defeat the screen. */}
-      <dd className={cn("min-w-0 text-right font-medium break-words", mono && "tabular-nums")}>{value}</dd>
-    </div>
-  );
+  return <div className="registration-detail-field">
+    <dt>{label}</dt><dd className={mono ? "tabular-nums" : undefined}>{value}</dd>
+  </div>;
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="border-t border-divider px-[18px] py-3">
-      <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.09em] text-muted-foreground">
-        {title}
-      </div>
-      <dl>{children}</dl>
-    </div>
-  );
+  return <section className="registration-detail-section" aria-label={title}>
+    <h3>{title}</h3><dl>{children}</dl>
+  </section>;
 }
 
 export function RegistrationDetail({ row, onClose, onRefunded }: {
   row: RegistrationRow; onClose: () => void; onRefunded: () => void;
 }) {
+  const closeRef = useRef<HTMLButtonElement>(null);
   const [refunding, setRefunding] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const complimentary = row.total_amount === 0 && (row.discount_amount_cents ?? 0) > 0;
@@ -107,175 +96,60 @@ export function RegistrationDetail({ row, onClose, onRefunded }: {
   const entryFee = row.total_amount - addonTotal;
 
   return (
-    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent
-        showCloseButton={false}
-        onOpenAutoFocus={(e) => {
-          e.preventDefault();
-          (e.currentTarget as HTMLElement).focus();
-        }}
-        // p-0 and gap-0 undo DialogContent's own padding so the tinted money
-        // band and the footer can run edge to edge; every child below sets its
-        // own px-[18px] instead. max-h + the scroll region keep a race with 12
-        // custom questions inside the viewport.
-        // w-[calc(100%-2rem)], not w-full: setting max-w-[460px] replaces
-        // DialogContent's own max-w-[calc(100%-2rem)], which is what keeps a
-        // 16px gutter on a phone — without it the panel runs edge to edge.
-        className="top-[6vh] flex max-h-[88vh] w-[calc(100%-2rem)] max-w-[460px] flex-col gap-0 overflow-hidden p-0 sm:max-w-[460px]"
-      >
-        {/* ── Who ───────────────────────────────────────────────────────── */}
-        <div className="flex shrink-0 items-start gap-3 px-[18px] pb-3.5 pt-4">
-          <PhotoAvatar
-            url={row.avatar_url}
-            className="size-[38px]"
-            fallbackClassName={cn("text-[13px] font-bold", tint.bg, tint.fg)}
-            fallback={initials(row.full_name)}
-          />
-
-          <div className="min-w-0 flex-1">
-            <DialogTitle className="leading-tight">
-              {row.full_name ?? "—"}
-            </DialogTitle>
-            <DialogDescription className="sr-only">
-              Registration detail for {row.full_name ?? "this runner"}, including payment,
-              entry and the answers they gave on the registration form.
-            </DialogDescription>
-
-            {row.email ? (
-              <div className="mt-0.5 flex items-center gap-1.5">
-                <span className="truncate text-[11.5px] text-muted-foreground">{row.email}</span>
-                <CopyButton value={row.email} label="email" />
-              </div>
-            ) : null}
-
-            <div className="mt-2 flex flex-wrap items-center gap-1.5">
-              {teamName ? (
-                <Badge variant="secondary" className="px-2.5 py-1 uppercase">
-                  Team: {teamName}
-                </Badge>
-              ) : null}
-              {/* Same registration_status-wins-for-expired/cancelled swap as
-                  the table's Status column (registrations-table.tsx) — an
-                  organizer opening the sheet for an abandoned or cancelled
-                  entry should see the same badge they clicked through on. */}
-              {row.registration_status === "expired" || row.registration_status === "cancelled" ? (
-                <RegistrationStatusBadge status={row.registration_status} />
-              ) : (
-                <PaymentStatusBadge status={row.payment_status} />
-              )}
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent showCloseButton={false} className="registration-detail"
+        onOpenAutoFocus={(event) => { event.preventDefault(); closeRef.current?.focus(); }}>
+        <header className="registration-detail-header">
+          <PhotoAvatar url={row.avatar_url} className="size-12"
+            fallbackClassName={cn("text-base font-semibold", tint.bg, tint.fg)} fallback={initials(row.full_name)} />
+          <div className="registration-detail-identity">
+            <DialogTitle>{row.full_name ?? "Registration details"}</DialogTitle>
+            <DialogDescription className="sr-only">Registration details, payment, entry, submitted answers and history.</DialogDescription>
+            {row.email ? <div className="registration-detail-email"><span>{row.email}</span><CopyButton value={row.email} label="email" /></div> : null}
+            <div className="registration-detail-status">
+              {row.registration_status === "expired" || row.registration_status === "cancelled"
+                ? <RegistrationStatusBadge status={row.registration_status} /> : <PaymentStatusBadge status={row.payment_status} />}
+              {teamName ? <Badge variant="secondary" className="registration-detail-team">Team: {teamName}</Badge> : null}
             </div>
           </div>
-
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label="Close"
-            className="-mr-1 -mt-1 size-8 shrink-0"
-            onClick={onClose}
-          >
-            <X className="size-4" />
-          </Button>
-        </div>
-
-        {/* Everything between the header and the refund bar scrolls, so the
-            action never leaves the viewport on a long form (§9 modal-escape). */}
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          {/* ── Money ──────────────────────────────────────────────────── */}
-          <div className={cn("border-t border-divider px-[18px] py-3.5", money.band)}>
-            <div className={cn("text-[10px] font-semibold uppercase tracking-[0.09em] opacity-75", money.ink)}>
-              {money.eyebrow}
+          <Button ref={closeRef} variant="ghost" size="icon" aria-label="Close" onClick={onClose} className="shrink-0"><X className="size-5" aria-hidden /></Button>
+        </header>
+        <div className="registration-detail-body" role="region" aria-label="Registration information" tabIndex={0}>
+          <section className={cn("registration-detail-money", money.band)} aria-label="Payment" data-payment-status={row.payment_status}>
+            <div className="registration-detail-money-heading">
+              <div><p className={cn("text-sm font-medium", money.ink)}>{money.eyebrow}</p>
+                <p className={cn("mt-1 text-3xl font-semibold leading-tight tabular-nums", money.ink)}>{displayedAmount == null ? "Unavailable" : peso(displayedAmount)}</p></div>
+              <MethodBadge method={row.payment_method} height={20} />
             </div>
-            {/* tabular-nums so the peso figure doesn't reflow between rows of
-                different digits (§6 number-tabular). */}
-            <div className={cn("mt-px text-[29px] font-semibold leading-tight tracking-tight tabular-nums", money.ink)}>
-              {displayedAmount == null ? "Unavailable" : peso(displayedAmount)}
-            </div>
-
-            {row.addons.length > 0 || captured ? (
-              <>
-                <div className={cn("my-2.5 h-px bg-current opacity-20", money.ink)} />
-                <dl>
-                  <Row label={row.category_label ? `${row.category_label} entry` : "Entry"} value={peso(entryFee)} mono />
-                  {row.addons.map((a, i) => (
-                    <Row key={i} label={a.name ?? "Add-on"} value={peso(a.price)} mono />
-                  ))}
-                  {captured && row.payment_amount != null && row.payment_amount !== row.total_amount ? (
-                    <Row label="Fees charged at checkout" value={peso(row.payment_amount - row.total_amount)} mono />
-                  ) : null}
-                  {row.payment_status === "partially_refunded" && row.refunded_amount != null ? (
-                    <Row label="Refunded" value={peso(row.refunded_amount)} mono />
-                  ) : null}
-                </dl>
-              </>
-            ) : null}
-          </div>
-
-          {/* ── How they paid ──────────────────────────────────────────── */}
-          <div className="flex items-center justify-between gap-3 border-t border-divider px-[18px] py-3 text-[12.5px]">
-            {/* shrink-0: MethodBadge is its own flex row, so without this it
-                compresses to nothing on a phone and the brand marks end up
-                touching the id beside them. */}
-            <span className="shrink-0">
-              <MethodBadge method={row.payment_method} height={15} />
-            </span>
-            <div className="flex min-w-0 items-center gap-1.5">
-              {/* The registration id, not a provider reference: it's what `?reg=`
-                  in the URL uses and what support threads quote, and unlike
-                  payments.provider_ref it's already on this row. */}
-              <span className="truncate font-mono text-[11px] text-muted-foreground">{row.id}</span>
-              <CopyButton value={row.id} label="registration id" />
-            </div>
-          </div>
-
-          {/* ── Entry ──────────────────────────────────────────────────── */}
+            {row.addons.length > 0 || captured ? <dl className="registration-detail-breakdown">
+              <Row label={row.category_label ? `${row.category_label} entry` : "Entry"} value={peso(entryFee)} mono />
+              {row.addons.map((addon, index) => <Row key={index} label={addon.name ?? "Add-on"} value={peso(addon.price)} mono />)}
+              {captured && row.payment_amount != null && row.payment_amount !== row.total_amount
+                ? <Row label="Fees charged at checkout" value={peso(row.payment_amount - row.total_amount)} mono /> : null}
+              {row.payment_status === "partially_refunded" && row.refunded_amount != null ? <Row label="Refunded" value={peso(row.refunded_amount)} mono /> : null}
+            </dl> : null}
+          </section>
           <Section title="Entry">
             <Row label="Category" value={row.category_label ?? "—"} />
             <Row label="Registered" value={fmtDateTime(row.created_at)} mono />
+            <Row label="Registration ID" value={<span className="registration-detail-reference"><span>{row.id}</span><CopyButton value={row.id} label="registration id" /></span>} />
           </Section>
-
-          {/* ── What they answered ─────────────────────────────────────── */}
-          {customEntries.length ? (
-            <Section title="Registration fields">
-              {customEntries.map(([k, v]) => (
-                <Row key={k} label={fieldLabel(k)} value={fieldValue(v)} />
-              ))}
-            </Section>
-          ) : null}
-
-          {/* ── Change history ─────────────────────────────────────────── */}
-          <Section title="History">
-            <RegistrationHistory registrationId={row.id} />
-          </Section>
+          {customEntries.length ? <Section title="Registration fields">{customEntries.map(([key, value]) => <Row key={key} label={fieldLabel(key)} value={fieldValue(value)} />)}</Section> : null}
+          <section className="registration-detail-section" aria-label="History"><h3>History</h3><RegistrationHistory registrationId={row.id} /></section>
+          <p className="registration-detail-refund-note">{complimentary ? "Cancel this free entry to release its slot. Its discount code stays used." : row.booking_order_id && row.payment_status === "paid"
+            ? "Refunding this participant cancels their ticket and releases their slot. Other participants stay registered."
+            : REFUND_REASON[row.payment_status ?? ""] ?? "No payment is recorded for this entry."}</p>
         </div>
-
-        {/* ── Refund ─────────────────────────────────────────────────────── */}
-        <div className="flex shrink-0 items-center justify-between gap-3 border-t border-border bg-muted/40 px-[18px] py-3">
-          <span className="text-[11.5px] leading-snug text-muted-foreground">
-            {complimentary ? "Cancel this free entry to release its slot. Its discount code stays used." : row.booking_order_id && row.payment_status === "paid"
-              ? "Refunding this participant cancels their ticket and releases their slot. Other participants stay registered."
-              : REFUND_REASON[row.payment_status ?? ""] ?? "No payment is recorded for this entry."}
-          </span>
-          <Button
-            variant="destructive"
-            className="shrink-0"
-            disabled={complimentary ? row.registration_status !== "paid" : !canRefund}
-            onClick={() => complimentary ? setCancelling(true) : setRefunding(true)}
-          >
+        <footer className="registration-detail-footer">
+          <Button variant="outline" onClick={onClose}>Done</Button>
+          <Button variant="destructive" disabled={complimentary ? row.registration_status !== "paid" : !canRefund}
+            onClick={() => complimentary ? setCancelling(true) : setRefunding(true)}>
             {complimentary ? "Cancel complimentary entry" : "Review refund"}
           </Button>
-        </div>
-
+        </footer>
         {cancelling ? <BulkCancelDialog ids={[row.id]} onDone={onRefunded} onClose={() => setCancelling(false)} /> : null}
-        {refunding ? (
-          <RefundModal
-            registration={{ id: row.id, full_name: row.full_name, total_amount: row.total_amount, booking_order_id: row.booking_order_id }}
-            onClose={() => setRefunding(false)}
-            // `revalidatePath` inside refundRegistrationAction already
-            // re-renders the server page with fresh data — this callback
-            // only needs to close the modal, not manually refetch anything.
-            onDone={onRefunded}
-          />
-        ) : null}
+        {refunding ? <RefundModal registration={{ id: row.id, full_name: row.full_name, total_amount: row.total_amount, booking_order_id: row.booking_order_id }}
+          onClose={() => setRefunding(false)} onDone={onRefunded} /> : null}
       </DialogContent>
     </Dialog>
   );

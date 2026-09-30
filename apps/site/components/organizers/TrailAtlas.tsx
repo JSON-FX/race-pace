@@ -8,7 +8,7 @@ export function OrganizerDirectoryRow({ organizer }: { organizer: Organizer }) {
   const next = organizer.events[0];
   return (
     <article className="trail-atlas__org-row">
-      <OrganizerPhoto src={organizer.bannerUrl ?? next?.imageUrl ?? null} className="trail-atlas__row-photo" />
+      <OrganizerMark organizer={organizer} className="trail-atlas__directory-avatar" />
       <div className="trail-atlas__org-copy">
         <div className="trail-atlas__row-meta">
           {[organizer.homeRegion, `${organizer.events.length} upcoming ${organizer.events.length === 1 ? "event" : "events"}`].filter(Boolean).join(" · ")}

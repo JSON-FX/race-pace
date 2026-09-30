@@ -1,6 +1,29 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "@race-pace/ui/fieldnotes.css";
+
+/* Owner-selected forest rounded rectangles: plain inactive links, no inset track or bevel. */
+[data-rp-ui="fieldnotes"][data-rp-control="button"].runner-nav-link {
+  border: 0;
+  border-radius: 14px;
+  box-shadow: none;
+}
+[data-rp-ui="fieldnotes"][data-rp-control="button"].runner-nav-tab {
+  height: auto;
+  min-height: 64px;
+  padding: 8px 2px;
+  gap: 5px;
+  font-size: 11px;
+}
+[data-rp-control="button"].runner-nav-link[aria-current="page"] {
+  color: rgb(var(--primary-foreground));
+}
+[data-rp-control="button"].runner-nav-link:focus-visible {
+  outline: 2px solid rgb(var(--ring));
+  outline-offset: 3px;
+}
+/* Public phone navigation uses two rows; keep the category heading below it. */
+#category-reservations { scroll-margin-top: 8rem; }
 @source "../../../packages/ui/src";
 
 @custom-variant dark (&:is(.dark *));

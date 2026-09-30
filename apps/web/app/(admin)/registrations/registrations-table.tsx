@@ -1,6 +1,5 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -119,19 +118,12 @@ export function RegistrationsTable({
       accessorKey: "full_name",
       header: "Runner",
       cell: ({ row }) => (
-        <Button variant="ghost"
-          type="button"
-          onClick={() => openReg(row.original.id)}
-          aria-label={`View ${row.original.full_name ?? "registration"}`}
-          className="text-left"
-        >
-          <RunnerAvatar
-            id={row.original.id}
-            name={row.original.full_name}
-            email={row.original.email}
-            avatarUrl={row.original.avatar_url}
-          />
-        </Button>
+        <RunnerAvatar
+          id={row.original.id}
+          name={row.original.full_name}
+          email={row.original.email}
+          avatarUrl={row.original.avatar_url}
+        />
       ),
     },
     { accessorKey: "category_label", header: "Category", cell: ({ row }) => row.original.category_label ?? "—" },
@@ -224,6 +216,8 @@ export function RegistrationsTable({
         searchPlaceholder="Search runner name…"
         bulkActions={bulkActions}
         getRowId={(row) => row.id}
+        onRowClick={(row) => openReg(row.id)}
+        rowActionLabel={(row) => `View ${row.full_name ?? "registration"}`}
         // Registrations is scoped by ?event=<uuid>. "Clear all" wipes every
         // param except sort/per/this list — without "event" here, clicking
         // Clear all would silently move the admin to a different event.
