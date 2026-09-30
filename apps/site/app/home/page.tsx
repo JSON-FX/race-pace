@@ -127,7 +127,7 @@ export default async function Home() {
             </Reveal>
             <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-5">
               {ongoing.map((event, index) => (
-                <Reveal key={event.id} delay={index * 0.05}>
+                <Reveal key={event.id} delay={index * 0.05} className="h-full">
                   <EventCard event={event} />
                 </Reveal>
               ))}
@@ -151,7 +151,7 @@ export default async function Home() {
             </Reveal>
             <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-6">
               {comingSoon.map((event, index) => (
-                <Reveal key={event.id} delay={index * 0.05}>
+                <Reveal key={event.id} delay={index * 0.05} className="h-full">
                   <EventCard event={event} />
                 </Reveal>
               ))}
@@ -183,7 +183,7 @@ export default async function Home() {
             </Reveal>
             <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-6">
               {past.slice(0, 3).map((event, index) => (
-                <Reveal key={event.id} delay={index * 0.05}>
+                <Reveal key={event.id} delay={index * 0.05} className="h-full">
                   <EventCard event={event} />
                 </Reveal>
               ))}

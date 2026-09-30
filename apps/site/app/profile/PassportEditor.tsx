@@ -6,7 +6,7 @@ import { FieldError } from "@/components/ui/field";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { FormSelect } from "@race-pace/ui";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   BLOOD_TYPES,
   EMERGENCY_RELATIONSHIPS,
@@ -66,7 +66,7 @@ function passportName(passport: RunnerPassport, userId: string) {
   return [passport.first_name, passport.last_name].filter(Boolean).join(" ") || passport.legacy_full_name || "New participant";
 }
 
-export function PassportEditor({ userId, email, onSaved }: { userId: string; email?: string; onSaved?: (passport: RunnerPassport) => void }) {
+export function PassportEditor({ userId, email, onSaved, sidebarContent }: { userId: string; email?: string; onSaved?: (passport: RunnerPassport) => void; sidebarContent?: ReactNode }) {
   const [passports, setPassports] = useState<RunnerPassport[]>([]);
   const [selected, setSelected] = useState("");
   const [values, setValues] = useState<Record<string, string>>({});
@@ -169,7 +169,8 @@ export function PassportEditor({ userId, email, onSaved }: { userId: string; ema
 
   return (
     <section className="mt-6 grid items-start gap-6 lg:grid-cols-[19rem_minmax(0,1fr)]">
-      <Card className="gap-0 py-0 lg:sticky lg:top-24">
+      <div className="min-w-0 space-y-6">
+      <Card className="gap-0 py-0">
         <CardHeader className="border-b border-divider py-6">
           <p className="font-eyebrow text-[10px] font-bold uppercase tracking-[2.4px] text-primary">Saved runners</p>
           <CardTitle className="font-display text-2xl font-black tracking-[-0.7px]">Race Passports</CardTitle>
@@ -218,8 +219,10 @@ export function PassportEditor({ userId, email, onSaved }: { userId: string; ema
           </div>
         </CardContent>
       </Card>
+      {sidebarContent}
+      </div>
 
-      <div>
+      <div className="min-w-0">
         {error ? <Alert variant="destructive" role="alert" className="mb-4 border px-4 py-3"><AlertDescription>{error}</AlertDescription></Alert> : null}
         {passport ? (
           <Card className="gap-0 py-0">

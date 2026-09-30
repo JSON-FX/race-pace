@@ -3,13 +3,13 @@
 Updated: 2026-09-30. Overall: MVP RELEASED; FIELDNOTES ADMIN AND TRAIL ATLAS ORGANIZERS IN PRODUCTION; OWNER CHECKOUT PENDING.
 Scope: runner website and admin only. The first release is a controlled pilot with one organizer and PayMongo. Production contains real organizer and event data; add no synthetic data.
 
-### Payment synchronization incident — staging accepted, 2026-09-30
+### Payment synchronization incident — production recovered, 2026-09-30
 
 | Completed | Blockers | Next task |
 | --- | --- | --- |
-| PR #208 at `231265b`; exact CI, both staging apps, 179 migrations and all 16 function bundles verified. Provider test recovery, group settlement, webhook replays and private worker authentication passed. | Customer remains pending and live webhook remains disabled until production release. | Promote staging, reconcile the actual capture, restore live delivery and verify reports and schedules. |
+| PR #212 at `6ff9a18`; both production apps Ready. All 180 migrations and 15 affected function bundles match staging. Three real paid reservations recovered, including the reported customer; registration and finance ledgers audited. Live webhook restored and its previously failing event replay succeeded. Five-minute recovery and watchdog schedules are healthy. | None for payment recovery. External provider outages and mismatched captures remain monitored operational conditions. | Complete this documentation-only main → staging synchronization; retain automated recovery and operator alerts. |
 
-Evidence: [staging acceptance](payment-status-recovery-staging-20260930.md), [investigation](../issues/issue-production-paid-status-sync-2026-09-30.md), [implementation plan](../plans/payment-status-recovery.md), [review](../../.claude/code-reviews/2026-09-30-payment-status-recovery.md).
+Evidence: [production recovery](payment-status-recovery-production-20260930.md), [staging acceptance](payment-status-recovery-staging-20260930.md), [investigation](../issues/issue-production-paid-status-sync-2026-09-30.md), and [runbook](payment-status-recovery.md). The production release also includes the already-validated [discount runner search](discount-runner-search-staging-20260930.md).
 
 ### Organization discounts — production release, 2026-09-30
 
@@ -931,3 +931,28 @@ the combined release gates, including the concurrent payment-recovery change.
 
 See [investigation](../issues/issue-discount-runner-search.md) and
 [review](../../.claude/code-reviews/2026-09-30-discount-runner-search.md).
+## September 30 browser refinements — complete locally
+
+| Completed | Blockers | Next task |
+| --- | --- | --- |
+| All 15 annotations; flat forest rounded rectangles; larger phone icons; truthful profile activity; centered registration inspector with row opening; local checks and responsive review | No local blocker. Hosted staging acceptance has not run for this patch | On release authorization, commit the scoped changes and open the staging pull request |
+
+Implemented in isolated branch `codex/browser-ui-refinements`, based on staging `f7ded2161e87a9e662ff7b65d30e770688b5e5a5`. The original dirty checkout and unrelated Hub work were preserved. Runner 537, admin 1,030, backend/shared 854, and shared UI 13 tests passed: 2,434 total. Relevant typechecks, both isolated production builds, Fieldnotes audit, and 178-migration replay checks passed. Hub typecheck and four catalog builds passed.
+
+Browser acceptance covered actual local app identity/date, forest actions, equal-height cards, organization avatars, completed-event totals, upcoming registrations and rejected screening updates. Phone checks include 320/390px and successful sign-out. Tablet navigation uses one bar at 768px. Desktop checks used 1241px. The selected navigation has 14px corners, no pale track or shadow, and 28px phone icons. Profile figures use paid entries in completed events; individual finisher results are not yet stored.
+
+See the [implementation report and screenshots](../../.claude/reports/2026-09-30-browser-ui-refinements-report.md) and [PIV review](../../.claude/code-reviews/2026-09-30-browser-ui-refinements.md). The Storybook proposal is available locally. No commit, push, hosted change, migration source change, deployment or charge occurred.
+
+The registration inspector follow-up also passed actual app checks at 1280×720, 768×640, 390×844 and 320×568. All submitted values wrap and remain reachable through internal scrolling; identity and actions stay visible. Data-cell and keyboard opening, selection isolation, deep links, Escape, focus return and read-only refund review passed. Admin checks/build, shared UI checks/audit and catalog rebuild passed again. The served inspector preview is available in Storybook.
+
+## September 30 session release — implementation complete
+
+| Completed | Blockers | Next task |
+| --- | --- | --- |
+| Approved Reservations workspace; four event-wide cards; eight checkout fields; organization reset; Coming Soon registration fees; all earlier browser refinements and centered registration inspector | Required GitHub branch checks and hosted release/readback pending | Publish scoped staging integration, promote it to production, then synchronize main into staging |
+
+Owner explicitly authorized production release of all current-session changes and waived additional local test suites for urgency. Required GitHub `web-admin-validate` remains enforced. Technical promotion follows staging into main, then sync-back. No test fixture or payment may be created in production. This session changes no migration, Edge Function, provider configuration, secrets or dependency. Existing staging-only payment recovery content is documentation only; its application/backend changes are already in main.
+
+Scoped feature commits: `490da7e` (browser refinements), `adebd43` (Coming Soon category registration fees), and `97f378e` (Reservations workspace). The older UI branch merged with documentation-only conflicts; newer discount/payment evidence was preserved. Local Reservations admin typecheck/build and actual Browser phone/desktop reads passed. Source audit passed with 325 current modules after integration, 256 audited, zero native sites or duplicate primitives. Both integrated application typechecks and production builds passed. Earlier suite results remain revision-specific historical evidence, not proof of the integrated release.
+
+See [Reservations review](../../.claude/code-reviews/2026-09-30-reservations-page.md), [implementation report](../../.claude/reports/2026-09-30-reservations-page-report.md), and [category fee investigation](../issues/2026-09-30-coming-soon-category-fees.md). Hosted source/deployment IDs and readback will be recorded after delivery.

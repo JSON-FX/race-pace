@@ -40,6 +40,33 @@ describe("DataTable", () => {
     expect(screen.getByText("Ramon Cruz")).toBeInTheDocument();
   });
 
+  it("opens an inspector from any noninteractive data cell", () => {
+    const open = vi.fn();
+    render(<DataTable {...base} onRowClick={open} rowActionLabel={row => `View ${row.name}`} />);
+    fireEvent.click(screen.getByText("2850"));
+    expect(open).toHaveBeenCalledExactlyOnceWith(rows[0]);
+  });
+
+  it("offers one native keyboard trigger per inspector row", async () => {
+    const user = userEvent.setup();
+    const open = vi.fn();
+    render(<DataTable {...base} onRowClick={open} rowActionLabel={row => `View ${row.name}`} />);
+    screen.getByRole("button", { name: "View Maria Santos" }).focus();
+    await user.keyboard("{Enter}");
+    expect(open).toHaveBeenCalledExactlyOnceWith(rows[0]);
+  });
+
+  it("does not open an inspector from a selection checkbox or modified click", async () => {
+    const user = userEvent.setup();
+    const open = vi.fn();
+    render(<DataTable {...base} onRowClick={open} getRowId={row => row.id}
+      bulkActions={[{ label: "Cancel", onSelect: vi.fn() }]} />);
+    await user.click(screen.getAllByRole("checkbox", { name: "Select row" })[0]);
+    fireEvent.click(screen.getByText("2850"), { ctrlKey: true });
+    expect(open).not.toHaveBeenCalled();
+    expect(screen.getAllByRole("checkbox", { name: "Select row" })[0]).toBeChecked();
+  });
+
   it("announces the result count to screen readers", () => {
     render(<DataTable {...base} />);
     expect(screen.getByRole("status")).toHaveTextContent("2 results");

@@ -64,6 +64,20 @@ const props = {
 };
 
 describe("RegistrationsTable", () => {
+  it("opens the matching registration from a category cell", async () => {
+    const user = userEvent.setup();
+    render(<RegistrationsTable {...props} />);
+    await user.click(screen.getByRole("cell", { name: "25K" }));
+    expect(screen.getByRole("dialog")).toHaveAccessibleName("Angelo Lim");
+    expect(window.location.search).toContain("reg=r2");
+  });
+
+  it("keeps row selection separate from registration inspection", async () => {
+    const user = userEvent.setup();
+    render(<RegistrationsTable {...props} />);
+    await user.click(screen.getAllByRole("checkbox", { name: "Select row" })[0]);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
   it("renders the runner name and category", () => {
     render(<RegistrationsTable {...props} />);
     expect(screen.getByText("Maria Josefa Santos")).toBeInTheDocument();

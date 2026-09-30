@@ -1,5 +1,6 @@
 import { expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { signOut } from "@/lib/auth";
 import { SiteNav } from "../SiteNav";
 import { RunnerTabBar } from "../RunnerTabBar";
 
@@ -36,4 +37,13 @@ it("uses /home for the signed-in runner tab", () => {
   expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute("href", "/home");
   expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute("aria-current", "page");
   expect(screen.getByRole("link", { name: "Organizers" })).toHaveAttribute("href", "/organizers");
+});
+
+it("keeps log out available in the signed-in header on phones", () => {
+  vi.mocked(signOut).mockImplementation(() => new Promise(() => {}));
+  render(<SiteNav signedIn />);
+  const logout = screen.getByRole("button", { name: "Log out" });
+  fireEvent.click(logout);
+  expect(signOut).toHaveBeenCalled();
+  expect(screen.getByRole("button", { name: "Logging out…" })).toBeDisabled();
 });

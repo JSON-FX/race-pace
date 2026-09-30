@@ -36,7 +36,7 @@ export function FieldnotesEventCard({ event }: { event: EventRow }) {
             values, so reading `event.status` here showed a race that is
             happening right now as "Closed". See lib/eventState.ts. */}
         {badge ? (
-          <Status className="fieldnotes-race-card__status" tone={state === "cancelled" ? "danger" : state === "ongoing" ? "success" : state === "almost_full" || state === "rescheduled" ? "warning" : "neutral"} >{badge.label}</Status>
+          <Status dot={state !== "coming_soon"} className="fieldnotes-race-card__status" tone={state === "cancelled" ? "danger" : state === "ongoing" ? "success" : state === "almost_full" || state === "rescheduled" ? "warning" : "neutral"} >{badge.label}</Status>
         ) : null}
       </div>
 

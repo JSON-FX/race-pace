@@ -16,7 +16,7 @@ import { LinkPending } from "./NavProgress";
  * read auth; everything that needs the current route or a menu toggle lives
  * here, behind a single `signedIn` boolean.
  *
- * Marks where you are — `aria-current` plus a spring-animated pill.
+ * Marks where you are — `aria-current` plus a spring-animated active background.
  *
  * MOBILE NAVIGATION LIVES IN RunnerTabBar, not here. This header used to carry a
  * hamburger opening a full-screen sheet; it was removed for two reasons.
@@ -31,8 +31,8 @@ import { LinkPending } from "./NavProgress";
  * while the 30px menu labels spilled over the page beneath, unreadable against
  * the event cards.
  *
- * Log out is not lost with the sheet: it already lives on the Profile page
- * (app/profile/ProfileForm.tsx), which the tab bar reaches in one tap.
+ * Log out stays in the header on every viewport, including when the bottom
+ * tab bar owns navigation on phones.
  */
 
 type Item = { href: string; label: string };
@@ -77,7 +77,7 @@ export function SiteNav({ signedIn }: { signedIn: boolean }) {
   return (
       <div className={cn(
         "mx-auto flex h-16 w-full max-w-6xl items-center justify-between gap-4 px-5 sm:px-6",
-        !signedIn && "max-[370px]:h-auto max-[370px]:flex-wrap max-[370px]:gap-y-1 max-[370px]:py-2",
+        !signedIn && "max-[480px]:h-auto max-[480px]:flex-wrap max-[480px]:gap-y-1 max-[480px]:py-2",
       )}>
         <Link href="/" aria-label="Race Pace home" className="flex shrink-0 items-center">
           {/* The mark alone — the asset's own wordmark is the footer's job.
@@ -93,25 +93,25 @@ export function SiteNav({ signedIn }: { signedIn: boolean }) {
           />
         </Link>
 
-        {/* Desktop: a segmented control. The active pill is a shared layout
+        {/* Desktop: plain links with a forest active rectangle. The active pill is a shared layout
             element, so switching tabs slides it rather than cutting. */}
         <nav
           aria-label="Main"
           className={cn(
-            "items-center gap-1 rounded-pill bg-muted p-1 sm:flex",
+            "items-center gap-1 p-1",
             // Signed IN, the bottom tab bar owns mobile navigation, so showing
             // these here would be the same four destinations twice.
             //
             // Signed OUT there is no bar (two tabs reads as broken, and Sign in
             // is a call to action rather than a destination) — so the pills stay
             // visible. Keep each target compact enough for the three public links.
-            signedIn ? "hidden" : "flex max-[370px]:order-3 max-[370px]:w-full max-[370px]:justify-center",
+            signedIn ? "hidden md:flex" : "flex max-[480px]:order-3 max-[480px]:w-full max-[480px]:justify-center",
           )}
         >
           {items.map((item) => {
             const active = isActive(pathname, item.href);
             return (
-              <Button asChild key={item.href} variant="ghost" className="px-2.5 sm:px-4"><Link
+              <Button asChild key={item.href} variant="ghost" className="runner-nav-link px-2.5 sm:px-4"><Link
                 href={item.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
@@ -121,7 +121,8 @@ export function SiteNav({ signedIn }: { signedIn: boolean }) {
                 {active ? (
                   <motion.span
                     layoutId="nav-pill"
-                    className="absolute inset-0 rounded-[14px] bg-accent"
+                    aria-hidden="true"
+                    className="absolute inset-0 rounded-[14px] bg-primary"
                     transition={
                       reduced
                         ? { duration: 0 }
@@ -147,7 +148,7 @@ export function SiteNav({ signedIn }: { signedIn: boolean }) {
               type="button"
               onClick={logOut}
               disabled={leaving}
-              className="hidden items-center gap-1.5 border px-4 py-2.5 disabled:opacity-60 sm:inline-flex"
+              className="inline-flex items-center gap-1.5 border px-4 py-2.5 disabled:opacity-60"
             >
               <LogOut size={15} aria-hidden="true" />
               {leaving ? "Logging out…" : "Log out"}

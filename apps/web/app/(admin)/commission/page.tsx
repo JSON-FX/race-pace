@@ -156,7 +156,7 @@ export default async function CommissionPage() {
             <FeeTermsTable orgs={orgs} />
         </Card>
 
-        <Card className="gap-0 overflow-hidden border py-0">
+        <Card className="mt-3 gap-0 overflow-hidden border py-0">
           <CardHead title="Reservation Platform Fees" aside="Separate from registration commission" />
           <ReservationTermsTable orgs={orgs} />
         </Card>

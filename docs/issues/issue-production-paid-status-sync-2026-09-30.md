@@ -1,5 +1,7 @@
 # Investigation: production payments remain pending after PayMongo capture
 
+> Resolved in production on 2026-09-30 through PR #212. See the [production recovery record](../operations/payment-status-recovery-production-20260930.md) for current status. The findings below preserve the original pre-repair investigation snapshot.
+
 ## Status and assessment
 
 Investigated on 2026-09-30, Asia/Manila. This is a confirmed production incident, not a display-only hypothesis. Production remains unchanged by this investigation. Recovery and the permanent fix are outstanding.
