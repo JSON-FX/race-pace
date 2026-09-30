@@ -49,12 +49,13 @@ export function ReservationsWorkspace({ events, eventId, orgName, rows = [], sum
   useReportPending(pending);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("All payments");
+  const [categoryId, setCategoryId] = useState("all");
   const [page, setPage] = useState(0);
   const selected = events.find(event => event.id === eventId);
-  const filtered = rows.filter(row => `${row.name} ${row.email} ${row.managed.map(runner => runner.name).join(" ")}`.toLowerCase().includes(query.toLowerCase()) && (status === "All payments" || row.paymentStatus === status));
+  const filtered = rows.filter(row => `${row.name} ${row.email} ${row.managed.map(runner => runner.name).join(" ")}`.toLowerCase().includes(query.toLowerCase()) && (status === "All payments" || row.paymentStatus === status) && (categoryId === "all" || row.categoryIds.includes(categoryId)));
   const shown = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
   const statuses = [...new Set(["Paid", "Pending", ...rows.map(row => row.paymentStatus)])];
-  function clearFilters() { setQuery(""); setStatus("All payments"); setPage(0); }
+  function clearFilters() { setQuery(""); setStatus("All payments"); setCategoryId("all"); setPage(0); }
   return <div className="reservation-main">
     <div className="reservation-heading"><h1>Reservations</h1><p>Early places, payment status, and entry deadlines for your event.</p></div>
     <div className="reservation-event-picker"><label>Event</label><EventCombobox events={events} value={eventId} label="Event" placeholder="Choose an event" busy={pending} className="reservation-event" onSelect={id => startTransition(() => router.push(`/reservations?event=${encodeURIComponent(id)}`, { scroll: false }))} />
@@ -82,8 +83,9 @@ export function ReservationsWorkspace({ events, eventId, orgName, rows = [], sum
         <div className="reservation-roster-heading"><div><h2 id="reservation-roster-title">Reservation roster</h2><p>One checkout per row. Managed runners appear beneath the booking account.</p></div><span>{summary?.total.toLocaleString()} checkouts</span></div>
         <div className="reservation-toolbar"><div className="reservation-search"><Search size={18} aria-hidden /><Input aria-label="Search runners" placeholder="Search runner name or email" value={query} onChange={event => { setQuery(event.target.value); setPage(0); }} /></div>
           <Select value={status} onValueChange={value => { setStatus(value); setPage(0); }}><SelectTrigger aria-label="Payment status filter"><SelectValue /></SelectTrigger><SelectContent>{["All payments", ...statuses].map(value => <SelectItem value={value} key={value}>{value}</SelectItem>)}</SelectContent></Select>
+          <Select value={categoryId} onValueChange={value => { setCategoryId(value); setPage(0); }}><SelectTrigger aria-label="Category filter" className="max-w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">All categories</SelectItem>{categories.map(category => <SelectItem value={category.id} key={category.id}>{category.code?.trim() || category.label}</SelectItem>)}</SelectContent></Select>
         </div>
-        {shown.length === 0 ? <div className="reservation-empty"><h3>{rows.length ? "No matching reservations" : "No reservations yet"}</h3><p>{rows.length ? "Try another name, email, or payment status." : "This event’s reservations will appear here."}</p>{rows.length > 0 && <Button variant="outline" onClick={clearFilters}>Clear filters</Button>}</div>
+        {shown.length === 0 ? <div className="reservation-empty"><h3>{rows.length ? "No matching reservations" : "No reservations yet"}</h3><p>{rows.length ? "Try another name, email, payment status, or category." : "This event’s reservations will appear here."}</p>{rows.length > 0 && <Button variant="outline" onClick={clearFilters}>Clear filters</Button>}</div>
           : <><div className="reservation-desktop-table"><Table><TableHeader><TableRow>{["Avatar", "Runner name", "Runner email", "Category", "Payment status", "Payment date", "Entry payment due", "Reservation amount"].map(label => <TableHead key={label} scope="col">{label}</TableHead>)}</TableRow></TableHeader><TableBody>{shown.map(row => <TableRow key={row.id}>
             <TableCell><RunnerAvatar row={row} /></TableCell><TableCell><strong>{row.name}</strong><ManagedRunners row={row} /></TableCell>
             <TableCell className="reservation-email">{row.email}</TableCell><TableCell><span className="reservation-categories">{row.categories.length ? row.categories.map(category => <span key={category}>{category}</span>) : "—"}</span></TableCell>
