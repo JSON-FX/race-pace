@@ -43,9 +43,8 @@ export function FormSection({
   hideTitle?: boolean;
 }) {
   return (
-    // scroll-mt clears the sticky TopBar — without it an anchored jump puts the
-    // section heading underneath the header and it reads as jumping to the
-    // wrong place.
+    // The mobile section strip sticks inside rp-scroll. Leave enough room for
+    // it when an anchor brings a section heading to the top of that container.
     <Card id={id} className={cn("scroll-mt-24 gap-0 border py-0", className)}>
       {hideTitle ? null : (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b px-4 py-3 md:px-5">
@@ -119,14 +118,14 @@ export function SectionRail({ sections }: { sections: SectionMeta[] }) {
       },
       // Top-weighted band: a section counts as "current" once its heading is
       // near the top, not when its last pixel scrolls into view.
-      { rootMargin: "-88px 0px -60% 0px", threshold: 0 },
+      { root: els[0].closest(".rp-scroll"), rootMargin: "-88px 0px -60% 0px", threshold: 0 },
     );
     els.forEach((el) => obs.observe(el));
     return () => obs.disconnect();
   }, [sections]);
 
   return (
-    <nav aria-label="Form sections" className="lg:sticky lg:top-6">
+    <nav aria-label="Form sections" className="sticky top-0 z-20 self-start bg-card py-2 lg:top-6 lg:max-h-[calc(100dvh-114px)] lg:overflow-y-auto lg:bg-transparent lg:py-0">
       <ul className="-mx-1 flex gap-1 overflow-x-auto px-1 pb-1 lg:mx-0 lg:flex-col lg:overflow-visible lg:px-0 lg:pb-0">
         {sections.map((s) => {
           const on = s.id === active;

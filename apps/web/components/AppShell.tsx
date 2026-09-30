@@ -24,7 +24,7 @@ export function AppShell({
   children: React.ReactNode;
 }) {
   return (
-    <SidebarProvider>
+    <SidebarProvider className="h-svh overflow-clip">
       <AdminCanvasController />
       {/* The provider wraps BOTH the sidebar (where links report pending) and
           the inset (where the bar renders) — a shared ancestor is required, and
@@ -34,10 +34,12 @@ export function AppShell({
         {/* `relative` anchors the absolutely-positioned bar to the content pane
             rather than the viewport, so it spans the content and not the
             sidebar — matching where the navigation actually lands. */}
-        <SidebarInset className="relative min-w-0 bg-muted">
+        <SidebarInset className="relative min-h-0 min-w-0 bg-muted">
           <NavProgressBar />
           <TopBar roles={roles} orgName={orgName} orgContext={orgContext} />
-          <main className="rp-scroll flex-1 overflow-y-auto bg-muted">{children}</main>
+          {/* Contain sr-only file inputs here; their absolute positioning must
+              not make the outer shell scroll when a section anchor is used. */}
+          <main className="rp-scroll relative min-h-0 flex-1 overflow-y-auto bg-muted">{children}</main>
           {/* Outside <main>, so it does not scroll with the content and the
               scroll container's own height already accounts for it — a fixed
               bar over a scrolling region would hide the last row of every

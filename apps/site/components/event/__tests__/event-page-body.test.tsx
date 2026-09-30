@@ -330,7 +330,7 @@ describe("EventPageBody — sections appear only when they have data", () => {
 
   it("shows inclusions when populated and omits the section when not", () => {
     const { unmount } = renderBody({}, [cat({ inclusions: ["Race kit, bib, and timing chip"] })]);
-    fireEvent.click(screen.getByRole("button", { name: "What’s included" }));
+    expect(screen.queryByRole("button", { name: "What’s included" })).not.toBeInTheDocument();
     expect(screen.getByText("Race kit, bib, and timing chip")).toBeInTheDocument();
     unmount();
 

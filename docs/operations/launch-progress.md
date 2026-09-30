@@ -1,13 +1,13 @@
 # Web and admin launch progress
 
-Updated: 2026-09-27. Overall: MVP RELEASED; FIELDNOTES ADMIN AND TRAIL ATLAS ORGANIZERS IN PRODUCTION; OWNER CHECKOUT PENDING.
+Updated: 2026-09-30. Overall: MVP RELEASED; FIELDNOTES ADMIN AND TRAIL ATLAS ORGANIZERS IN PRODUCTION; OWNER CHECKOUT PENDING.
 Scope: runner website and admin only. The first release is a controlled pilot with one organizer and PayMongo. Production contains real organizer and event data; add no synthetic data.
 
 ### Category reservations and pre-screening — 2026-09-30
 
 | Completed | Blockers | Next task |
 | --- | --- | --- |
-| Approved prototype and Storybook proposals implemented; full local checks and hosted functional acceptance passed, including native 10 MB uploads and selected-participant GCash refunds. | Exact staging CI retry and final production preflight remain. QR Ph test refunds are rejected by the staging provider; the app preserves tickets/holds on uncertainty. | Record the final revision, promote staging → main only after required checks pass, verify real production data, then sync main → staging. |
+| Category reservations, pre-screening, booker emails and 10 MB proof uploads deployed through PR #194. Both production apps Ready at `7dbecc4`; backend bundles match tested staging. Existing 25 registrations, payment amounts, ticket fingerprints, 140-slot capacity and eight inclusions preserved. | None for release. Known staging QR Ph refund limitation and pre-existing admin hydration warning are documented. | Main → staging sync completed through PR #195; production remains at `7dbecc4`. Owner can configure new categories. |
 
 Current evidence: [release and acceptance record](category-screening-release-20260930.md). The entries below are historical checkpoints, superseded by that record.
 
@@ -829,3 +829,19 @@ Actual staging Browser uploads verified 48-megapixel PNG (`ab848faf-6373-499a-a4
 Hosted kit release and check-in passed for the synthetic paid 70K runner. Refund acceptance exposed a pre-existing UI routing gap: group entries incorrectly invoked the legacy single-payment refund endpoint. The narrow fix carries booking_order_id into the existing guarded group refund endpoint and explicitly selects only the chosen participant. Failed and uncertain outcomes do not create new idempotency keys. Local checks passed: 1,017 admin, 522 runner, 827 backend/shared-contract and 13 shared UI tests; app/shared UI typechecks; Fieldnotes audit; both isolated builds. Hosted selected-participant refund acceptance remains pending this fix's staging deployment.
 
 Fresh production inventory found 140 event/category slots, 16 paid, 6 expired and 3 cancelled registrations, zero reservations, and eight inclusions. This supersedes the planning snapshot of 170 slots. Production remains unchanged. Fresh logical backups are stored privately outside Git; data SHA-256 `4e7222752ec246fa52d1e79caebe63a5dec2114c57536ce595bd9c9766811118`, schema SHA-256 `6ccf68c5eb9305048ef42242869ecade212858926210dc5a11c12ade50bee2ba`.
+
+### 2026-09-30 — annotated UI polish, checklist A
+
+Owner selected the open inclusion checklist A after reviewing three focused HTML alternatives. The fix preserves the deployed runner category shell and displays its existing inclusions without a disclosure. Admin annotations address canvas/sidebar agreement with White default, collapsed logo alignment, decorative status dots, checkbox/helper spacing, Add button hover padding and sticky event-editor navigation.
+
+Local validation passed: 522 runner, 1,017 admin, 827 backend/shared-contract and 13 shared UI tests; runner/admin/shared UI typechecks; Fieldnotes audit; fresh isolated replay of 177 migrations through `20260929191739` with no retired push job or vault key. Storybook typecheck and four library builds passed. Hosted acceptance and promotion are pending and will be recorded below. No backend or provider change is included.
+
+Fresh read-only production baseline: one open event, 140 event/category slots with 16 taken, 25 registrations (16 paid, 6 expired, 3 cancelled), 21 payments, zero reservations, and the same eight ordered inclusions. Both hosted projects have 177 migrations through `20260929191739`; their current function versions and provider secret fingerprints were read back for comparison. No production record was created or changed.
+
+Both isolated application builds passed. The final approved checklist presentation adjustment also passed 39 focused event tests, runner typecheck and a rebuilt runner bundle. The full local total is 2,379 passing tests. Temporary local Supabase project configuration was restored before staging the scoped patch.
+
+PR #197 merged into staging at `d250f5cc7bd2066b97d593450cbd632ea92cc4f0` after PR CI `36648867868` and retried push CI `36648861020` passed. Both staging aliases became Ready at that SHA. Hosted acceptance confirmed matching canvas/sidebar colors for all three choices, centered collapsed logo (zero center offset), status badges without dot children, 44-pixel Add controls with 12-pixel horizontal padding and spaced checkbox/helper labels. It also exposed an anchor bug: an absolutely positioned sr-only upload input escaped the inner scroll container and the hidden outer shell scrolled 66 pixels, hiding the header. Production promotion is blocked until the narrow containment correction passes staging. No production data changed.
+
+The containment correction also makes the inclusion grid respond to its own width: a preserved mobile category row gives it only 224 pixels at a 390-pixel viewport. Narrow categories now use one column; wider categories retain the approved two-column checklist. Renewed local validation passed all 2,379 tests, app/shared UI typechecks and the Fieldnotes audit. The local backend rerun initially omitted SUPABASE_FUNCTIONS_ENV_FILE; correcting that local test setup restored all 827 tests without changing backend code. The original staging merge CI `36650662258` passed, but its failed visual anchor check still blocks production. The corrected source must pass hosted acceptance.
+
+Both corrected application builds passed. The runner build emits the 390-pixel container query for the inclusion grid. Storybook typechecks and all four catalogs passed again with the exact corrected component and a 224-pixel narrow-category story.

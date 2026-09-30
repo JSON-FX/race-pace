@@ -24,7 +24,7 @@ export function ScheduleEditor({ rows, onChange }: { rows: ScheduleItem[]; onCha
     <Card className="gap-0 p-5">
       <div className="flex items-center justify-between">
         <h2 className="text-[15px] font-bold tracking-[-0.01em]">Race-morning schedule</h2>
-        <Button variant="ghost" size="sm" onClick={add} className="h-auto p-0">+ Add</Button>
+        <Button variant="ghost" size="sm" onClick={add} className="h-11 px-3 py-2">+ Add</Button>
       </div>
       {rows.length > 0 ? (
         <div className={`mt-3 grid items-center gap-2 ${GRID}`}>

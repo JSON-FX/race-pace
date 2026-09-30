@@ -18,7 +18,7 @@ export function AddonEditor({ rows, onChange }: { rows: AddonDraft[]; onChange: 
     <Card className="gap-0 p-5">
       <div className="flex items-center justify-between">
         <h2 className="text-[15px] font-bold tracking-[-0.01em]">Add-ons</h2>
-        <Button variant="ghost" size="sm" onClick={add} className="h-auto p-0">+ Add</Button>
+        <Button variant="ghost" size="sm" onClick={add} className="h-11 px-3 py-2">+ Add</Button>
       </div>
       <p className="mt-1 text-[11px] text-muted-foreground">
         Price changes automatically refresh unpaid checkouts. Paid registrations keep their accepted prices.

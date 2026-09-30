@@ -25,7 +25,7 @@ export function InclusionsEditor({ rows, onChange, embedded = false }: { rows: s
     <Card className={embedded ? "gap-0 border-0 bg-transparent p-0 shadow-none" : "gap-0 p-5"}>
       <div className="flex items-center justify-between">
         <h2 className="text-[15px] font-bold tracking-[-0.01em]">What's included</h2>
-        <Button variant="ghost" size="sm" onClick={add} className="h-auto p-0">+ Add</Button>
+        <Button variant="ghost" size="sm" onClick={add} className="h-11 px-3 py-2">+ Add</Button>
       </div>
       {rows.length === 0 ? (
         <p className="mt-2 text-[13px] text-muted-foreground">No inclusions yet — add the first row to show this section on the public page.</p>
