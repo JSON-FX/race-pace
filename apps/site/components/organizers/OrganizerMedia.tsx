@@ -20,12 +20,12 @@ export function OrganizerPhoto({ src, className }: { src: string | null; classNa
   );
 }
 
-export function OrganizerMark({ organizer, large = false }: { organizer: Organizer; large?: boolean }) {
+export function OrganizerMark({ organizer, large = false, className = "" }: { organizer: Organizer; large?: boolean; className?: string }) {
   const [failed, setFailed] = useState(false);
   useEffect(() => setFailed(false), [organizer.logoUrl]);
   return (
-    <span className={`trail-atlas__mark${large ? " trail-atlas__mark--large" : ""}`} aria-hidden="true">
-      {organizer.logoUrl && !failed ? <Image src={organizer.logoUrl} alt="" fill sizes={large ? "76px" : "52px"} className="trail-atlas__mark-image" onError={() => setFailed(true)} /> : initials(organizer.name)}
+    <span className={`trail-atlas__mark${large ? " trail-atlas__mark--large" : ""} ${className}`} aria-hidden="true">
+      {organizer.logoUrl && !failed ? <Image src={organizer.logoUrl} alt="" fill sizes={className.includes("trail-atlas__directory-avatar") ? "112px" : large ? "76px" : "52px"} className="trail-atlas__mark-image" onError={() => setFailed(true)} /> : initials(organizer.name)}
     </span>
   );
 }

@@ -26,9 +26,10 @@ function NavItem({ to, label, icon: Icon, count }: Item & { count?: number }) {
   const isActive = pathname === to || pathname.startsWith(`${to}/`);
   return (
     <SidebarMenuItem>
-      <SidebarMenuButton asChild isActive={isActive} tooltip={label}>
+      <SidebarMenuButton asChild isActive={isActive} tooltip={label}
+        className="data-[active=true]:bg-primary data-[active=true]:text-primary-foreground data-[active=true]:hover:bg-primary/90 data-[active=true]:hover:text-primary-foreground">
         <Link href={to}>
-          <Icon className={isActive ? "text-primary" : "text-muted-foreground"} />
+          <Icon className={isActive ? "text-primary-foreground" : "text-muted-foreground"} />
           <span className={isActive ? "font-semibold" : "font-medium text-muted-foreground"}>
             {label}
           </span>
@@ -36,6 +37,7 @@ function NavItem({ to, label, icon: Icon, count }: Item & { count?: number }) {
             <Badge variant="secondary"
               className={cn(
                 "px-[7px] py-px tabular",
+                isActive && "bg-primary-foreground/15 text-primary-foreground",
                 // `ml-auto` moved to the pending spinner's wrapper below so the
                 // two can't both claim it and fight over the right edge.
                 count != null && "ml-auto",
