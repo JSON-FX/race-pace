@@ -1,3 +1,4 @@
+import { dispatchDeferredCheckout } from "../_shared/discountCheckout.ts";
 import { canAccessBooking } from "../_shared/bookingAccess.ts";
 import { serviceClient } from "../_shared/supabase.ts";
 import { getPaymentProviderByName } from "../_shared/payments.ts";
@@ -158,9 +159,14 @@ Deno.serve(async (req) => {
     if (!org?.is_active) return json({ error: "org_suspended" }, 409);
 
     const { data: payment } = await db.from("payments")
-      .select("provider,provider_ref,checkout_url,checkout_fee_mode,checkout_platform_fee,checkout_provider_managed_fee,checkout_request")
+      .select("provider,provider_ref,checkout_url,checkout_fee_mode,checkout_platform_fee,checkout_provider_managed_fee,checkout_request,discount_checkout_state")
       .eq("registration_id", reg.id).single();
     if (!payment) return json({ error: "payment_setup_unavailable" }, 503);
+    if (payment.discount_checkout_state === "prepared") {
+      if (raw?.inspect === true) return json({ payment_method_types: [] });
+      try { return json(await dispatchDeferredCheckout(userId, reg.id)); }
+      catch (error) { return json({ error: error instanceof Error ? error.message : "payment_setup_unavailable" }, 409); }
+    }
     const feeMode = payment?.checkout_fee_mode ?? org.fee_mode;
     if (payment.provider === "paymongo") {
       // A hosted session already offers every enabled payment method. Reusing

@@ -32,6 +32,9 @@ Deno.serve(async (req) => {
     };
     try {
       if (!sessionId?.startsWith("cs_")) {
+        const prepared = await db.rpc("discount_expire_prepared", { p_registration: rid });
+        if (prepared.error) throw new Error("prepared_expiry_failed");
+        if (prepared.data === "expired") { count("expired"); continue; }
         // An uncertain checkout creation may have reached PayMongo without a
         // locally bound session. Never release its reservation on a guess.
         await record("missing_session_ref");

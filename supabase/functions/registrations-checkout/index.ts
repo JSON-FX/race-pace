@@ -343,6 +343,7 @@ Deno.serve(async (req) => {
       checkout_platform_fee: frozenPlatformFee,
       checkout_provider_managed_fee: providerManagedFee,
       checkout_request: checkoutInput,
+      discount_checkout_state: raw?.defer_payment === true ? "prepared" : null,
     });
     if (paymentInsertError?.code === "23505") {
       // The pay page can reuse a bound checkout, or report that an uncertain
@@ -350,6 +351,8 @@ Deno.serve(async (req) => {
       return json({ error: "already_registered", registration_id: reg.id, status: "pending", checkout_url: null }, 409);
     }
     if (paymentInsertError) return json({ error: "payment_setup_failed" }, 500);
+
+    if (raw?.defer_payment === true) return json({ registration_id: reg.id, checkout_url: null });
 
     let checkout;
     try {

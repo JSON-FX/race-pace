@@ -857,3 +857,16 @@ Sync PR #200 passed CI `36655141570` on its third attempt and merged at `d2fcc5e
 | Completed | Blockers | Next |
 | --- | --- | --- |
 | All 13 annotations deployed and verified on staging and production; live data preserved; main synchronized into staging | None in the requested application scope | Publish the final audit record |
+
+
+## Organization discounts — local implementation, 2026-09-30
+
+| Completed | Blockers | Next task |
+| --- | --- | --- |
+| Org-admin codes, special batches, fee absorption, zero-charge single/group confirmation, reporting, and local validation | No local implementation blocker; hosted PayMongo and staging acceptance remain | On release authorization, commit this feature and open its PR into staging |
+
+Implemented in isolated branch `codex/org-discounts`, based on staging `70fc678`. The original dirty checkout and unrelated Hub work were preserved. Local checks passed: backend/shared 851 tests, runner 525, admin 1,017, shared UI 13, all relevant typechecks, both production builds, 178 migrations replayed, and the 320-module Fieldnotes source audit. Hub typechecks and all four catalogs built. No hosted data, payment, service configuration, deployment, commit, or push occurred.
+
+Browser checks covered applying/removing codes, full-discount single ticket issuance, a two-participant free booking with separate tickets, generation of two special fee-absorbing codes, discount columns in Payments and Registrations, and complimentary cancellation with its redemption still consumed. Checkout/admin responsive captures cover 1440, 768, and 390 pixels. Fresh design review resolved tablet selector clipping and the Passport removal target; its final fix verdict is ship. Group browser evidence is tablet-only. See [implementation report](../../.claude/reports/2026-09-30-organization-discounts-report.md) and [design evidence](../specs/2026-09-30-organization-discounts-design-evidence.md).
+
+Before production, validate the exact staging revision with PayMongo test-mode payments, absorbed fees, expiry/restart, refunds, and approved pre-screening checkout. Native-app code entry and reservation-deposit discounts remain outside the approved scope. The preview is a local Storybook implementation with fixture-only actions.

@@ -1,3 +1,4 @@
+import { confirmFreeCheckout } from "./discountCheckout.ts";
 import { serviceClient } from "./supabase.ts";
 import { buildGroupSessionRequest, createGroupSession, retrieveGroupSession, extractGroupCaptures } from "./groupPaymongo.ts";
 import { mintTicketToken } from "./ticket.ts";
@@ -8,10 +9,12 @@ function credentials() {
   return { secret, livemode: secret.startsWith("sk_live_") };
 }
 export async function startGroupPayment(actor: string, attemptId: string) {
-  const db = serviceClient(), { secret, livemode } = credentials();
+  const db = serviceClient();
   const attempt = await db.from("booking_payment_attempts").select("*").eq("id", attemptId).eq("booked_by_user_id", actor).single();
   if (attempt.error || !attempt.data) throw new Error("attempt_not_found");
   const a = attempt.data;
+  if (a.gross_cents === 0) return confirmFreeCheckout(actor, { orderId: a.booking_order_id });
+  const { secret, livemode } = credentials();
   const saved = await db.from("booking_payment_dispatches").select("request_body").eq("attempt_id", attemptId).maybeSingle();
   if (saved.error) throw new Error("payment_unavailable");
   const base = Deno.env.get("GROUP_PAYMENT_RETURN_URL");
@@ -47,7 +50,10 @@ export async function startGroupPayment(actor: string, attemptId: string) {
 
 /** Called only after booker authorization or verified webhook signature. */
 export async function verifyGroupPayment(attemptId: string) {
-  const db = serviceClient(), { secret, livemode } = credentials();
+  const db = serviceClient();
+  const free = await db.from("booking_payment_attempts").select("status,gross_cents").eq("id", attemptId).single();
+  if (free.data?.gross_cents === 0) return { status: free.data.status === "paid" ? "paid" : "pending" };
+  const { secret, livemode } = credentials();
   const dispatch = await db.from("booking_payment_dispatches").select("session_id,livemode").eq("attempt_id", attemptId).single();
   if (dispatch.error || !dispatch.data?.session_id) throw new Error("session_not_ready");
   if (dispatch.data.livemode !== livemode) throw new Error("payment_environment_mismatch");

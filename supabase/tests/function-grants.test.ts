@@ -33,6 +33,7 @@ const AUTH_PREDICATES = [
 // breaks. Nothing else in `public` should be authenticated-executable without a deliberate edit
 // to this list.
 const AUTHENTICATED_ALLOWLIST = new Set([
+  "auth_manage_discounts", "discount_create", "discount_set_active", "discount_passport_options",
   // Published event aggregates include held places without exposing participant records.
   "category_availability",
   // Organizer review checks the application tenant before making an audited decision.

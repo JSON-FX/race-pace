@@ -147,6 +147,7 @@ export async function confirmPayment(
         : capture.livemode !== expectedLive ? "environment_mismatch"
         : capture.amount === null || capture.fee === null || capture.netAmount === null ||
           capture.amount - capture.fee !== capture.netAmount ? "fee_integrity"
+        : capture.netAmount < fee ? "negative_organizer_net"
         : paymentTerms.checkout_provider_managed_fee &&
           (paymentTerms.checkout_fee_mode !== "pass_on" ||
             paymentTerms.checkout_platform_fee == null ||

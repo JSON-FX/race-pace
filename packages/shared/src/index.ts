@@ -208,3 +208,5 @@ export * from "./groupRegistration";
 export { isStagingEnvironment } from "./launchGate";
 
 export * from "./prescreening";
+
+export * from "./discounts";

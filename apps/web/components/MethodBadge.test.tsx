@@ -78,6 +78,12 @@ describe("methodFilterOptions", () => {
 });
 
 describe("MethodBadge", () => {
+  it("shows the complimentary label when there is no brand mark", () => {
+    const { container } = render(<MethodBadge method="complimentary" status="paid" />);
+    expect(container.querySelectorAll("img")).toHaveLength(0);
+    expect(screen.getByText("Complimentary")).not.toHaveClass("sr-only");
+  });
+
   it("labels the method as text", () => {
     render(<MethodBadge method="gcash" />);
     expect(screen.getByText("GCash")).toBeInTheDocument();

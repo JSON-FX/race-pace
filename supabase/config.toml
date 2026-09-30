@@ -484,3 +484,6 @@ verify_jwt = true
 
 [functions.prescreening-maintenance]
 verify_jwt = false
+
+[functions.discount-checkout]
+verify_jwt = false

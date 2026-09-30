@@ -115,9 +115,9 @@ describe("GET /registrations/export", () => {
     const lines = body.split("\r\n").filter(Boolean);
 
     expect(lines[0]).toBe(
-      "Registration ID,Runner,Email,Category,Team Name,Registered At (UTC),Base Amount (PHP),Payment Status,Payment Method,Captured Gross (PHP),Refunded (PHP),Payment ID,Booking Order ID",
+      "Registration ID,Runner,Email,Category,Team Name,Registered At (UTC),Base Amount (PHP),Payment Status,Payment Method,Captured Gross (PHP),Refunded (PHP),Payment ID,Booking Order ID,Discount Code,Discount (PHP)",
     );
-    expect(lines[1]).toBe("reg-1,Ana Cruz,ana@example.com,21K,Ridge Crew,2026-08-04T11:35:15.624Z,1500.00,paid,card,,,,");
+    expect(lines[1]).toBe("reg-1,Ana Cruz,ana@example.com,21K,Ridge Crew,2026-08-04T11:35:15.624Z,1500.00,paid,card,,,,,,0.00");
   });
 
   it("leaves Team Name empty when an older registration only has a bib", async () => {
@@ -190,7 +190,7 @@ describe("GET /registrations/export", () => {
     // Split naively on comma would produce 10 fields instead of 9 if the
     // name weren't quoted — assert the quoted form is present verbatim.
     expect(dataLine).toContain('"Dela Cruz, Ana"');
-    expect(dataLine.split(",")).toHaveLength(14); // the quoted field's internal comma still splits naively; the quoting is what a real CSV parser relies on
+    expect(dataLine.split(",")).toHaveLength(16); // the quoted field's internal comma still splits naively; the quoting is what a real CSV parser relies on
   });
 
   it("escapes a double-quote and a newline inside a field", async () => {
@@ -376,6 +376,6 @@ it("exports each group participant allocation with a shared payment and order re
   ], total: 2 });
   const lines = (await (await GET(new Request("http://localhost/registrations/export"))).text()).trim().split("\r\n");
   expect(lines).toHaveLength(3);
-  expect(lines[1].split(",").slice(9)).toEqual(["100.00", "90.00", "capture-1", "order-1"]);
-  expect(lines[2].split(",").slice(9)).toEqual(["200.00", "0.00", "capture-1", "order-1"]);
+  expect(lines[1].split(",").slice(9)).toEqual(["100.00", "90.00", "capture-1", "order-1", "", "0.00"]);
+  expect(lines[2].split(",").slice(9)).toEqual(["200.00", "0.00", "capture-1", "order-1", "", "0.00"]);
 });
