@@ -93,7 +93,7 @@ export function ReservationPaymentsTable({ rows, eventId }: { rows: ReservationP
               fallback={initials(row.runner_name ?? row.runner_email)} />
             <div className="min-w-0">
               <div className="truncate font-semibold">{row.runner_name ?? row.runner_email}</div>
-              <Link href={`/events/${row.event_id}/reservations`} className="block truncate text-xs text-primary hover:underline">{row.event_name}</Link>
+              <Link href={`/reservations?event=${row.event_id}`} className="block truncate text-xs text-primary hover:underline">{row.event_name}</Link>
               {row.runner_name ? <div className="truncate text-[11px] text-muted-foreground">{row.runner_email}</div> : null}
             </div>
           </div></TableCell>

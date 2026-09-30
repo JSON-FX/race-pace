@@ -9,7 +9,7 @@ import type { MyRoles } from "@/lib/queries/roles";
 import type { OrgContext } from "@/lib/org-context";
 
 const TITLES: Record<string, string> = {
-  "/dashboard": "Dashboard", "/events": "Events", "/registrations": "Registrations",
+  "/dashboard": "Dashboard", "/events": "Events", "/registrations": "Registrations", "/reservations": "Reservations",
   "/race-kits": "Race kits", "/payments": "Payments", "/check-in": "Race-day check-in", "/settings": "Settings",
   "/organizations": "Organizations", "/commission": "Commission", "/payouts": "Payout statements",
   "/checkout-reviews": "Checkout reviews", "/guide": "Guide", "/discounts": "Discounts",
