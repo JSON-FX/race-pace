@@ -87,3 +87,19 @@ while hosted group acceptance exercised natural provider delivery and invalid-ca
 Staging fixtures remain clearly labelled for audit. No unrelated review holds were cleared.
 Production is not yet repaired at this checkpoint. The next step is staging-to-main promotion,
 production reconciliation, restored live delivery, and readback of ledger/report/scheduler state.
+
+## Combined release checkpoint
+
+PR #209 subsequently merged the independently accepted discount search fix at
+`ca2c65fafc0240566ac5f1df0690af4504a250f6`. Its exact staging CI `36697611359` passed;
+[the discount acceptance record](discount-runner-search-staging-20260930.md) records the
+new Ready runner/admin deployments and migration 180 (`20260930083846`). Payment application
+and Edge Function source are unchanged from the payment acceptance above. Both acceptance
+records are combined in the release documentation to avoid another overlapping staging merge.
+
+The scheduled payment worker returned HTTP 200 at 09:30 and 09:35 UTC, retaining the unpaid
+checkout as pending. Both SQL watchdog runs succeeded. The admin Browser finance view shows
+two paid entry captures (gross 20000, organizer net 19700) and the separate paid reservation
+(gross 10152, provider fee 152, organizer net 10000). Replay readback still shows exactly one
+single capture and one valid group capture. Production deploy excludes the dev-only
+`fake-checkout`, which is absent from production.

@@ -27,8 +27,7 @@ SQL readback confirmed the chosen Passport in an organization with zero events/r
 PR #209 merged into staging at `ca2c65fafc0240566ac5f1df0690af4504a250f6`.
 Required PR CI `36695382284` and branch CI `36695376674` passed on the reviewed head.
 The branch check required an unchanged rerun after the existing Google font-loader failure;
-all tests had passed before that build failure. Exact staging-merge CI `36697611359` is
-running at this evidence checkpoint.
+all tests had passed before that build failure. Exact staging-merge CI `36697611359` passed.
 
 Both Ready deployments own the correct staging aliases at that exact staging commit:
 
