@@ -1,6 +1,6 @@
 # Organization discounts: production release, 30 September 2026
 
-Status: released to production; main-to-staging synchronization tracked in PR #206.
+Status: released to production and synchronized back into staging.
 
 ## Reviewed source and staging acceptance
 
@@ -103,8 +103,9 @@ Production-safe checks created no code, redemption, registration, payment, refun
 
 [Sync-back PR #206](https://github.com/JSON-FX/race-pace/pull/206) carries main back into staging
 without application/backend changes. Post-merge production CI is `36688627769`; synchronization CI
-is `36688670111`. At this documentation checkpoint, both checks are pending and PR #206 is open. Their live results
-and final merge state are attached to that PR. This evidence update is documentation only.
+is `36688670111`. Both passed. PR #206 merged as `12e29c6270a6b5e7b91fefdeef33942f6689b0a0`.
+A fresh ancestry check confirms main is an ancestor of staging, and their application/backend content
+is identical. This evidence update is documentation only.
 Owner-run live financial acceptance remains separate.
 
 Local evidence: `/tmp/discounts-production-record-preservation.json`, function source manifests under

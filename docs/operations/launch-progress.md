@@ -7,7 +7,7 @@ Scope: runner website and admin only. The first release is a controlled pilot wi
 
 | Completed | Blockers | Next task |
 | --- | --- | --- |
-| PR #205 released at `7a2fc22`; both production applications Ready. All 178 migrations and 13 function bundles match staging. Existing 29 registrations and 22 payments retained their pre-migration values. Hosted staging financial/email acceptance and production-safe checks passed. | None for discount functionality. Live payment/refund acceptance remains owner-operated. | Use Discounts in the organization admin. Main → staging synchronization is tracked in PR #206. |
+| PR #205 released at `7a2fc22`; both production applications Ready. All 178 migrations and 13 function bundles match staging. Existing 29 registrations and 22 payments retained their pre-migration values. Hosted staging financial/email acceptance and production-safe checks passed. | None for discount functionality. Live payment/refund acceptance remains owner-operated. | Use Discounts in the organization admin. Main → staging synchronization completed through PR #206. |
 
 Evidence: [production release record](organization-discounts-production-20260930.md) and [staging acceptance](organization-discounts-staging-20260930.md). No production test data or automated live transaction was created.
 
