@@ -956,3 +956,11 @@ Owner explicitly authorized production release of all current-session changes an
 Scoped feature commits: `490da7e` (browser refinements), `adebd43` (Coming Soon category registration fees), and `97f378e` (Reservations workspace). The older UI branch merged with documentation-only conflicts; newer discount/payment evidence was preserved. Local Reservations admin typecheck/build and actual Browser phone/desktop reads passed. Source audit passed with 325 current modules after integration, 256 audited, zero native sites or duplicate primitives. Both integrated application typechecks and production builds passed. Earlier suite results remain revision-specific historical evidence, not proof of the integrated release.
 
 See [Reservations review](../../.claude/code-reviews/2026-09-30-reservations-page.md), [implementation report](../../.claude/reports/2026-09-30-reservations-page-report.md), and [category fee investigation](../issues/2026-09-30-coming-soon-category-fees.md). Exact release commits, deployment IDs, backend boundaries, failed font-build retry, live readback and limitations are recorded in the [release evidence](session-ui-release-20260930.md). PR #214 staged the approved code; PR #215 released it to production at `1b26152413af70fef1a969fa431d00ba58d0ce47`. Both production apps are Ready. The live Kibalabag summary matched 29 total, 23 paid, ₱5,062.43 collected and six pending at read time. No production fixtures or financial transactions were created.
+
+## September 30 Reservations category slots — implemented
+
+| Completed | Blockers | Next task |
+| --- | --- | --- |
+| Canonical category availability read, total/general/reservation cards, explicit unpublished and disabled states | Bounded visual readback and required GitHub release checks pending | Release to production, verify matching counts, then sync staging |
+
+User explicitly authorized urgent production release and staging sync. Additional local suites remain waived for this session; enforced GitHub checks remain required. No backend, provider, migration, payment or production fixture change. [Report](../../.claude/reports/2026-09-30-reservation-category-slots-report.md) and [review](../../.claude/code-reviews/2026-09-30-reservation-category-slots.md).

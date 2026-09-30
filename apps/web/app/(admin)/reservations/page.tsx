@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { hasCapability } from "@/lib/capabilities";
 import { getMyRoles, requireOrgId } from "@/lib/queries/roles";
 import { getOrg } from "@/lib/queries/org";
-import { getEventReservations, listReservationEvents } from "@/lib/queries/reservations";
+import { getEventReservations, getReservationCategoryAvailability, listReservationEvents } from "@/lib/queries/reservations";
 import { NoOrgScope } from "@/components/no-org-scope";
 import { ReservationsWorkspace } from "./reservations-workspace";
 import "./reservations.css";
@@ -19,6 +19,6 @@ export default async function ReservationsPage({ searchParams }: {
   // The switcher changes org scope while retaining the URL. Validate membership
   // even for super admins before any roster query, then drop the stale event.
   if (requested && !events.some(event => event.id === requested)) redirect("/reservations");
-  const result = requested ? await getEventReservations(orgId, requested) : undefined;
-  return <div className="reservation-page"><ReservationsWorkspace key={`${orgId}-${requested ?? "none"}`} events={events} eventId={requested} orgName={org?.name ?? "this organization"} rows={result?.rows} summary={result?.summary} /></div>;
+  const [result, categories] = requested ? await Promise.all([getEventReservations(orgId, requested), getReservationCategoryAvailability(orgId, requested)]) : [undefined, undefined];
+  return <div className="reservation-page"><ReservationsWorkspace key={`${orgId}-${requested ?? "none"}`} events={events} eventId={requested} orgName={org?.name ?? "this organization"} rows={result?.rows} summary={result?.summary} categories={categories} /></div>;
 }
