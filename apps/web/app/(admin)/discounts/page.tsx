@@ -5,6 +5,7 @@ import { getMyRoles, requireOrgId } from "@/lib/queries/roles";
 import { NoOrgScope } from "@/components/no-org-scope";
 import { Button } from "@/components/ui/button";
 import { DiscountsWorkspace, type DiscountRecord } from "./workspace";
+import type { DiscountPassportOption } from "@/lib/actions/discounts";
 export default async function DiscountsPage({
   searchParams,
 }: {
@@ -35,7 +36,7 @@ export default async function DiscountsPage({
   ]);
   if (codes.error || events.error || categories.error || passports.error)
     throw new Error("Discount management is unavailable.");
-  const options = passports.data as { id: string; label: string }[];
+  const options = passports.data as DiscountPassportOption[];
   return (
     <div
       className="fieldnotes-admin-workspace"

@@ -487,3 +487,6 @@ verify_jwt = false
 
 [functions.discount-checkout]
 verify_jwt = false
+
+[functions.reconcile-payments]
+verify_jwt = false

@@ -1,7 +1,6 @@
-import { confirmPayment } from "../_shared/confirm.ts";
+import { confirmSinglePaymentWebhook } from "../_shared/singlePaymentWebhook.ts";
 import { serviceClient } from "../_shared/supabase.ts";
 import { refundResourcesFromEvent, verifyWebhookSignature } from "../_shared/paymongo-webhook.ts";
-import { pmMethodFromAttributes } from "../_shared/paymongo.ts";
 import { applyGroupRefundWebhook } from "../_shared/groupRefund.ts";
 import { verifyGroupPayment } from "../_shared/groupPaymentService.ts";
 import { verifyReservationPayment } from "../_shared/reservationPayment.ts";
@@ -56,12 +55,7 @@ Deno.serve(async (req) => {
       }
       const rid = resource?.attributes?.metadata?.registration_id as string | undefined;
       if (!rid) return json({ ok: true, ignored: "no_registration_id" });
-      // Shared with payment-verify so both confirm paths record the same
-      // instrument. Also fixes a latent bug in the old inline `payments[0]`: a
-      // session can carry a failed attempt followed by a successful one, and
-      // [0] then reports the method the runner abandoned.
-      const method = pmMethodFromAttributes(resource?.attributes);
-      const r = await confirmPayment(rid, method, { source: "webhook", event: evt });
+      const r = await confirmSinglePaymentWebhook(rid, evt);
       if (!r.ok && r.error === "capture_review_required") {
         // The signed capture is durably recorded and blocks payout. A retry
         // cannot fix an extra charge or amount mismatch; alert staff instead.

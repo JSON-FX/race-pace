@@ -140,12 +140,30 @@ export async function pmCreateCheckoutSession(input: CreateSessionInput): Promis
 }
 
 export async function pmGetCheckoutSession(id: string): Promise<PmSession> {
+  if (!/^cs_[A-Za-z0-9_-]+$/.test(id)) throw new Error("invalid_checkout_session_id");
   const res = await fetch(`${BASE}/checkout_sessions/${id}`, {
     headers: { Authorization: authHeader() },
+    signal: AbortSignal.timeout(10000),
   });
   const body = await res.json();
   if (!res.ok) throw new Error(`paymongo_get_failed: ${JSON.stringify(body?.errors ?? body)}`);
   return parseSession(body);
+}
+
+/** Only inspect this environment's endpoint; never enable a failing webhook. */
+export async function pmPaymentWebhookIssue(): Promise<string | null> {
+  const url = `${Deno.env.get("SUPABASE_URL")}/functions/v1/payments-webhook`;
+  const response = await fetch(`${BASE}/webhooks?url=${encodeURIComponent(url)}`, {
+    headers: { Authorization: authHeader() }, signal: AbortSignal.timeout(10000),
+  });
+  if (!response.ok) throw new Error("webhook_health_unavailable");
+  const body = await response.json();
+  const hooks = body?.data;
+  if (!Array.isArray(hooks)) throw new Error("webhook_health_invalid");
+  const live = Deno.env.get("PAYMONGO_SECRET_KEY")?.startsWith("sk_live_") === true;
+  const matching = hooks.filter((hook) => hook?.attributes?.url === url && hook?.attributes?.livemode === live);
+  return matching.some((hook) => hook.attributes.status === "enabled" &&
+    hook.attributes.events?.includes("checkout_session.payment.paid")) ? null : "payment_webhook_disabled_or_missing";
 }
 
 /** A 400 is ambiguous: PayMongo uses it for expired, paid, and ongoing sessions.

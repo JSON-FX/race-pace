@@ -3,13 +3,21 @@
 Updated: 2026-09-30. Overall: MVP RELEASED; FIELDNOTES ADMIN AND TRAIL ATLAS ORGANIZERS IN PRODUCTION; OWNER CHECKOUT PENDING.
 Scope: runner website and admin only. The first release is a controlled pilot with one organizer and PayMongo. Production contains real organizer and event data; add no synthetic data.
 
-### Organization discounts — staging release, 2026-09-30
+### Payment synchronization incident — staging accepted, 2026-09-30
 
 | Completed | Blockers | Next task |
 | --- | --- | --- |
-| PR #202 merged at `55a6c5f`; both staging apps Ready; 178 migrations and 13 matching function bundles verified. Exact staging CI, code creation, apply/remove, free ticket, discounted PayMongo test capture, and reporting passed. | Discount-specific staging acceptance passed, including mixed/free groups, absorbed fees, provider expiry/retry, discounted refund, approved screening checkout and delivered Resend email. | Promote staging → main after production preflight; deploy the same backend and verify production safely. |
+| PR #208 at `231265b`; exact CI, both staging apps, 179 migrations and all 16 function bundles verified. Provider test recovery, group settlement, webhook replays and private worker authentication passed. | Customer remains pending and live webhook remains disabled until production release. | Promote staging, reconcile the actual capture, restore live delivery and verify reports and schedules. |
 
-Evidence: [staging release and acceptance record](organization-discounts-staging-20260930.md). Production remains unchanged.
+Evidence: [staging acceptance](payment-status-recovery-staging-20260930.md), [investigation](../issues/issue-production-paid-status-sync-2026-09-30.md), [implementation plan](../plans/payment-status-recovery.md), [review](../../.claude/code-reviews/2026-09-30-payment-status-recovery.md).
+
+### Organization discounts — production release, 2026-09-30
+
+| Completed | Blockers | Next task |
+| --- | --- | --- |
+| PR #205 released at `7a2fc22`; both production applications Ready. All 178 migrations and 13 function bundles match staging. Existing 29 registrations and 22 payments retained their pre-migration values. Hosted staging financial/email acceptance and production-safe checks passed. | None for discount functionality. Live payment/refund acceptance remains owner-operated. | Use Discounts in the organization admin. Main → staging synchronization completed through PR #206. |
+
+Evidence: [production release record](organization-discounts-production-20260930.md) and [staging acceptance](organization-discounts-staging-20260930.md). No production test data or automated live transaction was created.
 
 ### Category reservations and pre-screening — 2026-09-30
 
@@ -878,3 +886,48 @@ Implemented in isolated branch `codex/org-discounts`, based on staging `70fc678`
 Browser checks covered applying/removing codes, full-discount single ticket issuance, a two-participant free booking with separate tickets, generation of two special fee-absorbing codes, discount columns in Payments and Registrations, and complimentary cancellation with its redemption still consumed. Checkout/admin responsive captures cover 1440, 768, and 390 pixels. Fresh design review resolved tablet selector clipping and the Passport removal target; its final fix verdict is ship. Group browser evidence is tablet-only. See [implementation report](../../.claude/reports/2026-09-30-organization-discounts-report.md) and [design evidence](../specs/2026-09-30-organization-discounts-design-evidence.md).
 
 Before production, validate the exact staging revision with PayMongo test-mode payments, absorbed fees, expiry/restart, refunds, and approved pre-screening checkout. Native-app code entry and reservation-deposit discounts remain outside the approved scope. The preview is a local Storybook implementation with fixture-only actions.
+
+
+## Discount runner search follow-up — 2026-09-30
+
+| Completed | Blockers | Next task |
+| --- | --- | --- |
+| Registered-runner name/email lookup and assignment; local checks, reviewed PR #209, staging migration and hosted outside-runner acceptance | Exact staging-merge CI and production promotion pending | Finish the combined staging release gates, then verify production reads |
+
+The owner explicitly approved finding any registered runner before that runner joins the
+organization's events. The previous four-result list reflected an organization-history
+filter, not a four-row limit. Both lookup and creation now accept registered accounts
+without that history. Managed Passports remain limited to the organization's existing
+participants. No event, payment, registration or Passport table policies changed.
+
+Local validation on the isolated fix worktree passed 2,419 tests: backend/shared 861,
+runner 525, admin 1,020, shared UI 13. App/shared UI typechecks, Fieldnotes audit and both
+production builds passed. The first runner build failed in the existing Google font
+loader; an unchanged retry passed. All 179 migrations replayed. The CI replay assertion
+used an ephemeral copy with its local port changed from 54522 to 59522; no committed
+assertion was weakened.
+
+Browser acceptance at 1440, 768 and 390 pixels found an outside runner by metadata name
+and account email, retained the selected Passport across a search with no matches, and
+created an assigned special code. SQL confirmed the correct Passport with zero events
+and zero registrations in the test organization. No horizontal overflow occurred. All
+fixtures were local. The original production form was not modified during these checks.
+
+Migration: `20260930083846_discount_runner_search.sql`. No Edge Function or provider
+configuration changes are required. Deploy this compatible lookup extension before the
+admin UI; prior clients retain the id/label fields. Follow the normal staging-to-main
+release path, then verify production reads without creating test codes or payments.
+
+Staging follow-up: PR #209 merged at `ca2c65fafc0240566ac5f1df0690af4504a250f6`.
+The combined source with payment recovery passed 2,453 local tests (890 backend/shared,
+530 runner, 1,020 admin, 13 shared UI), both builds, typechecks and 180-migration replay.
+Required PR and branch CI passed; exact staging-merge CI is running. Both staging apps are
+Ready at the merge. Migration `20260930083846`, function source hashes and grants were
+read back. Hosted email search and special-code assignment passed for a runner with no
+organization participation; the test code is inactive. Secret fingerprints and Edge
+Function versions remain unchanged by this fix. See the
+[staging evidence](discount-runner-search-staging-20260930.md). Production remains pending
+the combined release gates, including the concurrent payment-recovery change.
+
+See [investigation](../issues/issue-discount-runner-search.md) and
+[review](../../.claude/code-reviews/2026-09-30-discount-runner-search.md).
