@@ -12,7 +12,7 @@ import { PhotoAvatar } from "@/components/PhotoAvatar";
 import { EventCombobox } from "@/components/EventCombobox";
 import { useReportPending } from "@/components/NavProgress";
 import { fmtDate, initials, peso } from "@/lib/format";
-import type { ReservationRow, ReservationSummary } from "@/lib/queries/reservations";
+import type { ReservationCategoryAvailability, ReservationRow, ReservationSummary } from "@/lib/queries/reservations";
 
 const PAGE_SIZE = 25;
 const date = new Intl.DateTimeFormat("en-PH", { timeZone: "Asia/Manila", month: "short", day: "numeric", year: "numeric" });
@@ -40,9 +40,9 @@ function ManagedRunners({ row }: { row: ReservationRow }) {
   return <>{row.managed.map((runner, index) => <span className="reservation-managed" key={index}>Managed: {runner.name} · {runner.category}</span>)}
     {row.converted && <span className="reservation-managed">Converted to registration</span>}</>;
 }
-export function ReservationsWorkspace({ events, eventId, orgName, rows = [], summary }: {
+export function ReservationsWorkspace({ events, eventId, orgName, rows = [], summary, categories = [] }: {
   events: { id: string; name: string; event_date: string | null }[];
-  eventId: string | null; orgName: string; rows?: ReservationRow[]; summary?: ReservationSummary;
+  eventId: string | null; orgName: string; rows?: ReservationRow[]; summary?: ReservationSummary; categories?: ReservationCategoryAvailability[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -65,6 +65,18 @@ export function ReservationsWorkspace({ events, eventId, orgName, rows = [], sum
       <Card><h2>Total paid amount</h2><strong className="reservation-summary-money">{summary ? peso(summary.paidAmountCents) : "—"}</strong><p>Collected amount, including fees</p></Card>
       <Card><h2>Pending payments</h2><strong>{summary ? summary.pending.toLocaleString() : "—"}</strong><p>Checkouts awaiting payment</p></Card>
     </section>
+    {selected && <section className="reservation-capacity" aria-labelledby="reservation-capacity-title">
+      <h2 id="reservation-capacity-title">Slots left per category</h2>
+      <p>Includes registrations, reservations, and pre-screening holds. Converted entries count once.</p>
+      {categories.length ? <div className="reservation-capacity-grid">{categories.map(category => <Card key={category.id}>
+        <h3>{category.code?.trim() || category.label}</h3>
+        <strong>{category.totalAvailable?.toLocaleString() ?? "—"}</strong>
+        <p>Slots left <span>of {category.capacity.toLocaleString()} total</span></p>
+        <dl><div><dt>General slots left</dt><dd>{category.generalAvailable?.toLocaleString() ?? "—"}</dd></div>
+          <div><dt>Reservation slots left</dt><dd>{category.reservationEnabled ? category.reservationAvailable?.toLocaleString() ?? "—" : "Not enabled"}</dd></div></dl>
+        {category.totalAvailable === null && <p className="reservation-capacity-unavailable">Availability is not published for this event.</p>}
+      </Card>)}</div> : <p>No categories yet.</p>}
+    </section>}
     {!selected ? <section className="reservation-empty"><Ticket size={32} aria-hidden /><h2>{events.length ? "Choose an event to view reservations" : "No events yet"}</h2><p>{events.length ? `Only events from ${orgName} appear in the event selector.` : "Create an event before you can take reservations."}</p></section>
       : <section className="reservation-roster" aria-labelledby="reservation-roster-title">
         <div className="reservation-roster-heading"><div><h2 id="reservation-roster-title">Reservation roster</h2><p>One checkout per row. Managed runners appear beneath the booking account.</p></div><span>{summary?.total.toLocaleString()} checkouts</span></div>

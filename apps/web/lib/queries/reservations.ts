@@ -18,6 +18,35 @@ export type ReservationRow = {
   categories: string[]; deadlines: { category: string; at: string | null }[];
 };
 export type ReservationSummary = { total: number; paid: number; paidAmountCents: number; pending: number };
+export type ReservationCategoryAvailability = {
+  id: string; code: string | null; label: string; capacity: number; reservationEnabled: boolean;
+  totalAvailable: number | null; generalAvailable: number | null; reservationAvailable: number | null;
+};
+
+/** Use the capacity ledger so held places and converted entries count once. */
+export async function getReservationCategoryAvailability(orgId: string, eventId: string): Promise<ReservationCategoryAvailability[]> {
+  const db = await createClient();
+  const [categories, availability] = await Promise.all([
+    db.from("categories").select("id,code,label,slots_total,reservation_enabled")
+      .eq("org_id", orgId).eq("event_id", eventId)
+      .order("distance_km", { ascending: false, nullsFirst: false }).order("id"),
+    db.rpc("category_availability", { p_event: eventId }),
+  ]);
+  if (categories.error) throw categories.error;
+  if (availability.error) throw availability.error;
+  const slots = availability.data as { category_id: string; total_available: number; general_available: number; reservation_available: number }[] | null;
+  const byCategory = new Map((slots ?? []).map(row => [row.category_id, row]));
+  return (categories.data ?? []).map(category => {
+    const slots = byCategory.get(category.id);
+    return {
+      id: category.id, code: category.code, label: category.label, capacity: category.slots_total,
+      reservationEnabled: category.reservation_enabled,
+      totalAvailable: slots?.total_available ?? null, generalAvailable: slots?.general_available ?? null,
+      reservationAvailable: slots?.reservation_available ?? null,
+    };
+  });
+}
+
 function personalName(value: string | null | undefined) {
   const name = value?.trim();
   return name && !["My Race Passport", "Managed Race Passport", "My Passport"].includes(name) ? name : null;
