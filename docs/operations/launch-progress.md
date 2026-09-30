@@ -7,7 +7,7 @@ Scope: runner website and admin only. The first release is a controlled pilot wi
 
 | Completed | Blockers | Next task |
 | --- | --- | --- |
-| PR #202 merged at `55a6c5f`; both staging apps Ready; 178 migrations and 13 matching function bundles verified. Exact staging CI, code creation, apply/remove, free ticket, discounted PayMongo test capture, and reporting passed. | None for staging delivery. Remaining hosted provider journeys and email acceptance block production promotion. | Review staging Discounts, then finish the promotion checks in the release record. |
+| PR #202 merged at `55a6c5f`; both staging apps Ready; 178 migrations and 13 matching function bundles verified. Exact staging CI, code creation, apply/remove, free ticket, discounted PayMongo test capture, and reporting passed. | Discount-specific staging acceptance passed, including mixed/free groups, absorbed fees, provider expiry/retry, discounted refund, approved screening checkout and delivered Resend email. | Promote staging → main after production preflight; deploy the same backend and verify production safely. |
 
 Evidence: [staging release and acceptance record](organization-discounts-staging-20260930.md). Production remains unchanged.
 
