@@ -162,7 +162,11 @@ export async function confirmPayment(
         p_invalid_reason: invalidReason,
         p_resource: raw as Record<string, unknown>,
       });
-      if (observeError || !["observed", "settled"].includes(captureState)) {
+      if (observeError || !["observed", "settled", "reconciliation_required"].includes(captureState)) {
+        // A webhook may acknowledge a durable review, never a failed inbox write.
+        return { ok: false, error: "capture_write_failed", status: 503 };
+      }
+      if (captureState === "reconciliation_required") {
         console.error("[confirm] capture requires reconciliation", { registrationId: reg.id, paymentId: capture.id, state: captureState, error: observeError });
         reviewRequired = true;
       }

@@ -11,6 +11,7 @@ export default async function ReservationCallback({ searchParams }: {
   if (!id || !UUID.test(id)) redirect("/events");
   const db = await createClient();
   const { data: { user } } = await db.auth.getUser();
-  if (!user) redirect(`/sign-in?next=${encodeURIComponent(`/reservations/${id}`)}`);
-  redirect(`/reservations/${id}${status === "paid" ? "?returned=1" : ""}`);
+  const destination = `/reservations/${id}${status === "paid" ? "?returned=1" : ""}`;
+  if (!user) redirect(`/sign-in?next=${encodeURIComponent(destination)}`);
+  redirect(destination);
 }
