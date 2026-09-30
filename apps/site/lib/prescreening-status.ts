@@ -11,7 +11,9 @@ export type ScreeningBatch = {
   created_at: string; payment_deadline_at: string | null; booking_order_id: string | null; event_reservation_id: string | null;
   prescreening_applications: ScreeningApplication[];
 };
-export function screeningSummary(batch: ScreeningBatch, now = Date.now()) {
+export function screeningSummary<T extends Pick<ScreeningApplication, "decision" | "released_at">>(
+  batch: Pick<ScreeningBatch, "status" | "payment_deadline_at"> & { prescreening_applications: T[] }, now = Date.now(),
+) {
   const remaining = batch.prescreening_applications.filter(a => a.decision !== "rejected");
   const pending = remaining.filter(a => a.decision === "pending" && !a.released_at).length;
   const deadlinePassed = !!batch.payment_deadline_at && Date.parse(batch.payment_deadline_at) <= now;

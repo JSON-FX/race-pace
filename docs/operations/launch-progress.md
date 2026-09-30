@@ -878,3 +878,17 @@ Implemented in isolated branch `codex/org-discounts`, based on staging `70fc678`
 Browser checks covered applying/removing codes, full-discount single ticket issuance, a two-participant free booking with separate tickets, generation of two special fee-absorbing codes, discount columns in Payments and Registrations, and complimentary cancellation with its redemption still consumed. Checkout/admin responsive captures cover 1440, 768, and 390 pixels. Fresh design review resolved tablet selector clipping and the Passport removal target; its final fix verdict is ship. Group browser evidence is tablet-only. See [implementation report](../../.claude/reports/2026-09-30-organization-discounts-report.md) and [design evidence](../specs/2026-09-30-organization-discounts-design-evidence.md).
 
 Before production, validate the exact staging revision with PayMongo test-mode payments, absorbed fees, expiry/restart, refunds, and approved pre-screening checkout. Native-app code entry and reservation-deposit discounts remain outside the approved scope. The preview is a local Storybook implementation with fixture-only actions.
+
+## September 30 browser refinements — complete locally
+
+| Completed | Blockers | Next task |
+| --- | --- | --- |
+| All 15 annotations; flat forest rounded rectangles; larger phone icons; truthful profile activity; centered registration inspector with row opening; local checks and responsive review | No local blocker. Hosted staging acceptance has not run for this patch | On release authorization, commit the scoped changes and open the staging pull request |
+
+Implemented in isolated branch `codex/browser-ui-refinements`, based on staging `f7ded2161e87a9e662ff7b65d30e770688b5e5a5`. The original dirty checkout and unrelated Hub work were preserved. Runner 537, admin 1,030, backend/shared 854, and shared UI 13 tests passed: 2,434 total. Relevant typechecks, both isolated production builds, Fieldnotes audit, and 178-migration replay checks passed. Hub typecheck and four catalog builds passed.
+
+Browser acceptance covered actual local app identity/date, forest actions, equal-height cards, organization avatars, completed-event totals, upcoming registrations and rejected screening updates. Phone checks include 320/390px and successful sign-out. Tablet navigation uses one bar at 768px. Desktop checks used 1241px. The selected navigation has 14px corners, no pale track or shadow, and 28px phone icons. Profile figures use paid entries in completed events; individual finisher results are not yet stored.
+
+See the [implementation report and screenshots](../../.claude/reports/2026-09-30-browser-ui-refinements-report.md) and [PIV review](../../.claude/code-reviews/2026-09-30-browser-ui-refinements.md). The Storybook proposal is available locally. No commit, push, hosted change, migration source change, deployment or charge occurred.
+
+The registration inspector follow-up also passed actual app checks at 1280×720, 768×640, 390×844 and 320×568. All submitted values wrap and remain reachable through internal scrolling; identity and actions stay visible. Data-cell and keyboard opening, selection isolation, deep links, Escape, focus return and read-only refund review passed. Admin checks/build, shared UI checks/audit and catalog rebuild passed again. The served inspector preview is available in Storybook.

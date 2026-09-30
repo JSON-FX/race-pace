@@ -23,7 +23,7 @@ import { LinkPending } from "./NavProgress";
  * while "Sign in" is a call to action rather than a destination and belongs in
  * the header where the value proposition is.
  *
- * Desktop keeps the pill nav in SiteNav; this is `md:hidden`.
+ * Desktop keeps the rounded rectangle nav in SiteNav; this is `md:hidden`.
  */
 
 const TABS = [
@@ -58,17 +58,16 @@ export function RunnerTabBar({ signedIn }: { signedIn: boolean }) {
       {TABS.map(({ href, label, icon: Icon }) => {
         const active = isActive(pathname, href);
         return (
-          <Button asChild key={href} variant={active ? "secondary" : "ghost"} className="min-w-0 flex-1 flex-col"><Link
+          <Button asChild key={href} variant={active ? "default" : "ghost"} className="runner-nav-link runner-nav-tab min-w-0 flex-1 flex-col"><Link
             href={href}
             aria-current={active ? "page" : undefined}
             className={cn(
               // The whole cell is the target, not the glyph — min 44px tall with
               // the padding, and each cell is a quarter of the viewport wide.
               "relative flex min-h-12 flex-1 flex-col items-center justify-center gap-1 px-1 py-1.5",
-              "",
             )}
           >
-            <Icon className="size-[22px]" strokeWidth={active ? 2.3 : 1.9} aria-hidden />
+            <Icon className="size-7" strokeWidth={active ? 2.3 : 1.9} aria-hidden />
             {/* Marks WHICH tab is loading. The top bar says a navigation is
                 happening; this says which one — the difference between "it's
                 working" and "I hit the wrong thing". */}

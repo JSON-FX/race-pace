@@ -1,0 +1,60 @@
+/* Component-specific limits take precedence over the shared overlay safety cap. */
+.registration-detail[data-slot="dialog-content"][role="dialog"]:not([data-fullscreen="true"]) {
+  width: min(760px, calc(100vw - 32px));
+  max-width: 760px;
+  max-height: calc(100dvh - 32px);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+  background: var(--rd-surface, rgb(var(--card)));
+  color: var(--rd-ink, rgb(var(--foreground)));
+  font-family: var(--rp-ui-font, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+}
+.registration-detail-header { display:flex; flex:none; align-items:flex-start; gap:16px; padding:24px; border-bottom:1px solid var(--rd-line, rgb(var(--border))); }
+.registration-detail-identity { flex:1; min-width:0; }
+.registration-detail [data-slot="dialog-title"] { margin:0; font-family:inherit; font-size:24px; font-weight:600; line-height:1.25; overflow-wrap:anywhere; }
+.registration-detail-email { display:flex; align-items:center; gap:8px; margin-top:4px; font-size:13px; color:var(--rd-muted, rgb(var(--muted-foreground))); }
+.registration-detail-email>span { min-width:0; overflow-wrap:anywhere; }
+.registration-detail-status { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:12px; }
+.registration-detail-team { white-space:normal; overflow-wrap:anywhere; }
+.registration-detail-body { flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain; }
+.registration-detail-body:focus-visible { outline:2px solid var(--rd-ring, rgb(var(--ring))); outline-offset:-3px; }
+.registration-detail-money { padding:20px 24px; }
+.registration-detail-money-heading { display:flex; justify-content:space-between; align-items:center; gap:16px; }
+.registration-detail-breakdown { display:grid; gap:8px; margin:16px 0 0; padding-top:16px; border-top:1px solid var(--rd-line, rgb(var(--border))); }
+.registration-detail-breakdown .registration-detail-field { display:flex; justify-content:space-between; align-items:baseline; gap:16px; }
+.registration-detail-breakdown .registration-detail-field dd { text-align:right; }
+.registration-detail-section { padding:24px; border-top:1px solid var(--rd-line, rgb(var(--border))); }
+.registration-detail-section h3 { margin:0 0 16px; font-size:15px; font-weight:600; line-height:1.3; }
+.registration-detail-section dl { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px 32px; margin:0; }
+.registration-detail-field { min-width:0; }
+.registration-detail-field dt { font-size:12px; line-height:1.5; color:var(--rd-muted, rgb(var(--muted-foreground))); overflow-wrap:anywhere; }
+.registration-detail-field dd { margin:4px 0 0; font-size:14px; font-weight:500; line-height:1.5; overflow-wrap:anywhere; white-space:pre-wrap; }
+.registration-detail-reference { display:flex; align-items:center; gap:8px; }
+.registration-detail-reference>span { min-width:0; overflow-wrap:anywhere; }
+.registration-detail-refund-note { margin:0; padding:16px 24px 24px; font-size:13px; line-height:1.6; color:var(--rd-muted, rgb(var(--muted-foreground))); }
+.registration-detail-footer { display:flex; flex:none; justify-content:flex-end; flex-wrap:wrap; gap:12px; padding:16px 24px; border-top:1px solid var(--rd-line, rgb(var(--border))); }
+.registration-detail-header [data-rp-control="button"], .registration-detail-header [data-slot="button"], .registration-detail-reference [data-rp-control="button"] { min-width:44px; min-height:44px; }
+@media(max-width:600px) {
+  .registration-detail-header { display:grid; grid-template-columns:48px minmax(0,1fr) 44px; gap:12px; padding:16px; }
+  .registration-detail-identity { display:contents; }
+  .registration-detail-identity>[data-slot="dialog-title"] { grid-column:2; grid-row:1; }
+  .registration-detail-header>[data-slot="avatar"] { grid-column:1; grid-row:1; }
+  .registration-detail-header>button { grid-column:3; grid-row:1; }
+  .registration-detail-email,.registration-detail-status { grid-column:1 / -1; margin-top:0; }
+  .registration-detail [data-slot="dialog-title"] { font-size:21px; }
+  .registration-detail-money,.registration-detail-section { padding:20px 16px; }
+  .registration-detail-section dl { grid-template-columns:minmax(0,1fr); gap:16px; }
+  .registration-detail-footer { padding:12px 16px; gap:8px; }
+  .registration-detail-footer [data-rp-control="button"],.registration-detail-footer [data-slot="button"] { flex:1; }
+  .registration-detail-refund-note { padding:16px; }
+}
+@media(max-width:380px) {
+  .registration-detail-header { grid-template-columns:32px minmax(0,1fr) 44px; }
+  .registration-detail-header>[data-slot="avatar"] { width:32px; height:32px; }
+  .registration-detail-footer [data-rp-control="button"],.registration-detail-footer [data-slot="button"] { white-space:normal; height:auto; min-height:44px; }
+}
+
+.registration-detail .registration-detail-email [data-rp-control="button"], .registration-detail .registration-detail-reference [data-rp-control="button"] { background:var(--rd-soft, rgb(var(--muted))); color:var(--rd-ink, rgb(var(--foreground))); border:0; box-shadow:none; }
