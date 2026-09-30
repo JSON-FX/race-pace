@@ -54,7 +54,7 @@ export function AdminCanvasPreference({ compact = false }: { compact?: boolean }
     <section className={`rounded-[18px] border bg-card p-4 shadow-card ${compact ? "fieldnotes-canvas-preference--sidebar" : "mb-[18px]"}`} aria-labelledby="canvas-heading">
       <div className="mb-3">
         <h2 id="canvas-heading" className="text-[15px] font-semibold">Workspace background</h2>
-        <p className="mt-1 text-[12px] text-muted-foreground">Choose the canvas for admin pages. Saved in this browser.</p>
+        <p className="mt-1 text-[12px] text-muted-foreground">Choose the background for admin pages and the sidebar. Saved in this browser.</p>
       </div>
       <RadioGroup value={value} onValueChange={next => { if (OPTIONS.some(option => option.value === next)) choose(next as Canvas); }} className={`fieldnotes-canvas-options ${compact ? "fieldnotes-canvas-options--sidebar" : ""}`} aria-label="Workspace background">
         {OPTIONS.map((option) => (

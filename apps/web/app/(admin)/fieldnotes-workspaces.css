@@ -36,6 +36,9 @@
 }
 
 /* The canvas is a reading preference; component colors stay Fieldnotes. */
+html:not(.dark) [data-sidebar] { --sidebar: 255 255 255; }
+html:not(.dark)[data-admin-canvas="white-gray"] [data-sidebar] { --sidebar: 245 246 245; }
+html:not(.dark)[data-admin-canvas="fieldnotes"] [data-sidebar] { --sidebar: 245 245 237; }
 html:not(.dark) main.rp-scroll,
 html:not(.dark) .fieldnotes-admin-workspace,
 html:not(.dark) .fieldnotes-admin-events,

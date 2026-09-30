@@ -290,7 +290,7 @@ export function EventEditorForm({ initial, orgId, checkInDefault = true, canEdit
                   <Input aria-label="Flag-off" type="time" className={inputCls} value={event.flag_off ?? ""} onChange={(e) => set({ flag_off: e.target.value || null })} />
                 </Field>
               </div>
-              <Label className="flex items-start gap-3 border p-3">
+              <Label className="flex items-start gap-3 rounded-lg border p-4 leading-normal">
                 <Checkbox
 
                   aria-label="Require event check-in"
@@ -298,9 +298,9 @@ export function EventEditorForm({ initial, orgId, checkInDefault = true, canEdit
                   disabled={!canEditCheckIn}
                   onCheckedChange={(checked) => set({ check_in_required: checked === true })}
                 />
-                <span>
+                <span className="min-w-0 space-y-1.5">
                   <span className="block font-semibold">Require event check-in</span>
-                  <span className="block text-muted-foreground">Turn this off when the organizer does not scan runners at the venue. Tickets and kit release still work.</span>
+                  <span className="block leading-relaxed text-muted-foreground">Turn this off when the organizer does not scan runners at the venue. Tickets and kit release still work.</span>
                 </span>
               </Label>
               <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
@@ -341,7 +341,7 @@ export function EventEditorForm({ initial, orgId, checkInDefault = true, canEdit
 
           <FormSection id="sec-coming-soon" title="Coming soon" hint="Publish a teaser before registration details are ready">
             <div className="space-y-4">
-              <Label className="flex items-start gap-3 border p-3">
+              <Label className="flex items-start gap-3 rounded-lg border p-4 leading-normal">
                 <Checkbox
 
                   aria-label="Display as coming soon"
@@ -349,17 +349,17 @@ export function EventEditorForm({ initial, orgId, checkInDefault = true, canEdit
                   disabled={event.status !== "draft" && event.status !== "coming_soon"}
                   onCheckedChange={(checked) => set({ status: checked === true ? "coming_soon" : "draft" })}
                 />
-                <span>
+                <span className="min-w-0 space-y-1.5">
                   <span className="block font-semibold">Display as coming soon</span>
-                  <span className="block text-muted-foreground">Name, public link, discipline, featured image, and description are enough to publish.</span>
+                  <span className="block leading-relaxed text-muted-foreground">Name, public link, discipline, featured image, and description are enough to publish.</span>
                 </span>
               </Label>
               {event.status === "coming_soon" ? (
                 <div className="space-y-4 rounded-xl border bg-muted/20 p-4">
-                  <Label className="flex items-start gap-3">
+                  <Label className="flex items-start gap-3 leading-normal">
                     <Checkbox  aria-label="Enable Notify me" checked={event.coming_soon_notify_enabled}
                       onCheckedChange={(checked) => set({ coming_soon_notify_enabled: checked === true })} />
-                    <span><strong className="block">Notify me</strong><span className="text-muted-foreground">Email followers when registration opens.</span></span>
+                    <span className="min-w-0 space-y-1.5"><strong className="block">Notify me</strong><span className="block leading-relaxed text-muted-foreground">Email followers when registration opens.</span></span>
                   </Label>
 
                 </div>

@@ -1,7 +1,18 @@
-"use client";
-import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@race-pace/ui/ui/collapsible";
-import { Button } from "@/components/ui/button";
+import { Check } from "lucide-react";
+
 export function CategoryInclusions({ items }: { items: string[] }) {
   if (!items.length) return null;
-  return <Collapsible className="text-sm"><CollapsibleTrigger asChild><Button variant="ghost" className="h-auto px-0 py-1 font-semibold">What’s included</Button></CollapsibleTrigger><CollapsibleContent><ul className="mt-2 list-disc space-y-1 pl-5">{items.map((item,index) => <li key={index}>{item}</li>)}</ul></CollapsibleContent></Collapsible>;
+  return (
+    <div className="text-sm leading-[1.55]">
+      <h4 className="mb-2.5 font-[650]">What’s included</h4>
+      <ul aria-label="What’s included" className="grid grid-cols-1 gap-x-6 gap-y-2 min-[390px]:grid-cols-2">
+        {items.map((item, index) => (
+          <li key={index} className="flex min-w-0 items-start gap-[9px]">
+            <Check aria-hidden="true" className="mt-1 size-[15px] shrink-0 opacity-65" strokeWidth={1.6} />
+            <span className="min-w-0 break-words">{item}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 }
