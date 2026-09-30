@@ -1,6 +1,6 @@
 # Discount assignment cannot find registered runners
 
-Status: implemented and locally verified; release validation in progress.
+Status: implemented, reviewed and verified on hosted staging through PR #209; production promotion pending.
 
 ## Report and confirmed cause
 
