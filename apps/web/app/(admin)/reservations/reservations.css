@@ -99,3 +99,24 @@
 @media(prefers-reduced-motion:reduce) { .reservation-page * { transition:none!important; animation:none!important; } }
 .reservation-status--other { color:rgb(var(--muted-foreground)); background:rgb(var(--muted)); text-transform:capitalize; white-space:normal; }
 .reservation-deadlines { display:grid; gap:8px; } .reservation-deadline-category { display:block; font-size:11px; font-weight:600; margin-bottom:2px; }
+
+.reservation-capacity { margin:0 0 24px; }
+.reservation-capacity h2 { font-size:18px; font-weight:650; line-height:1.3; }
+.reservation-capacity>p { font-size:12px; line-height:1.5; color:rgb(var(--muted-foreground)); margin-top:6px; }
+.reservation-capacity-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:16px; margin-top:16px; }
+.reservation-capacity-grid [data-slot="card"] { padding:20px; gap:0; border-radius:16px; box-shadow:none; min-width:0; }
+.reservation-capacity h3 { font-size:15px; line-height:1.4; font-weight:650; overflow-wrap:anywhere; }
+.reservation-capacity strong { font-size:32px; line-height:1.1; font-weight:650; font-variant-numeric:tabular-nums; margin-top:12px; }
+.reservation-capacity-grid p { font-size:12px; line-height:1.5; margin-top:6px; }
+.reservation-capacity-grid p>span { display:block; color:rgb(var(--muted-foreground)); }
+.reservation-capacity dl { display:grid; gap:10px; margin:16px 0 0; padding-top:16px; border-top:1px solid rgb(var(--border)); }
+.reservation-capacity dl>div { display:flex; justify-content:space-between; align-items:baseline; gap:12px; font-size:12px; line-height:1.5; }
+.reservation-capacity dt { color:rgb(var(--muted-foreground)); }
+.reservation-capacity dd { margin:0; font-weight:600; font-variant-numeric:tabular-nums; text-align:right; }
+.reservation-capacity-grid .reservation-capacity-unavailable { color:rgb(var(--muted-foreground)); margin-top:14px; }
+@media(max-width:760px) {
+  .reservation-capacity-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+  .reservation-capacity-grid [data-slot="card"] { padding:16px 14px; }
+  .reservation-capacity dl>div { display:block; }
+  .reservation-capacity dd { text-align:left; margin-top:2px; }
+}

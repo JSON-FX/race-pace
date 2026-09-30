@@ -173,3 +173,9 @@ The approved Trail Roster visual direction is now a durable [layout specificatio
 ### Guide upload progress and 100 MB follow-up
 
 [Follow-up plan](plans/2026-09-27-guide-upload-progress.md): actual byte progress through the Fieldnotes component and a 100,000,000-byte upload limit. All 2,255 tests, both typechecks/builds and isolated migration replay passed. Hosted staging acceptance passed at `0e857509f4fe919b64b5d943d1f7f0801d0c626e`, including two actual 100 MB transfers, playback, permissions, responsive progress and task-only cleanup. Production is verified at `2a4a9486ac47d73a9bac384810059c399e86fe71`, including both Ready deployments, backend caps and read-only Browser acceptance. See the launch ledger for CI and sync-back evidence.
+
+The approved September 30 UI session is live through PR #215, including the Reservations workspace and Coming Soon category fees. See [release evidence](operations/session-ui-release-20260930.md) for exact deployments, live readback, and synchronization details.
+
+### September 30 Reservations category slots
+
+[Scoped specification](specs/2026-09-30-reservation-category-slots.md) and [implementation plan](plans/2026-09-30-reservation-category-slots.md): category cards use the admission ledger for total, general, and reservation slots left. Implementation is complete; urgent release and staging sync are authorized. Hosted verification remains pending.
