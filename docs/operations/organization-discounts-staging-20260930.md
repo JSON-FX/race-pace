@@ -1,6 +1,6 @@
 # Organization discounts: staging release, 30 September 2026
 
-Status: deployed and verified on staging. Production was not changed.
+Status: staging acceptance passed; production promotion authorized. Production is unchanged at this checkpoint.
 
 ## Source and applications
 
@@ -80,16 +80,49 @@ Local validation totals 2,410 tests: backend/shared 854, runner 525, admin 1,018
 Both application builds, typechecks, 178-migration replay and Fieldnotes audit passed. Fresh review
 found two medium reporting issues; both were reproduced, fixed and re-reviewed before merge.
 
-## Remaining promotion checks
+## Production promotion acceptance
 
-This is staging delivery, not production approval. Before a production release, complete the remaining
-hosted mixed-group/free-group matrix, approved pre-screening checkout, pass-on special-fee absorption,
-provider expiry/retry and refund matrix, and email delivery acceptance. Local tests cover these core calculations and safety guards;
-they are not a substitute for the outstanding provider journeys.
+The owner authorized production promotion after staging checks pass. The final staging source is
+`f7ded2161e87a9e662ff7b65d30e770688b5e5a5` (PR #203). Exact CI `36682538269` passed.
+Application/backend trees are identical to the reviewed feature merge `55a6c5f`; PR #203 is documentation only.
+Both aliases were independently read back as Ready at `f7ded21`:
 
-Desktop/tablet/phone design acceptance for single checkout and admin is recorded in the existing
-design evidence. Group browser coverage is tablet-only. This staging smoke test did not repeat
-that entire responsive matrix.
+- Runner: `dpl_2jhMAMWsCUv2PRogJfwDEJLeZTtX`.
+- Admin: `dpl_3finFjqJY4wUPhx1uDuPN3SgwxLu`.
+
+Additional hosted Browser acceptance used a dedicated synthetic organization,
+`21a2410a-a918-4ec2-b3d6-71d0af752109`, with pass-on fees and 3% commission. Four events,
+six prepared registrations and four codes were added there. A fifth code, `GATESCREEN`, was scoped
+to the existing synthetic screening event in the original QA organization. No production fixture was added.
+
+| Scenario | Result and evidence |
+| --- | --- |
+| Entire free group | Order `d26d96f5-9ec1-4ff8-9cf7-b8aff7a4c7af` confirmed two tickets with `GATEFREE`. Each allocation has gross, commission, processor fee and organizer net of zero. Delivery job sent on its first attempt. |
+| Mixed free and discounted group | Order `e667240e-a1a9-4d9c-9d3c-efabe43054c0` used `GATEMIXFREE` for the booking runner and `GATE20` for the managed runner. GCash test capture `pay_51Hg1naKmid9cJWMUAC19L7r` fulfilled both tickets. Paid allocation: 84,513 gross, 2,400 commission, 2,113 processor fee, 80,000 organizer net. Free allocation: all zero. Provider livemode=false. |
+| Discounted participant refund | Request `cb898594-1e4d-4243-a0d8-97c03b2c1b57`, provider `ref_hBF82iVayUCeXLGWdNtwZ8nD`, succeeded for 80,000 centavos with livemode=false. Fees of 4,513 were retained. The managed runner became refunded with no ticket; the free sibling stayed paid with its ticket. Reloaded admin reporting showed the refund and both discount codes. The refunded redemption remained consumed. |
+| Close unpaid checkout and retry | The UI locked code changes after dispatch. The close action expired `cs_1e7580a04da39bdef2e7d810`; the restart journal records provider GET evidence of expired. The code became editable without extending the hold. Removed `GATE20` redemption was released. A replacement checkout used a different provider session. |
+| Special absorption on pass-on organization | Registration `b2821913-02f7-4195-a52e-9cc9c03ac40f` applied `GATESPECIAL`: 100,000 original less 10,000 savings, total 90,000. PayMongo displayed no added fees. QR Ph test capture fulfilled the ticket with commission 2,700, processor fee 1,350 and organizer net 85,950. All recorded livemode values are false. Organization fee mode remains pass_on; only this checkout absorbs fees. |
+| Approved screening checkout | Existing approved managed application `1aa2625d-dc71-4a68-b358-aa320dd047e2` completed the real hosted entry form using its explicitly fictitious QA waiver. Order `7dc8271d-15a9-4118-bfd0-ca9267ae2e7c` applied `GATESCREEN`, confirmed registration `d631c10f-a8c0-41e8-b971-98706b643c24` at zero, and issued its ticket. Batch became completed. Original deadline stayed `2026-10-02T20:39:53.590339Z`; rejected sibling was not enrolled. |
+| Provider email delivery | Resend reports Delivered for free-group email `01a0f12d-6cfa-709f-986b-d3fd2d16a05e`, mixed-group email `01a0f130-2b42-70ac-b6cb-06a9840e7379`, and special-entry email `01a0f134-138c-739e-9219-be6bbfd2448b`. Special-entry detail confirms `Race Pace Staging <staging@notify.racepace.com.ph>`, the TEST—STAGING marker, total paid ₱900 and a staging ticket URL. Earlier single-free and percentage-payment emails also show Delivered. |
+| Responsive group summary | Hosted 390px view showed both participant codes, savings, commission and payment action with no horizontal overflow. Desktop group flows passed. Existing local tablet evidence remains applicable because application source is unchanged. |
+
+The prepared single-payment fixture initially used the lower-level provider request shape. It lacked
+`returnUrl` and failed before a checkout POST. Only the two owned, undispatched fixture payment rows
+were corrected. An explicit GCash-only fixture then received a definitive capability rejection and
+returned to prepared; it was changed to the advertised QR Ph method. The fixture callback path was
+corrected after provider-confirmed expiry and before replacement dispatch. These were fixture defects,
+not application-source edits. Existing registrations and provider sessions were not reset.
+
+The unused fourth synthetic event has one prepared, unpaid registration retained for inspection and
+normal expiry. The other synthetic records, refunds, restart journal and codes are retained as evidence.
+The screening journey additionally proves registration creation through the deployed application;
+prepared group fixtures do not establish that earlier entry-form step.
+
+All discount-specific promotion checks listed at the earlier checkpoint are complete. The unchanged
+Auth, organization/event setup, private-proof and reservation paths retain their prior release coverage;
+this release rechecked authenticated staging access, isolated discount authorization, deployed source,
+provider mode and actual transactional delivery. No production payment or refund is an automated gate.
+The owner performs any live financial acceptance after release.
 
 ## Evidence files
 
