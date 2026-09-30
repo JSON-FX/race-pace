@@ -118,7 +118,7 @@ async function listAuthUsers(db: Db): Promise<User[]> {
   throw new Error("user_limit_exceeded");
 }
 
-async function readRows(db: Db, userIds: string[]) {
+export async function readRows(db: Db, userIds: string[]) {
   const profiles: UnknownRow[] = [];
   const roles: UnknownRow[] = [];
   const managers: UnknownRow[] = [];
@@ -167,7 +167,7 @@ async function readRows(db: Db, userIds: string[]) {
   const dedupedRegistrations = [...new Map(registrations.map((registration) => [String(registration.id), registration])).values()];
   for (const ids of chunks(userIds)) {
     const { data, error } = await db.from("booking_payment_attempts")
-      .select("id,booking_order_id,booked_by_user_id,method,status,gross_cents,created_at,booking_payment_captures(state,created_at)")
+      .select("id,booking_order_id,booked_by_user_id,method,status,created_at,booking_payment_captures(state,created_at,amount:capture->amount,booking_payment_allocations(registration_id,gross_cents))")
       .in("booked_by_user_id", ids)
       .eq("status", "paid");
     if (error) throw error;
@@ -176,7 +176,7 @@ async function readRows(db: Db, userIds: string[]) {
   const orderIds = [...new Set(dedupedRegistrations.map((registration) => str(registration.booking_order_id)).filter((id): id is string => Boolean(id)))];
   for (const ids of chunks(orderIds)) {
     const { data, error } = await db.from("booking_payment_attempts")
-      .select("id,booking_order_id,booked_by_user_id,method,status,gross_cents,created_at,booking_payment_captures(state,created_at)")
+      .select("id,booking_order_id,booked_by_user_id,method,status,created_at,booking_payment_captures(state,created_at,amount:capture->amount,booking_payment_allocations(registration_id,gross_cents))")
       .in("booking_order_id", ids)
       .eq("status", "paid");
     if (error) throw error;
@@ -187,7 +187,7 @@ async function readRows(db: Db, userIds: string[]) {
   return { profiles, roles, managers, passports: [...ownPassports, ...managedPassports], registrations: dedupedRegistrations, groupAttempts: dedupedAttempts };
 }
 
-function buildSnapshots(users: User[], rows: Awaited<ReturnType<typeof readRows>>): PlatformUserSnapshot[] {
+export function buildSnapshots(users: User[], rows: Awaited<ReturnType<typeof readRows>>): PlatformUserSnapshot[] {
   const profiles = new Map(rows.profiles.map((profile) => [String(profile.id), profile]));
   const protectedUsers = new Set(rows.roles.filter((role) => role.role === "super_admin").map((role) => String(role.user_id)));
   const passports = new Map<string, UnknownRow>();
@@ -208,47 +208,57 @@ function buildSnapshots(users: User[], rows: Awaited<ReturnType<typeof readRows>
     if (passportId) registrationsByPassport.set(passportId, [...(registrationsByPassport.get(passportId) ?? []), registration]);
   }
 
-  const attemptsByOrder = new Map<string, UnknownRow>();
+  const paymentsByOrder = new Map<string, { attempt: UnknownRow; capture: UnknownRow }>();
   for (const attempt of rows.groupAttempts) {
+    const captures = Array.isArray(attempt.booking_payment_captures) ? attempt.booking_payment_captures : [attempt.booking_payment_captures];
+    const capture = captures.map(one).find((row) => row?.state === "fulfilled");
+    if (!capture) continue;
     const orderId = String(attempt.booking_order_id ?? "");
-    const existing = attemptsByOrder.get(orderId);
-    if (!existing || Date.parse(String(existing.created_at)) < Date.parse(String(attempt.created_at))) {
-      attemptsByOrder.set(orderId, attempt);
+    const existing = paymentsByOrder.get(orderId);
+    if (!existing || Date.parse(String(existing.capture.created_at)) < Date.parse(String(capture.created_at))) {
+      paymentsByOrder.set(orderId, { attempt, capture });
     }
+  }
+
+  function paymentSnapshot(row: UnknownRow, wholeOrder = false): PaymentSnapshot | null {
+    const eventName = str(one(row.events)?.name) ?? "Event unavailable";
+    const paymentRow = one(row.payments);
+    if (paymentRow && ["paid", "refunded"].includes(String(paymentRow.status))) {
+      return {
+        method: str(paymentRow.method) ?? "paymongo",
+        amountCents: num(paymentRow.amount),
+        paidAt: str(paymentRow.paid_at) ?? str(paymentRow.created_at) ?? String(row.created_at),
+        eventName,
+      };
+    }
+    const group = row.booking_order_id ? paymentsByOrder.get(String(row.booking_order_id)) : null;
+    if (!group) return null;
+    const allocations = Array.isArray(group.capture.booking_payment_allocations) ? group.capture.booking_payment_allocations : [];
+    const allocation = allocations.map(one).find((allocation) => allocation?.registration_id === row.id);
+    if (!wholeOrder && !allocation) return null;
+    return {
+      method: str(group.attempt.method) ?? "paymongo",
+      // Group attempt totals exclude provider-added fees and belong to the entire
+      // checkout. Event/Passport cards must use the captured participant share.
+      amountCents: num(wholeOrder ? group.capture.amount : allocation?.gross_cents),
+      paidAt: str(group.capture.created_at) ?? str(group.attempt.created_at) ?? String(row.created_at),
+      eventName,
+    };
   }
 
   function registrationSnapshot(row: UnknownRow): RegistrationSnapshot {
     const event = one(row.events);
     const category = one(row.categories);
-    const paymentRow = Array.isArray(row.payments) ? one(row.payments) : one(row.payments);
-    const attempt = row.booking_order_id ? attemptsByOrder.get(String(row.booking_order_id)) : null;
-    const capture = attempt ? one(attempt.booking_payment_captures) : null;
-    const eventName = str(event?.name) ?? "Event unavailable";
-    const payment = paymentRow && ["paid", "refunded"].includes(String(paymentRow.status))
-      ? {
-          method: str(paymentRow.method) ?? "paymongo",
-          amountCents: num(paymentRow.amount),
-          paidAt: str(paymentRow.paid_at) ?? str(paymentRow.created_at) ?? String(row.created_at),
-          eventName,
-        }
-      : attempt
-        ? {
-            method: str(attempt.method) ?? "paymongo",
-            amountCents: num(attempt.gross_cents),
-            paidAt: str(capture?.created_at) ?? str(attempt.created_at) ?? String(row.created_at),
-            eventName,
-          }
-        : null;
     return {
       id: String(row.id),
-      eventName,
+      eventName: str(event?.name) ?? "Event unavailable",
       eventDate: str(event?.event_date),
       eventStatus: str(event?.status),
       category: str(category?.label) ?? "Category unavailable",
       status: String(row.status ?? "unknown"),
       createdAt: String(row.created_at),
       amountCents: num(row.total_amount),
-      payment,
+      payment: paymentSnapshot(row),
     };
   }
 
@@ -310,7 +320,10 @@ function buildSnapshots(users: User[], rows: Awaited<ReturnType<typeof readRows>
       ? (registrationsByPassport.get(String(ownPassport.id)) ?? []).map(registrationSnapshot)
       : bookedRows.filter((registration) => registration.user_id === user.id).map(registrationSnapshot);
     ownRegistrations.sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt));
-    const allPayments = bookedRows.map(registrationSnapshot).flatMap((registration) => registration.payment ? [registration.payment] : []);
+    const allPayments = bookedRows.flatMap((row) => {
+      const payment = paymentSnapshot(row, true);
+      return payment ? [payment] : [];
+    });
 
     return {
       id: user.id,

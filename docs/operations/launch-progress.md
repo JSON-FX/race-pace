@@ -968,3 +968,17 @@ User explicitly authorized urgent production release and staging sync. Additiona
 Direct production delivery and subsequent staging deployment are verified at `c4c63d8`. Feature PR #217 merged at staging `68b685a`; both exact merge deployments are Ready and use staging Supabase. All 2,483 required CI tests passed; an unchanged retry resolved the existing duplicate-run font-loader failure. No test fixture or transaction occurred in production. [Exact evidence and scoped exception](reservation-category-slots-release-20260930.md).
 
 PR #218 aligned protected main at `f2f1b3e662b637d192471bdb44320831dad75fc6`. Both exact main deployments are Ready with production aliases and database identity. Fresh live reads matched the canonical ledger again, including two new 25k reservations during delivery. This evidence-only change carries main back into staging without changing application or backend content. Final ancestry/deployment readback is attached to its staging PR.
+
+
+## October 1 Users payment correction and Reservations category filter
+
+| Completed | Blockers | Next task |
+| --- | --- | --- |
+| Both fixes live in production; 2,501 local tests, builds, migration replay and desktop/tablet/phone Browser checks passed | Protected Git integration is pending CI | Merge PR #220 into staging, align main, then sync main back to staging |
+
+Owner explicitly requested production first followed by staging synchronization. GitHub branch protection and staging-source validation remain unchanged. A direct Vercel production release and the changed platform-users function use the scoped feature revision; code integration follows through staging and main afterward. No production fixtures, payments, migrations or provider configuration changes. See [report](../../.claude/reports/users-payment-reservation-filter-report.md), [review](../../.claude/code-reviews/users-payment-reservation-filter.md) and [plan](../../.claude/plans/users-payment-reservation-filter.md).
+
+
+Production readback: admin deployment `dpl_4fJjMwJEinWuDfx2F1Wz1Gp3aax6` is Ready and the production alias resolves to it. It was uploaded from clean scoped revision `174f43981d545771257bc93979e02a7618fcc995`. Production `platform-users` is version 8 with JWT verification enabled; all five downloaded files exactly match the reviewed revision. Bundle hash: `8261275e8cb2ee4bf816759228b8d6e3fc339603ed06d59cfcca5d352af0686f`. The first deploy omitted an explicit import map and was rejected before activation; the retry with the existing deno.json succeeded. No secrets or settings changed.
+
+Authenticated production Browser readback confirms participant cards at ₱1,743.59 each and the full transaction at ₱3,487.18. Kibalabag's category dropdown offers 70k, 42k, 25k, 13k and 7k. Selecting 42k returned 13 checkouts; combining payment and search retained a complete managed-runner checkout at ₱422.56. Clear filters restored 38 checkouts. Event totals remained 38 total, 32 paid, ₱6,960.73 collected and six pending. Tablet (768px) and phone (390px) controls wrap within the viewport with zero horizontal overflow. No production writes or transactions were used for acceptance. Staging source integration is PR #220.
