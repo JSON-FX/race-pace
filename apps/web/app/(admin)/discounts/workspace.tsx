@@ -7,6 +7,7 @@ import {
   createDiscounts,
   setDiscountActive,
   searchDiscountPassports,
+  type DiscountPassportOption,
 } from "@/lib/actions/discounts";
 import {
   Table,
@@ -53,7 +54,7 @@ type Props = {
   codes: DiscountRecord[];
   events: { id: string; name: string }[];
   categories: { id: string; label: string; event_id: string }[];
-  passports: { id: string; label: string }[];
+  passports: DiscountPassportOption[];
 };
 const selectClass =
   "h-11 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
@@ -409,12 +410,13 @@ export function DiscountsWorkspace({
                 </CollapsibleTrigger>
                 <CollapsibleContent>
                   <p className="mb-3 text-sm text-muted-foreground">
-                    Select one Passport per code. Leave empty to let the first
+                    Find any registered runner by name or email, even before they
+                    join your events. Select one Passport per code. Leave empty to let the first
                     eligible runner redeem each code.
                   </p>
                   <Input
-                    aria-label="Search organization Passports"
-                    placeholder="Search by name or Passport ID"
+                    aria-label="Search runners by name, email or Passport ID"
+                    placeholder="Search by name, email or Passport ID"
                     value={passportSearch}
                     onChange={(e) => setPassportSearch(e.target.value)}
                     className="mb-3 h-11"
@@ -426,10 +428,10 @@ export function DiscountsWorkspace({
                   {Object.entries(assigned).map(([id, label]) => (
                     <span
                       key={id}
-                      className="mb-2 mr-2 inline-flex items-center gap-2 rounded-md border px-2 py-1 text-sm"
+                      className="mb-2 mr-2 inline-flex max-w-full items-center gap-2 rounded-md border px-2 py-1 text-sm"
                     >
                       <input type="hidden" name="passports" value={id} />
-                      {label}
+                      <span className="min-w-0 break-words">{label}</span>
                       <Button
                         type="button"
                         variant="ghost"
@@ -453,31 +455,32 @@ export function DiscountsWorkspace({
                       passportOptions.map((p) => (
                         <label
                           key={p.id}
-                          className="flex min-h-11 items-center gap-3 text-sm"
+                          className="flex min-h-11 min-w-0 items-center gap-3 text-sm"
                         >
                           <Checkbox
                             checked={!!assigned[p.id]}
                             onCheckedChange={(checked) =>
                               setAssigned((current) => {
                                 const next = { ...current };
-                                if (checked === true) next[p.id] = p.label;
+                                if (checked === true)
+                                  next[p.id] = p.email ? `${p.label} · ${p.email}` : p.label;
                                 else delete next[p.id];
                                 return next;
                               })
                             }
                             className="size-4"
                           />
-                          <span>
+                          <span className="min-w-0 break-words">
                             {p.label}
                             <small className="block text-muted-foreground">
-                              {p.id}
+                              {p.email ?? p.id}
                             </small>
                           </span>
                         </label>
                       ))
                     ) : (
                       <p className="text-sm text-muted-foreground">
-                        No matching Passports. Try another name or generate
+                        No matching Passports. Try another name or email, or generate
                         unassigned codes.
                       </p>
                     )}

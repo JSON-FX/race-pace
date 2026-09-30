@@ -886,3 +886,37 @@ Implemented in isolated branch `codex/org-discounts`, based on staging `70fc678`
 Browser checks covered applying/removing codes, full-discount single ticket issuance, a two-participant free booking with separate tickets, generation of two special fee-absorbing codes, discount columns in Payments and Registrations, and complimentary cancellation with its redemption still consumed. Checkout/admin responsive captures cover 1440, 768, and 390 pixels. Fresh design review resolved tablet selector clipping and the Passport removal target; its final fix verdict is ship. Group browser evidence is tablet-only. See [implementation report](../../.claude/reports/2026-09-30-organization-discounts-report.md) and [design evidence](../specs/2026-09-30-organization-discounts-design-evidence.md).
 
 Before production, validate the exact staging revision with PayMongo test-mode payments, absorbed fees, expiry/restart, refunds, and approved pre-screening checkout. Native-app code entry and reservation-deposit discounts remain outside the approved scope. The preview is a local Storybook implementation with fixture-only actions.
+
+
+## Discount runner search follow-up — 2026-09-30
+
+| Completed | Blockers | Next task |
+| --- | --- | --- |
+| Global registered-runner name/email lookup, matching special-code assignment eligibility, identity fallbacks and email display; local checks and browser acceptance | Hosted staging and production verification pending | Review and merge the scoped fix into staging, apply migration, and verify outside-runner assignment |
+
+The owner explicitly approved finding any registered runner before that runner joins the
+organization's events. The previous four-result list reflected an organization-history
+filter, not a four-row limit. Both lookup and creation now accept registered accounts
+without that history. Managed Passports remain limited to the organization's existing
+participants. No event, payment, registration or Passport table policies changed.
+
+Local validation on the isolated fix worktree passed 2,419 tests: backend/shared 861,
+runner 525, admin 1,020, shared UI 13. App/shared UI typechecks, Fieldnotes audit and both
+production builds passed. The first runner build failed in the existing Google font
+loader; an unchanged retry passed. All 179 migrations replayed. The CI replay assertion
+used an ephemeral copy with its local port changed from 54522 to 59522; no committed
+assertion was weakened.
+
+Browser acceptance at 1440, 768 and 390 pixels found an outside runner by metadata name
+and account email, retained the selected Passport across a search with no matches, and
+created an assigned special code. SQL confirmed the correct Passport with zero events
+and zero registrations in the test organization. No horizontal overflow occurred. All
+fixtures were local. The original production form was not modified during these checks.
+
+Migration: `20260930083846_discount_runner_search.sql`. No Edge Function or provider
+configuration changes are required. Deploy this compatible lookup extension before the
+admin UI; prior clients retain the id/label fields. Follow the normal staging-to-main
+release path, then verify production reads without creating test codes or payments.
+
+See [investigation](../issues/issue-discount-runner-search.md) and
+[review](../../.claude/code-reviews/2026-09-30-discount-runner-search.md).
