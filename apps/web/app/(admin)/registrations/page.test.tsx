@@ -163,9 +163,7 @@ describe("RegistrationsPage", () => {
       }),
       undefined,
     );
-    expect(ReservationRosterSection).toHaveBeenCalledWith(
-      expect.objectContaining({ eventId: "event-1", orgId: "org-1" }), undefined,
-    );
+    expect(ReservationRosterSection).not.toHaveBeenCalled();
     // The subtitle's figures each live in their own `<span>` (for
     // `font-mono tabular`), so its full text is split across sibling nodes —
     // match against the header <p>'s own textContent rather than
@@ -227,8 +225,7 @@ describe("RegistrationsPage", () => {
 
     for (const [searchParams, suffix] of cases) {
       const ui = await RegistrationsPage({ searchParams: Promise.resolve(searchParams) });
-      const eventId = searchParams.event ?? "event-1";
-      expect(findSuspenseKeys(ui)).toEqual([`kpi-${suffix}`, `table-${suffix}`, `reservations-${eventId}`]);
+      expect(findSuspenseKeys(ui)).toEqual([`kpi-${suffix}`, `table-${suffix}`]);
     }
   });
 

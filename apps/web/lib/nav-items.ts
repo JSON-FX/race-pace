@@ -17,7 +17,7 @@
  * precedent this follows.
  */
 import {
-  LayoutDashboard, CalendarDays, ClipboardList, CreditCard,
+  LayoutDashboard, CalendarDays, ClipboardList, CreditCard, Ticket,
   QrCode, PackageCheck, Users, Settings as SettingsIcon, Building2, Percent, Banknote, ShieldAlert, BookOpen, type LucideIcon,
 } from "lucide-react";
 import type { MyRoles } from "@/lib/queries/roles";
@@ -38,6 +38,7 @@ export const ORG_ITEMS: NavItem[] = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, requires: "manage_org" },
   { to: "/events", label: "Events", icon: CalendarDays, countKey: "events", requires: "manage_org" },
   { to: "/registrations", label: "Registrations", icon: ClipboardList, countKey: "registrations", requires: "manage_org" },
+  { to: "/reservations", label: "Reservations", icon: Ticket, requires: "manage_org" },
   { to: "/payments", label: "Payments", icon: CreditCard, requires: "manage_org" },
   { to: "/discounts", label: "Discounts", icon: Percent, requires: "manage_team" },
   { to: "/race-kits", label: "Race kits", icon: PackageCheck, requires: "release_kits" },
