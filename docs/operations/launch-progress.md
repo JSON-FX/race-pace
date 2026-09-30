@@ -3,6 +3,14 @@
 Updated: 2026-09-30. Overall: MVP RELEASED; FIELDNOTES ADMIN AND TRAIL ATLAS ORGANIZERS IN PRODUCTION; OWNER CHECKOUT PENDING.
 Scope: runner website and admin only. The first release is a controlled pilot with one organizer and PayMongo. Production contains real organizer and event data; add no synthetic data.
 
+### Organization discounts — staging release, 2026-09-30
+
+| Completed | Blockers | Next task |
+| --- | --- | --- |
+| PR #202 merged at `55a6c5f`; both staging apps Ready; 178 migrations and 13 matching function bundles verified. Exact staging CI, code creation, apply/remove, free ticket, discounted PayMongo test capture, and reporting passed. | None for staging delivery. Remaining hosted provider journeys and email acceptance block production promotion. | Review staging Discounts, then finish the promotion checks in the release record. |
+
+Evidence: [staging release and acceptance record](organization-discounts-staging-20260930.md). Production remains unchanged.
+
 ### Category reservations and pre-screening — 2026-09-30
 
 | Completed | Blockers | Next task |

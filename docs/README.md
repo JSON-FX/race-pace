@@ -18,7 +18,7 @@ ultra-trail event platform (Mindanao, Philippines).
 
 ## Web and admin readiness — September 2026
 
-Organization discounts: [specification](./specs/2026-09-30-organization-discounts.md), [implementation plan](./plans/2026-09-30-organization-discounts.md), [design evidence](./specs/2026-09-30-organization-discounts-design-evidence.md), and [implementation report](../.claude/reports/2026-09-30-organization-discounts-report.md). Implemented and locally validated on `codex/org-discounts`: 2,406 tests, migration replay, both application builds, and responsive review passed. No commit, push, or hosted deployment performed. PayMongo sandbox and hosted staging acceptance remain release gates.
+Organization discounts: [specification](./specs/2026-09-30-organization-discounts.md), [implementation plan](./plans/2026-09-30-organization-discounts.md), [design evidence](./specs/2026-09-30-organization-discounts-design-evidence.md), and [implementation report](../.claude/reports/2026-09-30-organization-discounts-report.md). Deployed to staging through PR #202 at `55a6c5f`. Both apps, 178 migrations, 13 function bundles, exact staging CI, free checkout, discounted PayMongo test capture and reporting are verified. [Staging release record](./operations/organization-discounts-staging-20260930.md) lists the remaining checks before production promotion.
 
 Category reservations and pre-screening: [approved feature plan](./plans/2026-09-29-category-prescreening.md), [HTML proposal and design scope](./specs/2026-09-29-category-prescreening-prototype.md). Prototype ready for owner review; application implementation awaits prototype approval. No staging or production changes for this milestone.
 
