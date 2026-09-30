@@ -3,13 +3,13 @@
 Updated: 2026-09-30. Overall: MVP RELEASED; FIELDNOTES ADMIN AND TRAIL ATLAS ORGANIZERS IN PRODUCTION; OWNER CHECKOUT PENDING.
 Scope: runner website and admin only. The first release is a controlled pilot with one organizer and PayMongo. Production contains real organizer and event data; add no synthetic data.
 
-### Payment synchronization incident — local validation, 2026-09-30
+### Payment synchronization incident — staging accepted, 2026-09-30
 
 | Completed | Blockers | Next task |
 | --- | --- | --- |
-| Provider-paid reservation and disabled webhook confirmed; handler correction, recurring reconciliation, health alerts and reservation retries implemented; local CI and focused regressions passed | Customer still pending and live webhook still disabled at this checkpoint; hosted staging acceptance required | Release through staging, verify provider test recovery, then reconcile production and restore delivery |
+| PR #208 at `231265b`; exact CI, both staging apps, 179 migrations and all 16 function bundles verified. Provider test recovery, group settlement, webhook replays and private worker authentication passed. | Customer remains pending and live webhook remains disabled until production release. | Promote staging, reconcile the actual capture, restore live delivery and verify reports and schedules. |
 
-Evidence: [investigation](../issues/issue-production-paid-status-sync-2026-09-30.md), [implementation plan](../plans/payment-status-recovery.md), [review](../../.claude/code-reviews/2026-09-30-payment-status-recovery.md).
+Evidence: [staging acceptance](payment-status-recovery-staging-20260930.md), [investigation](../issues/issue-production-paid-status-sync-2026-09-30.md), [implementation plan](../plans/payment-status-recovery.md), [review](../../.claude/code-reviews/2026-09-30-payment-status-recovery.md).
 
 ### Organization discounts — production release, 2026-09-30
 
@@ -892,7 +892,7 @@ Before production, validate the exact staging revision with PayMongo test-mode p
 
 | Completed | Blockers | Next task |
 | --- | --- | --- |
-| Global registered-runner name/email lookup, matching special-code assignment eligibility, identity fallbacks and email display; local checks and browser acceptance | Hosted staging and production verification pending | Review and merge the scoped fix into staging, apply migration, and verify outside-runner assignment |
+| Registered-runner name/email lookup and assignment; local checks, reviewed PR #209, staging migration and hosted outside-runner acceptance | Exact staging-merge CI and production promotion pending | Finish the combined staging release gates, then verify production reads |
 
 The owner explicitly approved finding any registered runner before that runner joins the
 organization's events. The previous four-result list reflected an organization-history
@@ -917,6 +917,17 @@ Migration: `20260930083846_discount_runner_search.sql`. No Edge Function or prov
 configuration changes are required. Deploy this compatible lookup extension before the
 admin UI; prior clients retain the id/label fields. Follow the normal staging-to-main
 release path, then verify production reads without creating test codes or payments.
+
+Staging follow-up: PR #209 merged at `ca2c65fafc0240566ac5f1df0690af4504a250f6`.
+The combined source with payment recovery passed 2,453 local tests (890 backend/shared,
+530 runner, 1,020 admin, 13 shared UI), both builds, typechecks and 180-migration replay.
+Required PR and branch CI passed; exact staging-merge CI is running. Both staging apps are
+Ready at the merge. Migration `20260930083846`, function source hashes and grants were
+read back. Hosted email search and special-code assignment passed for a runner with no
+organization participation; the test code is inactive. Secret fingerprints and Edge
+Function versions remain unchanged by this fix. See the
+[staging evidence](discount-runner-search-staging-20260930.md). Production remains pending
+the combined release gates, including the concurrent payment-recovery change.
 
 See [investigation](../issues/issue-discount-runner-search.md) and
 [review](../../.claude/code-reviews/2026-09-30-discount-runner-search.md).
