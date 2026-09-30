@@ -36,6 +36,8 @@ const HEADER = [
   "Payment ID",
   "Booking Order ID",
   "Participant Count",
+  "Discount Code",
+  "Discount (PHP)",
 ];
 
 function toRow(r: Awaited<ReturnType<typeof listOrgPayments>>["rows"][number]): string {
@@ -66,6 +68,8 @@ function toRow(r: Awaited<ReturnType<typeof listOrgPayments>>["rows"][number]): 
     csvField(r.payment_id),
     csvField(r.booking_order_id),
     String(r.participant_count),
+    csvField(r.discount_code ?? null),
+    centavosToDecimal(r.discount_amount_cents ?? 0),
   ]);
 }
 

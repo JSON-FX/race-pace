@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import type { RegistrationRow } from "@/lib/queries/registrations";
 import { registrationTeamName } from "@/lib/registration-team";
 import { PaymentStatusBadge, RegistrationStatusBadge } from "./StatusBadge";
+import { BulkCancelDialog } from "./BulkCancelDialog";
 import { MethodBadge } from "./MethodBadge";
 import { RefundModal } from "./RefundModal";
 import { CopyButton } from "./CopyButton";
@@ -76,6 +77,8 @@ export function RegistrationDetail({ row, onClose, onRefunded }: {
   row: RegistrationRow; onClose: () => void; onRefunded: () => void;
 }) {
   const [refunding, setRefunding] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const complimentary = row.total_amount === 0 && (row.discount_amount_cents ?? 0) > 0;
   const canRefund = row.payment_status === "paid";
   const customEntries = Object.entries(row.custom_data ?? {}).filter(([key]) => key !== "team_name" && key !== "bib_name");
   const teamName = registrationTeamName(row.custom_data);
@@ -248,20 +251,21 @@ export function RegistrationDetail({ row, onClose, onRefunded }: {
         {/* ── Refund ─────────────────────────────────────────────────────── */}
         <div className="flex shrink-0 items-center justify-between gap-3 border-t border-border bg-muted/40 px-[18px] py-3">
           <span className="text-[11.5px] leading-snug text-muted-foreground">
-            {row.booking_order_id && row.payment_status === "paid"
+            {complimentary ? "Cancel this free entry to release its slot. Its discount code stays used." : row.booking_order_id && row.payment_status === "paid"
               ? "Refunding this participant cancels their ticket and releases their slot. Other participants stay registered."
               : REFUND_REASON[row.payment_status ?? ""] ?? "No payment is recorded for this entry."}
           </span>
           <Button
             variant="destructive"
             className="shrink-0"
-            disabled={!canRefund}
-            onClick={() => setRefunding(true)}
+            disabled={complimentary ? row.registration_status !== "paid" : !canRefund}
+            onClick={() => complimentary ? setCancelling(true) : setRefunding(true)}
           >
-            Review refund
+            {complimentary ? "Cancel complimentary entry" : "Review refund"}
           </Button>
         </div>
 
+        {cancelling ? <BulkCancelDialog ids={[row.id]} onDone={onRefunded} onClose={() => setCancelling(false)} /> : null}
         {refunding ? (
           <RefundModal
             registration={{ id: row.id, full_name: row.full_name, total_amount: row.total_amount, booking_order_id: row.booking_order_id }}

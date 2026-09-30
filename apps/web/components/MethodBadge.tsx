@@ -46,6 +46,7 @@ export type MethodPresentation = {
 // that can appear": anything missing falls through to `unknown` below rather
 // than being dropped or guessed at.
 const KNOWN: Record<string, { label: string; marks: MarkKey[] }> = {
+  complimentary: { label: "Complimentary", marks: [] },
   // Card shows BOTH scheme marks, matching the public site and mobile —
   // "Card" alone doesn't tell an organizer whether a runner's Visa was
   // accepted. PayMongo reports the instrument, not the scheme, so which of

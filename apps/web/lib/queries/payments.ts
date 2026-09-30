@@ -15,6 +15,7 @@ function searchPattern(q: string): string | null {
 }
 
 export type PaymentRow = {
+  discount_code?: string | null; discount_amount_cents?: number;
   registration_id: string | null;
   payment_id: string;
   booking_order_id: string | null;
@@ -38,7 +39,7 @@ export type PaymentRow = {
 };
 
 const SELECT =
-  "payment_id,booking_order_id,participant_count,registration_id,event_id,event_name,user_id,full_name,avatar_url,amount,platform_fee,refunded_amount,processor_fee_cents,processor_fee_source,paid_at,net_to_org,method,status,created_at";
+  "discount_code,discount_amount_cents,payment_id,booking_order_id,participant_count,registration_id,event_id,event_name,user_id,full_name,avatar_url,amount,platform_fee,refunded_amount,processor_fee_cents,processor_fee_source,paid_at,net_to_org,method,status,created_at";
 
 export async function listOrgPayments(
   orgId: string,
@@ -78,7 +79,7 @@ export async function listOrgPayments(
   const pattern = searchPattern(params.q);
   if (pattern) {
     const term = quotePostgrestValue(pattern);
-    req = req.or(`full_name.ilike.${term},event_name.ilike.${term}`);
+    req = req.or(`discount_code.ilike.${term},full_name.ilike.${term},event_name.ilike.${term}`);
   }
 
   const s = params.sort[0] ?? { id: "created_at", desc: true };

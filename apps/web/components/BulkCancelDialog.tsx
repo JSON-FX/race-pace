@@ -48,8 +48,8 @@ export function BulkCancelDialog({ ids, onDone, onClose }: {
             Cancel {ids.length} registration{ids.length === 1 ? "" : "s"}?
           </AlertDialogTitle>
           <AlertDialogDescription className="text-[13px] text-muted-foreground">
-            This releases their category slot. Paid registrations can&apos;t be cancelled this
-            way — refund them individually instead. This can&apos;t be undone.
+            This releases their category slot and cancels their ticket. Complimentary entries need no refund.
+            Entries with a payment must be refunded individually. Used discount codes remain used.
           </AlertDialogDescription>
         </AlertDialogHeader>
         {error ? <Alert variant="destructive" role="alert" className=""><AlertDescription>{error}</AlertDescription></Alert> : null}

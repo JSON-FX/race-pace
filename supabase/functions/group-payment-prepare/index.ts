@@ -30,7 +30,7 @@ Deno.serve(async (req) => {
     const input = parsed.data;
     const result = await db.rpc("booking_order_prepare_payment", { p_actor: data.user.id, p_order: input.order_id, p_method: input.method, p_key: input.idempotency_key });
     if (result.error) {
-      const codes: Record<string, number> = { invalid_input: 400, booking_email_unverified: 403, order_not_found: 404,
+      const codes: Record<string, number> = { discount_mixed_fee_modes: 409, discount_balance_too_small: 409, discount_fees_exceed_balance: 409, invalid_input: 400, booking_email_unverified: 403, order_not_found: 404,
         order_not_pending: 409, hold_expired: 409, registration_closed: 409, org_suspended: 409,
         order_entries_changed: 409, idempotency_conflict: 409, payment_attempt_in_progress: 409,
         invalid_terms: 503, rate_card_missing: 503, invalid_processor_rate: 503, order_amount_too_large: 422 };

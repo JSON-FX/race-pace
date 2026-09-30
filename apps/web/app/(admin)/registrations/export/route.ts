@@ -38,6 +38,8 @@ const HEADER = [
   "Refunded (PHP)",
   "Payment ID",
   "Booking Order ID",
+  "Discount Code",
+  "Discount (PHP)",
 ];
 
 function toRow(
@@ -63,6 +65,8 @@ function toRow(
     r.refunded_amount != null ? centavosToDecimal(r.refunded_amount) : "",
     csvField(r.payment_id),
     csvField(r.booking_order_id),
+    csvField(r.discount_code ?? null),
+    centavosToDecimal(r.discount_amount_cents ?? 0),
   ]);
 }
 

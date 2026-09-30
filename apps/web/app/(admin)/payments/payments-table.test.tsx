@@ -49,7 +49,7 @@ describe("PaymentsTable", () => {
     const rows = screen.getAllByRole("row");
     // rows[0] is the header row; the one data row is rows[1].
     const headers = within(rows[0]).getAllByRole("columnheader").map((h) => h.textContent);
-    expect(headers).toEqual(["Runner", "Method", "Gross", "Fee", "Net", "Status", "Date"]);
+    expect(headers).toEqual(["Runner", "Method", "Gross", "Fee", "Net", "Status", "Date", "Discount code", "Discount"]);
     const cells = within(rows[1]).getAllByRole("cell");
     expect(cells[2]).toHaveTextContent("₱2,850"); // Gross
     expect(cells[3]).toHaveTextContent("₱142.50"); // Fee

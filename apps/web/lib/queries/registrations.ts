@@ -31,6 +31,7 @@ export type PaymentStatus = "pending" | "paid" | "failed" | "refunded" | "partia
 export type RegistrationStatus = "pending" | "paid" | "refunded" | "cancelled" | "expired";
 
 export type RegistrationRow = {
+  discount_code?: string | null; discount_amount_cents?: number;
   booking_order_id?: string | null;
   payment_id?: string | null;
   id: string;
@@ -68,7 +69,7 @@ export type RegistrationRow = {
 };
 
 const SELECT =
-  "id,booking_order_id,payment_id,user_id,category_id,category_label,full_name,bib_name,avatar_url,total_amount,payment_amount,refunded_amount,payment_status,payment_method,registration_status,custom_data,created_at";
+  "discount_code,discount_amount_cents,id,booking_order_id,payment_id,user_id,category_id,category_label,full_name,bib_name,avatar_url,total_amount,payment_amount,refunded_amount,payment_status,payment_method,registration_status,custom_data,created_at";
 
 /** The email side-lookup from `listEventRegistrations`, split out so a
  *  caller paging through MANY batches (the CSV export route) can fetch it
@@ -179,7 +180,7 @@ export async function listEventRegistrations(
   const pattern = searchPattern(params.q);
   if (pattern) {
     const term = quotePostgrestValue(pattern);
-    req = req.or(`full_name.ilike.${term},bib_name.ilike.${term}`);
+    req = req.or(`discount_code.ilike.${term},full_name.ilike.${term},bib_name.ilike.${term}`);
   }
 
   const s = params.sort[0] ?? { id: "created_at", desc: true };
