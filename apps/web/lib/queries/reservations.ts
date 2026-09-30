@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 
 type Place = {
-  id: string; participant_name: string; is_managed: boolean; status: string;
+  id: string; category_id: string | null; participant_name: string; is_managed: boolean; status: string;
   entry_payment_deadline_at: string | null;
   categories: { label: string; code: string | null; entry_payment_deadline_at: string | null } | null;
 };
@@ -15,7 +15,7 @@ export type ReservationRow = {
   id: string; userId: string; name: string; email: string; avatarUrl: string | null;
   paymentStatus: string; paidAt: string | null; amountCents: number | null;
   converted: boolean; managed: { name: string; category: string; status: string }[];
-  categories: string[]; deadlines: { category: string; at: string | null }[];
+  categories: string[]; categoryIds: string[]; deadlines: { category: string; at: string | null }[];
 };
 export type ReservationSummary = { total: number; paid: number; paidAmountCents: number; pending: number };
 export type ReservationCategoryAvailability = {
@@ -81,7 +81,7 @@ export async function getEventReservations(orgId: string, eventId: string): Prom
   const headers: Header[] = [];
   for (let offset = 0; ; offset += 100) {
     const { data, error } = await db.from("event_reservations")
-      .select("id,user_id,email,status,paid_at,registration_deadline_at,checkout_expires_at,created_at,event_reservation_places(id,participant_name,is_managed,status,entry_payment_deadline_at,categories(label,code,entry_payment_deadline_at)),reservation_payments(status,amount_cents,paid_at)")
+      .select("id,user_id,email,status,paid_at,registration_deadline_at,checkout_expires_at,created_at,event_reservation_places(id,category_id,participant_name,is_managed,status,entry_payment_deadline_at,categories(label,code,entry_payment_deadline_at)),reservation_payments(status,amount_cents,paid_at)")
       .eq("org_id", orgId).eq("event_id", eventId)
       .order("created_at", { ascending: false }).order("id").range(offset, offset + 99)
       .returns<Header[]>();
@@ -121,6 +121,7 @@ export async function getEventReservations(orgId: string, eventId: string): Prom
       converted: header.status === "converted" || places.some(place => place.status === "converted"),
       managed: places.filter(place => place.is_managed).map(place => ({ name: place.participant_name, category: category(place), status: place.status })),
       categories: [...new Set(places.map(category))],
+      categoryIds: [...new Set(places.map(place => place.category_id).filter((id): id is string => !!id))],
       deadlines: deadlines.filter((deadline, index) => deadlines.findIndex(value => value.category === deadline.category && value.at === deadline.at) === index),
     };
   });

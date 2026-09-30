@@ -161,3 +161,26 @@ it("uses Philippine dates for timestamps and preserves a Passport's birth day", 
   const dialog = await screen.findByRole("dialog");
   expect(within(dialog).getByText("Jun 14, 2010")).toBeInTheDocument();
 });
+
+it("shows individual group payments in event cards and the full charge in the account summary", async () => {
+  const events = userEvent.setup();
+  const base = user.passports[0].registrations[0];
+  const ownRegistration = { ...base, id: "own-entry", amountCents: 10000, payment: { ...base.payment!, amountCents: 10256 } };
+  const managedRegistration = { ...base, id: "managed-entry", amountCents: 20000, payment: { ...base.payment!, amountCents: 20513 } };
+  const own: PlatformPassport = {
+    ...user.passports[0], id: "own", name: user.name, relationship: "own", claimed: true,
+    registrations: [ownRegistration], currentRegistrations: [ownRegistration], latestPayment: ownRegistration.payment,
+  };
+  render(<UsersDirectory initialUsers={[{
+    ...user, registrations: [ownRegistration], currentRegistrations: [ownRegistration],
+    latestPayment: { ...base.payment!, amountCents: 30769 },
+    passports: [own, { ...user.passports[0], registrations: [managedRegistration], currentRegistrations: [managedRegistration], latestPayment: managedRegistration.payment }],
+  }]} />);
+  await events.click(screen.getByRole("button", { name: "View Alina Santos" }));
+  const dialog = await screen.findByRole("dialog");
+  expect(within(dialog).getByText("₱307.69")).toBeInTheDocument();
+  await events.click(within(dialog).getByRole("button", { name: "All events" }));
+  expect(within(dialog).getByText("₱102.56")).toBeInTheDocument();
+  expect(within(dialog).getByText("₱205.13")).toBeInTheDocument();
+  expect(within(dialog).queryByText("₱307.69")).not.toBeInTheDocument();
+});

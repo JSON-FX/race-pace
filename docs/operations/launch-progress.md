@@ -964,3 +964,12 @@ See [Reservations review](../../.claude/code-reviews/2026-09-30-reservations-pag
 | Canonical category availability read, total/general/reservation cards, explicit unpublished and disabled states | Bounded visual readback and required GitHub release checks pending | Release to production, verify matching counts, then sync staging |
 
 User explicitly authorized urgent production release and staging sync. Additional local suites remain waived for this session; enforced GitHub checks remain required. No backend, provider, migration, payment or production fixture change. [Report](../../.claude/reports/2026-09-30-reservation-category-slots-report.md) and [review](../../.claude/code-reviews/2026-09-30-reservation-category-slots.md).
+
+
+## October 1 Users payment correction and Reservations category filter
+
+| Completed | Blockers | Next task |
+| --- | --- | --- |
+| Scoped implementation and review; 2,501 local tests, typechecks, both production builds and 180-migration replay passed | No local blocker; production deployment and Browser readback pending | Deploy the reviewed revision to production, then synchronize staging and main |
+
+Owner explicitly requested production first followed by staging synchronization. GitHub branch protection and staging-source validation remain unchanged. A direct Vercel production release and the changed platform-users function use the scoped feature revision; code integration follows through staging and main afterward. No production fixtures, payments, migrations or provider configuration changes. See [report](../../.claude/reports/users-payment-reservation-filter-report.md), [review](../../.claude/code-reviews/users-payment-reservation-filter.md) and [plan](../../.claude/plans/users-payment-reservation-filter.md).
