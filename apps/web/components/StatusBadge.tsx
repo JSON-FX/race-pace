@@ -5,7 +5,7 @@ export type BadgeTone = "paid" | "pending" | "info" | "danger" | "neutral" | "hi
 const tones = { paid: "success", pending: "warning", info: "info", danger: "danger", neutral: "neutral", highlight: "neutral" } as const;
 
 export function StatusBadge({ tone, children, className }: { tone: BadgeTone; children: React.ReactNode; className?: string }) {
-  return <Status tone={tones[tone]} className={className}>{children}</Status>;
+  return <Status tone={tones[tone]} dot={false} className={className}>{children}</Status>;
 }
 
 const PAYMENT: Record<string, { label: string; tone: BadgeTone }> = {

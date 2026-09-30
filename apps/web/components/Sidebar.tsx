@@ -65,7 +65,7 @@ export function Sidebar({
   return (
     <UISidebar collapsible="icon">
       <SidebarHeader>
-        <div className="flex items-center gap-2.5 px-2 py-1">
+        <div className="flex items-center gap-2.5 px-2 py-1 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:gap-0 group-data-[collapsible=icon]:px-0">
           <div className="grid size-8 shrink-0 place-items-center" aria-hidden="true">
             <Image
               src="/topnav-logo.png"
