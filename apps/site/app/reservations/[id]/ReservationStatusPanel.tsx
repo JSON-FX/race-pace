@@ -14,22 +14,42 @@ export function ReservationStatusPanel({ id, initialStatus, returned, remaining,
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function check() {
-    setChecking(true);
-    setError(null);
-    const db = createClient();
-    const { data, error: verifyError } = await db.functions.invoke("reservation-verify", {
-      body: { reservation_id: id },
-    });
-    if (verifyError || !data?.status) setError("Payment could not be checked yet. Please try again shortly.");
-    else {
-      setStatus(data.status);
-      if (data.status === "paid" || data.status === "converted") router.refresh();
-    }
-    setChecking(false);
-  }
+  const [manualCheck, setManualCheck] = useState(0);
 
-  useEffect(() => { if (returned && status === "pending") void check(); }, [returned, status]);
+  useEffect(() => {
+    setStatus(initialStatus);
+    if (initialStatus !== "pending") return;
+    let disposed = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const delays = [2000, 5000, 10000, 20000, 30000];
+    let attempt = 0;
+    async function verify() {
+      setChecking(true);
+      setError(null);
+      let nextStatus: string | undefined;
+      try {
+        const { data, error: verifyError } = await createClient().functions.invoke("reservation-verify", {
+          body: { reservation_id: id },
+        });
+        if (disposed) return;
+        if (verifyError || !data?.status) throw new Error("verification_unavailable");
+        nextStatus = data.status;
+        setStatus(data.status);
+        if (data.status === "paid" || data.status === "converted") router.refresh();
+      } catch {
+        if (!disposed) setError("Payment could not be checked yet. Please try again shortly.");
+      } finally {
+        if (!disposed) setChecking(false);
+      }
+      // Closing a wallet need not return to this page. Every pending visit gets
+      // bounded verification; delayed provider visibility gets another chance.
+      if (!disposed && (!nextStatus || nextStatus === "pending") && attempt < delays.length) {
+        timer = setTimeout(() => { void verify(); }, delays[attempt++]);
+      }
+    }
+    void verify();
+    return () => { disposed = true; clearTimeout(timer); };
+  }, [id, initialStatus, returned, manualCheck, router]);
 
   return <div className="mt-6 rounded-xl border border-white/15 bg-white/5 p-5">
     <p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-300">Reservation status</p>
@@ -41,7 +61,7 @@ export function ReservationStatusPanel({ id, initialStatus, returned, remaining,
         : status === "review_required" ? "We received a payment update that needs review. Your selected places remain held while we reconcile it."
         : "This reservation no longer holds an event place."}
     </p>
-    {status === "pending" ? <Button variant="ghost" type="button" onClick={check} disabled={checking}
+    {status === "pending" ? <Button variant="ghost" type="button" onClick={() => setManualCheck((count) => count + 1)} disabled={checking}
       className="mt-4 px-5 py-2.5 disabled:opacity-50">
       {checking ? "Checking…" : "Check payment"}
     </Button> : null}
