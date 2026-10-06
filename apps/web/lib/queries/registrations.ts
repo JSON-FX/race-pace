@@ -320,6 +320,22 @@ export async function getRegistrationAggregates(
   };
 }
 
+/** Original collected sales for the whole selected event. The database sums
+ *  captured participant allocations, including refunded charges, without table
+ *  filters or row limits. A failed money read must not look like zero sales. */
+export async function getEventRegistrationGross(eventId: string): Promise<number | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("admin_event_registration_gross", { p_event_id: eventId });
+  if (error) {
+    console.error("getEventRegistrationGross failed", error);
+    return null;
+  }
+  const raw = data?.[0]?.gross_cents;
+  if (raw == null) return null;
+  const cents = Number(raw);
+  return Number.isSafeInteger(cents) && cents >= 0 ? cents : null;
+}
+
 export async function listEventCategories(eventId: string): Promise<{ id: string; label: string }[]> {
   const supabase = await createClient();
   const { data, error } = await supabase

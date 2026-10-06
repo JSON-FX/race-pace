@@ -1,21 +1,24 @@
-import { ClipboardList, CheckCircle2, Wallet, Undo2 } from "lucide-react";
-import { getRegistrationAggregates } from "@/lib/queries/registrations";
+import { ClipboardList, CheckCircle2, Wallet, Undo2, Banknote } from "lucide-react";
+import { getRegistrationAggregates, getEventRegistrationGross } from "@/lib/queries/registrations";
 import { KpiCard, KpiRow } from "@/components/kpi-card";
 import { peso } from "@/lib/format";
 import type { TableParams } from "@/lib/table-params";
 
-/** The KPI row, split out of page.tsx so it can suspend independently of the
- *  table. Both read the SAME event and filters — see getRegistrationAggregates'
- *  doc comment for why the cards come from an RPC over the shared view rather
- *  than a sum over the table's rows. */
+export const REGISTRATION_KPI_GRID = "min-[760px]:grid-cols-3 min-[1200px]:grid-cols-5";
+
+/** Existing cards follow table filters. Gross Registration intentionally describes
+ *  the whole selected event, so searching for a runner cannot hide event sales. */
 export async function RegistrationsKpiSection({ eventId, params }: {
   eventId: string;
   params: TableParams;
 }) {
-  const aggregates = await getRegistrationAggregates(eventId, params);
+  const [aggregates, eventGross] = await Promise.all([
+    getRegistrationAggregates(eventId, params),
+    getEventRegistrationGross(eventId),
+  ]);
 
   return (
-    <KpiRow>
+    <KpiRow className={REGISTRATION_KPI_GRID}>
       <KpiCard
         icon={ClipboardList}
         label="Total"
@@ -33,6 +36,12 @@ export async function RegistrationsKpiSection({ eventId, params }: {
           text: `${aggregates.total > 0 ? ((aggregates.paid / aggregates.total) * 100).toFixed(1) : "0.0"}% conversion`,
           tone: "neutral",
         }}
+      />
+      <KpiCard
+        icon={Banknote}
+        label="Gross Registration"
+        value={eventGross === null ? "Unavailable" : peso(eventGross)}
+        delta={{ text: "Whole event · before fees/refunds", tone: "neutral" }}
       />
       {/* MoM delta omitted — see task-v2-report.md ("Deltas shipped vs
           omitted"): a month-over-month comparison needs a second

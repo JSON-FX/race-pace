@@ -29,7 +29,10 @@ vi.mock("next/navigation", () => ({
 const RegistrationsKpiSection = vi.hoisted(() => vi.fn(() => null));
 const RegistrationsTableSection = vi.hoisted(() => vi.fn(() => null));
 const ReservationRosterSection = vi.hoisted(() => vi.fn(() => null));
-vi.mock("./kpi-section", () => ({ RegistrationsKpiSection }));
+vi.mock("./kpi-section", () => ({
+  RegistrationsKpiSection,
+  REGISTRATION_KPI_GRID: "min-[760px]:grid-cols-3 min-[1200px]:grid-cols-5",
+}));
 vi.mock("./table-section", () => ({ RegistrationsTableSection }));
 vi.mock("./reservation-section", () => ({ ReservationRosterSection }));
 vi.mock("./prescreening-approvals", () => ({ PrescreeningApprovals: () => null }));

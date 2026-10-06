@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { EventPicker } from "./event-picker";
-import { RegistrationsKpiSection } from "./kpi-section";
+import { RegistrationsKpiSection, REGISTRATION_KPI_GRID } from "./kpi-section";
 import { RegistrationsTableSection } from "./table-section";
 import { PrescreeningApprovals } from "./prescreening-approvals";
 
@@ -149,7 +149,7 @@ export default async function RegistrationsPage({
         </div>
       </div>
 
-      <Suspense key={`kpi-${sectionKey}`} fallback={<KpiRowSkeleton />}>
+      <Suspense key={`kpi-${sectionKey}`} fallback={<KpiRowSkeleton cards={5} className={REGISTRATION_KPI_GRID} />}>
         <RegistrationsKpiSection eventId={eventId} params={params} />
       </Suspense>
 
