@@ -58,10 +58,6 @@ jobs:
     if: needs.scope.outputs.site == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    env:
-      NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54521
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-not-a-hosted-key
-      NEXT_PUBLIC_SITE_URL: http://localhost:3000
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -81,16 +77,16 @@ jobs:
       - run: pnpm --filter site typecheck
       - run: pnpm --filter site test
       - run: pnpm --filter site build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54521
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-not-a-hosted-key
+          NEXT_PUBLIC_SITE_URL: http://localhost:3000
 
   web:
     needs: scope
     if: needs.scope.outputs.web == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    env:
-      NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54521
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-not-a-hosted-key
-      NEXT_PUBLIC_SITE_URL: http://localhost:3000
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -110,6 +106,10 @@ jobs:
       - run: pnpm --filter web typecheck
       - run: pnpm --filter web test
       - run: pnpm --filter web build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54521
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-not-a-hosted-key
+          NEXT_PUBLIC_SITE_URL: http://localhost:3000
 
   shared:
     needs: scope
