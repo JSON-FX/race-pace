@@ -30,6 +30,8 @@ const PUBLIC_PATHS = [
 ];
 
 export function isProtectedPath(pathname: string): boolean {
+  // Public, build-time identity only; do not open the rest of /api or descendants.
+  if (pathname === "/api/release") return false;
   return !PUBLIC_PATHS.some(
     (p) => pathname === p || pathname.startsWith(`${p}/`),
   );

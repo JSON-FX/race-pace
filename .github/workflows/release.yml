@@ -1,0 +1,231 @@
+name: Staged release
+
+on:
+  workflow_run:
+    workflows: [Web and admin CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      ci_run_id:
+        description: Successful main-push CI run to release (full run ID)
+        required: true
+        type: string
+
+# Keep staging pinned while its candidate awaits approval. GitHub keeps the latest
+# pending run; an active release is never cancelled by a newer main commit.
+concurrency:
+  group: race-pace-hosted-release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: read
+  deployments: write
+
+env:
+  GH_TOKEN: ${{ github.token }}
+  OPTION_B_ENABLED: ${{ vars.OPTION_B_ENABLED }}
+  RELEASE_BOOTSTRAP_SHA: ${{ vars.RELEASE_BOOTSTRAP_SHA }}
+  REQUIRE_BACKEND_EVIDENCE: 'true'
+  # CLI 2.109.1 can fail after a successful deploy when analytics shutdown times out.
+  SUPABASE_TELEMETRY_DISABLED: '1'
+
+jobs:
+  source:
+    if: >-
+      vars.OPTION_B_ENABLED == 'true' && github.repository == 'JSON-FX/race-pace' &&
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      sha: ${{ steps.source.outputs.sha }}
+      ci_run_id: ${{ steps.source.outputs.ci_run_id }}
+    steps:
+      # Validate the event using trusted workflow code BEFORE checking out any candidate.
+      - uses: actions/github-script@v7
+        id: source
+        env:
+          CI_RUN_ID: ${{ github.event.workflow_run.id || inputs.ci_run_id }}
+        with:
+          script: |
+            const id = process.env.CI_RUN_ID;
+            if (!/^\d+$/.test(id)) throw new Error('A CI run ID is required');
+            const {data: run} = await github.rest.actions.getWorkflowRun({...context.repo, run_id: Number(id)});
+            const {data: workflow} = await github.rest.actions.getWorkflow({...context.repo, workflow_id:'ci.yml'});
+            if (run.workflow_id !== workflow.id || run.event !== 'push' || run.status !== 'completed' ||
+                run.conclusion !== 'success' || run.head_branch !== 'main' ||
+                run.repository.full_name !== 'JSON-FX/race-pace' || run.head_repository.full_name !== 'JSON-FX/race-pace' ||
+                !/^[a-f0-9]{40}$/.test(run.head_sha)) throw new Error('Untrusted or unsuccessful integrated CI candidate');
+            core.setOutput('sha', run.head_sha);
+            core.setOutput('ci_run_id', id);
+
+  plan:
+    needs: source
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      deploy: ${{ steps.plan.outputs.deploy }}
+      base: ${{ steps.plan.outputs.base }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.source.outputs.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Check approval settings and plan cumulative release
+        id: plan
+        env:
+          CANDIDATE_SHA: ${{ needs.source.outputs.sha }}
+          CI_RUN_ID: ${{ needs.source.outputs.ci_run_id }}
+          GITHUB_WORKFLOW_SHA: ${{ github.workflow_sha }}
+        run: |
+          mkdir -p .local/release
+          node scripts/release/control.mjs prepare "$CANDIDATE_SHA" "$CI_RUN_ID" .local/release/plan.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-plan-${{ github.run_attempt }}
+          path: .local/release/plan.json
+          if-no-files-found: error
+          retention-days: 90
+
+  staging:
+    needs: [source, plan]
+    if: needs.plan.outputs.deploy == 'true'
+    environment: release-staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_AUTOMATION_BYPASS_SECRET_SITE: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET_SITE }}
+      VERCEL_AUTOMATION_BYPASS_SECRET_WEB: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET_WEB }}
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      CANDIDATE_SHA: ${{ needs.source.outputs.sha }}
+      BASE_SHA: ${{ needs.plan.outputs.base }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.source.outputs.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.7.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-plan-${{ github.run_attempt }}
+          path: .local/release
+      - name: Recheck candidate and exclusive deployment ownership
+        run: |
+          node scripts/release/control.mjs guard .local/release/plan.json
+          node scripts/release/control.mjs cutover
+          node scripts/release/control.mjs record staging .local/release/plan.json started
+      - name: Apply changed staging backend
+        run: |
+          export RELEASE_RECONCILIATION_REFS="$(node -e 'process.stdout.write(JSON.stringify(require("./.local/release/plan.json").reconciliationRefs.staging))')"
+          node scripts/release/backend.mjs staging "$BASE_SHA" "$CANDIDATE_SHA" .local/release/backend.json
+      - name: Build and deploy affected staging apps
+        run: node scripts/release/vercel.mjs deploy staging .local/release/plan.json .local/release/apps.json
+      - name: Verify exact hosted staging deployments
+        run: |
+          node scripts/release/vercel.mjs verify staging .local/release/apps.json .local/release/verified.json
+          node scripts/release/control.mjs assemble .local/release/plan.json .local/release/backend.json .local/release/verified.json .local/release/staging.json
+          node scripts/release/control.mjs record staging .local/release/staging.json complete
+      - name: Record failed staging attempt
+        if: failure()
+        run: |
+          if [ -f .local/release/plan.json ]; then
+            node scripts/release/control.mjs record-failure staging .local/release
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: staging-evidence-${{ github.run_attempt }}
+          path: .local/release/*.json
+          if-no-files-found: error
+          retention-days: 90
+
+  production:
+    needs: [source, plan, staging]
+    # Owner approval here includes review of hosted staging business-flow evidence.
+    # No production secret, backend change, or build is available before this gate.
+    environment:
+      name: release-production
+      url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_AUTOMATION_BYPASS_SECRET_SITE: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET_SITE }}
+      VERCEL_AUTOMATION_BYPASS_SECRET_WEB: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET_WEB }}
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      CANDIDATE_SHA: ${{ needs.source.outputs.sha }}
+      BASE_SHA: ${{ needs.plan.outputs.base }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.source.outputs.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.7.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          name: staging-evidence-${{ github.run_attempt }}
+          path: .local/release
+      - name: Verify approved source and staging state again
+        env:
+          VERCEL_AUTOMATION_BYPASS_SECRET_SITE: ${{ secrets.STAGING_VERCEL_AUTOMATION_BYPASS_SECRET_SITE }}
+          VERCEL_AUTOMATION_BYPASS_SECRET_WEB: ${{ secrets.STAGING_VERCEL_AUTOMATION_BYPASS_SECRET_WEB }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.STAGING_SUPABASE_READ_TOKEN }}
+        run: |
+          node scripts/release/control.mjs guard .local/release/staging.json
+          node scripts/release/control.mjs cutover
+          node scripts/release/vercel.mjs verify staging .local/release/staging.json .local/release/staging-apps-rechecked.json
+          node scripts/release/backend.mjs verify staging .local/release/staging.json .local/release/staging-backend-rechecked.json
+          node scripts/release/control.mjs record production .local/release/plan.json started
+      - name: Apply the approved production backend
+        run: |
+          export RELEASE_RECONCILIATION_REFS="$(node -e 'process.stdout.write(JSON.stringify(require("./.local/release/plan.json").reconciliationRefs.production))')"
+          node scripts/release/backend.mjs production "$BASE_SHA" "$CANDIDATE_SHA" .local/release/production-backend.json
+      - name: Build production candidates without changing domains
+        run: node scripts/release/vercel.mjs deploy production .local/release/plan.json .local/release/production-apps.json
+      - name: Verify candidates before promotion
+        run: node scripts/release/vercel.mjs verify production .local/release/production-apps.json .local/release/production-verified.json
+      - name: Promote verified apps and check aliases
+        run: |
+          node scripts/release/vercel.mjs promote production .local/release/production-verified.json .local/release/production-promoted.json
+          node scripts/release/vercel.mjs verify production .local/release/production-promoted.json .local/release/production-checked.json
+          node scripts/release/control.mjs assemble .local/release/plan.json .local/release/production-backend.json .local/release/production-checked.json .local/release/production.json
+          node scripts/release/control.mjs record production .local/release/production.json complete
+      - name: Record failed production attempt
+        if: failure()
+        run: |
+          if [ -f .local/release/plan.json ]; then
+            node scripts/release/control.mjs record-failure production .local/release
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: production-evidence-${{ github.run_attempt }}
+          path: .local/release/*.json
+          if-no-files-found: error
+          retention-days: 90
