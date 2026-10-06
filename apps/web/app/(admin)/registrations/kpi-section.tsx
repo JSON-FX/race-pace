@@ -1,20 +1,21 @@
 import { ClipboardList, CheckCircle2, Wallet, Undo2, Banknote } from "lucide-react";
-import { getRegistrationAggregates, getEventRegistrationGross } from "@/lib/queries/registrations";
+import { getRegistrationAggregates, getEventRegistrationGross, getEventOrganizerNet } from "@/lib/queries/registrations";
 import { KpiCard, KpiRow } from "@/components/kpi-card";
 import { peso } from "@/lib/format";
 import type { TableParams } from "@/lib/table-params";
 
 export const REGISTRATION_KPI_GRID = "min-[760px]:grid-cols-3 min-[1200px]:grid-cols-5";
 
-/** Existing cards follow table filters. Gross Registration intentionally describes
- *  the whole selected event, so searching for a runner cannot hide event sales. */
-export async function RegistrationsKpiSection({ eventId, params }: {
+/** Gross and organizer net describe the whole event; count/refund cards follow table filters. */
+export async function RegistrationsKpiSection({ orgId, eventId, params }: {
+  orgId: string;
   eventId: string;
   params: TableParams;
 }) {
-  const [aggregates, eventGross] = await Promise.all([
+  const [aggregates, eventGross, eventNet] = await Promise.all([
     getRegistrationAggregates(eventId, params),
     getEventRegistrationGross(eventId),
+    getEventOrganizerNet(orgId, eventId),
   ]);
 
   return (
@@ -43,13 +44,12 @@ export async function RegistrationsKpiSection({ eventId, params }: {
         value={eventGross === null ? "Unavailable" : peso(eventGross)}
         delta={{ text: "Whole event · before fees/refunds", tone: "neutral" }}
       />
-      {/* MoM delta omitted — see task-v2-report.md ("Deltas shipped vs
-          omitted"): a month-over-month comparison needs a second
-          time-windowed query with an ambiguous boundary (calendar month vs.
-          rolling 30d) and reads as noise against this org's sparse,
-          single-month seed data. Rather than fabricate a plausible-looking
-          percentage, the card renders the value alone. */}
-      <KpiCard icon={Wallet} label="Retained gross" value={peso(aggregates.grossCents)} />
+      <KpiCard
+        icon={Wallet}
+        label="Net to organizer"
+        value={eventNet === null ? "Unavailable" : peso(eventNet)}
+        delta={{ text: eventNet === null ? "Earnings incomplete or unavailable" : "Whole event · after fees/refunds", tone: "neutral" }}
+      />
       <KpiCard
         icon={Undo2}
         label="Refunds"

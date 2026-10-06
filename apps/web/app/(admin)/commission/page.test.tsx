@@ -35,7 +35,7 @@ const emptyOverview = {
   orgs: [],
   events: [],
   totals: {
-    commission: 0, gross: 0, charged_gross: 0, net_to_org: 0, paid_count: 0,
+    commission: 0, active_commission: 0, gross: 0, charged_gross: 0, net_to_org: 0, paid_count: 0,
     refunded_cents: 0, refund_count: 0, unpaid_out_cents: 0,
   },
 };
@@ -185,7 +185,7 @@ describe("CommissionPage — the three-party surfaces", () => {
 
     expect(screen.queryByRole("columnheader", { name: "Gross" })).not.toBeInTheDocument();
     expect(screen.getAllByRole("columnheader", { name: "GMV" }).length).toBe(2);
-    expect(screen.getByText(/5 paid entries · charged, before refunds/)).toBeInTheDocument();
+    expect(screen.getByText(/5 captured entries · before refunds/)).toBeInTheDocument();
   });
 });
 
@@ -237,4 +237,14 @@ describe("CommissionPage — second browser review regressions", () => {
     expect(values.get("commission_flat_pesos")).toBe("0");
     expect(screen.getAllByRole("button", { name: "Save" })[0]).toBeEnabled();
   });
+});
+
+it("shows active registration commission only to platform admins and keeps reservation fees separate", async () => {
+  getMyRoles.mockResolvedValue(SUPER);
+  getCommissionOverview.mockResolvedValue({ ...emptyOverview, totals: { ...emptyOverview.totals, active_commission: 12345 } });
+  render(await CommissionPage());
+  expect(screen.getByText("ACTIVE EVENT COMMISSION")).toBeInTheDocument();
+  expect(screen.getByText("₱123.45")).toBeInTheDocument();
+  expect(screen.getByText(/captured registration fees only/)).toBeInTheDocument();
+  expect(screen.getByText(/Zero-rate registrations earn no commission/)).toBeInTheDocument();
 });

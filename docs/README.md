@@ -192,3 +192,5 @@ The approved September 30 UI session is live through PR #215, including the Rese
 ### September 30 Reservations category slots
 
 [Scoped specification](specs/2026-09-30-reservation-category-slots.md) and [implementation plan](plans/2026-09-30-reservation-category-slots.md): category cards use the admission ledger for total, general, and reservation slots left. Implementation is live and verified in production. Staging runs the same application source with its own database identity. See [release evidence](operations/reservation-category-slots-release-20260930.md) for protected Git synchronization and exact deployments.
+
+- 2026-10-07: Organizer proceeds and active commission reporting — [spec](specs/2026-10-07-organizer-proceeds.md), [plan](plans/2026-10-07-organizer-proceeds.md). Implementation complete; validation and hosted acceptance in progress.

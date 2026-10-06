@@ -18,7 +18,7 @@ vi.mock("@/lib/supabase/server", () => ({
   }),
 }));
 
-import { getRegistrationAggregates, getEventRegistrationGross, listEventRegistrations } from "./registrations";
+import { getRegistrationAggregates, getEventRegistrationGross, getEventOrganizerNet, listEventRegistrations } from "./registrations";
 
 const params = (overrides: Partial<TableParams> = {}): TableParams => ({
   page: 1,
@@ -145,5 +145,25 @@ describe("getRegistrationAggregates", () => {
     const result = await getRegistrationAggregates("event-1", params());
 
     expect(result).toEqual({ total: 0, paid: 0, grossCents: 0, refundCount: 0, refundedCents: 0, newThisWeek: 0 });
+  });
+});
+
+describe("getEventOrganizerNet", () => {
+  it.each([185000, "185000", 0])("reads recorded net %s for the whole selected event", async net_cents => {
+    rpcMock.mockResolvedValue({ data: [{ net_cents, gross_cents: 200000, refunded_cents: 10000 }], error: null });
+    expect(await getEventOrganizerNet("org-1", "event-1")).toBe(Number(net_cents));
+    expect(rpcMock).toHaveBeenLastCalledWith("admin_payment_aggregates", {
+      p_org_id: "org-1", p_event_id: "event-1", p_status: "all", p_method: "all", p_q: "",
+    });
+  });
+  it.each([null, undefined, "", false, "invalid", -1, "9007199254740992"])("preserves unavailable net %s", async net_cents => {
+    rpcMock.mockResolvedValue({ data: [{ net_cents }], error: null });
+    expect(await getEventOrganizerNet("org-1", "event-1")).toBeNull();
+  });
+  it("does not turn a failed or empty read into zero earnings", async () => {
+    rpcMock.mockResolvedValue({ data: null, error: { message: "unavailable" } });
+    expect(await getEventOrganizerNet("org-1", "event-1")).toBeNull();
+    rpcMock.mockResolvedValue({ data: [], error: null });
+    expect(await getEventOrganizerNet("org-1", "event-1")).toBeNull();
   });
 });

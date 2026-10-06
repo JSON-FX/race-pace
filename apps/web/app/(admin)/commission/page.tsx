@@ -108,7 +108,7 @@ export default async function CommissionPage() {
             text:
               totals.refund_count > 0
                 ? `${peso(totals.refunded_cents)} returned on ${totals.refund_count} refund${totals.refund_count === 1 ? "" : "s"}`
-                : "No refunds returned yet",
+                : "Captured registration fees · before payouts",
           }}
         />
         <KpiCard
@@ -125,7 +125,7 @@ export default async function CommissionPage() {
           value={peso(totals.charged_gross)}
           delta={{
             tone: "neutral",
-            text: `${totals.paid_count.toLocaleString()} paid entries · charged, before refunds`,
+            text: `${totals.paid_count.toLocaleString()} captured entries · before refunds`,
           }}
         />
         <KpiCard
@@ -141,6 +141,18 @@ export default async function CommissionPage() {
           delta={{ tone: "neutral", text: totals.unpaid_out_cents === null ? "Unpaid amount incomplete; reconcile processing fees" : `${peso(totals.unpaid_out_cents)} not yet paid out` }}
         />
       </KpiRow>
+
+      <div className="mb-5">
+        <KpiCard
+          icon={Percent}
+          label="ACTIVE EVENT COMMISSION"
+          value={peso(totals.active_commission)}
+          delta={{ tone: "neutral", text: "Open, almost full and coming soon · captured registration fees only" }}
+        />
+        <p className="mt-2 text-xs text-muted-foreground">
+          Reservation Platform Fees are reported separately below. Zero-rate registrations earn no commission.
+        </p>
+      </div>
 
       {orgs.length === 0 ? (
         <Card className="gap-0 overflow-hidden border py-0">
@@ -184,7 +196,7 @@ export default async function CommissionPage() {
               <TableRow className="hover:bg-transparent">
                 <TableHead className={TH}>Event</TableHead>
                 <TableHead className={TH}>Organization</TableHead>
-                <TableHead className={`${TH} text-right`}>Paid</TableHead>
+                <TableHead className={`${TH} text-right`}>Captured</TableHead>
                 {/* "GMV", not "Gross" — the same word this column used to carry
                     also heads the organizer Dashboard's card for a figure that
                     IS net of refunds. This column is Σ amount, i.e. charged, so
