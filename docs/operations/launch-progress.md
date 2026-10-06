@@ -984,3 +984,13 @@ Production readback: admin deployment `dpl_4fJjMwJEinWuDfx2F1Wz1Gp3aax6` is Read
 Authenticated production Browser readback confirms participant cards at ₱1,743.59 each and the full transaction at ₱3,487.18. Kibalabag's category dropdown offers 70k, 42k, 25k, 13k and 7k. Selecting 42k returned 13 checkouts; combining payment and search retained a complete managed-runner checkout at ₱422.56. Clear filters restored 38 checkouts. Event totals remained 38 total, 32 paid, ₱6,960.73 collected and six pending. Tablet (768px) and phone (390px) controls wrap within the viewport with zero horizontal overflow. No production writes or transactions were used for acceptance. Staging source integration is PR #220.
 
 PR #220 merged at staging `a74bc73ff4526b6fbde38fda2cdf5ababc0bfe47`. Both exact staging deployments are Ready, and authenticated hosted category/payment acceptance passed. PR #221 aligned main at `083bbc749c666aece5a319e5f8b4dc755b6623f5`; both exact production deployments are Ready on the production aliases. Both apps' compiled bundles use their matching environment databases. Main and staging carry identical application/backend content. This evidence-only sync change starts from main and restores its ancestry in staging after merging. Final ancestry and Ready deployment IDs are recorded on the sync pull request. See [exact release evidence](users-payment-reservation-filter-release-20261001.md).
+
+
+## 2026-10-07 — Option B staging baseline and email acceptance
+
+PRs #223 and #224 reached staging. Exact revision `581313241f6e6d32514d803306d0bf6f863173a3`
+passed CI; both apps are Ready and all 33 reviewed hosted functions are Active. The owner
+confirmed the scheduled test email arrived with staging labeling. Required credentials are saved.
+The rollout exposed a Supabase CLI telemetry shutdown timeout; the follow-up disables optional
+telemetry without ignoring deployment errors. Full hosted acceptance and production approval
+remain pending. Option B is disabled. See [exact staging evidence](option-b-staging-baseline-20261007.md).
