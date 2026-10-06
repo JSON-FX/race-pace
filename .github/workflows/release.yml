@@ -28,6 +28,8 @@ env:
   OPTION_B_ENABLED: ${{ vars.OPTION_B_ENABLED }}
   RELEASE_BOOTSTRAP_SHA: ${{ vars.RELEASE_BOOTSTRAP_SHA }}
   REQUIRE_BACKEND_EVIDENCE: 'true'
+  # CLI 2.109.1 can fail after a successful deploy when analytics shutdown times out.
+  SUPABASE_TELEMETRY_DISABLED: '1'
 
 jobs:
   source:

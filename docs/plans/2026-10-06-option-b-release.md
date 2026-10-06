@@ -103,3 +103,15 @@ These are activation steps, not evidence supplied by local validation.
   acceptance and unlocks production; a separate manual acceptance job would duplicate this gate.
 - Include incomplete and rejected deployment attempts in reconciliation scope. Comparing only
   the successful production baseline can miss changes that still exist on staging.
+
+## Staging rehearsal follow-up: CLI telemetry
+
+The pinned Supabase CLI 2.109.1 can return a nonzero exit after successful deployment when
+PostHog shutdown times out. Live staging readback proved this for `platform-users` and
+`reservation-checkout`. Set `SUPABASE_TELEMETRY_DISABLED=1` in the release workflow using
+the CLI's documented source configuration. Keep genuine deployment errors fail-closed.
+
+Validation: rerun a read-only hosted command with telemetry disabled, the release/scope
+regression suites, actionlint, and `git diff --check`. Reuse the same-session passing full
+application/backend validation because this follow-up changes only workflow environment
+and operational evidence. Record staging function versions and remaining acceptance gates.

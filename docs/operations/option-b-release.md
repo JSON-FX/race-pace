@@ -186,3 +186,8 @@ optimizations, rather than weakening the release gate.
 The 8–15 minute automated target is unmeasured. Both environment builds remain required. Human
 review, approval, cold caches, migrations and provider acceptance add time. Record actual CI and
 deployment durations after cutover before reporting improvement.
+
+The release workflow disables optional Supabase CLI telemetry. During the initial staging
+rollout, CLI 2.109.1 returned a PostHog shutdown timeout after successful function deployment.
+This setting removes that unrelated failure source; command failures and hosted readback
+checks remain mandatory. For manual release commands, use `SUPABASE_TELEMETRY_DISABLED=1`.
