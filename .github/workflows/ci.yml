@@ -2,12 +2,9 @@ name: Web and admin CI
 
 on:
   pull_request:
+    branches: [main, staging]
   push:
-    branches:
-      - main
-      - staging
-      - 'feature/**'
-      - 'codex/**'
+    branches: [main, staging]
   workflow_dispatch:
 
 permissions:
@@ -18,21 +15,51 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
-  validate:
-    name: web-admin-validate
+  scope:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 5
+    outputs:
+      site: ${{ steps.scope.outputs.site }}
+      web: ${{ steps.scope.outputs.web }}
+      shared: ${{ steps.scope.outputs.shared }}
+      backend: ${{ steps.scope.outputs.backend }}
     steps:
       - uses: actions/checkout@v4
-      - name: Require staging as the production source
-        if: github.event_name == 'pull_request' && github.base_ref == 'main'
+        with:
+          fetch-depth: 0
+      - name: Require staging as the production source before Option B activation
+        if: github.event_name == 'pull_request' && github.base_ref == 'main' && vars.OPTION_B_ENABLED != 'true'
         env:
           RELEASE_HEAD_REF: ${{ github.head_ref }}
         run: |
           if [ "$RELEASE_HEAD_REF" != "staging" ]; then
-            echo "::error::Production pull requests must promote staging into main."
+            echo "::error::Production pull requests must promote staging into main until Option B is activated."
             exit 1
           fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Select validation scopes
+        id: scope
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            node scripts/ci-scope.mjs --base "$BASE_SHA" --head "$HEAD_SHA"
+          else
+            # Validate the actual integrated candidate in full before release.
+            node scripts/ci-scope.mjs --all
+          fi
+
+  site:
+    needs: scope
+    if: needs.scope.outputs.site == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
         with:
           version: 9.7.0
@@ -41,9 +68,88 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - uses: actions/cache@v4
+        with:
+          path: apps/site/.next/cache
+          key: ${{ runner.os }}-next-site-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('apps/site/**', 'packages/**', 'tsconfig*.json', '!**/node_modules/**', '!**/.next/**') }}
+          restore-keys: |
+            ${{ runner.os }}-next-site-${{ hashFiles('pnpm-lock.yaml') }}-
+      - run: pnpm --filter site typecheck
+      - run: pnpm --filter site test
+      - run: pnpm --filter site build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54521
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-not-a-hosted-key
+          NEXT_PUBLIC_SITE_URL: http://localhost:3000
 
-      # This stack and its credentials exist only inside the ephemeral runner.
-      # No hosted Supabase or PayMongo secrets are available to this job.
+  web:
+    needs: scope
+    if: needs.scope.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.7.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/cache@v4
+        with:
+          path: apps/web/.next/cache
+          key: ${{ runner.os }}-next-web-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('apps/web/**', 'packages/**', 'tsconfig*.json', '!**/node_modules/**', '!**/.next/**') }}
+          restore-keys: |
+            ${{ runner.os }}-next-web-${{ hashFiles('pnpm-lock.yaml') }}-
+      - run: pnpm --filter web typecheck
+      - run: pnpm --filter web test
+      - run: pnpm --filter web build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54521
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-not-a-hosted-key
+          NEXT_PUBLIC_SITE_URL: http://localhost:3000
+
+  shared:
+    needs: scope
+    if: needs.scope.outputs.shared == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.7.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Check Fieldnotes source and shared components
+        run: |
+          node scripts/audit-fieldnotes-components.mjs --verify
+          pnpm --filter @race-pace/ui typecheck
+          pnpm --filter @race-pace/ui test
+
+  backend:
+    needs: scope
+    if: needs.scope.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.7.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Verify pinned Edge dependency graph
+        run: pnpm dlx deno@2.9.6 cache --config supabase/functions/deno.json --lock supabase/functions/deno.lock --frozen-lockfile --node-modules-dir=none supabase/functions/*/index.ts
+      # All credentials are local to this ephemeral runner. No hosted secrets.
       - name: Start isolated Supabase
         run: pnpm exec supabase start
       - name: Check migration replay and retired job
@@ -89,38 +195,41 @@ jobs:
           done
           cat /tmp/racepace-ci-proof.log
           exit 1
-      - name: Check Fieldnotes source and shared components
-        run: |
-          node scripts/audit-fieldnotes-components.mjs --verify
-          pnpm --filter @race-pace/ui typecheck
-          pnpm --filter @race-pace/ui test
-      - name: Typecheck runner and admin
-        run: |
-          pnpm --filter site typecheck
-          pnpm --filter web typecheck
-      - name: Test runner and admin
-        run: |
-          pnpm --filter site test
-          pnpm --filter web test
       - name: Test database, functions and shared contracts
+        # Preserve root Vitest fileParallelism:false for the shared database.
         run: pnpm test
-      - name: Stop native proof verifier before isolated builds
+      - name: Stop native proof verifier
         if: always()
         run: |
           if [ -f /tmp/racepace-ci-proof.pid ]; then
             proof_pid=$(cat /tmp/racepace-ci-proof.pid)
             kill -- "-$proof_pid" || true
           fi
-      - name: Build runner and admin
-        run: |
-          set -a
-          . ./.env.local
-          set +a
-          export NEXT_PUBLIC_SUPABASE_URL="$API_URL"
-          export NEXT_PUBLIC_SUPABASE_ANON_KEY="$ANON_KEY"
-          export NEXT_PUBLIC_SITE_URL=http://localhost:3000
-          pnpm --filter site build
-          pnpm --filter web build
-      - name: Show Edge logs on failure
+      - name: Show service logs on failure
         if: failure()
-        run: tail -100 /tmp/racepace-ci-edge.log 2>/dev/null || true
+        run: |
+          tail -100 /tmp/racepace-ci-edge.log 2>/dev/null || true
+          tail -100 /tmp/racepace-ci-proof.log 2>/dev/null || true
+
+  validate:
+    name: web-admin-validate
+    needs: [scope, site, web, shared, backend]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require every selected check
+        env:
+          CI_NEEDS: ${{ toJSON(needs) }}
+        run: |
+          node <<'NODE'
+          const needs = JSON.parse(process.env.CI_NEEDS);
+          if (needs.scope.result !== 'success') throw new Error('Scope selection did not succeed');
+          for (const name of ['site', 'web', 'shared', 'backend']) {
+            const selected = needs.scope.outputs[name];
+            if (!['true', 'false'].includes(selected)) throw new Error(`Missing scope: ${name}`);
+            const expected = selected === 'true' ? 'success' : 'skipped';
+            if (needs[name].result !== expected) throw new Error(`${name}: expected ${expected}, got ${needs[name].result}`);
+          }
+          console.log('Every selected check passed; all skips were intentional.');
+          NODE

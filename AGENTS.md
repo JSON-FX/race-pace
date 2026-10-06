@@ -42,6 +42,20 @@ deployment, migration history, Edge Function bundle, and provider configuration 
 
 ## Staging-first release policy
 
+**Option B transition:** implementation lives in `.github/workflows/release.yml` and
+`docs/operations/option-b-release.md`. Until the owner completes the documented cutover and
+sets repository variable `OPTION_B_ENABLED=true`, the policy below remains required.
+Do not interpret checked-in orchestration as proof that hosted settings have changed.
+
+After verified activation, create isolated feature worktrees from `origin/main` and target
+pull requests to `main`. Successful integrated CI feeds the pinned staging candidate; the
+protected `release-production` environment requires owner approval after hosted acceptance.
+There is no staging-to-main PR or sync-back in that mode. `main` may advance while production
+stays on the last approved release. Read the Option B runbook before any release action.
+The activation rule supersedes branch-selection instructions elsewhere in this file only
+after cutover. Environment identities, staging-first verification and production-data rules
+remain mandatory in both modes.
+
 `staging` is the only integration branch. `main` is the production branch.
 
 - Give every feature or fix its own isolated Git worktree and dedicated branch from current

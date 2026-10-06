@@ -2,6 +2,11 @@ import { describe, it, expect } from "vitest";
 import { isProtectedPath, signInRedirectPath, safeNextPath, homePathFor } from "./routes";
 
 describe("isProtectedPath", () => {
+  it("exposes only the exact release identity endpoint", () => {
+    expect(isProtectedPath("/api/release")).toBe(false);
+    expect(isProtectedPath("/api/release/admin")).toBe(true);
+    expect(isProtectedPath("/api/releases")).toBe(true);
+  });
   it("leaves the OAuth callback PUBLIC — it is the request that creates the session", () => {
     // The regression: with /auth/callback protected, middleware bounced Google's
     // return leg to /login?next=%2Fauth%2Fcallback%3Fcode%3D…, so the code was
