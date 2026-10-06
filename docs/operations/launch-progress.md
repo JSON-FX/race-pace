@@ -994,3 +994,14 @@ confirmed the scheduled test email arrived with staging labeling. Required crede
 The rollout exposed a Supabase CLI telemetry shutdown timeout; the follow-up disables optional
 telemetry without ignoring deployment errors. Full hosted acceptance and production approval
 remain pending. Option B is disabled. See [exact staging evidence](option-b-staging-baseline-20261007.md).
+
+
+### Option B staging acceptance completed
+
+PR #225 is merged at `8a77f09c7be3f07b93396d90e46c6e7690fffad8`; exact staging CI passed.
+Both apps are Ready. The telemetry-disabled repeat deployment exited cleanly and reproduced
+the same lifecycle-worker bundle (now version 11). Fresh super-admin sign-in, recovery email,
+organization creation/invitation, draft event creation and hosted tenant-isolation assertions passed.
+The owner confirmed receipt of all three authorized staging messages. See the completed
+acceptance section in [staging evidence](option-b-staging-baseline-20261007.md). This documentation
+follow-up changes no application/backend source. Production approval and cutover remain pending.

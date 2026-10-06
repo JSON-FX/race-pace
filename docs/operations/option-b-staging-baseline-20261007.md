@@ -1,6 +1,6 @@
 # Option B initial staging baseline — 2026-10-07
 
-Status: backend and app identity verified; complete hosted acceptance and production approval pending.
+Status: scoped hosted staging acceptance passed; production approval and Option B cutover pending.
 Times below are UTC on 2026-10-06 unless stated otherwise.
 
 ## Source and validation
@@ -107,3 +107,44 @@ test-mode checkout acceptance is not claimed. Production promotion must wait for
 Production remains at `083bbc749c666aece5a319e5f8b4dc755b6623f5`. No production function,
 data, provider, schedule or deployment changed. `OPTION_B_ENABLED` and `RELEASE_BOOTSTRAP_SHA`
 remain unset, and both Vercel Git integrations remain connected. No timing improvement is claimed.
+
+## Completed acceptance and telemetry follow-up
+
+PR #225 merged at `8a77f09c7be3f07b93396d90e46c6e7690fffad8`. Its PR run `37492866775`
+and exact staging push run `37493764573` passed every required job. Application, shared package,
+backend and lockfile trees are byte-identical to `581313241f6e6d32514d803306d0bf6f863173a3`.
+
+Both latest staging apps are Ready at `8a77f09c7be3f07b93396d90e46c6e7690fffad8`:
+
+- Runner: `dpl_6XC8oBNZdbNKv3fo8GSZKzBBUiLf`.
+- Admin: `dpl_AVW2Awj8mSJ54aheifsLqwYRNG1N`.
+
+A repeat deployment of `send-lifecycle-email` with telemetry disabled exited successfully.
+Version 11 produced the same bundle hash as version 10:
+`0e6443698b633d9b9e5f8ed2859f4c20657d8df6b24cedd9b74f61668cda1f8c`.
+Every other function version in the initial inventory remains the baseline.
+
+The owner completed fresh staging super-admin sign-in. The staging recovery form accepted
+the designated recipient, and the owner confirmed the reset email arrived. No password changed.
+After explicit approval for the first-admin grant, Browser created the staging-only organization
+`63eebf53-6a87-417b-a4cd-ad1952457269` (`option-b-release-acceptance-20261007`). Its first admin
+is the owner-designated existing account; database readback confirmed that exact scoped role.
+The owner also confirmed receipt of the organization invitation.
+
+Browser created draft event `2ebde2d5-27c0-4ed2-a27c-2f1076744833`,
+`[TEST] Option B Deployment Acceptance`, in that organization. It has no categories, slots
+or registrations and remains Draft. The UI and database readback agree. These clearly labeled
+staging fixtures remain available for the activation rehearsal; no production fixture exists.
+
+Transaction-scoped hosted RLS checks used an existing unrelated organizer identity. A positive
+control could read its own registrations while two existing other-organization records were hidden.
+The unrelated organizer could neither administer the new organization nor read its draft event.
+The assertions passed and the transaction rolled back, leaving no role or data changes.
+
+All three authorized staging messages were confirmed received: lifecycle update with staging
+labeling, password recovery and organization invitation. No payment-provider settings or money
+logic changed in this release. No hosted payment was triggered; full local fake-provider tests
+passed. Production live payment acceptance remains owner-led.
+
+The earlier pending-access paragraphs above describe the initial checkpoint and are superseded
+by this completed acceptance section. Production remains unchanged, and cutover remains disabled.
