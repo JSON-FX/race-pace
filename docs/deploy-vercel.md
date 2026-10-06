@@ -3,6 +3,16 @@
 Two Vercel projects share hosted Supabase project whaqarofxdlzxrelbcrq.
 This guide covers release preparation; it is not evidence that a deployment is current.
 
+## Option B deployment controller
+
+After the [documented cutover](operations/option-b-release.md), GitHub Actions owns hosted
+deployment. Both Vercel projects must be disconnected from Git auto-deploys first. The release
+helper checks that condition before changing hosted services. Project IDs, root directories,
+environment URLs, exact deployment metadata and `/api/release` build identity are verified.
+Production uses a separate environment-specific build and `--prod --skip-domain`, then
+`vercel promote` after candidate checks. Do not promote a staging binary to production.
+Until activation, continue using the existing staging-first release policy.
+
 ## Verified project layout (2026-09-16)
 
 | Surface | Vercel project | Root Directory | Public production URL |

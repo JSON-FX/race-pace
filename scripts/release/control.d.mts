@@ -1,0 +1,17 @@
+export const REPOSITORY: string;
+export const ENVIRONMENTS: Record<'staging' | 'production', string>;
+export const VERCEL_TEAM: string;
+export const PROJECTS: Record<'site' | 'web', string>;
+export function classifyRelease(paths: string[]): { apps: string[]; backend: boolean; manual: string[]; deploy: boolean };
+export function selectReconciliationRefs(records: Array<{ payload: { phase: string; record: { sha: string; runId?: string; attempt?: string } }; successful?: boolean }>, ignoreContext?: { runId: string; attempt: string }): { refs: string[]; hasBaseline: boolean };
+export function classifyReconciledRelease(productionPaths: string[], reconciliationPaths: string[], stagingHasBaseline: boolean): { apps: string[]; backend: boolean; manual: string[]; deploy: boolean; paths: string[] };
+export function requireSha(value: unknown): string;
+export function assertTrustedRun(run: unknown, sha: string, workflowId: number): void;
+export function assertApprovalEnvironment(value: unknown, branchPolicies: unknown[]): void;
+export function assertManifest(record: unknown, context: unknown): void;
+export function assertCompletedEvidence(environment: string, record: unknown): void;
+export function protectionCheck(): Promise<void>;
+export function prepare(sha: string, ciRunId: string): Promise<Record<string, unknown>>;
+export function guard(record: unknown): Promise<void>;
+export function assertVercelCutover(): Promise<void>;
+export function recordDeployment(environment: string, record: unknown, phase: string): Promise<number>;

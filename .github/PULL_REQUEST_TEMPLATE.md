@@ -1,7 +1,7 @@
 ## Scope
 
 - [ ] This change contains only the stated feature, fix, or release work.
-- [ ] I used a dedicated branch and isolated worktree created from current `origin/staging`.
+- [ ] I used a dedicated branch and isolated worktree from the active integration branch (`staging` before Option B activation; `main` afterward).
 - [ ] I preserved unrelated working-tree changes and release artifacts.
 
 ## Local validation
@@ -11,13 +11,15 @@
 
 ## Staging integration
 
-- [ ] A feature or fix pull request targets `staging`.
+- [ ] The pull request targets the active integration branch.
 - [ ] Required migration and Edge Function sources are included in the same reviewed revision.
 - [ ] Vercel previews and applicable local provider tests pass.
 
 ## Production promotion
 
-Complete this section only when the base branch is `main`.
+Before Option B activation, complete this section for a staging-to-main production PR.
+After activation, production approval happens in the protected `release-production` job;
+review the pinned staging evidence and record affected-flow acceptance in its approval comment.
 
 - [ ] The head branch is `staging`.
 - [ ] The release diff is the exact staging revision that passed acceptance.

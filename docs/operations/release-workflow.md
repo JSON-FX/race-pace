@@ -2,6 +2,15 @@
 
 Status: required release policy.
 
+## Option B transition — October 2026
+
+The owner approved implementing the single-integration-branch model. Its controller is
+`.github/workflows/release.yml`; the [Option B runbook](option-b-release.md) defines setup,
+activation, evidence and recovery. This existing policy remains active while
+`OPTION_B_ENABLED` is unset or false. After the documented cutover, the Option B runbook
+supersedes this document's branch promotion and sync-back rules. Hosted identities and
+staging acceptance requirements remain unchanged. Implementation alone is not activation.
+
 This workflow keeps one reviewed change moving through local, staging, and production. It covers
 the repository, Vercel, Supabase, Resend, PayMongo, Auth, CAPTCHA, webhooks, and scheduled workers.
 
