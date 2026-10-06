@@ -31,6 +31,7 @@ export type OrgCommissionRow = RefundTerms & {
   fee_mode: "absorb" | "pass_on";
   since: string | null;
   event_count: number;
+  /** Successfully captured entries, including later refunds. */
   paid_count: number;
   /** Revenue RETAINED — the charge less anything already refunded. Never render
    *  this under a "GMV" heading; that column is `charged_gross`. */
@@ -84,6 +85,7 @@ export type CommissionOverview = {
   events: EventCommissionRow[];
   totals: {
     commission: number;
+    active_commission: number;
     /** Revenue RETAINED platform-wide. Kept because it is a real figure, but it
      *  is NOT what a GMV card or an effective rate means — see `charged_gross`. */
     gross: number;
@@ -95,9 +97,8 @@ export type CommissionOverview = {
     /** Returned to runners, from `payments.refunded_amount` on both refund kinds.
      *  NOT `amount`: a refund now returns `net_to_org` (20260811094000), so
      *  reading the charge over-stated every full refund by the commission plus
-     *  the processor's fee. Not netted off `commission` — the aggregates already
-     *  exclude fully refunded rows — but stated in the KPI caption so the figure
-     *  is not silently smaller than an operator's own tally. */
+     *  the processor's fee. Not netted off `commission`: captured platform fees remain earned
+     *  even when organizer proceeds are fully refunded. */
     refunded_cents: number;
     refund_count: number;
     /** Net earnings on payments no statement has settled yet. */
@@ -109,12 +110,14 @@ export type CommissionOverview = {
  *  `20260811095500_money_aggregates_three_party.sql` — a `partially_refunded`
  *  row counts, but only for the part of its charge that was not returned; a
  *  fully `refunded` row kept its original amount/fee/net, so it must not count
- *  at all. (This used to cite 20260807090200 and its since-retired premise that
+ *  toward remaining organizer proceeds. Captured commission uses a separate set. (This used to cite 20260807090200 and its since-retired premise that
  *  the refund RPC rewrites `amount` down to the retention. It does not, and has
  *  not since 20260811094000 — `amount` must stay reconcilable against the
  *  provider's reported net_amount.) */
 const EARNING_STATUSES = ["paid", "partially_refunded"];
 
+const CAPTURED_STATUSES = ["paid", "partially_refunded", "refunded"];
+const ACTIVE_EVENT_STATUSES = ["open", "almost_full", "coming_soon"];
 const OPEN_EVENT_STATUSES = ["open", "almost_full"];
 
 type PaymentSlice = {
@@ -186,6 +189,18 @@ function sumKnown(rows: { net_to_org: number | null }[]): number | null {
   return rows.some(r => r.net_to_org === null) ? null : rows.reduce((sum, r) => sum + (r.net_to_org ?? 0), 0);
 }
 
+async function commissionEvents(db: Awaited<ReturnType<typeof createClient>>) {
+  const rows: { id: string; name: string; org_id: string; status: string }[] = [];
+  for (let batch = 0; batch < 100; batch++) {
+    const { data, error } = await db.from("events").select("id,name,org_id,status")
+      .order("id").range(batch * 1000, (batch + 1) * 1000 - 1);
+    if (error) throw error;
+    rows.push(...(data ?? []));
+    if ((data ?? []).length < 1000) return rows;
+  }
+  throw new Error("Commission events exceeded the safe report size; refusing partial earnings.");
+}
+
 /**
  * Everything the Commission page renders, in one pass.
  *
@@ -198,7 +213,7 @@ function sumKnown(rows: { net_to_org: number | null }[]): number | null {
 export async function getCommissionOverview(): Promise<CommissionOverview> {
   const supabase = await createClient();
 
-  const [orgsRes, totalsRes, eventsRes, legacyPayments, unpaidRes, groupPayments] = await Promise.all([
+  const [orgsRes, totalsRes, events, legacyPayments, unpaidRes, groupPayments] = await Promise.all([
     supabase
       .from("organizations")
       // ONE string literal, not a concatenation. supabase-js parses the select
@@ -208,7 +223,7 @@ export async function getCommissionOverview(): Promise<CommissionOverview> {
       .select("id,name,created_at,commission_type,commission_rate,commission_flat_cents,reservation_commission_type,reservation_commission_rate,reservation_commission_flat_cents,refund_policy,refund_fee_cents,fee_mode")
       .order("name"),
     supabase.from("admin_org_totals_v").select("org_id,paid_count,gross_revenue,charged_gross,platform_fee,net_to_org"),
-    supabase.from("events").select("id,name,org_id,status"),
+    commissionEvents(supabase),
     // net_to_org rides along on a select this page already makes, rather than
     // arriving as a second read of `payments`: it is the only extra column the
     // refund worked example needs (see processorBorneByOrg), and a query of its
@@ -227,7 +242,7 @@ export async function getCommissionOverview(): Promise<CommissionOverview> {
     commissionPayments(supabase, true),
   ]);
 
-  for (const res of [orgsRes, totalsRes, eventsRes, unpaidRes]) {
+  for (const res of [orgsRes, totalsRes, unpaidRes]) {
     if (res.error) throw res.error;
   }
 
@@ -243,8 +258,18 @@ export async function getCommissionOverview(): Promise<CommissionOverview> {
     org_id: string; paid_count: number; gross_revenue: number; charged_gross: number;
     platform_fee: number; net_to_org: number | null;
   }[];
-  const events = (eventsRes.data ?? []) as { id: string; name: string; org_id: string; status: string }[];
   const payments: PaymentSlice[] = [...legacyPayments, ...groupPayments];
+
+  const captured = payments.filter(p => CAPTURED_STATUSES.includes(p.status));
+  const capturedByOrg = new Map<string, { commission: number; gross: number; count: number }>();
+  for (const p of captured) {
+    const t = capturedByOrg.get(p.org_id) ?? { commission: 0, gross: 0, count: 0 };
+    t.commission += p.platform_fee;
+    t.gross += p.amount;
+    t.count++;
+    capturedByOrg.set(p.org_id, t);
+  }
+  const activeEventIds = new Set(events.filter(e => ACTIVE_EVENT_STATUSES.includes(e.status)).map(e => e.id));
 
   const openEventIds = events.filter((e) => OPEN_EVENT_STATUSES.includes(e.status)).map((e) => e.id);
 
@@ -302,9 +327,10 @@ export async function getCommissionOverview(): Promise<CommissionOverview> {
 
   const orgs: OrgCommissionRow[] = orgRows.map((o) => {
     const t = totalsByOrg.get(o.id);
-    const paid_count = t?.paid_count ?? 0;
+    const captures = capturedByOrg.get(o.id);
+    const paid_count = captures?.count ?? 0;
     const gross_revenue = t?.gross_revenue ?? 0;
-    const charged_gross = t?.charged_gross ?? 0;
+    const charged_gross = captures?.gross ?? 0;
     // charged_gross, not gross_revenue. The label this feeds says "average entry"
     // and the worked example below says "A runner cancelling a ₱X entry" — both
     // are about the PRICE, and gross_revenue is now net of anything already
@@ -334,7 +360,7 @@ export async function getCommissionOverview(): Promise<CommissionOverview> {
       paid_count,
       gross_revenue,
       charged_gross,
-      platform_fee: t?.platform_fee ?? 0,
+      platform_fee: captures?.commission ?? 0,
       net_to_org: t ? t.net_to_org : 0,
       avg_entry_cents: avg,
       cheapest_open: cheapest,
@@ -350,9 +376,8 @@ export async function getCommissionOverview(): Promise<CommissionOverview> {
     };
   });
 
-  const earning = payments.filter((p) => EARNING_STATUSES.includes(p.status));
   const byEvent = new Map<string, PaymentSlice[]>();
-  for (const p of earning) {
+  for (const p of captured) {
     if (!p.event_id) continue;
     const bucket = byEvent.get(p.event_id);
     if (bucket) bucket.push(p);
@@ -382,11 +407,12 @@ export async function getCommissionOverview(): Promise<CommissionOverview> {
     orgs,
     events: eventRows,
     totals: {
-      commission: orgs.reduce((s, o) => s + o.platform_fee, 0),
+      commission: captured.reduce((s, p) => s + p.platform_fee, 0),
+      active_commission: captured.reduce((s, p) => s + (p.event_id && activeEventIds.has(p.event_id) ? p.platform_fee : 0), 0),
       gross: orgs.reduce((s, o) => s + o.gross_revenue, 0),
-      charged_gross: orgs.reduce((s, o) => s + o.charged_gross, 0),
+      charged_gross: captured.reduce((s, p) => s + p.amount, 0),
       net_to_org: sumKnown(orgs),
-      paid_count: orgs.reduce((s, o) => s + o.paid_count, 0),
+      paid_count: captured.length,
       // One column for both refund kinds. The `refunded` arm used to read
       // `amount`, which was right only while a refund returned the whole charge —
       // it now returns net_to_org, so that over-stated every full refund by

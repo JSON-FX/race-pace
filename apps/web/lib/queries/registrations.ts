@@ -336,6 +336,23 @@ export async function getEventRegistrationGross(eventId: string): Promise<number
   return Number.isSafeInteger(cents) && cents >= 0 ? cents : null;
 }
 
+/** Recorded organizer earnings for the whole event. The payment aggregate already
+ * deducts fees/refunds and preserves historical settlements and unknown fees. */
+export async function getEventOrganizerNet(orgId: string, eventId: string): Promise<number | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("admin_payment_aggregates", {
+    p_org_id: orgId, p_event_id: eventId, p_status: "all", p_method: "all", p_q: "",
+  });
+  if (error) {
+    console.error("getEventOrganizerNet failed", error);
+    return null;
+  }
+  const raw = data?.[0]?.net_cents;
+  if ((typeof raw !== "number" && typeof raw !== "string") || raw === "") return null;
+  const cents = Number(raw);
+  return Number.isSafeInteger(cents) && cents >= 0 ? cents : null;
+}
+
 export async function listEventCategories(eventId: string): Promise<{ id: string; label: string }[]> {
   const supabase = await createClient();
   const { data, error } = await supabase

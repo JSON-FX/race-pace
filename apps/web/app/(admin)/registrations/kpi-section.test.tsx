@@ -3,12 +3,15 @@ import { render, screen } from "@testing-library/react";
 import { parseTableParams } from "@/lib/table-params";
 
 const getRegistrationAggregates = vi.hoisted(() => vi.fn());
+const getEventOrganizerNet = vi.hoisted(() => vi.fn());
 const getEventRegistrationGross = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/queries/registrations", () => ({ getRegistrationAggregates, getEventRegistrationGross }));
+vi.mock("@/lib/queries/registrations", () => ({ getRegistrationAggregates, getEventRegistrationGross, getEventOrganizerNet }));
 
 import { RegistrationsKpiSection } from "./kpi-section";
 
 beforeEach(() => {
+  getEventOrganizerNet.mockReset();
+  getEventOrganizerNet.mockResolvedValue(0);
   getRegistrationAggregates.mockReset();
   getEventRegistrationGross.mockReset();
   getEventRegistrationGross.mockResolvedValue(0);
@@ -17,12 +20,13 @@ beforeEach(() => {
 describe("RegistrationsKpiSection", () => {
   it("renders the cards from the aggregates reader, scoped to the given event and filters", async () => {
     getEventRegistrationGross.mockResolvedValue(650000);
+    getEventOrganizerNet.mockResolvedValue(450000);
     getRegistrationAggregates.mockResolvedValue({
       total: 4, paid: 2, grossCents: 480000, refundCount: 1, refundedCents: 120000, newThisWeek: 2,
     });
     const params = parseTableParams({}, { sort: [], filters: { status: "all", category: "all" } });
 
-    render(await RegistrationsKpiSection({ eventId: "ev-1", params }));
+    render(await RegistrationsKpiSection({ orgId: "org-1", eventId: "ev-1", params }));
 
     expect(getRegistrationAggregates).toHaveBeenCalledWith(
       "ev-1",
@@ -32,11 +36,11 @@ describe("RegistrationsKpiSection", () => {
     expect(screen.getByText("+2 this week")).toBeInTheDocument();
     expect(screen.getByText("Paid")).toBeInTheDocument();
     expect(screen.getByText("50.0% conversion")).toBeInTheDocument();
-    expect(screen.getByText("Retained gross")).toBeInTheDocument();
+    expect(screen.getByText("Net to organizer")).toBeInTheDocument();
     expect(screen.getByText("Gross Registration")).toBeInTheDocument();
     expect(screen.getByText("₱6,500")).toBeInTheDocument();
     expect(screen.getByText("Whole event · before fees/refunds")).toBeInTheDocument();
-    expect(screen.getByText("₱4,800")).toBeInTheDocument();
+    expect(screen.getByText("₱4,500")).toBeInTheDocument();
     expect(screen.getByText("Refunds")).toBeInTheDocument();
     expect(screen.getByText("₱1,200")).toBeInTheDocument();
     expect(screen.getByText("1 refunded registration")).toBeInTheDocument();
@@ -51,7 +55,7 @@ describe("RegistrationsKpiSection", () => {
     });
     const params = parseTableParams({}, { sort: [], filters: { status: "all", category: "all" } });
 
-    render(await RegistrationsKpiSection({ eventId: "ev-1", params }));
+    render(await RegistrationsKpiSection({ orgId: "org-1", eventId: "ev-1", params }));
 
     expect(screen.getByText("+0 this week")).toBeInTheDocument();
     expect(screen.getByText("0.0% conversion")).toBeInTheDocument();
@@ -64,10 +68,13 @@ describe("RegistrationsKpiSection", () => {
       total: 0, paid: 0, grossCents: 0, refundCount: 0, refundedCents: 0, newThisWeek: 0,
     });
     getEventRegistrationGross.mockResolvedValue(619797);
+    getEventOrganizerNet.mockResolvedValue(470000);
     const params = parseTableParams({ q: "nobody", status: "pending", category: "cat-2", page: "3" });
-    render(await RegistrationsKpiSection({ eventId: "ev-2", params }));
+    render(await RegistrationsKpiSection({ orgId: "org-1", eventId: "ev-2", params }));
     expect(getRegistrationAggregates).toHaveBeenCalledWith("ev-2", params);
     expect(getEventRegistrationGross).toHaveBeenCalledWith("ev-2");
+    expect(getEventOrganizerNet).toHaveBeenCalledWith("org-1", "ev-2");
+    expect(screen.getByText("₱4,700")).toBeInTheDocument();
     expect(screen.getByText("₱6,197.97")).toBeInTheDocument();
   });
 
@@ -76,8 +83,16 @@ describe("RegistrationsKpiSection", () => {
       total: 0, paid: 0, grossCents: 0, refundCount: 0, refundedCents: 0, newThisWeek: 0,
     });
     getEventRegistrationGross.mockResolvedValue(null);
-    render(await RegistrationsKpiSection({ eventId: "ev-1", params: parseTableParams({}) }));
+    render(await RegistrationsKpiSection({ orgId: "org-1", eventId: "ev-1", params: parseTableParams({}) }));
     expect(screen.getByText("Unavailable")).toBeInTheDocument();
     expect(screen.getAllByText("₱0")).toHaveLength(2);
   });
+});
+
+it("does not invent organizer earnings when fee reconciliation or the read is incomplete", async () => {
+  getRegistrationAggregates.mockResolvedValue({ total: 1, paid: 1, newThisWeek: 0, refundedCents: 0, refundCount: 0 });
+  getEventOrganizerNet.mockResolvedValue(null);
+  render(await RegistrationsKpiSection({ orgId: "org-1", eventId: "ev-1", params: parseTableParams({}) }));
+  expect(screen.getByText("Unavailable")).toBeInTheDocument();
+  expect(screen.getByText("Earnings incomplete or unavailable")).toBeInTheDocument();
 });

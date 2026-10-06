@@ -302,7 +302,7 @@ export function FeeTermsTable({ orgs }: { orgs: OrgCommissionRow[] }) {
         <TableHeader>
           <TableRow className="hover:bg-transparent">
             <TableHead className="h-9 px-[14px] uppercase">Organization</TableHead>
-            <TableHead className="h-9 px-[14px] text-right uppercase">Paid entries</TableHead>
+            <TableHead className="h-9 px-[14px] text-right uppercase">Captured entries</TableHead>
             <TableHead className="h-9 px-[14px] text-right uppercase">GMV</TableHead>
             <TableHead className="h-9 px-[14px] text-right uppercase">Commission earned</TableHead>
             <TableHead className="h-9 px-[14px] uppercase">Type</TableHead>

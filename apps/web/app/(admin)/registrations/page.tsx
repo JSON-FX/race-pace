@@ -150,7 +150,7 @@ export default async function RegistrationsPage({
       </div>
 
       <Suspense key={`kpi-${sectionKey}`} fallback={<KpiRowSkeleton cards={5} className={REGISTRATION_KPI_GRID} />}>
-        <RegistrationsKpiSection eventId={eventId} params={params} />
+        <RegistrationsKpiSection orgId={orgId} eventId={eventId} params={params} />
       </Suspense>
 
       <div className="mb-3">

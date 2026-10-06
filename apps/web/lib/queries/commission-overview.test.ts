@@ -24,6 +24,8 @@ vi.mock("@/lib/supabase/server", () => ({
       // of these tests is the arithmetic after the rows arrive, and the filters
       // themselves are enforced (and tested) in Postgres.
       ["select", "order", "in", "is", "eq", "range"].forEach((m) => { builder[m] = () => builder; });
+      let rangeFrom = 0, rangeTo = 999;
+      if (table === "events") builder.range = (from: number, to: number) => { rangeFrom = from; rangeTo = to; return builder; };
       if (table === "categories") builder.in = (_field: string, ids: string[]) => {
         categoryEventFilters.push(ids);
         return builder;
@@ -32,7 +34,7 @@ vi.mock("@/lib/supabase/server", () => ({
         resolve(
           errorByTable[table]
             ? { data: null, error: errorByTable[table] }
-            : { data: byTable[table] ?? [], error: null },
+            : { data: table === "events" ? (byTable[table] ?? []).slice(rangeFrom, rangeTo + 1) : byTable[table] ?? [], error: null },
         );
       return builder;
     },
@@ -61,7 +63,7 @@ beforeEach(() => {
       refund_policy: "flat_fee", refund_fee_cents: 30000,
     }],
     // One plain paid entry + one partially refunded one, as admin_org_totals_v
-    // reports them after 20260811095500: charged 2 x ₱2,000; retained ₱2,000 +
+    // reports remaining proceeds after 20260811095500: retained ₱2,000 +
     // (₱2,000 - ₱1,610) = ₱2,390.
     admin_org_totals_v: [{
       org_id: ORG, paid_count: 2, gross_revenue: 239000, charged_gross: 400000,
@@ -78,7 +80,7 @@ describe("getCommissionOverview — charged vs retained", () => {
   it("takes the average entry from charged_gross, so it quotes a price somebody paid", async () => {
     const { orgs } = await getCommissionOverview();
 
-    // 400000 / 2 = ₱2,000 — the entry price. From gross_revenue it would be
+    // 600000 / 3 = ₱2,000 — the entry price. From gross_revenue it would be
     // 239000 / 2 = ₱1,195, a fee no runner was ever charged, printed under the
     // label "average entry" and inside "A runner cancelling a ₱X entry".
     expect(orgs[0].avg_entry_cents).toBe(200000);
@@ -91,7 +93,7 @@ describe("getCommissionOverview — charged vs retained", () => {
     const { orgs } = await getCommissionOverview();
 
     // GMV column vs "revenue retained". Collapsing them is the whole defect.
-    expect(orgs[0].charged_gross).toBe(400000);
+    expect(orgs[0].charged_gross).toBe(600000);
     expect(orgs[0].gross_revenue).toBe(239000);
   });
 
@@ -102,7 +104,7 @@ describe("getCommissionOverview — charged vs retained", () => {
     // (app/(admin)/commission/page.tsx). Against retained revenue the same org
     // prints 5.0%, and with a deeper refund it prints 15.4% — on the page an
     // operator negotiates rates from.
-    expect(totals.charged_gross).toBe(400000);
+    expect(totals.charged_gross).toBe(600000);
     expect((totals.commission / totals.charged_gross) * 100).toBeCloseTo(3.0, 6);
     expect((totals.commission / totals.gross) * 100).not.toBeCloseTo(3.0, 6);
   });
@@ -110,12 +112,12 @@ describe("getCommissionOverview — charged vs retained", () => {
   it("reports the per-event Gross as the charge, matching the GMV column above it", async () => {
     const { events } = await getCommissionOverview();
 
-    // Both earning rows at their full charge. This column sits beside "Fee
+    // All three captured rows at their full charge. This column sits beside "Fee
     // charged", which is read off amount/platform_fee, so netting the refund out
     // here would make commission/gross imply a rate nobody is on.
-    expect(events[0].gross).toBe(400000);
-    expect(events[0].commission).toBe(12000);
-    expect(events[0].paid_count).toBe(2); // the fully refunded row is not an earning row
+    expect(events[0].gross).toBe(600000);
+    expect(events[0].commission).toBe(18000);
+    expect(events[0].paid_count).toBe(3); // captured commission survives full refunds
   });
 
   it("values BOTH refund kinds at refunded_amount, never at the charge", async () => {
@@ -129,16 +131,16 @@ describe("getCommissionOverview — charged vs retained", () => {
     expect(totals.refund_count).toBe(2);
   });
 
-  it("keeps a fully refunded row out of gross, commission and net", async () => {
+  it("keeps refunded commission and charged gross while preserving remaining organizer net", async () => {
     const { totals } = await getCommissionOverview();
 
-    // Those come from admin_org_totals_v, which excludes 'refunded' rows — so the
-    // ₱2,000 refunded entry above must not appear in any of them.
-    expect(totals.charged_gross).toBe(400000);
+    // Captured commission/GMV include full refunds; remaining organizer net
+    // still comes from the aggregate that excludes fully refunded proceeds.
+    expect(totals.charged_gross).toBe(600000);
     expect(totals.gross).toBe(239000);
-    expect(totals.commission).toBe(12000);
+    expect(totals.commission).toBe(18000);
     expect(totals.net_to_org).toBe(221000);
-    expect(totals.paid_count).toBe(2);
+    expect(totals.paid_count).toBe(3);
   });
 
   it("reads an org with no payments as zeroes rather than dividing by zero", async () => {
@@ -204,7 +206,7 @@ describe("getRateDrift — advisory, and never able to take the page down", () =
     const [overview, drift] = await Promise.all([getCommissionOverview(), getRateDrift()]);
     expect(drift).toEqual([]);
     expect(overview.orgs).toHaveLength(1);
-    expect(overview.totals.charged_gross).toBe(400000);
+    expect(overview.totals.charged_gross).toBe(600000);
     errorSpy.mockRestore();
   });
 });
@@ -217,9 +219,9 @@ describe("group participant commission", () => {
       { ...PARTIAL, refunded_amount: 191000, net_to_org: 0, payout_statement_id: "settled" },
     ];
     const result = await getCommissionOverview();
-    expect(result.events[0].paid_count).toBe(4);
-    expect(result.events[0].gross).toBe(800000);
-    expect(result.events[0].commission).toBe(24000);
+    expect(result.events[0].paid_count).toBe(5);
+    expect(result.events[0].gross).toBe(1000000);
+    expect(result.events[0].commission).toBe(30000);
     expect(result.totals.unpaid_out_cents).toBe(412000);
     expect(result.totals.refunded_cents).toBe(543000);
   });
@@ -249,4 +251,31 @@ it("bounds category UUID filters below the proxy URL limit", async () => {
   expect(categoryEventFilters.map(ids => ids.length)).toEqual([100, 100, 5]);
   expect(new Set(categoryEventFilters.flat()).size).toBe(205);
   expect(result.orgs[0].cheapest_open).toEqual({ label: "5K", base_price: 10000 });
+});
+
+describe("active event registration commission", () => {
+  it("counts captured fees for open/almost-full/coming-soon events, including retained refunded fees", async () => {
+    const statuses = ["open", "almost_full", "coming_soon", "completed", "draft", "cancelled"];
+    byTable.events = statuses.map((status, i) => ({ id: `ev-${i}`, org_id: ORG, name: status, status }));
+    byTable.admin_payments_v = statuses.map((_, i) => ({ ...PAID, event_id: `ev-${i}` }));
+    byTable.admin_payments_v.push({ ...REFUNDED, event_id: "ev-0" }, { ...PAID, event_id: "ev-0", status: "pending" });
+    byTable.admin_group_allocations_v = [{ ...PAID, event_id: "ev-2", net_to_org: 191000 }];
+    const result = await getCommissionOverview();
+    expect(result.totals.active_commission).toBe(30000);
+    expect(result.totals.commission).toBe(48000);
+    expect(result.totals.charged_gross).toBe(1600000);
+  });
+  it("does not estimate earnings from an organization's current nonzero rate", async () => {
+    byTable.events = [{ id: EV, name: "Race", org_id: ORG, status: "open" }];
+    byTable.admin_payments_v = [{ ...PAID, platform_fee: 0 }];
+    const result = await getCommissionOverview();
+    expect(result.totals.active_commission).toBe(0);
+    expect(result.totals.commission).toBe(0);
+  });
+});
+
+it("includes active events beyond the first database page", async () => {
+  byTable.events = Array.from({ length: 1001 }, (_, i) => ({ id: `ev-${i}`, org_id: ORG, name: "Race", status: "coming_soon" }));
+  byTable.admin_payments_v = [{ ...PAID, event_id: "ev-1000" }];
+  expect((await getCommissionOverview()).totals.active_commission).toBe(6000);
 });
