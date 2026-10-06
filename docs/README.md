@@ -25,6 +25,10 @@ Option B is implemented for local validation on `codex/option-b-release`:
 Parallel CI retains `web-admin-validate`; affected applications move through pinned staging
 evidence and owner-approved production. Hosted activation and rehearsal remain separate.
 
+## Gross Registration — October 2026
+
+[Card contract](specs/2026-10-07-gross-registration.md) and [implementation plan](../.claude/plans/gross-registration.md): selected-event captured sales before fees/refunds, independent of table filters. Implemented; 2,633 local tests, both app builds and typechecks passed. Hosted acceptance and Option B release benchmark in progress.
+
 ## Web and admin readiness — September 2026
 
 September 30 session release: the owner approved and authorized urgent production delivery of the [Reservations workspace](./specs/2026-09-30-reservations-page.md), [Coming Soon category fees](./issues/2026-09-30-coming-soon-category-fees.md), and browser refinements below. [Reservations implementation report](../.claude/reports/2026-09-30-reservations-page-report.md) records grouping, event-wide money/counts, organization reset, prototype adaptations and local acceptance. All application changes are combined in `codex/session-ui-production`; additional local suites are explicitly waived. Required GitHub checks and exact hosted deployment/readback remain.

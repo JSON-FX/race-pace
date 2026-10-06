@@ -54,6 +54,8 @@ const AUTHENTICATED_ALLOWLIST = new Set([
   "admin_org_signups_daily",
   "admin_payment_aggregates",
   "admin_registration_aggregates",
+  // Event-only captured gross preserves caller RLS and checks organization staff.
+  "admin_event_registration_gross",
   "checkin_events",
   // Organizer-only setting predicate and station mode read both enforce
   // caller scope internally; neither exposes private rows to another org.

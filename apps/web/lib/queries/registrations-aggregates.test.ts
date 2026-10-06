@@ -18,7 +18,7 @@ vi.mock("@/lib/supabase/server", () => ({
   }),
 }));
 
-import { getRegistrationAggregates, listEventRegistrations } from "./registrations";
+import { getRegistrationAggregates, getEventRegistrationGross, listEventRegistrations } from "./registrations";
 
 const params = (overrides: Partial<TableParams> = {}): TableParams => ({
   page: 1,
@@ -27,6 +27,29 @@ const params = (overrides: Partial<TableParams> = {}): TableParams => ({
   filters: { status: "all", category: "all" },
   q: "",
   ...overrides,
+});
+
+describe("getEventRegistrationGross", () => {
+  beforeEach(() => rpcMock.mockReset());
+
+  it.each([619797, "619797", 0, "0"])("reads event-only captured cents %s without table filters", async (gross_cents) => {
+    rpcMock.mockResolvedValue({ data: [{ gross_cents }], error: null });
+    expect(await getEventRegistrationGross("event-2")).toBe(Number(gross_cents));
+    expect(rpcMock).toHaveBeenCalledWith("admin_event_registration_gross", { p_event_id: "event-2" });
+  });
+
+  it("returns unavailable on a database error", async () => {
+    rpcMock.mockResolvedValue({ data: null, error: { message: "RPC unavailable" } });
+    expect(await getEventRegistrationGross("event-2")).toBeNull();
+  });
+
+  it.each([
+    { data: [] }, { data: [{ gross_cents: null }] }, { data: [{ gross_cents: "invalid" }] },
+    { data: [{ gross_cents: -1 }] }, { data: [{ gross_cents: "9007199254740992" }] },
+  ])("rejects missing or invalid money data $data", async ({ data }) => {
+    rpcMock.mockResolvedValue({ data, error: null });
+    expect(await getEventRegistrationGross("event-2")).toBeNull();
+  });
 });
 
 describe("getRegistrationAggregates", () => {

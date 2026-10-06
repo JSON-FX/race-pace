@@ -403,6 +403,11 @@ it("fulfills mixed categories with one payment, category-aware tickets, delivery
   expect(await response.json()).toMatchObject({ status: "succeeded" });
   expect((await db.query("select slots_taken from categories where id=$1", [category])).rows[0].slots_taken).toBe(1);
   expect((await db.query("select slots_taken from categories where id=$1", [category2])).rows[0].slots_taken).toBe(0);
+  // The event's original sales still count the one group capture after a refund,
+  // not the full group amount repeated for each participant or its retained net.
+  const gross = await sessionClient(strangerToken).rpc("admin_event_registration_gross", { p_event_id: event });
+  expect(gross.error).toBeNull();
+  expect(Number(gross.data[0].gross_cents)).toBe(attempt.gross_cents + 5678);
 });
 it("allocates a one-cent PayMongo rounding excess without losing a centavo", async () => {
   const attempt = await prepared();

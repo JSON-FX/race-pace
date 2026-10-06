@@ -53,18 +53,18 @@ export function KpiCard({ icon: Icon, label, value, delta }: KpiCardProps) {
 
 /** 2 columns under 760px, 4 at/above — the mockup's breakpoint is not one of
  *  Tailwind's default sizes, hence the arbitrary variant. */
-export function KpiRow({ children }: { children: React.ReactNode }) {
-  return <div className="mb-[18px] grid grid-cols-2 gap-3 min-[760px]:grid-cols-4">{children}</div>;
+export function KpiRow({ children, className }: { children: React.ReactNode; className?: string }) {
+  return <div className={cn("mb-[18px] grid grid-cols-2 gap-3 min-[760px]:grid-cols-4", className)}>{children}</div>;
 }
 
 /** Placeholder for <KpiRow> while its aggregates are in flight. Same grid, same
  *  card chrome and the same 14/15px padding as KpiCard, so nothing shifts when
  *  the real numbers land — the reason this mirrors the card rather than being a
  *  plain grey block. */
-export function KpiRowSkeleton({ cards = 4 }: { cards?: number }) {
+export function KpiRowSkeleton({ cards = 4, className }: { cards?: number; className?: string }) {
   return (
     <div
-      className="mb-[18px] grid grid-cols-2 gap-3 min-[760px]:grid-cols-4"
+      className={cn("mb-[18px] grid grid-cols-2 gap-3 min-[760px]:grid-cols-4", className)}
       role="status"
       aria-label="Loading summary"
     >
