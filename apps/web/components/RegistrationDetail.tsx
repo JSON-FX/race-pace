@@ -145,7 +145,7 @@ export function RegistrationDetail({ row, onClose, onRefunded }: {
             <div className="registration-detail-money-heading">
               <div><p className={cn("text-sm font-medium", money.ink)}>{money.eyebrow}</p>
                 <p className={cn("mt-1 text-3xl font-semibold leading-tight tabular-nums", money.ink)}>{displayedAmount == null ? "Unavailable" : peso(displayedAmount)}</p></div>
-              <MethodBadge method={row.payment_method} height={20} />
+              {row.payment_method?.trim() || (!unresolved && !progressUnavailable) ? <MethodBadge method={row.payment_method} height={20} /> : null}
             </div>
             {row.addons.length > 0 || captured ? <dl className="registration-detail-breakdown">
               <Row label={row.category_label ? `${row.category_label} entry` : "Entry"} value={peso(entryFee)} mono />
