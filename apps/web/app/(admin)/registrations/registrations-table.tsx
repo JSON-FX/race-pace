@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Mail, CheckCircle2, XCircle } from "lucide-react";
 import { DataTable, type FilterDef, type BulkAction } from "@/components/data-table";
-import { PaymentStatusBadge, RegistrationStatusBadge } from "@/components/StatusBadge";
+import { RegistrationPaymentStatusBadge } from "@/components/StatusBadge";
 import { RegistrationDetail } from "@/components/RegistrationDetail";
 import { RunnerAvatar } from "@/components/RunnerAvatar";
 import { BulkCancelDialog } from "@/components/BulkCancelDialog";
@@ -154,20 +154,8 @@ export function RegistrationsTable({
     {
       accessorKey: "payment_status",
       header: "Status",
-      // registration_status wins ONLY for 'expired'/'cancelled' — the two
-      // terminal states payment_status can never represent (it has no such
-      // enum values; a 'failed'/null payment_status is otherwise ambiguous
-      // between "hold expired", "card declined", and "never started
-      // checkout"). Every other state (paid/pending/refunded) keeps showing
-      // payment_status exactly as before — it's the more precise signal for
-      // those, and the two columns agree there anyway.
-      cell: ({ row }) => {
-        const regStatus = row.original.registration_status;
-        if (regStatus === "expired" || regStatus === "cancelled") {
-          return <RegistrationStatusBadge status={regStatus} />;
-        }
-        return <PaymentStatusBadge status={row.original.payment_status} />;
-      },
+      // A durable receipt can outlive a failed registration update.
+      cell: ({ row }) => <RegistrationPaymentStatusBadge row={row.original} />,
     },
     {
       id: "__chevron",

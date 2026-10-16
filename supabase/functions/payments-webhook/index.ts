@@ -47,10 +47,22 @@ Deno.serve(async (req) => {
         }
         // Re-fetch the stored session. Metadata routes the notification; it
         // does not replace verification of the bound provider capture.
-        const verified = await verifyGroupPayment(attemptId);
+        const notifiedPayments = type === "payment.paid" ? [resource]
+          : Array.isArray(resource?.attributes?.payments) ? resource.attributes.payments : [];
+        const expectedPaymentIds = notifiedPayments.filter((payment: { attributes?: { status?: string } }) => payment?.attributes?.status === "paid")
+          .map((payment: { id?: unknown }) => payment.id);
+        if (!expectedPaymentIds.length || expectedPaymentIds.some((id: unknown) => typeof id !== "string" || !/^pay_[A-Za-z0-9_-]+$/.test(id))) {
+          return json({ error: "group_capture_not_visible" }, 503);
+        }
+        if (type === "checkout_session.payment.paid" && (typeof resource.id !== "string" || !/^cs_[A-Za-z0-9_-]+$/.test(resource.id))) {
+          return json({ error: "invalid_group_session" }, 400);
+        }
+        const verified = await verifyGroupPayment(attemptId, { refreshProvider: true,
+          expectedPaymentIds, ...(type === "checkout_session.payment.paid" ? { expectedSessionId: resource.id } : {}),
+        });
         // A paid notification can precede the provider GET becoming consistent.
         // Acknowledge only a durable capture outcome, not an unpaid snapshot.
-        if (verified.status === "pending") return json({ error: "group_capture_not_visible" }, 503);
+        if (!["paid", "processing", "reconciliation_required"].includes(verified.status)) return json({ error: "group_capture_not_visible" }, 503);
         return json(verified);
       }
       const rid = resource?.attributes?.metadata?.registration_id as string | undefined;

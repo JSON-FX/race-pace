@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { GroupOrder } from "./GroupOrder";
 
 const push = vi.fn();
 const refresh = vi.fn();
+const progressRpc = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push, refresh }) }));
 
 const rows: Record<string, { data: unknown; error: null }> = {
@@ -15,7 +16,7 @@ const rows: Record<string, { data: unknown; error: null }> = {
     { id: "registration-2", status: "paid", total_amount: 10000, custom_data: { full_name: "Lola Runner" } },
   ], error: null },
 };
-vi.mock("@/lib/supabase/client", () => ({ createClient: () => ({ from: (name: keyof typeof rows) => ({
+vi.mock("@/lib/supabase/client", () => ({ createClient: () => ({ rpc: progressRpc, from: (name: keyof typeof rows) => ({
   select: () => ({
     eq: () => ({
       single: async () => rows[name],
@@ -34,6 +35,7 @@ beforeEach(() => {
   rows.booking_orders.data = { status: "paid" };
   rows.booking_payment_attempts.data = [{ id: "attempt-1", status: "paid", base_cents: 20000, platform_fee_cents: 600, gross_cents: 20000 }];
   push.mockReset(); refresh.mockReset();
+  progressRpc.mockReset().mockResolvedValue({ data: [], error: null });
 });
 
 describe("GroupOrder", () => {
@@ -71,4 +73,53 @@ describe("GroupOrder", () => {
     expect(push).toHaveBeenCalledWith("/register/category-1/group");
     expect(refresh).toHaveBeenCalled();
   });
+  it.each(["processing", "review_required"])("keeps a %s receipt from opening another payment or releasing participants", async state => {
+    rows.booking_orders.data = { status: "pending" };
+    rows.booking_payment_attempts.data = [{ id: "attempt-1", status: "prepared", method: "gcash", gross_cents: 20000 }];
+    progressRpc.mockResolvedValue({ data: [{ state }], error: null });
+    render(<GroupOrder {...props} initialStatus="pending" expiresAt={new Date(Date.now() + 60000).toISOString()} />);
+    expect(await screen.findByText(state === "processing" ? /Payment received. Registration processing/ : /This payment needs review/)).toBeInTheDocument();
+    expect(progressRpc).toHaveBeenCalledWith("booking_payment_progress", { p_orders: ["order-1"] });
+    expect(screen.queryByRole("button", { name: "Continue to PayMongo" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Change participants" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: /discount/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "View QR ticket" })).not.toBeInTheDocument();
+  });
+
+  it("never offers pay or cancel before the receipt check completes, or when that check fails", async () => {
+    rows.booking_orders.data = { status: "pending" };
+    rows.booking_payment_attempts.data = [];
+    let resolveProgress!: (result: { data: null; error: { message: string } }) => void;
+    progressRpc.mockReturnValue(new Promise(resolve => { resolveProgress = resolve; }));
+    render(<GroupOrder {...props} initialStatus="pending" expiresAt={new Date(Date.now() + 60000).toISOString()} />);
+    expect(screen.queryByRole("button", { name: "Review one payment" })).not.toBeInTheDocument();
+    await act(async () => resolveProgress({ data: null, error: { message: "database unavailable" } }));
+    expect(screen.getByText(/Payment status is temporarily unavailable/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Review one payment" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Change participants" })).not.toBeInTheDocument();
+  });
+
+  it("closes checkout controls if a later receipt poll fails", async () => {
+    vi.useFakeTimers();
+    try {
+      rows.booking_orders.data = { status: "pending" };
+      rows.booking_payment_attempts.data = [{ id: "attempt-1", status: "prepared", method: "gcash", gross_cents: 20000 }];
+      render(<GroupOrder {...props} initialStatus="pending" expiresAt={new Date(Date.now() + 60000).toISOString()} />);
+      await act(async () => {});
+      expect(screen.getByRole("button", { name: "Continue to PayMongo" })).toBeInTheDocument();
+      progressRpc.mockResolvedValue({ data: null, error: { message: "database unavailable" } });
+      await act(async () => vi.advanceTimersByTimeAsync(3000));
+      expect(screen.getByText(/Payment status is temporarily unavailable/)).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Continue to PayMongo" })).not.toBeInTheDocument();
+    } finally { vi.useRealTimers(); }
+  });
+
+  it("keeps confirmed tickets visible while warning about a further capture needing review", async () => {
+    progressRpc.mockResolvedValue({ data: [{ state: "review_required" }], error: null });
+    render(<GroupOrder {...props} />);
+    expect(await screen.findByText(/A payment for this booking needs review/)).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "View QR ticket" })).toHaveLength(2);
+    expect(screen.queryByRole("button", { name: "Continue to PayMongo" })).not.toBeInTheDocument();
+  });
+
 });

@@ -23,8 +23,12 @@ vi.mock("@/lib/supabase/client", () => ({
   }),
 }));
 
+const routerRefresh = vi.fn();
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: routerRefresh }) }));
+const retryRegistrationPaymentAction = vi.fn();
 const refundRegistrationAction = vi.fn((..._args: unknown[]) => Promise.resolve({ ok: true }));
 vi.mock("@/lib/actions/registrations", () => ({
+  retryRegistrationPaymentAction: (...a: unknown[]) => retryRegistrationPaymentAction(...a),
   previewRefundAction: async () => ({ ok: true, refund_amount: 95500, total_paid: 100000, retained_fees: 4500 }),
   refundRegistrationAction: (...a: unknown[]) => refundRegistrationAction(...a),
 }));
@@ -42,6 +46,8 @@ const refundButton = () => screen.getByRole("button", { name: "Review refund" })
 
 beforeEach(() => {
   refundRegistrationAction.mockClear();
+  retryRegistrationPaymentAction.mockReset();
+  routerRefresh.mockReset();
 });
 
 describe("RegistrationDetail", () => {
@@ -164,3 +170,49 @@ describe("RegistrationDetail", () => {
   render(<RegistrationDetail row={{ ...paidRow, payment_amount: null }} onClose={vi.fn()} onRefunded={vi.fn()} />);
   expect(screen.getByText("Unavailable")).toBeInTheDocument();
  });
+
+const processingRow: RegistrationRow = { ...pendingRow, booking_order_id: "order-1", payment_progress: {
+  booking_order_id: "order-1", attempt_id: "attempt-1", state: "processing", received_at: "2026-10-16T06:25:00Z",
+  attempts: 2, last_error_code: "42703", last_attempt_at: "2026-10-16T06:30:00Z",
+} };
+
+it("distinguishes received payment from settlement and displays safe retry diagnostics", async () => {
+  retryRegistrationPaymentAction.mockResolvedValue({ ok: true });
+  render(<RegistrationDetail row={processingRow} onClose={vi.fn()} onRefunded={vi.fn()} />);
+  expect(screen.getByText("Payment received · processing")).toBeInTheDocument();
+  expect(screen.getByText("42703")).toBeInTheDocument();
+  expect(screen.queryByText("Total paid")).not.toBeInTheDocument();
+  expect(screen.queryByText("Awaiting payment")).not.toBeInTheDocument();
+  expect(screen.queryByText(/No payment is recorded/)).not.toBeInTheDocument();
+  expect(refundButton()).toBeDisabled();
+  await userEvent.click(screen.getByRole("button", { name: "Retry registration update" }));
+  await waitFor(() => expect(routerRefresh).toHaveBeenCalled());
+  expect(retryRegistrationPaymentAction).toHaveBeenCalledWith("attempt-1");
+  expect(screen.getByRole("status")).toHaveTextContent("Registration update requested");
+  expect(screen.getByText("Payment received · processing")).toBeInTheDocument();
+});
+
+it("clears retry busy state after failure and refreshes uncertain results", async () => {
+  retryRegistrationPaymentAction.mockRejectedValue(new Error("private provider payload"));
+  render(<RegistrationDetail row={processingRow} onClose={vi.fn()} onRefunded={vi.fn()} />);
+  await userEvent.click(screen.getByRole("button", { name: "Retry registration update" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Could not confirm the retry result");
+  expect(screen.queryByText("private provider payload")).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Retry registration update" })).toBeEnabled();
+  expect(routerRefresh).toHaveBeenCalled();
+});
+
+it("never offers retry for a payment requiring business review", () => {
+  render(<RegistrationDetail row={{ ...processingRow, payment_progress: { ...processingRow.payment_progress!, state: "review_required" } }} onClose={vi.fn()} onRefunded={vi.fn()} />);
+  expect(screen.getAllByText("Payment needs review").length).toBeGreaterThan(0);
+  expect(screen.queryByRole("button", { name: "Retry registration update" })).not.toBeInTheDocument();
+  expect(refundButton()).toBeDisabled();
+});
+
+it("does not describe unavailable receipt progress as an unpaid registration", () => {
+  render(<RegistrationDetail row={{ ...pendingRow, payment_status: null, payment_progress_unavailable: true }} onClose={vi.fn()} onRefunded={vi.fn()} />);
+  expect(screen.getByText("Payment status unavailable")).toBeInTheDocument();
+  expect(screen.queryByText("Awaiting payment")).not.toBeInTheDocument();
+  expect(screen.queryByText(/No payment is recorded/)).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Retry registration update" })).not.toBeInTheDocument();
+});

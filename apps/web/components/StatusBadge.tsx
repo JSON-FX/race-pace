@@ -1,4 +1,5 @@
 import { Status } from "@race-pace/ui";
+import type { RegistrationRow } from "@/lib/queries/registrations";
 
 export type BadgeTone = "paid" | "pending" | "info" | "danger" | "neutral" | "highlight";
 
@@ -19,6 +20,17 @@ const PAYMENT: Record<string, { label: string; tone: BadgeTone }> = {
 export function PaymentStatusBadge({ status }: { status: string | null }) {
   const s = PAYMENT[status ?? ""] ?? { label: status ?? "—", tone: "neutral" as const };
   return <StatusBadge tone={s.tone}>{s.label}</StatusBadge>;
+}
+
+/** Receipt progress is separate from the settled payment ledger. */
+export function RegistrationPaymentStatusBadge({ row }: { row: Pick<RegistrationRow, "payment_progress" | "payment_progress_unavailable" | "payment_status" | "registration_status"> }) {
+  if (row.payment_progress?.state === "processing") return <StatusBadge tone="info">Payment received · processing</StatusBadge>;
+  if (row.payment_progress?.state === "review_required") return <StatusBadge tone="danger">Payment needs review</StatusBadge>;
+  if (row.payment_progress_unavailable && !["paid", "refunded", "partially_refunded"].includes(row.payment_status ?? "")) {
+    return <StatusBadge tone="neutral">Payment status unavailable</StatusBadge>;
+  }
+  if (row.registration_status === "expired" || row.registration_status === "cancelled") return <RegistrationStatusBadge status={row.registration_status} />;
+  return <PaymentStatusBadge status={row.payment_status} />;
 }
 
 // registrations.status, distinct from payment_status above (see

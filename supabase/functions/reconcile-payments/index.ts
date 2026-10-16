@@ -29,7 +29,7 @@ Deno.serve(async (req) => {
         outcome = result.status === "error" ? "retry_required" : result.status;
       } else if (candidate.kind === "group") {
         const result = await verifyGroupPayment(candidate.subject_id);
-        outcome = result.status;
+        outcome = result.status === "processing" ? "retry_required" : result.status;
       } else {
         const session = await pmGetCheckoutSession(candidate.session_id);
         if (session.id !== candidate.session_id) throw new Error("session_identity_mismatch");

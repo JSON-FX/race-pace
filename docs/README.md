@@ -16,6 +16,14 @@ ultra-trail event platform (Mindanao, Philippines).
 
 **Status:** Draft v0.5 · 2026-07-20
 
+## Payment confirmation recovery — October 2026
+
+[Repair and hardening contract](specs/2026-10-16-payment-confirmation-hardening.md) and
+[implementation plan](plans/2026-10-16-payment-confirmation-hardening.md): fix approved
+pre-screening confirmation, preserve captured payments across fulfillment failures, and
+provide scoped progress and audited retry. Implementation, local validation, and independent review complete.
+Hosted staging acceptance is required before separate production deployment and payment recovery approval.
+
 ## Release automation — October 2026
 
 Option B is implemented for local validation on `codex/option-b-release`:

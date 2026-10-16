@@ -26,7 +26,7 @@ let deliveryHandler: (req: Request) => Promise<Response>;
 let refundHandler: (req: Request) => Promise<Response>;
 let groupHandler: (req: Request) => Promise<Response>;
 let cancelHandler: (req: Request) => Promise<Response>;
-const settings: Record<string, string> = { SUPABASE_URL: env.url, SUPABASE_SERVICE_ROLE_KEY: env.serviceKey, GROUP_RESERVATIONS_ENABLED: "true", GROUP_PAYMENT_PREPARATION_ENABLED: "true", GROUP_PAYMENTS_ENABLED: "true", GROUP_REFUNDS_ENABLED: "true", PAYMONGO_SECRET_KEY: "sk_test_mock_only", TICKET_SIGNING_SECRET: "group-test-secret", GROUP_PAYMENT_RETURN_URL: "https://racepace.test/bookings" };
+const settings: Record<string, string> = { SUPABASE_URL: env.url, SUPABASE_ANON_KEY: env.anonKey, SUPABASE_SERVICE_ROLE_KEY: env.serviceKey, GROUP_RESERVATIONS_ENABLED: "true", GROUP_PAYMENT_PREPARATION_ENABLED: "true", GROUP_PAYMENTS_ENABLED: "true", GROUP_REFUNDS_ENABLED: "true", PAYMONGO_SECRET_KEY: "sk_test_mock_only", TICKET_SIGNING_SECRET: "group-test-secret", GROUP_PAYMENT_RETURN_URL: "https://racepace.test/bookings" };
 async function account() {
   const email = `payment-prepare-${randomUUID()}@example.com`;
   const created = await svc.auth.admin.createUser({ email, password: "password123", email_confirm: true });
@@ -85,6 +85,7 @@ beforeEach(async () => {
   await db.query("delete from user_roles where user_id=$1 and role='super_admin'", [actor]);
   settings.GROUP_REFUNDS_ENABLED = "true";
   settings.PAYMONGO_SECRET_KEY = "sk_test_mock_only";
+  settings.TICKET_SIGNING_SECRET = "group-test-secret";
   await db.query("delete from user_roles where user_id=$1 and org_id=$2", [stranger, org]);
   await db.query("update organizations set refund_policy='full',refund_fee_cents=0 where id=$1", [org]);
   settings.GROUP_TICKET_DELIVERY_ENABLED="true";
@@ -369,6 +370,108 @@ it("creates one provider session across concurrent clicks and verifies all disti
   expect(ledger).toEqual({ gross: attempt.gross_cents + 5678, fee: 5678, net: attempt.base_cents });
   expect((await db.query("select slots_taken from categories where id=$1", [category])).rows[0].slots_taken).toBe(2);
   expect((await db.query("select * from booking_order_deliveries where org_id=$1", [org])).rowCount).toBe(1);
+});
+it("retains captured money before ticket setup and permits only audited admin recovery", async () => {
+  const attempt = await prepared();
+  expect((await groupCall(attempt.id)).status).toBe(200);
+  provider.retrieve.mockResolvedValue(providerCapture(attempt));
+  delete settings.TICKET_SIGNING_SECRET;
+  expect(await (await groupCall(attempt.id, "verify")).json()).toEqual({ status: "processing" });
+  expect((await db.query("select state,last_error_code,attempts from booking_payment_captures where attempt_id=$1", [attempt.id])).rows)
+    .toEqual([{ state: "received", last_error_code: "ticket_signing_not_configured", attempts: 1 }]);
+  expect((await db.query("select status,ticket_token from registrations where booking_order_id=$1", [attempt.booking_order_id])).rows)
+    .toEqual([{ status: "pending", ticket_token: null }, { status: "pending", ticket_token: null }]);
+  expect((await groupCall(attempt.id, "retry")).status).toBe(403);
+  expect((await groupCall(attempt.id, "retry", strangerToken)).status).toBe(403);
+
+  settings.TICKET_SIGNING_SECRET = "group-test-secret";
+  provider.retrieve.mockRejectedValue(new Error("provider unavailable"));
+  const gets = provider.retrieve.mock.calls.length;
+  await db.query("insert into user_roles(user_id,org_id,role) values($1,$2,'admin')", [stranger, org]);
+  const response = await groupCall(attempt.id, "retry", strangerToken);
+  expect(response.status, await response.clone().text()).toBe(200);
+  expect(await response.json()).toEqual({ status: "paid" });
+  expect(provider.retrieve).toHaveBeenCalledTimes(gets);
+  expect((await groupCall(attempt.id, "retry", strangerToken)).status).toBe(409);
+});
+it("survives a real PostgreSQL fulfillment error and recovers once without another provider read", async () => {
+  const attempt = await prepared();
+  await groupCall(attempt.id);
+  provider.retrieve.mockResolvedValue(providerCapture(attempt));
+  // Reproduce the incident's transaction boundary: capture observation commits,
+  // then a SQLSTATE 42703 aborts the registration transaction in PostgreSQL.
+  await db.query("create function public.test_group_confirmation_failure() returns trigger language plpgsql as $$ begin raise exception 'injected confirmation failure' using errcode='42703'; end $$");
+  await db.query(`create trigger test_group_confirmation_failure before update on public.registrations
+    for each row when (new.event_id='${event}'::uuid and new.status='paid') execute function public.test_group_confirmation_failure()`);
+  try {
+    expect(await (await groupCall(attempt.id, "verify")).json()).toEqual({ status: "processing" });
+    expect((await db.query("select state,last_error_code,attempts from booking_payment_captures where attempt_id=$1", [attempt.id])).rows)
+      .toEqual([{ state: "received", last_error_code: "42703", attempts: 1 }]);
+    expect((await db.query("select capture_id from booking_payment_allocations where org_id=$1", [org])).rowCount).toBe(0);
+    expect((await db.query("select booking_order_id from booking_order_deliveries where org_id=$1", [org])).rowCount).toBe(0);
+  } finally {
+    await db.query("drop trigger test_group_confirmation_failure on public.registrations");
+    await db.query("drop function public.test_group_confirmation_failure()");
+  }
+  provider.retrieve.mockRejectedValue(new Error("provider unavailable"));
+  const results = await Promise.all([groupCall(attempt.id, "verify"), groupCall(attempt.id, "verify")]);
+  for (const result of results) expect(await result.json()).toEqual({ status: "paid" });
+  expect(provider.retrieve).toHaveBeenCalledTimes(1);
+  expect((await db.query("select count(*)::int n from booking_payment_allocations where org_id=$1", [org])).rows[0].n).toBe(2);
+  expect((await db.query("select count(*)::int n from booking_order_deliveries where org_id=$1", [org])).rows[0].n).toBe(1);
+  expect((await db.query("select slots_taken from categories where id=$1", [category])).rows[0].slots_taken).toBe(2);
+});
+it("refuses acknowledgement when observation fails before registration fulfillment", async () => {
+  const attempt = await prepared();
+  await groupCall(attempt.id);
+  provider.retrieve.mockResolvedValue(providerCapture(attempt));
+  await db.query("create function public.test_group_observation_failure() returns trigger language plpgsql as $$ begin raise exception 'injected inbox failure' using errcode='08006'; end $$");
+  await db.query(`create trigger test_group_observation_failure before insert on public.booking_payment_captures
+    for each row when (new.org_id='${org}'::uuid) execute function public.test_group_observation_failure()`);
+  try {
+    const response = await groupCall(attempt.id, "verify");
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ error: "payment_capture_write_failed" });
+    expect((await db.query("select id from booking_payment_captures where org_id=$1", [org])).rowCount).toBe(0);
+    expect((await db.query("select id from registrations where booking_order_id=$1 and status='paid'", [attempt.booking_order_id])).rowCount).toBe(0);
+  } finally {
+    await db.query("drop trigger test_group_observation_failure on public.booking_payment_captures");
+    await db.query("drop function public.test_group_observation_failure()");
+  }
+});
+it("refreshes a new webhook even when an earlier captured payment awaits fulfillment", async () => {
+  const { verifyGroupPayment } = await import("../functions/_shared/groupPaymentService");
+  const attempt = await prepared();
+  await groupCall(attempt.id);
+  provider.retrieve.mockResolvedValue(providerCapture(attempt));
+  delete settings.TICKET_SIGNING_SECRET;
+  expect(await verifyGroupPayment(attempt.id)).toEqual({ status: "processing" });
+  const additional = providerCapture(attempt);
+  additional.data.attributes.payments.push({ ...additional.data.attributes.payments[0], id: "pay_secondcapture" });
+  provider.retrieve.mockResolvedValue(additional);
+  expect(await verifyGroupPayment(attempt.id, { refreshProvider: true })).toEqual({ status: "processing" });
+  expect((await db.query("select payment_id from booking_payment_captures where org_id=$1 order by payment_id", [org])).rows)
+    .toEqual([{ payment_id: "pay_mockcapture" }, { payment_id: "pay_secondcapture" }]);
+  settings.TICKET_SIGNING_SECRET = "group-test-secret";
+  expect(await verifyGroupPayment(attempt.id)).toEqual({ status: "reconciliation_required" });
+  expect((await db.query("select state,reason from booking_payment_captures where payment_id='pay_secondcapture'")).rows[0])
+    .toEqual({ state: "reconciliation_required", reason: "extra_capture" });
+  expect((await groupCall(attempt.id, "retry", strangerToken)).status).toBe(403);
+  await db.query("insert into user_roles(user_id,org_id,role) values($1,$2,'admin')", [stranger, org]);
+  expect((await groupCall(attempt.id, "retry", strangerToken)).status).toBe(409);
+});
+it("does not mistake an old paid capture or expired snapshot for the newly notified payment", async () => {
+  const { verifyGroupPayment } = await import("../functions/_shared/groupPaymentService");
+  const attempt = await prepared();
+  await groupCall(attempt.id);
+  provider.retrieve.mockResolvedValue(providerCapture(attempt));
+  expect(await verifyGroupPayment(attempt.id)).toEqual({ status: "paid" });
+  const notified = { refreshProvider: true, expectedPaymentIds: ["pay_delayed"], expectedSessionId: "cs_mocksession" };
+  expect(await verifyGroupPayment(attempt.id, notified)).toEqual({ status: "pending" });
+  provider.retrieve.mockResolvedValue({ data: { id: "cs_mocksession", attributes: { status: "expired", payments: [] } } });
+  expect(await verifyGroupPayment(attempt.id, notified)).toEqual({ status: "pending" });
+  expect(await verifyGroupPayment(attempt.id, { ...notified, expectedPaymentIds: ["pay_mockcapture"] })).toEqual({ status: "paid" });
+  await expect(verifyGroupPayment(attempt.id, { ...notified, expectedSessionId: "cs_wrong" })).rejects.toThrow("session_identity_mismatch");
 });
 it("fulfills mixed categories with one payment, category-aware tickets, delivery, and slot release", async () => {
   const attempt = await prepared(true);

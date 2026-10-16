@@ -21,6 +21,7 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 
 type Ticket = { discount_code?: string | null; discount_amount_cents?: number; discount_snapshot?: { absorb_fees?: boolean }; id: string; status: string; total_amount: number; custom_data: Record<string, unknown> | null; categories: { label: string } | { label: string }[] | null };
+type PaymentProgress = { state: "processing" | "review_required" | "paid" };
 type Method = "gcash" | "card" | "maya" | "qrph";
 const METHOD_LABELS: Record<Method, string> = { gcash: "GCash", card: "Card", maya: "Maya", qrph: "QR Ph" };
 
@@ -33,6 +34,8 @@ export function GroupOrder({ orderId, initialStatus, entryTotal, eventName, cate
   const [attempt, setAttempt] = useState<GroupAttempt | null>(null);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [paymentProgress, setPaymentProgress] = useState<PaymentProgress | null>(null);
+  const [progressAvailable, setProgressAvailable] = useState(false);
   const [method, setMethod] = useState<Method>("gcash");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,16 +44,25 @@ export function GroupOrder({ orderId, initialStatus, entryTotal, eventName, cate
 
   const refresh = useCallback(async () => {
     const db = createClient();
-    const [order, attempts, registrations] = await Promise.all([
-      db.from("booking_orders").select("status").eq("id", orderId).single(),
-      db.from("booking_payment_attempts").select("id,booking_order_id,status,method,base_cents,platform_fee_cents,gross_cents,terms_snapshot").eq("booking_order_id", orderId).order("created_at", { ascending: false }).limit(1),
-      db.from("registrations").select("id,status,total_amount,custom_data,discount_code,discount_amount_cents,discount_snapshot,categories(label)").eq("booking_order_id", orderId).order("id"),
-    ]);
-    if (order.error || attempts.error || registrations.error) throw new Error("Could not load the group booking");
-    setStatus(order.data.status);
-    setAttempt((attempts.data?.[0] as GroupAttempt | undefined) ?? null);
-    setTickets((registrations.data ?? []) as Ticket[]);
-    setLoaded(true);
+    try {
+      const [order, attempts, registrations, progress] = await Promise.all([
+        db.from("booking_orders").select("status").eq("id", orderId).single(),
+        db.from("booking_payment_attempts").select("id,booking_order_id,status,method,base_cents,platform_fee_cents,gross_cents,terms_snapshot").eq("booking_order_id", orderId).order("created_at", { ascending: false }).limit(1),
+        db.from("registrations").select("id,status,total_amount,custom_data,discount_code,discount_amount_cents,discount_snapshot,categories(label)").eq("booking_order_id", orderId).order("id"),
+        db.rpc("booking_payment_progress", { p_orders: [orderId] }),
+      ]);
+      if (order.error || attempts.error || registrations.error) throw new Error("Could not load the group booking");
+      setStatus(order.data.status);
+      setAttempt((attempts.data?.[0] as GroupAttempt | undefined) ?? null);
+      setTickets((registrations.data ?? []) as Ticket[]);
+      setPaymentProgress(progress.error ? null : (progress.data?.[0] as PaymentProgress | undefined) ?? null);
+      setProgressAvailable(!progress.error);
+      setLoaded(true);
+    } catch (cause) {
+      // An unavailable receipt check must never reopen the pay/cancel controls.
+      setProgressAvailable(false);
+      throw cause;
+    }
   }, [orderId]);
 
   useEffect(() => {
@@ -96,7 +108,7 @@ export function GroupOrder({ orderId, initialStatus, entryTotal, eventName, cate
       if (session.action === "ready" && session.checkout_url) { window.location.assign(session.checkout_url); return; }
       setError(session.action === "expired"
         ? "This checkout expired. Review a new payment below. Your original payment deadline still applies."
-        : session.action === "paid" ? null : "PayMongo is preparing your checkout. Check the booking status shortly.");
+        : session.action === "paid" || session.action === "processing" ? null : "PayMongo is preparing your checkout. Check the booking status shortly.");
       await refresh();
     } catch (cause) {
       const code = cause instanceof GroupCheckoutError ? cause.code : "payment_unavailable";
@@ -136,10 +148,12 @@ export function GroupOrder({ orderId, initialStatus, entryTotal, eventName, cate
   const savings = tickets.reduce((sum, t) => sum + (t.discount_amount_cents ?? 0), 0);
   const free = loaded && subtotal === 0;
   const effectiveFeeMode = attempt?.terms_snapshot?.fee_mode ?? feeMode;
-  const blocked = status === "reconciliation_required" || attempt?.status === "creation_unknown";
-  const canPrepare = (!attempt || ["failed", "expired"].includes(attempt.status)) && !expired && status === "pending";
-  const canPay = attempt && ["prepared", "ready"].includes(attempt.status) && status === "pending" && !expired;
-  const canCancel = loaded && status === "pending" && !expired && (!attempt || ["prepared", "failed", "expired"].includes(attempt.status));
+  const processing = !complete && (paymentProgress?.state === "processing" || paymentProgress?.state === "paid");
+  const blocked = paymentProgress?.state === "review_required" || status === "reconciliation_required" || attempt?.status === "creation_unknown";
+  const paymentLocked = !loaded || !progressAvailable || processing || blocked;
+  const canPrepare = !paymentLocked && (!attempt || ["failed", "expired"].includes(attempt.status)) && !expired && status === "pending";
+  const canPay = !paymentLocked && attempt && ["prepared", "ready"].includes(attempt.status) && status === "pending" && !expired;
+  const canCancel = !paymentLocked && loaded && status === "pending" && !expired && (!attempt || ["prepared", "failed", "expired"].includes(attempt.status));
   const categoryBadge = categoryCount > 1 ? `${categoryCount} categories` : categoryLabel;
 
   return <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
@@ -158,6 +172,7 @@ export function GroupOrder({ orderId, initialStatus, entryTotal, eventName, cate
 
     {!loaded ? <div className="grid gap-8 p-6 sm:p-8 lg:grid-cols-[minmax(0,1.4fr)_minmax(340px,0.8fr)] lg:p-10"><div className="space-y-3"><Skeleton className="h-5 w-48" /><Skeleton className="h-20 w-full" /><Skeleton className="h-20 w-full" /></div><Skeleton className="h-80 w-full" /></div> : complete ? <section className="p-6 sm:p-8 lg:p-10">
       <h2 className="flex items-center gap-2 text-xl font-bold"><CheckCircle2 aria-hidden="true" className="size-5 text-primary" />{free ? "Booking confirmed" : "Payment confirmed"}</h2>
+      {paymentProgress?.state === "review_required" ? <Alert variant="destructive" role="alert" className="mt-4"><AlertDescription>A payment for this booking needs review. Your confirmed tickets remain available. Do not pay again. Contact Race Pace support with booking ID {orderId}.</AlertDescription></Alert> : null}
       <p className="mt-2 text-sm text-muted-foreground">{free ? "Your free booking secured" : "One payment secured"} {tickets.filter(ticket => ticket.status === "paid").length} individual tickets.</p>
       <ul className="mt-5 grid gap-3 sm:grid-cols-2">{tickets.map(ticket => {
         const name = typeof ticket.custom_data?.full_name === "string" ? ticket.custom_data.full_name : "Participant";
@@ -177,7 +192,7 @@ export function GroupOrder({ orderId, initialStatus, entryTotal, eventName, cate
             <span className="grid size-11 place-items-center rounded-full bg-primary/10 text-sm font-bold text-primary">{initials}</span>
             <span><span className="block font-semibold">{name}</span><span className="text-sm text-muted-foreground">{category?.label ?? "Category"}</span></span>
             <span className="text-right"><span className="block font-semibold tabular-nums">{formatPeso(ticket.total_amount)}</span><span className="text-xs text-muted-foreground">Entry fee</span></span>
-            <div className="col-span-3"><DiscountCodeField registrationId={ticket.id} code={ticket.discount_code} savings={ticket.discount_amount_cents} absorbed={ticket.discount_snapshot?.absorb_fees} disabled={busy || !["prepared", "failed", "expired"].includes(attempt?.status ?? "prepared")} onBusy={setBusy} onApplied={async () => { sessionStorage.removeItem(`rp:group-payment:${orderId}`); setAttempt(null); await refresh(); }} /></div>
+            {!paymentLocked && <div className="col-span-3"><DiscountCodeField registrationId={ticket.id} code={ticket.discount_code} savings={ticket.discount_amount_cents} absorbed={ticket.discount_snapshot?.absorb_fees} disabled={busy || !["prepared", "failed", "expired"].includes(attempt?.status ?? "prepared")} onBusy={setBusy} onApplied={async () => { sessionStorage.removeItem(`rp:group-payment:${orderId}`); setAttempt(null); await refresh(); }} /></div>}
           </li>;
         })}</ul>
         <div className="mt-6 grid gap-3 sm:grid-cols-3">
@@ -194,10 +209,12 @@ export function GroupOrder({ orderId, initialStatus, entryTotal, eventName, cate
             {savings > 0 && <div className="flex justify-between gap-4 text-sm text-primary"><span>Discounts</span><strong>−{formatPeso(savings)}</strong></div>}
             {attempt ? <div className="flex justify-between gap-4 text-sm"><span className="text-muted-foreground">Race Pace fees</span><strong>{effectiveFeeMode === "absorb" ? "Included" : formatPeso(attempt.platform_fee_cents)}</strong></div> : null}
             <Separator />
-            <div className="flex items-end justify-between gap-4"><span className="font-semibold">{!free && effectiveFeeMode === "pass_on" ? "Subtotal before processing" : "Total to pay"}</span><strong className="text-xl tabular-nums">{formatPeso(attempt?.gross_cents ?? (tickets.length ? tickets.reduce((sum, t) => sum + t.total_amount, 0) : entryTotal))}</strong></div>
+            <div className="flex items-end justify-between gap-4"><span className="font-semibold">{processing || blocked ? "Booking subtotal" : !free && effectiveFeeMode === "pass_on" ? "Subtotal before processing" : "Total to pay"}</span><strong className="text-xl tabular-nums">{formatPeso(attempt?.gross_cents ?? (tickets.length ? tickets.reduce((sum, t) => sum + t.total_amount, 0) : entryTotal))}</strong></div>
             <p className="text-xs text-muted-foreground">{free ? "No payment details or fees. Confirm to receive your tickets." : effectiveFeeMode === "pass_on" ? "PayMongo shows the exact processing fee before confirmation." : "Race Pace and PayMongo fees are included in this total."}</p>
+            {!progressAvailable ? <Alert role="status"><AlertDescription>Payment status is temporarily unavailable. Do not pay again while we check this booking.</AlertDescription></Alert> : null}
+            {processing ? <Alert role="status"><AlertDescription>Payment received. Registration processing. Do not pay again. Your tickets will appear here after confirmation.</AlertDescription></Alert> : null}
             {blocked ? <Alert variant="destructive" role="alert" className="border p-3"><AlertDescription>This payment needs review. Do not start another checkout. Contact Race Pace support with booking ID {orderId}.</AlertDescription></Alert> : null}
-            {expired || status === "expired" || status === "cancelled" ? <Alert variant="destructive" role="alert" className=""><AlertDescription>This reservation is no longer payable. No new payment will be started.</AlertDescription></Alert> : null}
+            {!processing && !blocked && (expired || status === "expired" || status === "cancelled") ? <Alert variant="destructive" role="alert" className=""><AlertDescription>This reservation is no longer payable. No new payment will be started.</AlertDescription></Alert> : null}
             {canPrepare ? <div className="space-y-2">{!free && <><Label className="" htmlFor="group-method">Payment method</Label>
               <Select value={method} onValueChange={value => setMethod(value as Method)}>
                 <SelectTrigger id="group-method" className="h-12 w-full"><span className="flex items-center gap-2"><MethodLogo methodKey={method} /><span>{METHOD_LABELS[method]}</span></span></SelectTrigger>

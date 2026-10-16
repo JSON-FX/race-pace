@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const { getUser, rpc, revalidatePath } = vi.hoisted(() => ({
+const { getUser, rpc, revalidatePath, invoke } = vi.hoisted(() => ({
   getUser: vi.fn(),
+  invoke: vi.fn(),
   rpc: vi.fn(),
   revalidatePath: vi.fn(),
 }));
@@ -10,14 +11,16 @@ vi.mock("next/cache", () => ({ revalidatePath }));
 vi.mock("@/lib/supabase/server", () => ({
   createClient: async () => ({
     auth: { getUser },
+    functions: { invoke },
     rpc,
   }),
 }));
 
-import { cancelRegistrationsAction } from "./registrations";
+import { cancelRegistrationsAction, retryRegistrationPaymentAction } from "./registrations";
 
 beforeEach(() => {
   getUser.mockReset();
+  invoke.mockReset();
   rpc.mockReset();
   revalidatePath.mockClear();
   getUser.mockResolvedValue({ data: { user: { id: "u1" } } });
@@ -123,5 +126,27 @@ describe("cancelRegistrationsAction", () => {
     expect(res.error).not.toContain("connection reset");
     expect(consoleError).toHaveBeenCalled();
     consoleError.mockRestore();
+  });
+});
+
+describe("retryRegistrationPaymentAction", () => {
+  it("requests the scoped audited retry without setting a paid flag", async () => {
+    invoke.mockResolvedValue({ data: { status: "processing" }, error: null });
+    expect(await retryRegistrationPaymentAction("attempt-1")).toEqual({ ok: true });
+    expect(invoke).toHaveBeenCalledWith("group-payment", { body: { attempt_id: "attempt-1", action: "retry" } });
+    expect(revalidatePath).toHaveBeenCalledWith("/registrations");
+  });
+
+  it.each([403, 409, 500])("reports a %s retry rejection safely and refreshes the registration", async status => {
+    invoke.mockResolvedValue({ data: null, error: { context: { status }, message: "private provider payload" } });
+    const result = await retryRegistrationPaymentAction("attempt-1");
+    expect(result.ok).toBe(false);
+    expect(result.error).not.toContain("private provider payload");
+    expect(revalidatePath).toHaveBeenCalledWith("/registrations");
+  });
+
+  it("does not report success for an unknown response", async () => {
+    invoke.mockResolvedValue({ data: {}, error: null });
+    expect((await retryRegistrationPaymentAction("attempt-1")).ok).toBe(false);
   });
 });
