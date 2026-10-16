@@ -58,6 +58,7 @@ describe("RegistrationDetail", () => {
     expect(screen.getByText("Team: Ridge Crew")).toBeInTheDocument();
     expect(screen.queryByText("ANA")).not.toBeInTheDocument();
     expect(screen.getByText("10K")).toBeInTheDocument();
+    expect(screen.getByText("Not yet paid")).toBeInTheDocument();
     expect(refundButton()).toBeDisabled();
 
     await waitFor(() => expect(screen.getByText("Singlet")).toBeInTheDocument());
@@ -215,4 +216,17 @@ it("does not describe unavailable receipt progress as an unpaid registration", (
   expect(screen.queryByText("Awaiting payment")).not.toBeInTheDocument();
   expect(screen.queryByText(/No payment is recorded/)).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Retry registration update" })).not.toBeInTheDocument();
+});
+
+it.each([
+  ["processing", processingRow],
+  ["review", { ...processingRow, payment_progress: { ...processingRow.payment_progress!, state: "review_required" as const } }],
+  ["unavailable", { ...pendingRow, payment_progress_unavailable: true }],
+] as const)("hides the unpaid method fallback for %s progress while preserving a recorded method", (_state, row) => {
+  const { rerender } = render(<RegistrationDetail row={row} onClose={vi.fn()} onRefunded={vi.fn()} />);
+  expect(screen.queryByText("Not yet paid")).not.toBeInTheDocument();
+
+  rerender(<RegistrationDetail row={{ ...row, payment_method: "qrph" }} onClose={vi.fn()} onRefunded={vi.fn()} />);
+  expect(screen.getByLabelText("QR Ph")).toBeInTheDocument();
+  expect(screen.queryByText("Not yet paid")).not.toBeInTheDocument();
 });
