@@ -421,6 +421,16 @@ it("survives a real PostgreSQL fulfillment error and recovers once without anoth
   expect((await db.query("select count(*)::int n from booking_order_deliveries where org_id=$1", [org])).rows[0].n).toBe(1);
   expect((await db.query("select slots_taken from categories where id=$1", [category])).rows[0].slots_taken).toBe(2);
 });
+it.each(["paid", "reconciliation_required"])("replays terminal %s evidence without a provider dependency", async (status) => {
+  const attempt = await prepared();
+  await groupCall(attempt.id);
+  provider.retrieve.mockResolvedValue(status === "paid" ? providerCapture(attempt)
+    : providerCapture(attempt, { fee: undefined, net_amount: undefined }));
+  expect(await (await groupCall(attempt.id, "verify")).json()).toEqual({ status });
+  provider.retrieve.mockRejectedValue(new Error("provider unavailable"));
+  expect(await (await groupCall(attempt.id, "verify")).json()).toEqual({ status });
+  expect(provider.retrieve).toHaveBeenCalledTimes(1);
+});
 it("refuses acknowledgement when observation fails before registration fulfillment", async () => {
   const attempt = await prepared();
   await groupCall(attempt.id);
@@ -567,12 +577,13 @@ it("keeps late capture but issues no partial tickets when the whole group no lon
   expect((await db.query("select id from registrations where booking_order_id=$1 and ticket_token is not null", [attempt.booking_order_id])).rowCount).toBe(0);
   expect((await db.query("select reason from booking_payment_captures where org_id=$1", [org])).rows[0].reason).toBe("capacity_unavailable");
 });
-it("records extra captures without duplicating allocations or tickets", async () => {
+it("refreshes a new webhook after fulfillment without duplicating allocations or tickets", async () => {
+  const { verifyGroupPayment } = await import("../functions/_shared/groupPaymentService");
   const attempt = await prepared(); await groupCall(attempt.id);
   const raw = providerCapture(attempt); provider.retrieve.mockResolvedValue(raw);
   expect(await (await groupCall(attempt.id, "verify")).json()).toEqual({ status: "paid" });
   raw.data.attributes.payments.push({ ...raw.data.attributes.payments[0], id: "pay_extracapture" });
-  expect(await (await groupCall(attempt.id, "verify")).json()).toEqual({ status: "reconciliation_required" });
+  expect(await verifyGroupPayment(attempt.id, { refreshProvider: true, expectedPaymentIds: ["pay_extracapture"], expectedSessionId: "cs_mocksession" })).toEqual({ status: "reconciliation_required" });
   expect((await db.query("select * from booking_payment_allocations where org_id=$1", [org])).rowCount).toBe(2);
   expect((await db.query("select reason from booking_payment_captures where org_id=$1 and state='reconciliation_required'", [org])).rows[0].reason).toBe("extra_capture");
 });

@@ -115,9 +115,10 @@ export async function verifyGroupPayment(attemptId: string, options: {
   if (free.data?.gross_cents === 0) return { status: free.data.status === "paid" ? "paid" : "pending" };
   const stored = await db.from("booking_payment_captures").select("payment_id,capture,state").eq("attempt_id", attemptId).order("created_at").order("id");
   if (stored.error) throw new Error("payment_confirmation_unavailable");
-  // Recovery must work during a provider outage. A new webhook still refreshes
-  // the session so an additional payment cannot be acknowledged unseen.
-  if (!options.refreshProvider && stored.data.some(capture => capture.state === "received")) {
+  // A concurrent retry can arrive after another call finishes fulfillment.
+  // Every stored state must remain usable during a provider outage, not only
+  // received rows. New webhooks still refresh to observe additional payments.
+  if (!options.refreshProvider && stored.data.length) {
     return fulfillStoredCaptures(attemptId, stored.data as StoredCapture[]);
   }
   const { secret, livemode } = credentials();
