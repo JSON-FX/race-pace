@@ -35,6 +35,13 @@ it("records disabled webhook health without preventing recovery", async () => {
   expect((await request()).status).toBe(200);
   expect(mocks.rpc).toHaveBeenCalledWith("payment_reconciliation_heartbeat", { p_provider_issue: "payment_webhook_disabled_or_missing" });
 });
+it("keeps durable group captures eligible after a fulfillment failure", async () => {
+  mocks.group.mockResolvedValue({ status: "processing" });
+  expect(await (await request()).json()).toMatchObject({ outcomes: { paid: 2, retry_required: 1 } });
+  expect(mocks.rpc).toHaveBeenCalledWith("payment_reconciliation_finish", {
+    p_kind: "group", p_subject: "group-id", p_lease: "lease-id", p_outcome: "retry_required",
+  });
+});
 it("requires the worker secret and POST before database or provider access", async () => {
   expect((await request("wrong")).status).toBe(401);
   expect((await handler(new Request("http://local/reconcile"))).status).toBe(405);

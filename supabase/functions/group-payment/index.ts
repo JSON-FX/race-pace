@@ -1,8 +1,9 @@
 import { z } from "zod";
+import { createClient } from "@supabase/supabase-js";
 import { serviceClient } from "../_shared/supabase.ts";
 import { preflight, corsHeaders } from "../_shared/cors.ts";
 import { startGroupPayment, verifyGroupPayment } from "../_shared/groupPaymentService.ts";
-const schema = z.object({ attempt_id: z.string().uuid(), action: z.enum(["session", "verify"]) }).strict();
+const schema = z.object({ attempt_id: z.string().uuid(), action: z.enum(["session", "verify", "retry"]) }).strict();
 Deno.serve(async (req) => {
   const pre = preflight(req); if (pre) return pre;
   const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", ...corsHeaders(req.headers.get("Origin")) } });
@@ -18,6 +19,19 @@ Deno.serve(async (req) => {
     let raw: unknown; try { raw = JSON.parse(text); } catch { return json({ error: "invalid_input" }, 400); }
     const parsed = schema.safeParse(raw); if (!parsed.success) return json({ error: "invalid_input" }, 400);
     const { attempt_id, action } = parsed.data;
+    if (action === "retry") {
+      // Use the caller's JWT for the tenant check and audit actor. Service-role
+      // fulfillment runs only after that durable authorization succeeds.
+      const caller = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {
+        global: { headers: { Authorization: `Bearer ${token}` } }, auth: { persistSession: false },
+      });
+      const retry = await caller.rpc("booking_payment_retry", { p_attempt: attempt_id });
+      if (retry.error) return json({ error: retry.error.code === "42501" ? "insufficient_privilege"
+        : retry.error.code === "22023" ? "payment_not_retryable" : "payment_unavailable" },
+      retry.error.code === "42501" ? 403 : retry.error.code === "22023" ? 409 : 503);
+      if (retry.data !== true) return json({ error: "payment_not_retryable" }, 409);
+      return json(await verifyGroupPayment(attempt_id));
+    }
     const own = await db.from("booking_payment_attempts").select("id").eq("id", attempt_id).eq("booked_by_user_id", auth.data.user.id).maybeSingle();
     if (own.error) return json({ error: "payment_unavailable" }, 503);
     if (!own.data) return json({ error: "attempt_not_found" }, 404);
@@ -27,7 +41,7 @@ Deno.serve(async (req) => {
     const known: Record<string, number> = { attempt_not_found: 404, booking_email_unverified: 403, order_not_payable: 409,
       order_entries_changed: 409, registration_closed: 409, org_suspended: 409, attempt_not_prepared: 409,
       dispatch_request_changed: 409, free_order_requires_confirmation: 409, session_not_ready: 409,
-      payment_creation_unknown: 503, payment_confirmation_unavailable: 503 };
+      payment_creation_unknown: 503, payment_confirmation_unavailable: 503, payment_capture_write_failed: 503 };
     return json({ error: known[code] ? code : "payment_unavailable" }, known[code] ?? 503);
   }
 });

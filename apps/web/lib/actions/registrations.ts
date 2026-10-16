@@ -150,3 +150,22 @@ export async function cancelRegistrationsAction(ids: string[]): Promise<BulkCanc
       : undefined,
   };
 }
+
+/** The Edge Function checks organization access and records each allowed retry. */
+export async function retryRegistrationPaymentAction(attemptId: string): Promise<{ ok: boolean; error?: string }> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.functions.invoke("group-payment", { body: { attempt_id: attemptId, action: "retry" } });
+  revalidatePath("/registrations");
+  if (error) {
+    const context = (error as { context?: Response }).context;
+    return { ok: false, error: context?.status === 403
+      ? "You don't have permission to retry this registration update."
+      : context?.status === 409
+        ? "This payment is no longer eligible for retry. Refresh its status; payments needing review require support."
+        : "Could not confirm the retry result. Refresh the registration before trying again." };
+  }
+  if (!["paid", "processing", "reconciliation_required"].includes(data?.status)) {
+    return { ok: false, error: "Could not confirm the registration status. Please refresh." };
+  }
+  return { ok: true };
+}

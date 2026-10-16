@@ -30,7 +30,19 @@ export type PaymentStatus = "pending" | "paid" | "failed" | "refunded" | "partia
 // 'expired'/'cancelled' can ONLY appear here, never on payment_status.
 export type RegistrationStatus = "pending" | "paid" | "refunded" | "cancelled" | "expired";
 
+export type BookingPaymentProgress = {
+  booking_order_id: string;
+  attempt_id: string;
+  state: "processing" | "review_required" | "paid";
+  received_at: string;
+  attempts: number | null;
+  last_error_code: string | null;
+  last_attempt_at: string | null;
+};
+
 export type RegistrationRow = {
+  payment_progress?: BookingPaymentProgress | null;
+  payment_progress_unavailable?: boolean;
   discount_code?: string | null; discount_amount_cents?: number;
   booking_order_id?: string | null;
   payment_id?: string | null;
@@ -198,22 +210,30 @@ export async function listEventRegistrations(
   if (error) throw error;
   const rows = (data ?? []) as Omit<RegistrationRow, "email" | "addons">[];
 
-  // Emails and add-ons are two independent side-lookups keyed off the same
-  // page of rows — fetching them in the SAME Promise.all, not one after the
-  // other, is what makes this page-scoped add-on read cost nothing extra:
-  // sequentially it would add a second full round trip behind the emails
-  // RPC, exactly the latency Defect B exists to remove.
+  // Page-scoped lookups run together. Receipt progress never changes settled
+  // ledger amounts; failed progress reads remain visibly unknown in the UI.
   let emailById = new Map<string, string | null>();
   let addonsById = new Map<string, Addon[]>();
+  let progressByOrder = new Map<string, BookingPaymentProgress>();
+  let progressUnavailable = false;
+  const orderIds = [...new Set(rows.flatMap(row => row.booking_order_id ? [row.booking_order_id] : []))];
   if (rows.length > 0) {
-    [emailById, addonsById] = await Promise.all([
+    const results = await Promise.all([
       includeEmails ? getEventRegistrationEmails(eventId) : Promise.resolve(emailById),
       includeAddons ? getRegistrationAddons(rows.map((r) => r.id)) : Promise.resolve(addonsById),
+      orderIds.length ? supabase.rpc("booking_payment_progress", { p_orders: orderIds }) : Promise.resolve({ data: [], error: null }),
     ]);
+    [emailById, addonsById] = results;
+    const progress = results[2];
+    progressUnavailable = !!progress.error;
+    progressByOrder = new Map(((progress.error ? [] : progress.data ?? []) as BookingPaymentProgress[]).map(item => [item.booking_order_id, item]));
   }
 
   return {
-    rows: rows.map((r) => ({ ...r, email: emailById.get(r.id) ?? null, addons: addonsById.get(r.id) ?? [] })),
+    rows: rows.map((r) => ({ ...r, email: emailById.get(r.id) ?? null, addons: addonsById.get(r.id) ?? [],
+      payment_progress: r.booking_order_id ? progressByOrder.get(r.booking_order_id) ?? null : null,
+      payment_progress_unavailable: !!r.booking_order_id && progressUnavailable,
+    })),
     total: count ?? 0,
   };
 }

@@ -13,10 +13,10 @@ beforeAll(async () => {
 });
 afterAll(() => vi.unstubAllGlobals());
 beforeEach(() => { vi.clearAllMocks(); mocks.resources.mockReturnValue(null); mocks.rpc.mockResolvedValue({ data: "stored", error: null }); enabled = "true"; mocks.signature.mockResolvedValue(true); mocks.verify.mockResolvedValue({ status: "paid" }); });
-function request() { return new Request("http://localhost/payments-webhook", { method: "POST", body: JSON.stringify({ data: { attributes: { type: "checkout_session.payment.paid", data: { attributes: { metadata: { payment_attempt_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" } } } } } }) }); }
+function request() { return new Request("http://localhost/payments-webhook", { method: "POST", body: JSON.stringify({ data: { attributes: { type: "checkout_session.payment.paid", data: { id: "cs_notified", attributes: { payments: [{ id: "pay_notified", attributes: { status: "paid" } }], metadata: { payment_attempt_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" } } } } } }) }); }
 it("routes a verified group notification through stored-session verification", async () => {
   expect((await handler(request())).status).toBe(200);
-  expect(mocks.verify).toHaveBeenCalledWith("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"); expect(mocks.legacy).not.toHaveBeenCalled();
+  expect(mocks.verify).toHaveBeenCalledWith("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", { refreshProvider: true, expectedPaymentIds: ["pay_notified"], expectedSessionId: "cs_notified" }); expect(mocks.legacy).not.toHaveBeenCalled();
 });
 it("does not dispatch unsigned or disabled group notifications", async () => {
   mocks.signature.mockResolvedValue(false); expect((await handler(request())).status).toBe(401); expect(mocks.verify).not.toHaveBeenCalled();
@@ -27,6 +27,27 @@ it("does not acknowledge an unbound/failed confirmation so the provider can retr
 });
 it("asks the provider to retry when GET has not exposed the notified capture yet", async () => {
   mocks.verify.mockResolvedValue({ status: "pending" });
+  expect((await handler(request())).status).toBe(503);
+});
+it("acknowledges a durable capture while internal fulfillment retries", async () => {
+  mocks.verify.mockResolvedValue({ status: "processing" });
+  const response = await handler(request());
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({ status: "processing" });
+});
+it("does not acknowledge when the provider capture could not be persisted", async () => {
+  mocks.verify.mockRejectedValue(new Error("payment_capture_write_failed"));
+  expect((await handler(request())).status).toBe(500);
+});
+it("requires the exact bare payment notification to be durably observed", async () => {
+  const response = await handler(new Request("http://localhost/payments-webhook", { method: "POST", body: JSON.stringify({ data: { attributes: {
+    type: "payment.paid", data: { id: "pay_second", attributes: { status: "paid", metadata: { payment_attempt_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" } } },
+  } } }) }));
+  expect(response.status).toBe(200);
+  expect(mocks.verify).toHaveBeenCalledWith("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", { refreshProvider: true, expectedPaymentIds: ["pay_second"] });
+});
+it("does not acknowledge an expired provider snapshot for a paid notification", async () => {
+  mocks.verify.mockResolvedValue({ status: "expired" });
   expect((await handler(request())).status).toBe(503);
 });
 

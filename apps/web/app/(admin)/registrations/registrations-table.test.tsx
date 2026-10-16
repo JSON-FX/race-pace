@@ -23,6 +23,7 @@ vi.mock("@/lib/use-table-params", () => ({ useTableParams: () => tableParamsMock
 let mockSearchParams = new URLSearchParams();
 vi.mock("next/navigation", () => ({
   useSearchParams: () => mockSearchParams,
+  useRouter: () => ({ refresh: vi.fn() }),
 }));
 
 // A SECOND, separate mock — not an alternative to the one above. Opening the
@@ -376,4 +377,13 @@ describe("RegistrationsTable", () => {
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
+});
+
+it("shows a durable payment receipt ahead of a stale pending or expired registration", () => {
+  const processing = { booking_order_id: "order-1", attempt_id: "attempt-1", state: "processing" as const,
+    received_at: "2026-10-16T06:25:00Z", attempts: 1, last_error_code: null, last_attempt_at: null };
+  render(<RegistrationsTable {...props} rows={[{ ...rows[1], registration_status: "expired", payment_progress: processing }]} total={1} />);
+  expect(screen.getByRole("cell", { name: "Payment received · processing" })).toBeInTheDocument();
+  expect(screen.queryByText("Expired")).not.toBeInTheDocument();
+  expect(screen.queryByText("Paid")).not.toBeInTheDocument();
 });

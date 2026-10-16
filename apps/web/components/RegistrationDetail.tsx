@@ -2,7 +2,10 @@
 
 
 import { Badge } from "@/components/ui/badge";
-import { useRef, useState } from "react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { retryRegistrationPaymentAction } from "@/lib/actions/registrations";
 import { X } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { PhotoAvatar } from "@/components/PhotoAvatar";
@@ -12,7 +15,7 @@ import { fieldLabel, fieldValue } from "@/lib/field-labels";
 import { cn } from "@/lib/utils";
 import type { RegistrationRow } from "@/lib/queries/registrations";
 import { registrationTeamName } from "@/lib/registration-team";
-import { PaymentStatusBadge, RegistrationStatusBadge } from "./StatusBadge";
+import { RegistrationPaymentStatusBadge } from "./StatusBadge";
 import { BulkCancelDialog } from "./BulkCancelDialog";
 import { MethodBadge } from "./MethodBadge";
 import { RefundModal } from "./RefundModal";
@@ -64,14 +67,38 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 export function RegistrationDetail({ row, onClose, onRefunded }: {
   row: RegistrationRow; onClose: () => void; onRefunded: () => void;
 }) {
+  const router = useRouter();
   const closeRef = useRef<HTMLButtonElement>(null);
+  const [retrying, setRetrying] = useState(false);
+  const [retryMessage, setRetryMessage] = useState<string | null>(null);
+  const [retryError, setRetryError] = useState<string | null>(null);
+  const progress = row.payment_progress;
+  const progressUnavailable = !!row.payment_progress_unavailable && !["paid", "refunded", "partially_refunded"].includes(row.payment_status ?? "");
+  const unresolved = progress?.state === "processing" || progress?.state === "review_required";
+  useEffect(() => { setRetryMessage(null); setRetryError(null); }, [row.id, progress?.state]);
+
+  async function retryPayment() {
+    if (progress?.state !== "processing") return;
+    setRetrying(true); setRetryError(null); setRetryMessage(null);
+    try {
+      const result = await retryRegistrationPaymentAction(progress.attempt_id);
+      if (result.ok) setRetryMessage("Registration update requested. Refreshing its status.");
+      else setRetryError(result.error ?? "Could not confirm the retry result. Please refresh.");
+    } catch {
+      setRetryError("Could not confirm the retry result. Refresh the registration before trying again.");
+    } finally {
+      router.refresh();
+      setRetrying(false);
+    }
+  }
   const [refunding, setRefunding] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const complimentary = row.total_amount === 0 && (row.discount_amount_cents ?? 0) > 0;
-  const canRefund = row.payment_status === "paid";
+  const canRefund = !unresolved && row.payment_status === "paid";
   const customEntries = Object.entries(row.custom_data ?? {}).filter(([key]) => key !== "team_name" && key !== "bib_name");
   const teamName = registrationTeamName(row.custom_data);
-  const money = MONEY[row.payment_status ?? ""] ?? MONEY_FALLBACK;
+  const money = unresolved || progressUnavailable ? { eyebrow: "Registration amount", band: "bg-info-tint", ink: "text-info" }
+    : MONEY[row.payment_status ?? ""] ?? MONEY_FALLBACK;
   const tint = avatarTint(row.id);
   const captured = row.payment_status === "paid" || row.payment_status === "partially_refunded";
   const displayedAmount = row.payment_status === "refunded" ? row.refunded_amount
@@ -107,8 +134,7 @@ export function RegistrationDetail({ row, onClose, onRefunded }: {
             <DialogDescription className="sr-only">Registration details, payment, entry, submitted answers and history.</DialogDescription>
             {row.email ? <div className="registration-detail-email"><span>{row.email}</span><CopyButton value={row.email} label="email" /></div> : null}
             <div className="registration-detail-status">
-              {row.registration_status === "expired" || row.registration_status === "cancelled"
-                ? <RegistrationStatusBadge status={row.registration_status} /> : <PaymentStatusBadge status={row.payment_status} />}
+              <RegistrationPaymentStatusBadge row={row} />
               {teamName ? <Badge variant="secondary" className="registration-detail-team">Team: {teamName}</Badge> : null}
             </div>
           </div>
@@ -129,6 +155,22 @@ export function RegistrationDetail({ row, onClose, onRefunded }: {
               {row.payment_status === "partially_refunded" && row.refunded_amount != null ? <Row label="Refunded" value={peso(row.refunded_amount)} mono /> : null}
             </dl> : null}
           </section>
+          {unresolved ? <section className="registration-detail-section" aria-label="Payment processing">
+            <h3>{progress.state === "processing" ? "Payment received. Registration processing." : "Payment needs review"}</h3>
+            <p className="text-sm text-muted-foreground">{progress.state === "processing"
+              ? "The provider payment is recorded. Registration confirmation is still processing. Do not ask the runner to pay again."
+              : "The provider payment is recorded, but registration could not be confirmed. Contact platform support. Do not ask the runner to pay again."}</p>
+            <dl className="mt-3">
+              <Row label="Payment received" value={fmtDateTime(progress.received_at)} mono />
+              {progress.attempts != null ? <Row label="Update attempts" value={progress.attempts} mono /> : null}
+              {progress.last_attempt_at ? <Row label="Last attempt" value={fmtDateTime(progress.last_attempt_at)} mono /> : null}
+              {progress.last_error_code ? <Row label="Support error code" value={progress.last_error_code} mono /> : null}
+            </dl>
+            {progress.state === "processing" ? <Button className="mt-3" variant="outline" disabled={retrying} onClick={retryPayment}>{retrying ? "Retrying…" : "Retry registration update"}</Button> : null}
+            {retryMessage ? <p className="mt-2 text-sm" role="status">{retryMessage}</p> : null}
+            {retryError ? <Alert variant="destructive" role="alert" className="mt-2"><AlertDescription>{retryError}</AlertDescription></Alert> : null}
+          </section> : null}
+          {progressUnavailable ? <p role="status" className="text-sm text-muted-foreground">Payment progress is temporarily unavailable. Refresh before asking the runner to pay again.</p> : null}
           <Section title="Entry">
             <Row label="Category" value={row.category_label ?? "—"} />
             <Row label="Registered" value={fmtDateTime(row.created_at)} mono />
@@ -136,13 +178,13 @@ export function RegistrationDetail({ row, onClose, onRefunded }: {
           </Section>
           {customEntries.length ? <Section title="Registration fields">{customEntries.map(([key, value]) => <Row key={key} label={fieldLabel(key)} value={fieldValue(value)} />)}</Section> : null}
           <section className="registration-detail-section" aria-label="History"><h3>History</h3><RegistrationHistory registrationId={row.id} /></section>
-          <p className="registration-detail-refund-note">{complimentary ? "Cancel this free entry to release its slot. Its discount code stays used." : row.booking_order_id && row.payment_status === "paid"
+          <p className="registration-detail-refund-note">{unresolved ? "Refund actions become available after the registration update completes. Payments needing review require platform support." : progressUnavailable ? "Refresh the payment status before taking further action." : complimentary ? "Cancel this free entry to release its slot. Its discount code stays used." : row.booking_order_id && row.payment_status === "paid"
             ? "Refunding this participant cancels their ticket and releases their slot. Other participants stay registered."
             : REFUND_REASON[row.payment_status ?? ""] ?? "No payment is recorded for this entry."}</p>
         </div>
         <footer className="registration-detail-footer">
           <Button variant="outline" onClick={onClose}>Done</Button>
-          <Button variant="destructive" disabled={complimentary ? row.registration_status !== "paid" : !canRefund}
+          <Button variant="destructive" disabled={unresolved || (complimentary ? row.registration_status !== "paid" : !canRefund)}
             onClick={() => complimentary ? setCancelling(true) : setRefunding(true)}>
             {complimentary ? "Cancel complimentary entry" : "Review refund"}
           </Button>
