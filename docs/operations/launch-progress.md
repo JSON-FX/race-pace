@@ -3,6 +3,14 @@
 Updated: 2026-09-30. Overall: MVP RELEASED; FIELDNOTES ADMIN AND TRAIL ATLAS ORGANIZERS IN PRODUCTION; OWNER CHECKOUT PENDING.
 Scope: runner website and admin only. The first release is a controlled pilot with one organizer and PayMongo. Production contains real organizer and event data; add no synthetic data.
 
+### Runner name Title Case — release checkpoint, 2026-11-03
+
+| Completed | Blockers | Next task |
+| --- | --- | --- |
+| Name normalization merged through PR #234 at `af73ff1`; 2,713 local tests and responsive Browser acceptance passed. The separate upstream font-loader backport passes 11 deterministic regressions, 1,668 app/UI tests, typechecks and both production builds. | Integrated name-feature CI hit the existing font-loader defect twice. Hosted name rollout has not occurred. | Review and integrate the isolated font compatibility fix, then verify the exact cumulative staging candidate before protected production approval. |
+
+Evidence: [name validation](../../.claude/reports/2026-11-02-runner-name-title-case.md) and [font build investigation](../issues/issue-google-font-build-compatibility.md). Option B activation was verified live; feature PRs target `main`, followed by pinned staging deployment and a separate owner production approval. Production has received no synthetic data or name-migration changes.
+
 ### Payment synchronization incident — production recovered, 2026-09-30
 
 | Completed | Blockers | Next task |

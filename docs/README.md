@@ -20,6 +20,8 @@ ultra-trail event platform (Mindanao, Philippines).
 
 [Specification](specs/2026-11-02-runner-name-title-case.md), [investigation](issues/issue-runner-name-title-case.md) and [implementation plan](plans/2026-11-02-runner-name-title-case.md): consistent Title Case for existing and incoming runner identities, including Google display names. Implemented locally with 2,713 passing tests, both app builds and responsive Browser checks. The [validation report](../.claude/reports/2026-11-02-runner-name-title-case.md) records two pre-existing supplemental type errors. Hosted rollout and actual Google login acceptance remain pending.
 
+The name fix is merged through PR #234. Integrated delivery is held by the existing Google font URL loader defect. A separate [build compatibility investigation and plan](issues/issue-google-font-build-compatibility.md) backports the upstream fix without changing typography or release safeguards.
+
 ## Payment confirmation recovery — October 2026
 
 [Repair and hardening contract](specs/2026-10-16-payment-confirmation-hardening.md) and
