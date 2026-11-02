@@ -56,8 +56,8 @@ it("blocks an incomplete saved Passport before creating a slot hold, even with f
     const snapshot = await db.from("registrations").select("custom_data,waiver_version_id,waiver_acceptance").eq("id", result.registration_id).single();
     expect(snapshot.error).toBeNull();
     expect(snapshot.data?.waiver_version_id).toBe(waiver.data.id);
-    expect(snapshot.data?.waiver_acceptance).toMatchObject({ accepting_name: "QA Runner", booking_actor_id: uid, capacity: "participant" });
-    expect(snapshot.data?.custom_data.first_name).toBe("QA");
+    expect(snapshot.data?.waiver_acceptance).toMatchObject({ accepting_name: "Qa Runner", booking_actor_id: uid, capacity: "participant" });
+    expect(snapshot.data?.custom_data.first_name).toBe("Qa");
     expect(snapshot.data?.custom_data.contact_number).toBe("09171234567");
   } finally {
     await db.from("events").delete().eq("org_id", org.data.id);

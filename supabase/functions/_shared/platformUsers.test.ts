@@ -34,6 +34,17 @@ describe("platform user helpers", () => {
     expect(userDisplayName({ ...base, email: "runner@example.com" })).toBe("runner");
   });
 
+  it("formats existing and incoming Google names without changing provider metadata or email fallback", () => {
+    const user = { ...base, email: "RUNNER_123@example.com", user_metadata: { full_name: "SHEEN KIERBY JOVEN BORNEA", name: "BERNADETTE CUTAMORA" } };
+    expect(userDisplayName(user)).toBe("Sheen Kierby Joven Bornea");
+    expect(userDisplayName(user, "ERNESTO TAGUD")).toBe("Ernesto Tagud");
+    expect(userDisplayName({ ...user, user_metadata: { ...user.user_metadata, full_name: " " } })).toBe("Bernadette Cutamora");
+    expect(userDisplayName({ ...user, user_metadata: {} })).toBe("RUNNER_123");
+    expect(user.user_metadata.full_name).toBe("SHEEN KIERBY JOVEN BORNEA");
+    expect(passportDisplayName({ first_name: "ANA-MARIE", last_name: "O’NEILL III" })).toBe("Ana-Marie O’Neill III");
+    expect(passportDisplayName({ legacy_full_name: "BERNADETTE CUTAMORA" })).toBe("Bernadette Cutamora");
+  });
+
   it("builds Passport names without inventing missing values", () => {
     expect(passportDisplayName({ first_name: "Maya", last_name: "Santos" })).toBe("Maya Santos");
     expect(passportDisplayName({ legacy_full_name: "Legacy Runner" })).toBe("Legacy Runner");

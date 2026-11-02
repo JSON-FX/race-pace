@@ -1,3 +1,5 @@
+import { formatPersonName } from "./passport.ts";
+
 export type AuthUserLike = {
   id: string;
   email?: string | null;
@@ -36,9 +38,10 @@ export function isSuspended(user: Pick<AuthUserLike, "banned_until">, now = new 
 }
 
 export function userDisplayName(user: AuthUserLike, profileName?: string | null): string {
-  if (profileName?.trim()) return profileName.trim();
-  const metadataName = user.user_metadata?.full_name ?? user.user_metadata?.name;
-  if (typeof metadataName === "string" && metadataName.trim()) return metadataName.trim();
+  if (profileName?.trim()) return formatPersonName(profileName);
+  for (const metadataName of [user.user_metadata?.full_name, user.user_metadata?.name]) {
+    if (typeof metadataName === "string" && metadataName.trim()) return formatPersonName(metadataName);
+  }
   return user.email?.split("@")[0] || "Registered user";
 }
 
@@ -48,7 +51,8 @@ export function passportDisplayName(passport: {
   legacy_full_name?: string | null;
 }): string {
   const split = [passport.first_name, passport.last_name].filter((value) => value?.trim()).join(" ").trim();
-  return split || passport.legacy_full_name?.trim() || "Unnamed participant";
+  const name = split || passport.legacy_full_name?.trim();
+  return name ? formatPersonName(name) : "Unnamed participant";
 }
 
 export function isCurrentRegistration(registration: {

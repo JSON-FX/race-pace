@@ -90,9 +90,9 @@ it("reserves self plus a guest, freezes identity/options, computes entry totals 
   const regs = (await db.query("select * from registrations where booking_order_id=$1", [result.order_id])).rows;
   expect(new Set(regs.map((r) => r.id)).size).toBe(2);
   for (const r of regs) {
-    expect(r.custom_data.first_name).toBe("QA");
+    expect(r.custom_data.first_name).toBe("Qa");
     expect(r.custom_data.shirt_size).toBe(r.participant_passport_id === guest ? "M" : "XL");
-    expect(r.waiver_acceptance.accepting_name).toBe("QA Participant");
+    expect(r.waiver_acceptance.accepting_name).toBe("Qa Participant");
     expect(r.ticket_token).toBeNull();
     expect(r.expires_at.toISOString()).toBe(new Date(result.expires_at).toISOString());
   }

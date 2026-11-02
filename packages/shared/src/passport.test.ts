@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import { passportSchema, passportCompleteness, passportPhoneSchema } from "./passport";
+import { formatPersonName, passportSchema, passportCompleteness, passportPhoneSchema } from "./passport";
 
 const today = "2026-09-16";
 const participant = {
@@ -11,6 +11,26 @@ const participant = {
 };
 
 describe("new Passport contracts", () => {
+  it.each([
+    ["SHEEN KIERBY JOVEN BORNEA", "Sheen Kierby Joven Bornea"],
+    [" bernadette   CUTAMORA ", "Bernadette Cutamora"],
+    ["ANA-MARIE O’NEILL III", "Ana-Marie O’Neill III"],
+    ["JOSE\u0301 D'ANGELO IV.", "José D'Angelo IV."],
+    ["ANTONIO JR. JAMAGO", "Antonio Jr. Jamago"],
+    ["j. p. DE LA CRUZ", "J. P. De La Cruz"],
+    ["李 小龍", "李 小龍"],
+    ["İPEK", "İpek"],
+    ["ßETA", "Sseta"],
+    ["ÑANDÚ MUÑOZ", "Ñandú Muñoz"],
+    ["", ""],
+  ])("formats %s consistently and repeatably", (input, expected) => {
+    expect(formatPersonName(input)).toBe(expected);
+    expect(formatPersonName(expected)).toBe(expected);
+  });
+  it("normalizes incoming participant names without changing unrelated fields", () => {
+    const result = passportSchema(today).parse({ ...participant, first_name: "ANA-MARIE", last_name: "O'NEILL III", team_name: "TEAM ABC" });
+    expect(result).toMatchObject({ first_name: "Ana-Marie", last_name: "O'Neill III", team_name: "TEAM ABC", emergency_contact_name: participant.emergency_contact_name });
+  });
   it("accepts a participant without email, team or a personal phone", () => {
     const result = passportSchema(today).parse({ ...participant, emergency_contact_number: participant.contact_number });
     expect(result.contact_number).toBe("09171234567");
