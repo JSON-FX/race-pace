@@ -214,7 +214,7 @@ export function PassportPhotos({
 
           <div className="min-w-0 pb-0.5">
             <p className="font-eyebrow text-[10.5px] font-bold uppercase tracking-[2.6px] text-white/80">Runner profile</p>
-            <p className="mt-1 truncate font-display text-[21px] font-black uppercase leading-none tracking-[-0.9px] text-white">
+            <p className="mt-1 truncate font-display text-[21px] font-black leading-none tracking-[-0.9px] text-white">
               {name || "Add your name"}
             </p>
             {avatar ? (

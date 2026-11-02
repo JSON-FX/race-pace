@@ -1,5 +1,16 @@
 import { z } from "zod";
 
+/** Person names only: bib/team names and provider identifiers retain their spelling. */
+export function formatPersonName(value: string): string {
+  return value.normalize("NFC").trim().replace(/\s+/gu, " ").toLowerCase()
+    .replace(/\p{L}[\p{L}\p{M}]*/gu, (word) => word.replace(/^./u, (letter) => {
+      const upper = letter.toUpperCase();
+      return upper.charAt(0) + upper.slice(1).toLowerCase();
+    }))
+    .replace(/(^|\s)(ii|iii|iv|v|vi|vii|viii|ix|x)(\.?)$/iu, (suffix) => suffix.toUpperCase())
+    .normalize("NFC");
+}
+
 // These rules describe the new Passport, not historical profiles. Old values are
 // preserved for correction and must never be silently converted to a new choice.
 export const PASSPORT_GENDERS = ["Male", "Female"] as const;
@@ -36,8 +47,8 @@ export function passportSchema(today: string) {
     shipping_barangay_code: z.string().regex(/^\d{9}$/, "Select a barangay"),
     shipping_zip_code: z.string().regex(/^\d{4}$/, "Enter a four-digit ZIP code"),
     shipping_address_line: requiredText(300),
-    first_name: requiredText(100),
-    last_name: requiredText(100),
+    first_name: requiredText(100).transform(formatPersonName),
+    last_name: requiredText(100).transform(formatPersonName),
     shirt_size: z.enum(["XS", "S", "M", "L", "XL", "XXL", ""]).nullable().optional(),
     blood_type: z.enum(["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-", "Unknown", ""]).nullable().optional(),
     team_name: z.string().trim().max(150).nullable().optional(),

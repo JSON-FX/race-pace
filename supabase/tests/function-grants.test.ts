@@ -33,6 +33,8 @@ const AUTH_PREDICATES = [
 // breaks. Nothing else in `public` should be authenticated-executable without a deliberate edit
 // to this list.
 const AUTHENTICATED_ALLOWLIST = new Set([
+  // Pure formatter used by invoker name triggers; no table or identity access.
+  "person_name_title_case",
   // Payment progress is scoped by booker/tenant; retry checks admin and audits requests.
   "booking_payment_progress", "booking_payment_retry",
   "auth_manage_discounts", "discount_create", "discount_set_active", "discount_passport_options",
