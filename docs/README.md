@@ -18,9 +18,9 @@ ultra-trail event platform (Mindanao, Philippines).
 
 ## Runner name casing — November 2026
 
-[Specification](specs/2026-11-02-runner-name-title-case.md), [investigation](issues/issue-runner-name-title-case.md) and [implementation plan](plans/2026-11-02-runner-name-title-case.md): consistent Title Case for existing and incoming runner identities, including Google display names. Implemented locally with 2,713 passing tests, both app builds and responsive Browser checks. The [validation report](../.claude/reports/2026-11-02-runner-name-title-case.md) records two pre-existing supplemental type errors. Hosted rollout and actual Google login acceptance remain pending.
+[Specification](specs/2026-11-02-runner-name-title-case.md), [investigation](issues/issue-runner-name-title-case.md) and [implementation plan](plans/2026-11-02-runner-name-title-case.md): consistent Title Case for existing and incoming runner identities, including Google display names. Released to staging and production at `7ef0d89`; both apps, all 183 migrations and 33 affected function bundles were verified. The production backfill corrected 109 stored name values and preserved checked non-name data. Local verification passed 2,724 tests, both builds and required typechecks. The [release record](operations/runner-name-title-case-release-20261103.md) includes hosted Browser acceptance and cleanup. Google metadata formatting passed; the full Google sign-in was not exercised. The [initial validation report](../.claude/reports/2026-11-02-runner-name-title-case.md) retains two pre-existing supplemental type errors.
 
-The name fix is merged through PR #234. Integrated delivery is held by the existing Google font URL loader defect. A separate [build compatibility investigation and plan](issues/issue-google-font-build-compatibility.md) backports the upstream fix without changing typography or release safeguards.
+The name fix merged through PR #234. PR #235 resolved the existing Google font URL loader blocker through an exact-version upstream backport. The [build compatibility investigation and plan](issues/issue-google-font-build-compatibility.md) records its provenance and upgrade boundary. Typography and release safeguards were preserved.
 
 ## Payment confirmation recovery — October 2026
 

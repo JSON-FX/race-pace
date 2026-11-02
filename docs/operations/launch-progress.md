@@ -1,15 +1,15 @@
 # Web and admin launch progress
 
-Updated: 2026-09-30. Overall: MVP RELEASED; FIELDNOTES ADMIN AND TRAIL ATLAS ORGANIZERS IN PRODUCTION; OWNER CHECKOUT PENDING.
+Updated: 2026-11-03. Overall: MVP RELEASED; FIELDNOTES ADMIN AND TRAIL ATLAS ORGANIZERS IN PRODUCTION; OWNER CHECKOUT PENDING.
 Scope: runner website and admin only. The first release is a controlled pilot with one organizer and PayMongo. Production contains real organizer and event data; add no synthetic data.
 
 ### Runner name Title Case — release checkpoint, 2026-11-03
 
 | Completed | Blockers | Next task |
 | --- | --- | --- |
-| Name normalization merged through PR #234 at `af73ff1`; 2,713 local tests and responsive Browser acceptance passed. The separate upstream font-loader backport passes 11 deterministic regressions, 1,668 app/UI tests, typechecks and both production builds. | Integrated name-feature CI hit the existing font-loader defect twice. Hosted name rollout has not occurred. | Review and integrate the isolated font compatibility fix, then verify the exact cumulative staging candidate before protected production approval. |
+| PRs #234 and #235 are live in staging and production at `7ef0d89`. Both apps, 183 migrations and 33 affected function bundles were verified. The production backfill corrected 109 name values while preserving checked non-name data. Hosted profile/admin and metadata-fallback checks passed; disposable staging accounts were removed. | None for the approved release. The actual Google OAuth handshake was not exercised. | Monitor normal incoming registrations and profile edits; name formatting is enforced automatically. |
 
-Evidence: [name validation](../../.claude/reports/2026-11-02-runner-name-title-case.md) and [font build investigation](../issues/issue-google-font-build-compatibility.md). Option B activation was verified live; feature PRs target `main`, followed by pinned staging deployment and a separate owner production approval. Production has received no synthetic data or name-migration changes.
+Evidence: [production and staging release record](runner-name-title-case-release-20261103.md), [name validation](../../.claude/reports/2026-11-02-runner-name-title-case.md), and [font build investigation](../issues/issue-google-font-build-compatibility.md). All 2,724 local tests and both builds passed. The owner separately approved release run `41481303652`, attempt 2, after staging acceptance. Production verification was read-only; no synthetic data or automated payment was created. Active Option B requires no staging branch push or sync-back.
 
 ### Payment synchronization incident — production recovered, 2026-09-30
 
