@@ -22,5 +22,10 @@
     "supabase": "^2.109.1",
     "vitest": "^4.1.10",
     "zod": "^3.23.8"
+  },
+  "pnpm": {
+    "patchedDependencies": {
+      "next@15.5.22": "patches/next@15.5.22.patch"
+    }
   }
 }

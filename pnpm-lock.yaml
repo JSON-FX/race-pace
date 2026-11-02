@@ -4,6 +4,11 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  next@15.5.22:
+    hash: 2sky3yn6ubjstz4vtyhblhwize
+    path: patches/next@15.5.22.patch
+
 importers:
 
   .:
@@ -239,7 +244,7 @@ importers:
         version: 13.0.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       next:
         specifier: ^15.1.0
-        version: 15.5.22(@babel/core@7.29.7)(@playwright/test@1.62.1)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+        version: 15.5.22(patch_hash=2sky3yn6ubjstz4vtyhblhwize)(@babel/core@7.29.7)(@playwright/test@1.62.1)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       qrcode.react:
         specifier: ^4.2.0
         version: 4.2.0(react@19.2.3)
@@ -357,7 +362,7 @@ importers:
         version: 5.24.0
       next:
         specifier: ^15.1.0
-        version: 15.5.22(@babel/core@7.29.7)(@playwright/test@1.62.1)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+        version: 15.5.22(patch_hash=2sky3yn6ubjstz4vtyhblhwize)(@babel/core@7.29.7)(@playwright/test@1.62.1)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       next-themes:
         specifier: ^0.4.4
         version: 0.4.6(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -13673,7 +13678,7 @@ snapshots:
       react: 19.2.3
       react-dom: 19.2.3(react@19.2.3)
 
-  next@15.5.22(@babel/core@7.29.7)(@playwright/test@1.62.1)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3):
+  next@15.5.22(patch_hash=2sky3yn6ubjstz4vtyhblhwize)(@babel/core@7.29.7)(@playwright/test@1.62.1)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3):
     dependencies:
       '@next/env': 15.5.22
       '@swc/helpers': 0.5.15
