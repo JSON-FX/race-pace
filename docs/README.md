@@ -208,3 +208,11 @@ The approved September 30 UI session is live through PR #215, including the Rese
 [Scoped specification](specs/2026-09-30-reservation-category-slots.md) and [implementation plan](plans/2026-09-30-reservation-category-slots.md): category cards use the admission ledger for total, general, and reservation slots left. Implementation is live and verified in production. Staging runs the same application source with its own database identity. See [release evidence](operations/reservation-category-slots-release-20260930.md) for protected Git synchronization and exact deployments.
 
 - 2026-10-07: Organizer proceeds and active commission reporting — [spec](specs/2026-10-07-organizer-proceeds.md), [plan](plans/2026-10-07-organizer-proceeds.md). Implementation complete; validation and hosted acceptance in progress.
+
+### Registration CSV participant fields — 2026-11-10
+
+[Spec](specs/2026-11-10-registration-csv-fields.md) · [Plan](plans/2026-11-10-registration-csv-fields.md).
+Implemented and verified locally: separate names, gender, age on race day,
+birthday, and shirt size alongside category and team name. Existing export data
+and scope are preserved. Validation passed 1,107 admin tests, 190 shared unit tests, admin typecheck, and build.
+[Implementation report](../.claude/reports/registration-csv-fields-report.md). Release pending.
