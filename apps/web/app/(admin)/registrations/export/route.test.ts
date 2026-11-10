@@ -1,4 +1,12 @@
-const { exportDb, createClientMock } = vi.hoisted(() => ({ exportDb: {}, createClientMock: vi.fn() }));
+const { exportDb, createClientMock, eventDateQuery } = vi.hoisted(() => {
+  const eventDateQuery = {
+    select: vi.fn(), eq: vi.fn(),
+    maybeSingle: vi.fn().mockResolvedValue({ data: { event_date: "2026-08-04" }, error: null }),
+  };
+  eventDateQuery.select.mockReturnValue(eventDateQuery);
+  eventDateQuery.eq.mockReturnValue(eventDateQuery);
+  return { exportDb: { from: vi.fn().mockReturnValue(eventDateQuery) }, createClientMock: vi.fn(), eventDateQuery };
+});
 vi.mock("@/lib/supabase/server", () => ({ createClient: createClientMock }));
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { TableParams } from "@/lib/table-params";
@@ -61,7 +69,10 @@ function row(overrides: Partial<RegistrationRow> = {}): RegistrationRow {
     payment_method: "card",
     registration_status: "paid",
     created_at: "2026-08-04T11:35:15.624Z",
-    custom_data: { team_name: "Ridge Crew" },
+    custom_data: {
+      first_name: "Ana", last_name: "Cruz", gender: "Female",
+      date_of_birth: "1996-08-05", shirt_size: "M", team_name: "Ridge Crew",
+    },
     addons: [],
     ...overrides,
   };
@@ -73,6 +84,10 @@ async function readBody(res: Response): Promise<string> {
 
 describe("GET /registrations/export", () => {
   beforeEach(() => {
+    exportDb.from.mockClear();
+    eventDateQuery.select.mockClear();
+    eventDateQuery.eq.mockClear();
+    eventDateQuery.maybeSingle.mockReset().mockResolvedValue({ data: { event_date: "2026-08-04" }, error: null });
     createClientMock.mockReset().mockResolvedValue(exportDb);
     getMyRolesMock.mockReset();
     listEventRegistrationsMock.mockReset();
@@ -115,9 +130,9 @@ describe("GET /registrations/export", () => {
     const lines = body.split("\r\n").filter(Boolean);
 
     expect(lines[0]).toBe(
-      "Registration ID,Runner,Email,Category,Team Name,Registered At (UTC),Base Amount (PHP),Payment Status,Payment Method,Captured Gross (PHP),Refunded (PHP),Payment ID,Booking Order ID,Discount Code,Discount (PHP)",
+      "Registration ID,Runner,Email,First Name,Last Name,Gender,Age,Birthday,Category,Shirt Size,Team Name,Registered At (UTC),Base Amount (PHP),Payment Status,Payment Method,Captured Gross (PHP),Refunded (PHP),Payment ID,Booking Order ID,Discount Code,Discount (PHP)",
     );
-    expect(lines[1]).toBe("reg-1,Ana Cruz,ana@example.com,21K,Ridge Crew,2026-08-04T11:35:15.624Z,1500.00,paid,card,,,,,,0.00");
+    expect(lines[1]).toBe("reg-1,Ana Cruz,ana@example.com,Ana,Cruz,Female,29,1996-08-05,21K,M,Ridge Crew,2026-08-04T11:35:15.624Z,1500.00,paid,card,,,,,,0.00");
   });
 
   it("leaves Team Name empty when an older registration only has a bib", async () => {
@@ -125,8 +140,75 @@ describe("GET /registrations/export", () => {
     listEventRegistrationsMock.mockResolvedValue({ rows: [row({ custom_data: {} })], total: 1 });
 
     const lines = (await readBody(await GET(new Request("http://localhost/registrations/export")))).split("\r\n");
-    expect(lines[1]).toContain("Ana Cruz,ana@example.com,21K,,2026-08-04");
+    expect(lines[1].split(",").slice(3, 11)).toEqual(["", "", "", "", "", "21K", "", ""]);
     expect(lines[1]).not.toContain(",A1,");
+  });
+
+  it("reads the race date once per export under the caller's event and organization", async () => {
+    getMyRolesMock.mockResolvedValue(roles());
+    listEventRegistrationsMock
+      .mockResolvedValueOnce({ rows: new Array(1000).fill(row()), total: 1001 })
+      .mockResolvedValueOnce({ rows: [row()], total: 1001 });
+    await readBody(await GET(new Request("http://localhost/registrations/export?event=event-9")));
+    expect(exportDb.from).toHaveBeenCalledExactlyOnceWith("events");
+    expect(eventDateQuery.select).toHaveBeenCalledExactlyOnceWith("event_date");
+    expect(eventDateQuery.eq.mock.calls).toEqual([["id", "event-9"], ["org_id", "org-1"]]);
+    expect(eventDateQuery.maybeSingle).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns 503 before streaming if the event date cannot be read", async () => {
+    getMyRolesMock.mockResolvedValue(roles());
+    eventDateQuery.maybeSingle.mockResolvedValue({ data: null, error: { message: "unavailable" } });
+    const res = await GET(new Request("http://localhost/registrations/export"));
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({ error: "Unable to read event date. Please retry." });
+    expect(listEventRegistrationsMock).not.toHaveBeenCalled();
+    expect(getEventRegistrationEmailsMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["1996-08-05", "2026-08-04", "29"],
+    ["1996-08-05", "2026-08-05", "30"],
+    ["1996-08-05", "2026-08-06", "30"],
+    ["2000-02-29", "2027-02-28", "26"],
+    ["2000-02-29", "2027-03-01", "27"],
+    ["2000-02-29", "2028-02-29", "28"],
+    ["2026-08-04", "2026-08-04", "0"],
+    ["2026-08-05", "2026-08-04", ""],
+    ["1996-08-05", null, ""],
+    ["1996-08-05", "invalid", ""],
+    [null, "2026-08-04", ""],
+    ["1996-02-30", "2026-08-04", ""],
+    ["1996-8-5", "2026-08-04", ""],
+    ["invalid", "2026-08-04", ""],
+  ])("exports age on race day: birthday %s, race date %s gives %s", async (birthday, raceDate, age) => {
+    getMyRolesMock.mockResolvedValue(roles());
+    eventDateQuery.maybeSingle.mockResolvedValue({ data: { event_date: raceDate }, error: null });
+    listEventRegistrationsMock.mockResolvedValue({ rows: [row({ custom_data: { date_of_birth: birthday } })], total: 1 });
+    const fields = (await readBody(await GET(new Request("http://localhost/registrations/export")))).split("\r\n")[1].split(",");
+    expect(fields[6]).toBe(age);
+  });
+
+  it("keeps multiword names intact and exports missing or malformed snapshot fields as blank cells", async () => {
+    getMyRolesMock.mockResolvedValue(roles());
+    listEventRegistrationsMock.mockResolvedValue({ rows: [
+      row({ custom_data: { first_name: " Maria Josefa ", last_name: " Dela Cruz " } }),
+      row({ custom_data: { first_name: 4, last_name: {}, gender: false, date_of_birth: [], shirt_size: 42, team_name: {} } }),
+    ], total: 2 });
+    const lines = (await readBody(await GET(new Request("http://localhost/registrations/export")))).split("\r\n");
+    expect(lines[1].split(",").slice(3, 11)).toEqual(["Maria Josefa", "Dela Cruz", "", "", "", "21K", "", ""]);
+    expect(lines[2].split(",").slice(3, 11)).toEqual(["", "", "", "", "", "21K", "", ""]);
+  });
+
+  it("escapes and formula-protects every new snapshot text column", async () => {
+    getMyRolesMock.mockResolvedValue(roles());
+    listEventRegistrationsMock.mockResolvedValue({ rows: [row({ custom_data: {
+      first_name: '=SUM(1,2)', last_name: 'Dela "Cruz"', gender: "@Female",
+      date_of_birth: "=TODAY()", shirt_size: "+M", team_name: "Line1\nLine2",
+    } })], total: 1 });
+    const body = await readBody(await GET(new Request("http://localhost/registrations/export")));
+    expect(body).toContain(`"'=SUM(1,2)","Dela ""Cruz""",'@Female,,,21K,'+M,"Line1\nLine2"`);
+    expect(body).not.toContain("=TODAY()");
   });
 
   it("fetches emails ONCE per request, not once per batch (the O(n²) fix)", async () => {
@@ -187,10 +269,10 @@ describe("GET /registrations/export", () => {
     const body = await readBody(res);
     const dataLine = body.split("\r\n")[1];
 
-    // Split naively on comma would produce 10 fields instead of 9 if the
+    // Split naively on comma would produce an extra field if the
     // name weren't quoted — assert the quoted form is present verbatim.
     expect(dataLine).toContain('"Dela Cruz, Ana"');
-    expect(dataLine.split(",")).toHaveLength(16); // the quoted field's internal comma still splits naively; the quoting is what a real CSV parser relies on
+    expect(dataLine.split(",")).toHaveLength(22); // the quoted field's internal comma still splits naively; the quoting is what a real CSV parser relies on
   });
 
   it("escapes a double-quote and a newline inside a field", async () => {
@@ -333,6 +415,7 @@ describe("GET /registrations/export", () => {
     expect(res.status).toBe(200);
     expect(listEventRegistrationsMock).not.toHaveBeenCalled();
     expect(getEventRegistrationEmailsMock).not.toHaveBeenCalled();
+    expect(exportDb.from).not.toHaveBeenCalled();
     expect(body.trim().split("\r\n")).toHaveLength(1);
   });
 });
@@ -371,11 +454,13 @@ it("exports entry base separately from captured gross and refunds", async () => 
 it("exports each group participant allocation with a shared payment and order reference", async () => {
   getMyRolesMock.mockResolvedValue(roles());
   listEventRegistrationsMock.mockResolvedValue({ rows: [
-    row({ id: "r1", booking_order_id: "order-1", payment_id: "capture-1", payment_amount: 10000, refunded_amount: 9000, payment_status: "partially_refunded" }),
-    row({ id: "r2", booking_order_id: "order-1", payment_id: "capture-1", payment_amount: 20000, refunded_amount: 0 }),
+    row({ id: "r1", custom_data: { first_name: "Ana", last_name: "Cruz", gender: "Female", date_of_birth: "1996-08-05", shirt_size: "M", team_name: "Ridge Crew" }, booking_order_id: "order-1", payment_id: "capture-1", payment_amount: 10000, refunded_amount: 9000, payment_status: "partially_refunded" }),
+    row({ id: "r2", custom_data: { first_name: "Juan", last_name: "Santos", gender: "Male", date_of_birth: "1990-07-01", shirt_size: "L", team_name: "Summit Crew" }, booking_order_id: "order-1", payment_id: "capture-1", payment_amount: 20000, refunded_amount: 0 }),
   ], total: 2 });
   const lines = (await (await GET(new Request("http://localhost/registrations/export"))).text()).trim().split("\r\n");
   expect(lines).toHaveLength(3);
-  expect(lines[1].split(",").slice(9)).toEqual(["100.00", "90.00", "capture-1", "order-1", "", "0.00"]);
-  expect(lines[2].split(",").slice(9)).toEqual(["200.00", "0.00", "capture-1", "order-1", "", "0.00"]);
+  expect(lines[1].split(",").slice(3, 11)).toEqual(["Ana", "Cruz", "Female", "29", "1996-08-05", "21K", "M", "Ridge Crew"]);
+  expect(lines[2].split(",").slice(3, 11)).toEqual(["Juan", "Santos", "Male", "36", "1990-07-01", "21K", "L", "Summit Crew"]);
+  expect(lines[1].split(",").slice(15)).toEqual(["100.00", "90.00", "capture-1", "order-1", "", "0.00"]);
+  expect(lines[2].split(",").slice(15)).toEqual(["200.00", "0.00", "capture-1", "order-1", "", "0.00"]);
 });

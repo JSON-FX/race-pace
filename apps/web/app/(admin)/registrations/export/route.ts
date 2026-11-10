@@ -28,7 +28,13 @@ const HEADER = [
   "Registration ID",
   "Runner",
   "Email",
+  "First Name",
+  "Last Name",
+  "Gender",
+  "Age",
+  "Birthday",
   "Category",
+  "Shirt Size",
   "Team Name",
   "Registered At (UTC)",
   "Base Amount (PHP)",
@@ -42,15 +48,42 @@ const HEADER = [
   "Discount (PHP)",
 ];
 
+function snapshotText(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function isoDate(value: string | null): string | null {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const date = new Date(`${value}T00:00:00Z`);
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value ? value : null;
+}
+
+function ageOnRaceDay(birthday: string | null, raceDate: string | null): string {
+  if (!birthday || !raceDate || birthday > raceDate) return "";
+  // Compare calendar dates, not elapsed milliseconds or runtime-local dates.
+  // February 29 birthdays advance on March 1 in non-leap years.
+  const age = Number(raceDate.slice(0, 4)) - Number(birthday.slice(0, 4))
+    - (raceDate.slice(5) < birthday.slice(5) ? 1 : 0);
+  return String(age);
+}
+
 function toRow(
   r: Awaited<ReturnType<typeof listEventRegistrations>>["rows"][number],
   emailById: Map<string, string | null>,
+  raceDate: string | null,
 ): string {
+  const birthday = isoDate(snapshotText(r.custom_data?.date_of_birth));
   return csvRow([
     csvField(r.id),
     csvField(r.full_name),
     csvField(emailById.get(r.id) ?? null),
+    csvField(snapshotText(r.custom_data?.first_name)),
+    csvField(snapshotText(r.custom_data?.last_name)),
+    csvField(snapshotText(r.custom_data?.gender)),
+    ageOnRaceDay(birthday, raceDate),
+    csvField(birthday),
     csvField(r.category_label),
+    csvField(snapshotText(r.custom_data?.shirt_size)),
     csvField(registrationTeamName(r.custom_data)),
     // ISO 8601, unambiguous — not the table's `MMM D, HH:mm` (see fmtDateTime
     // in @/lib/format), which is fine for a narrow on-screen date column but
@@ -123,6 +156,15 @@ export async function GET(request: Request) {
   // Capture cookies while GET still owns the request context. Deferred pulls
   // must reuse this caller-scoped client, never create another one.
   const db = await createClient();
+  let raceDate: string | null = null;
+  if (eventId) {
+    const { data, error } = await db.from("events").select("event_date")
+      .eq("id", eventId).eq("org_id", orgId).maybeSingle();
+    if (error) {
+      return Response.json({ error: "Unable to read event date. Please retry." }, { status: 503 });
+    }
+    raceDate = isoDate(data?.event_date ?? null);
+  }
   const stream = new ReadableStream<Uint8Array>({
     // A batch loop that ran entirely inside `start()` (the first version of
     // this route) enqueues every batch as fast as the DB returns it,
@@ -171,7 +213,7 @@ export async function GET(request: Request) {
         if (page === 1) total = batchTotal;
 
         if (rows.length > 0) {
-          controller.enqueue(encoder.encode(rows.map((row) => toRow(row, emailById)).join("")));
+          controller.enqueue(encoder.encode(rows.map((row) => toRow(row, emailById, raceDate)).join("")));
         }
 
         if (rows.length === 0 || page * BATCH >= total) {
