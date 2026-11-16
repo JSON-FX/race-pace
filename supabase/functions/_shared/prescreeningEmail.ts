@@ -13,12 +13,12 @@ export function renderPrescreeningEmail(input: {
   const title = awaiting ? "Your request is awaiting approval" : ready ? "Your group is ready to pay" : "An update on your pre-screening request";
   const subject = `${title} — ${input.eventName}`;
   const body = awaiting
-    ? "We received your pre-screening request. All selected slots are secured while the organizer reviews the required proof, including slots for participants whose categories need no review. No entry or reservation payment is due now. We will email you when every remaining participant is ready to pay. Your 72-hour payment window has not started."
+    ? "We received your pre-screening request. All selected slots are secured while the organizer reviews the required proof, including slots for participants whose categories need no review. No entry or reservation payment is due now. We will email you when every remaining participant is ready to pay. Pay before registration closes."
     : ready
-    ? `All required pre-screening reviews are approved. Your selected Passports and categories are already saved. Complete one ${input.intent === "reservation" ? "reservation" : "entry"} payment by the deadline to keep these places.`
+    ? `All required pre-screening reviews are approved. Your selected Passports and categories are already saved. Complete one ${input.intent === "reservation" ? "reservation" : "entry"} payment before registration closes to keep these places.`
     : outdated ? "Your request has changed since this notification was queued. Open your request for its current booking and payment status. This email does not start or extend a payment window."
     : "The organizer did not approve the participant below. Only their slot has been released. Other participants keep their places and existing payment deadline. They may choose another available category, subject to availability.";
-  const deadline = ready && input.deadline ? `Payment deadline: ${input.deadline} PHT. The 72-hour window began when the group became ready, not when this email arrived. Resending never extends it.` : "";
+  const deadline = ready && input.deadline ? `Payment deadline: ${input.deadline} PHT.` : "";
   const fee = ready && input.intent === "reservation" ? "The reservation fee is separate, nonrefundable, and is not deducted from full entry payment." : "";
   const reason = !submitted && !ready && !outdated && input.reason ? `Organizer’s reason: ${input.reason}` : "";
   const participantLine = (p: typeof input.participants[number]) => {

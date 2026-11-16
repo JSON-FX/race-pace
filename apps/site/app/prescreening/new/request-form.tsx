@@ -18,7 +18,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-type Passport = { id: string; claimed_user_id: string | null; first_name: string | null; last_name: string | null };
+type Passport = { complete: boolean; id: string; claimed_user_id: string | null; first_name: string | null; last_name: string | null };
 type Line = { category: string; proof?: string; explanation: string };
 export function ScreeningRequest({ event, categories, initialCategory, intent, passports, userId, initialParticipants = [] }: {
   initialParticipants?: { passportId: string; categoryId: string }[];
@@ -32,6 +32,7 @@ export function ScreeningRequest({ event, categories, initialCategory, intent, p
   // form starts a fresh attempt; it never silently reuses a changed request.
   const [attempt, setAttempt] = useState<PrescreeningRequest | null>(null);
   const selected = passports.filter(p => lines[p.id]);
+  const incomplete = selected.some(p => !p.complete);
   const needsReview = selected.length
     ? selected.some(p => categories.find(c => c.id === lines[p.id].category)?.prescreening_enabled)
     : !!categories.find(c => c.id === initialCategory)?.prescreening_enabled;
@@ -42,6 +43,7 @@ export function ScreeningRequest({ event, categories, initialCategory, intent, p
   const update = (id: string, patch: Partial<Line>) => { setAttempt(null); setLines(current => ({ ...current, [id]: { ...current[id], ...patch } })); };
   const pendingProof = selected.some(p => categories.find(c => c.id === lines[p.id].category)?.prescreening_enabled && !lines[p.id].proof);
   async function submit() {
+    if (incomplete) return;
     setError(null); setBusy(true);
     const request: PrescreeningRequest = attempt ?? { event_id: event.id, idempotency_key: crypto.randomUUID(), checkout_intent: intent,
       participants: selected.map(p => ({ participant_passport_id: p.id, category_id: lines[p.id].category,
@@ -63,7 +65,7 @@ export function ScreeningRequest({ event, categories, initialCategory, intent, p
         <fieldset disabled={busy} className="space-y-0"><legend className="sr-only">Select Race Passports</legend>
           {passports.map(p => <Label key={p.id} className={styles.passport}><Checkbox checked={!!lines[p.id]} disabled={!lines[p.id] && selected.length >= 10} onCheckedChange={checked => {
             setAttempt(null); setLines(current => { const next = { ...current }; if (checked) next[p.id] = { category: initialCategory, explanation: "" }; else delete next[p.id]; return next; });
-          }} /><PassportAvatar name={`${p.first_name ?? ""} ${p.last_name ?? ""}`} managed={p.claimed_user_id !== userId} /><span className={styles.passportName}>{p.first_name} {p.last_name}<small>{p.claimed_user_id === userId ? "Your Passport" : "Managed Passport"}</small></span>{lines[p.id] && <span className={styles.selected}>Selected</span>}</Label>)}
+          }} /><PassportAvatar name={`${p.first_name ?? ""} ${p.last_name ?? ""}`} managed={p.claimed_user_id !== userId} /><span className={styles.passportName}>{p.first_name} {p.last_name}<small>{p.claimed_user_id === userId ? "Your Passport" : "Managed Passport"}</small></span>{!p.complete && <small>Incomplete Passport</small>}{lines[p.id] && <span className={styles.selected}>Selected</span>}</Label>)}
         </fieldset>
         {!passports.length && <p>No Passports yet. <Link className="underline" href="/profile">Create your Race Passport</Link>.</p>}
         {selected.map(p => {
@@ -89,14 +91,15 @@ export function ScreeningRequest({ event, categories, initialCategory, intent, p
         })}
         <div className={styles.due}><div className="flex justify-between font-semibold"><span>Due now</span><span>₱0</span></div><p className="mt-2 text-sm text-muted-foreground">No entry or reservation payment on this form. Every selected slot is secured only when submission succeeds.</p></div>
         {error && <Alert variant="destructive" className="text-sm text-destructive"><AlertDescription>{error}</AlertDescription></Alert>}
-        <Button className={`${styles.button} ${styles.fullButton}`} disabled={busy || !selected.length || pendingProof || unavailable} onClick={submit}>{busy ? "Submitting…" : `Submit and hold ${selected.length} slot${selected.length === 1 ? "" : "s"}`}</Button>
+        <Button className={`${styles.button} ${styles.fullButton}`} disabled={busy || !selected.length || incomplete || pendingProof || unavailable} onClick={submit}>{busy ? "Submitting…" : `Submit and hold ${selected.length} slot${selected.length === 1 ? "" : "s"}`}</Button>
+        {incomplete && <p role="status">Complete the identity, contact, emergency and shipping details for each selected runner before submitting. <Link className="underline" href="/profile">Edit Race Passports</Link></p>}
         {pendingProof && <p className="text-xs text-muted-foreground">Finish each required proof upload before submitting.</p>}
         {unavailable && <p className="text-xs text-destructive">A selected category has no available {intent === "reservation" ? "reservation" : "general"} slots. Choose another category.</p>}
       </section>
       <aside className={`${styles.panel} ${styles.aside}`}><h2>What happens next</h2><ol className={styles.steps}>
         <li><strong>Submit your proof</strong><br />One image per Passport in a category requiring pre-screening.</li>
         <li><strong>All selected slots are held</strong><br />No payment when you submit. Categories without requirements need no review.</li>
-        <li><strong>{needsReview ? "Pay after group approval" : "Pay after submission"}</strong><br />We email you when every remaining participant can pay. You then have 72 hours.</li></ol>
+        <li><strong>{needsReview ? "Pay after group approval" : "Pay after submission"}</strong><br />We email you when every remaining participant can pay. Pay by the event registration deadline.</li></ol>
         <div className={styles.note}><Info aria-hidden="true" /><p>If one participant is rejected, only their slot is released. They can choose another available category.</p></div><div className={styles.note}><LockKeyhole aria-hidden="true" /><p>Proof stays private. Only the booker and authorized reviewers can view it.</p></div>
         <Link href="/prescreening" className={styles.allRequests}>My requests</Link>
       </aside>

@@ -1,3 +1,4 @@
+import { completePassports } from "../../test/complete-passports";
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { Client } from "pg";
@@ -17,6 +18,7 @@ async function fixture(db: Client) {
   await db.query("insert into public.events(id,org_id,name,slug,status,inclusions) values($1,$2,'Screening',$3,'draft',array['Bib','Medal'])", [event, org, event]);
   await db.query("insert into public.categories(id,org_id,event_id,code,label,base_price,slots_total) values($1,$2,$3,'70k','70K',350000,100)", [category, org, event]);
   const passport = (await db.query("select id from public.runner_passports where claimed_user_id=$1", [booker])).rows[0].id as string;
+  await completePassports(db, [booker, outsider]);
   return { org, otherOrg, booker, outsider, event, category, passport };
 }
 
@@ -172,6 +174,7 @@ async function reviewFixture(db: Client) {
   await db.query("update public.events set status='open' where id=$1",[f.event]);
   await db.query("insert into public.prescreening_uploads(id,org_id,event_id,category_id,participant_passport_id,booked_by_user_id,object_path,size_bytes,content_type,verified_at) values($1,$2,$3,$4,$5,$6,$7,10000000,'image/png',now())",
     [upload,f.org,f.event,f.category,f.passport,f.booker,`${f.org}/${f.booker}/${upload}`]);
+  await completePassports(db, [managed]);
   const request={event_id:f.event,idempotency_key:randomUUID(),checkout_intent:"entry",participants:[
     {participant_passport_id:f.passport,category_id:f.category,proof_upload_id:upload,explanation:"Completed the 50K race."},
     {participant_passport_id:managed,category_id:easyCategory},
@@ -213,7 +216,7 @@ describe("pre-screening submission and decisions", () => {
     expect((await db.query("select type from public.transactional_email_jobs where payload->>'batch_id'=$1", [batch])).rows).toEqual([{ type: "prescreening_ready" }]);
   }));
 
-  it("holds both mixed-category participants for free, then starts one immutable 72-hour window", () => transaction(async db => {
+  it("holds both mixed-category participants for free, then allows payment through the event close more than 72 hours later", () => transaction(async db => {
     const f=await reviewFixture(db),batch=await submit(db,f.booker,f.request);
     expect(await submit(db,f.booker,f.request)).toBe(batch);
     expect((await db.query("select decision from public.prescreening_applications where batch_id=$1 order by decision",[batch])).rows)
@@ -223,18 +226,31 @@ describe("pre-screening submission and decisions", () => {
       .toEqual({status:"reviewing",payment_deadline_at:null});
     expect((await db.query("select count(*) from public.registrations where event_id=$1",[f.event])).rows[0].count).toBe("0");
     expect((await db.query("select count(*) from public.event_reservations where event_id=$1",[f.event])).rows[0].count).toBe("0");
+    await db.query("update events set registration_closes_at=now()+interval '10 days' where id=$1", [f.event]);
     const app=(await db.query("select id from public.prescreening_applications where batch_id=$1 and decision='pending'",[batch])).rows[0].id;
     await asUser(db,f.outsider);
     await rejected(db,"select public.prescreening_review($1,'approved')",[app],"42501");
     await asUser(db,f.admin);
     await db.query("select public.prescreening_review($1,'approved')",[app]);
     await db.query("select public.prescreening_review($1,'approved')",[app]);
-    const ready=(await db.query("select status,payment_deadline_at-payment_ready_at as duration from public.prescreening_batches where id=$1",[batch])).rows[0];
+    const ready=(await db.query("select b.status,b.payment_deadline_at=e.registration_closes_at and b.payment_deadline_at>b.payment_ready_at+interval '72 hours' as extended from public.prescreening_batches b join public.events e on e.id=b.event_id where b.id=$1",[batch])).rows[0];
     expect(ready.status).toBe("ready");
-    expect(ready.duration.days).toBe(3);
+    expect(ready.extended).toBe(true);
     await db.query("reset role");
     await rejected(db,"update public.prescreening_batches set payment_ready_at=now()+interval '1 hour',payment_deadline_at=now()+interval '73 hours' where id=$1",[batch],"23514");
     expect((await db.query("select count(*) from public.transactional_email_jobs where dedup_key=$1",[`prescreening_ready:${batch}`])).rows[0].count).toBe("1");
+  }));
+
+  it("requires a complete Passport for every participant before holding any slots", () => transaction(async db => {
+    const f = await reviewFixture(db);
+    await db.query("update runner_passports set emergency_contact_number=null where id=$1", [f.managed]);
+    await db.query("savepoint incomplete");
+    await expect(submit(db, f.booker, f.request)).rejects.toMatchObject({ message: "passport_incomplete" });
+    await db.query("rollback to savepoint incomplete");
+    expect((await db.query("select * from event_capacity_claims($1)", [f.event])).rows).toHaveLength(0);
+    expect((await db.query("select id from transactional_email_jobs where event_id=$1", [f.event])).rows).toHaveLength(0);
+    await completePassports(db, [f.managed]);
+    expect(await submit(db, f.booker, f.request)).toBeTruthy();
   }));
 
   it("rolls back the entire group if any category is full or proof is unverified", () => transaction(async db => {
@@ -263,17 +279,12 @@ describe("pre-screening submission and decisions", () => {
     expect((await db.query("select count(*) from public.event_capacity_claims($1)",[f.event])).rows[0].count).toBe("2");
   }));
 
-  it("preserves a request across sales cutoff and refuses approval without a full payment window", () => transaction(async db => {
+  it("allows reservation approval one day before the category deadline even after sales close", () => transaction(async db => {
     const f=await reviewFixture(db);
     const request={...f.request,checkout_intent:"reservation",participants:[f.request.participants[0]]};
     const batch=await submit(db,f.booker,request);
     await db.query("update public.categories set reservation_sales_close_at=now()-interval '1 hour',entry_payment_deadline_at=now()+interval '1 day' where id=$1",[f.category]);
     const app=(await db.query("select id from public.prescreening_applications where batch_id=$1",[batch])).rows[0].id;
-    await asUser(db,f.admin);
-    await rejected(db,"select public.prescreening_review($1,'approved')",[app],"23514");
-    expect((await db.query("select decision from public.prescreening_applications where id=$1",[app])).rows[0].decision).toBe("pending");
-    await db.query("reset role");
-    await db.query("update public.categories set entry_payment_deadline_at=now()+interval '10 days' where id=$1",[f.category]);
     await asUser(db,f.admin);
     await db.query("select public.prescreening_review($1,'approved')",[app]);
     expect((await db.query("select status from public.prescreening_batches where id=$1",[batch])).rows[0].status).toBe("ready");
@@ -320,6 +331,36 @@ describe("category reservation payment admission", () => {
     const late=(await db.query("select confirm_reservation_payment($1,'cs_deadline',$2,80000,0,80000,'gcash',$3) result",[id,`pay_${randomUUID()}`,{racepace_provider_paid_at:latePaidAt}])).rows[0].result;
     expect(late).toBe("review_required");
   }));
+  it("keeps a screened reservation payable through event close when the category deadline is earlier", () => transaction(async db => {
+    const f = await reviewFixture(db);
+    await db.query("update events set registration_closes_at=now()+interval '30 days' where id=$1", [f.event]);
+    const request = { ...f.request, checkout_intent: "reservation", participants: [f.request.participants[0]] };
+    const batch = await submit(db, f.booker, request);
+    const app = (await db.query("select id from prescreening_applications where batch_id=$1", [batch])).rows[0].id;
+    await asUser(db, f.admin);
+    await db.query("select prescreening_review($1,'approved')", [app]);
+    await db.query("reset role");
+    const checkout = { event_id: f.event, idempotency_key: randomUUID(), prescreening_batch_id: batch,
+      participants: [{ participant_passport_id: f.passport, category_id: f.category }] };
+    const reservation = (await db.query("select reserve_category_passports($1,$2,'fake') id", [f.booker, checkout])).rows[0].id;
+    await db.query("update events set registration_closes_at=now()+interval '35 days' where id=$1", [f.event]);
+    const aligned = await db.query(`select b.payment_deadline_at=e.registration_closes_at
+      and r.checkout_expires_at=e.registration_closes_at and p.entry_payment_deadline_at=e.registration_closes_at as ok
+      from events e join prescreening_batches b on b.event_id=e.id join event_reservations r on r.id=b.event_reservation_id
+      join event_reservation_places p on p.reservation_id=r.id where r.id=$1`, [reservation]);
+    expect(aligned.rows).toEqual([{ ok: true }]);
+    // Exercise the capture timestamp, including a delayed provider notification.
+    await db.query("update reservation_payments set provider='paymongo',provider_ref='cs_screened' where reservation_id=$1", [reservation]);
+    const capture = (paidAt: string) => db.query(
+      "select confirm_reservation_payment($1,'cs_screened',$2,50000,0,50000,'gcash',$3) as outcome",
+      [reservation, `pay_${randomUUID()}`, { racepace_provider_paid_at: paidAt }]);
+    await db.query("savepoint before_capture");
+    const times = (await db.query("select payment_ready_at+interval '4 days' as on_time, payment_deadline_at+interval '1 second' as late from prescreening_batches where id=$1", [batch])).rows[0];
+    expect((await capture(times.late.toISOString())).rows[0].outcome).toBe("review_required");
+    await db.query("rollback to savepoint before_capture");
+    expect((await capture(times.on_time.toISOString())).rows[0].outcome).toBe("paid");
+  }));
+
   it("blocks reservation payment during review, then snapshots each category's fee in one checkout", () => transaction(async db => {
     const f=await reviewFixture(db);
     await db.query("update public.categories set reservation_enabled=true,reservation_slots=30,reservation_fee_cents=30000,reservation_sales_close_at=now()+interval '10 days',entry_payment_deadline_at=now()+interval '20 days' where id=$1",[f.easyCategory]);
@@ -378,7 +419,7 @@ describe("screening cancellation and expiry", () => {
 describe("screening release safeguards", () => {
   it("releases a rejected runner even if the remaining group needs a deadline extension", () => transaction(async db => {
     const f = await reviewFixture(db), batch = await submit(db, f.booker, f.request);
-    await db.query("update events set registration_closes_at=now()+interval '1 day' where id=$1", [f.event]);
+    await db.query("update events set registration_closes_at=now()-interval '1 minute' where id=$1", [f.event]);
     const app = (await db.query("select id from prescreening_applications where batch_id=$1 and decision='pending'", [batch])).rows[0].id;
     await asUser(db, f.admin);
     await db.query("select prescreening_review($1,'rejected','The proof does not meet the requirement.')", [app]);
@@ -441,13 +482,18 @@ describe("reservation checkout retries", () => {
     expect((await db.query("select status from prescreening_batches where id=$1",[batch])).rows[0].status).toBe('ready');
   }));
 
-  it("prevents an event edit from cutting short an approved group's entry payment window", () => transaction(async db => {
+  it("keeps an approved entry aligned with a changed deadline and a status-only close", () => transaction(async db => {
     const f=await reviewFixture(db), batch=await submit(db,f.booker,f.request);
     const app=(await db.query("select id from prescreening_applications where batch_id=$1 and decision='pending'",[batch])).rows[0].id;
     await asUser(db,f.admin); await db.query("select prescreening_review($1,'approved')",[app]); await db.query("reset role");
-    await rejected(db,"update events set registration_closes_at=now()+interval '1 day' where id=$1",[f.event],"23514");
-    await db.query("update events set registration_closes_at=now()+interval '4 days' where id=$1",[f.event]);
+    for (const days of [1, 14]) {
+      await db.query("update events set registration_closes_at=now()+make_interval(days=>$2) where id=$1",[f.event,days]);
+      expect((await db.query("select b.payment_deadline_at=e.registration_closes_at as aligned from prescreening_batches b join events e on e.id=b.event_id where b.id=$1",[batch])).rows[0].aligned).toBe(true);
+    }
     await db.query("update events set registration_closes_at=null where id=$1",[f.event]);
+    expect((await db.query("select payment_deadline_at::text as deadline from prescreening_batches where id=$1",[batch])).rows[0].deadline).toBe("infinity");
+    await db.query("update events set status='closed' where id=$1",[f.event]);
+    expect((await db.query("select prescreening_finish_expiry($1) as result",[batch])).rows[0].result).toBe("expired");
   }));
 
   it("freezes checkout under the expiry lock and rejects stale, foreign or expired dispatches", () => transaction(async db => {

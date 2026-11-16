@@ -1,0 +1,8 @@
+# Hosted acceptance for Race Passport registration
+
+1. Compare both live app revision endpoints, environment identities, migration history and relevant function inventories with the latest completed production release. Repair any staging drift from the reviewed production source. Keep staging Auth, data and payment provider configuration isolated.
+2. Run CI and deploy the candidate based on that production revision through the staged release workflow. Verify the staging app identities, migration and deployed functions before running business flows.
+3. On hosted staging, try submitting verified proof with a complete runner and an incomplete managed runner. Verify that no places, checkout or email jobs were created. Complete the missing information, resubmit the same roster, and verify holds and a single confirmation email.
+4. Exercise individual entry, mixed group entry, category reservation and legacy event reservation with incomplete and complete Passports. Verify participant-specific rejection and successful checkout with staging test credentials.
+5. Approve with less than 72 hours left. Verify that approval succeeds and the displayed and emailed deadline matches registration close in Manila time. Exercise an approval older than 72 hours with registration still open. Complete test-mode payment, webhook confirmation and ticket fulfillment.
+6. Check a changed deadline on a pending checkout, a status-only event, and an event where the selected category deadline precedes registration close. Verify that payment stops at close and an expired place stays released. Remove synthetic staging records and record the deployment IDs, revisions and evidence before production approval.

@@ -14,7 +14,6 @@ const eventSaveError = (error: { code?: string; message?: string } | null) => {
   if (error?.message?.includes("event_waiver_required_for_publishing")) return WAIVER_PUBLISH_ERROR;
   if (error?.code === "23505" && error.message?.includes("events_slug_unique")) return "That public link is already in use. Choose another one.";
   if (error?.message?.includes("event_slug_locked")) return "The public link cannot be changed after the event is published.";
-  if (error?.message?.includes("event_deadline_below_promised_window")) return "Registration must stay open through the payment deadline already promised to approved runners.";
   return GENERIC_ERROR;
 };
 

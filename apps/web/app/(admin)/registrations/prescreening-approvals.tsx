@@ -72,7 +72,7 @@ export function PrescreeningApprovals({ eventId, orgId }: { eventId: string; org
     setBusy(true); setReviewError(null);
     const { error } = await createClient().rpc("prescreening_review", { p_application: selected.id, p_decision: value, p_reason: value === "rejected" ? reason.trim() : null });
     if (error) setReviewError(error.message.includes("extend_payment_deadline")
-      ? "Extend the category’s full entry deadline or the event’s registration close to allow 72 hours, then approve again. This decision has not been saved."
+      ? "Registration or a selected category’s payment deadline has passed. Extend the applicable deadline before approving."
       : error.message.includes("review_already_decided") ? "Another reviewer already decided this request. Close it and refresh the table."
       : "The decision could not be saved. Refresh and check its status before retrying.");
     else { setSelected(null); setRevision(n => n + 1); router.refresh(); }
@@ -112,7 +112,7 @@ export function PrescreeningApprovals({ eventId, orgId }: { eventId: string; org
           {reviewable && <p className="rounded-lg bg-muted p-3 text-xs leading-relaxed">Review this participant independently. Rejection releases only this runner’s slot.</p>}
         </div>
       </div>
-        {selected && <ScreeningEmailStatus batchId={selected.batch_id} payable={selected.prescreening_batches.status === "ready" && Date.parse(selected.prescreening_batches.payment_deadline_at ?? "") > Date.now()} />}
+        {selected && <ScreeningEmailStatus batchId={selected.batch_id} payable={selected.prescreening_batches.status === "ready" && (selected.prescreening_batches.payment_deadline_at === "infinity" || Date.parse(selected.prescreening_batches.payment_deadline_at ?? "") > Date.now())} />}
         {reviewable && <>{rejecting && <div><Label htmlFor="screening-rejection">Reason for rejection <span aria-hidden="true">*</span></Label><Textarea id="screening-rejection" autoFocus rows={3} maxLength={4000} value={reason} disabled={busy} onChange={e => setReason(e.target.value)} className="mt-2" /><p className="mt-1 text-xs text-muted-foreground">Required. The booker will see this reason.</p></div>}
           <div className="flex flex-wrap justify-end gap-3">{rejecting ? <><Button variant="outline" disabled={busy} onClick={() => setRejecting(false)}>Back</Button><Button variant="destructive" disabled={busy || !reason.trim()} onClick={() => void review("rejected")}>Reject and release slot</Button></> : <><Button variant="outline" disabled={busy} onClick={() => setRejecting(true)}>Reject</Button><Button disabled={busy || !proof} onClick={() => void review("approved")}>{busy ? "Saving…" : "Approve participant"}</Button></>}</div>
         </>}{reviewError && <Alert variant="destructive" className="text-sm text-destructive"><AlertDescription>{reviewError}</AlertDescription></Alert>}

@@ -23,6 +23,7 @@ Deno.serve(async req => {
   }
   const result = await db.rpc("prescreening_submit", { p_actor: auth.user.id, p_request: input.data });
   if (result.error) {
+    if (result.error.message === "passport_incomplete") return json({ error: "passport_incomplete" }, 422);
     const known = new Set(["category_capacity_exhausted", "event_capacity_exhausted", "participant_already_held",
       "participant_not_accessible", "verified_proof_required", "registration_closed", "reservations_not_open",
       "org_suspended", "category_not_found", "idempotency_conflict", "extend_payment_deadline_before_approval"]);

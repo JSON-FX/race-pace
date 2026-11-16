@@ -7,7 +7,7 @@ export async function reconcileExpiredGroup(orderId: string): Promise<string> {
   const { data: order, error } = await db.from("booking_orders").select("id,status,expires_at").eq("id", orderId).single();
   if (error || !order) throw new Error("order_read_failed");
   if (order.status !== "pending") return order.status;
-  if (!order.expires_at || Date.parse(order.expires_at) > Date.now()) return "not_due";
+  if (!order.expires_at || order.expires_at === "infinity" || Date.parse(order.expires_at) > Date.now()) return "not_due";
   const attempts = await db.from("booking_payment_attempts").select("id,status,booking_payment_dispatches(session_id)").eq("booking_order_id", orderId);
   if (attempts.error) throw new Error("attempt_read_failed");
   for (const attempt of attempts.data ?? []) {

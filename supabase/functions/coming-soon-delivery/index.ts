@@ -50,7 +50,7 @@ Deno.serve(async (req) => {
             participants: relevant.map(a => ({ name: a.participant_name, category: a.categories.label, decision: a.decision, managed: a.is_managed })),
             currentStatus: b.status === "ready" && b.payment_deadline_at && Date.parse(b.payment_deadline_at) <= Date.now() ? "expired" : b.status,
             reason: relevant[0].rejection_reason ?? undefined,
-            deadline: b.payment_deadline_at ? new Intl.DateTimeFormat("en-PH", { timeZone: "Asia/Manila", dateStyle: "long", timeStyle: "short" }).format(new Date(b.payment_deadline_at)) : undefined,
+            deadline: b.payment_deadline_at && b.payment_deadline_at !== "infinity" ? new Intl.DateTimeFormat("en-PH", { timeZone: "Asia/Manila", dateStyle: "long", timeStyle: "short" }).format(new Date(b.payment_deadline_at)) : undefined,
           });
           const result = await sendEmail(user.data.user.email, message.subject, message.html, message.text,
             { idempotencyKey: `screening:${job.id}:${job.payload.delivery_id ?? "initial"}` });

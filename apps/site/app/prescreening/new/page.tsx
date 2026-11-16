@@ -1,3 +1,4 @@
+import { passportCompleteness } from "@race-pace/shared";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { fetchEvent, fetchCategories } from "@/lib/events";
@@ -14,7 +15,7 @@ export default async function NewScreeningPage({ searchParams }: { searchParams:
   if (!user) redirect(`/sign-in?next=${encodeURIComponent(`/prescreening/new?event=${query.event}&category=${query.category}&intent=${intent}`)}`);
   const [event, categories, passports] = await Promise.all([
     fetchEvent(db, query.event), fetchCategories(db, query.event),
-    db.from("runner_passports").select("id,claimed_user_id,first_name,last_name").order("created_at"),
+    db.from("runner_passports").select("*").order("created_at"),
   ]);
   if (!event || !categories.some(c => c.id === query.category)) notFound();
   if (passports.error) throw new Error("Race Passports could not be loaded");
@@ -25,6 +26,10 @@ export default async function NewScreeningPage({ searchParams }: { searchParams:
       !!p && typeof p.passportId === "string" && typeof p.categoryId === "string" &&
       !!passports.data?.some(own => own.id === p.passportId) && categories.some(c => c.id === p.categoryId));
   } catch { /* A malformed selection starts with an empty roster. */ }
+  const today = new Date().toISOString().slice(0, 10);
+  const choices = (passports.data ?? []).filter(p => !p.claimed_user_id || p.claimed_user_id === user.id)
+    .map(p => ({ id: p.id, claimed_user_id: p.claimed_user_id, first_name: p.first_name,
+      last_name: p.last_name, complete: passportCompleteness(p, today).complete }));
   return <><SiteHeader /><ScreeningRequest event={event} categories={categories} initialCategory={query.category} intent={intent}
-    passports={(passports.data ?? []).filter(p => !p.claimed_user_id || p.claimed_user_id === user.id)} userId={user.id} initialParticipants={roster} /></>;
+    passports={choices} userId={user.id} initialParticipants={roster} /></>;
 }

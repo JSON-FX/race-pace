@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { DISCIPLINE_LABELS, type EventDiscipline } from "@race-pace/shared";
+import { passportCompleteness, DISCIPLINE_LABELS, type EventDiscipline } from "@race-pace/shared";
 import { createClient } from "@/lib/supabase/client";
 import { eventPublicPath, type EventRow } from "@/lib/events";
 import { listPassports, type RunnerPassport } from "@/lib/passports";
@@ -154,6 +154,8 @@ export function ComingSoonEventPage({ event, userEmail, reservation, reservedPas
   const [passports, setPassports] = useState<RunnerPassport[]>([]);
   const [selectedPassportIds, setSelectedPassportIds] = useState<string[]>([]);
   const [passportError, setPassportError] = useState<string | null>(null);
+  const today = new Date().toISOString().slice(0, 10);
+  const incomplete = passports.some(p => selectedPassportIds.includes(p.id) && !passportCompleteness(p, today).complete);
   const fee = event.reservation_fee_cents ?? 0;
   const platformFee = event.reservation_platform_fee_cents ?? 0;
   const placeCount = reservation?.quantity ?? Math.max(selectedPassportIds.length, 1);
@@ -187,7 +189,7 @@ export function ComingSoonEventPage({ event, userEmail, reservation, reservedPas
   }
 
   async function reserve() {
-    if (!userEmail || !canReserve || busy || !selectedPassportIds.length) return;
+    if (!userEmail || !canReserve || busy || incomplete || !selectedPassportIds.length) return;
     setBusy(true);
     setReservationError(null);
     const db = createClient();
@@ -222,6 +224,8 @@ export function ComingSoonEventPage({ event, userEmail, reservation, reservedPas
       }
       setReservationError(response?.error === "event_capacity_exhausted"
         ? "Reservations are unavailable right now. Try again later."
+        : response?.error === "passport_incomplete"
+        ? "Complete each selected Race Passport before reserving."
         : response?.error === "participant_already_reserved"
         ? "A selected Race Passport already has a place for this event. Review your reservation."
         : response?.error === "participant_not_accessible" || response?.error === "invalid_passports"
@@ -304,6 +308,7 @@ export function ComingSoonEventPage({ event, userEmail, reservation, reservedPas
                       onCheckedChange={() => togglePassport(passport.id)} />
                     <span><strong>{passportName(passport)}</strong><small>{passport.claimed_user_id ? "Your Passport" : "Managed Passport"}</small></span>
                   </Label>)}
+                  {incomplete && <p role="status">Complete each selected runner’s identity, contact, emergency and shipping details. <Link href="/profile">Edit Race Passports</Link></p>}
                   {passports.length ? <p>{selectedPassportIds.length} selected · {selectedPassportIds.length} event {selectedPassportIds.length === 1 ? "place" : "places"}</p> : null}
                 </fieldset> : null}
                 {!reservation ? <ChoiceGroup label="Payment method" name="reservation-method" value={method}
@@ -322,7 +327,7 @@ export function ComingSoonEventPage({ event, userEmail, reservation, reservedPas
                 {reservation ? <Button asChild variant="default"><Link className="dossier-button" href={`/reservations/${reservation.id}`}>
                   {reservation.status === "paid" ? "View reservation" : "Continue reservation"}</Link></Button>
                 : !userEmail ? <Button asChild variant="default"><Link className="dossier-button" href={signInHref}>Sign in to reserve</Link></Button>
-                : <Button variant="default" type="button" className="dossier-button" disabled={!canReserve || busy || !selectedPassportIds.length} onClick={reserve}>
+                : <Button variant="default" type="button" className="dossier-button" disabled={!canReserve || busy || incomplete || !selectedPassportIds.length} onClick={reserve}>
                   {busy ? "Opening checkout…" : canReserve ? "Reserve now" : "Reservations paused"}
                 </Button>}
               </div>

@@ -11,7 +11,7 @@ const category = { id: "21k", event_id: "event", org_id: "org", code: "21k", lab
   distance_km: 21, base_price: 150000, slots_total: 100, slots_taken: 0,
   reservation_enabled: true, reservation_available: 5, general_available: 80,
   reservation_sales_close_at: "2099-01-01T00:00:00Z", inclusions: [] } satisfies CategoryRow;
-const passports = [{ id: "runner", claimed_user_id: "user", first_name: "Mika", last_name: "Reyes" }];
+const passports = [{ complete: true, id: "runner", claimed_user_id: "user", first_name: "Mika", last_name: "Reyes" }];
 
 describe("category request form", () => {
   it("explains immediate readiness when the selected category needs no review", () => {
@@ -21,6 +21,15 @@ describe("category request form", () => {
     expect(screen.getByRole("heading", { name: "Reserve places" })).toBeInTheDocument();
     expect(screen.getByText("Pay after submission")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Submit and hold 1 slot" })).toBeEnabled();
+  });
+
+  it("blocks an entire roster when its selected managed Passport is incomplete", () => {
+    const managed = { ...passports[0], id: "guest", claimed_user_id: null, complete: false };
+    render(<ScreeningRequest event={event} categories={[category]} initialCategory={category.id}
+      intent="entry" passports={[...passports, managed]} userId="user"
+      initialParticipants={["runner", "guest"].map(passportId => ({ passportId, categoryId: category.id }))} />);
+    expect(screen.getByRole("button", { name: "Submit and hold 2 slots" })).toBeDisabled();
+    expect(screen.getByRole("link", { name: "Edit Race Passports" })).toHaveAttribute("href", "/profile");
   });
 
   it("blocks a request when the selected reservation pool is full", () => {

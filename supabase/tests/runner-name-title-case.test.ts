@@ -1,3 +1,4 @@
+import { completePassports } from "../../test/complete-passports";
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { Client } from "pg";
@@ -26,6 +27,7 @@ async function fixture(db: Client) {
 }
 
 async function labels(db: Client, f: Awaited<ReturnType<typeof fixture>>) {
+  await completePassports(db, [f.passport]);
   const reservation = randomUUID(), batch = randomUUID();
   await db.query(`insert into public.event_reservations(id,org_id,event_id,user_id,email,idempotency_key,status,
     reservation_fee_cents,platform_fee_cents,registration_deadline_at,checkout_expires_at)

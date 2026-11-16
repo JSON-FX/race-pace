@@ -60,7 +60,7 @@ export function ProfileActivityCards({ userId, registrations, registrationsLoadi
                 {rejected.map(application => <p key={application.id} className="break-words text-xs leading-5"><strong>{application.participant_name}</strong>: {application.rejection_reason || "Open your request for the review decision."}{application.released_at ? " Slot released." : ""}</p>)}
               </div>}
               <p className="text-sm font-medium">{summary.title}</p><p className="text-xs leading-5 text-muted-foreground">{summary.detail}</p>
-              {summary.payable && batch.payment_deadline_at && <p className="text-xs font-medium">Pay by {screeningDate(batch.payment_deadline_at)} PHT.</p>}
+              {summary.payable && batch.payment_deadline_at && <p className="text-xs font-medium">{batch.payment_deadline_at === "infinity" ? "Pay before registration closes." : `Pay by ${screeningDate(batch.payment_deadline_at)} PHT.`}</p>}
               <Button asChild variant={summary.payable ? "default" : "outline"} size="sm" className="w-full"><Link href={`/prescreening/${batch.id}`}>{summary.payable ? "Review payment details" : "View request"}</Link></Button>
             </li>;
           })}</ul> : <p className="text-sm text-muted-foreground">No pre-screening updates yet.</p>}

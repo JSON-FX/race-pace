@@ -137,7 +137,7 @@ function copyFor(input: LifecycleEmailInput): Copy {
       };
     case "payment_expiring": {
       const facts = [...baseFacts];
-      if (input.expiresAt) facts.push(["Payment deadline", `${dateTime(input.expiresAt)} PHT`]);
+      if (input.expiresAt && input.expiresAt !== "infinity") facts.push(["Payment deadline", `${dateTime(input.expiresAt)} PHT`]);
       return {
         subject: `Complete payment soon — ${event}`,
         heading: "Your payment window is closing",
