@@ -10,7 +10,10 @@ vi.mock("@/lib/supabase/client", () => ({ createClient: () => ({ from, functions
 vi.mock("@/lib/passports", () => ({ listPassports: vi.fn(async () => [
   { id: "own", claimed_user_id: "runner", first_name: "E2E", last_name: "Runner" },
   { id: "managed", claimed_user_id: null, first_name: "E2E", last_name: "Companion" },
-] as RunnerPassport[]) }));
+].map(p => ({ ...p, date_of_birth: "1990-01-01", gender: "Female", contact_number: "09171234567",
+  emergency_contact_name: "Test Contact", emergency_contact_number: "09171234567",
+  emergency_contact_relationship: "Friend", shipping_barangay_code: "012801001", shipping_zip_code: "0123",
+  shipping_address_line: "Unit 1" })) as RunnerPassport[]) }));
 
 const event = {
   id: "event", org_id: "org", name: "Highland Traverse", slug: "highland-traverse", status: "coming_soon",

@@ -66,6 +66,7 @@ Deno.serve(async (req) => {
     p_idempotency_key: raw.idempotency_key, p_provider: "paymongo", p_passport_ids: passportIds,
   });
   if (created.error) {
+    if (created.error.message === "passport_incomplete") return json({ error: "passport_incomplete" }, 422);
     if (["prescreening_approval_required", "prescreening_group_not_payable", "category_reservation_required", "category_capacity_exhausted"].includes(created.error.message)) {
       return json({ error: created.error.message }, 409);
     }

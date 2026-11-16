@@ -46,7 +46,7 @@ beforeAll(async () => {
 beforeEach(async () => {
   await clearOrders();
   await db.query("update categories set slots_taken=0,slots_total=20,prescreening_enabled=(id=$1),reservation_enabled=false,reservation_slots=0 where event_id=$2", [category, event]);
-  await db.query("update events set total_event_slots=null where id=$1", [event]);
+  await db.query("update events set total_event_slots=null, registration_closes_at=now()+interval '7 days' where id=$1", [event]);
 });
 afterAll(async () => {
   await clearOrders();
@@ -145,10 +145,22 @@ it("serializes concurrent observation and confirmation without extra allocations
   expect((await db.query("select reason from booking_payment_captures where payment_id=$1", [second.capture.paymentId])).rows[0].reason).toBe("extra_capture");
 });
 
+it("fulfills an approved group payment four days after approval while registration is open", async () => {
+  const p = await prepared();
+  const { rows } = await db.query("select payment_ready_at+interval '4 days' as paid_at from prescreening_batches where id=$1", [p.batch]);
+  p.capture.paidAt = rows[0].paid_at.toISOString();
+  expect((await observe(p)).data).toBe("received");
+  expect((await confirm(p)).data).toBe("fulfilled");
+});
+
 it.each(["late", "released"])("keeps %s pre-screening evidence under review", async (reason) => {
   const p = await prepared();
-  if (reason === "late") p.capture.paidAt = new Date(Date.now() + 96 * 3600000).toISOString();
-  else await db.query("update prescreening_applications set released_at=now() where batch_id=$1", [p.batch]);
+  if (reason === "late") {
+    const { rows } = await db.query("select registration_closes_at+interval '1 second' as paid_at from events where id=$1", [event]);
+    p.capture.paidAt = rows[0].paid_at.toISOString();
+  } else {
+    await db.query("update prescreening_applications set released_at=now() where batch_id=$1", [p.batch]);
+  }
   expect((await observe(p)).data).toBe("received");
   expect((await confirm(p)).data).toBe("reconciliation_required");
   expect((await db.query("select reason from booking_payment_captures where attempt_id=$1", [p.id])).rows[0].reason).toBe("prescreening_payment_window_ended");

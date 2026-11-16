@@ -1,3 +1,4 @@
+import { completePassports } from "../../test/complete-passports";
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { Client } from "pg";
@@ -34,6 +35,7 @@ beforeAll(async()=>{
   }
   const booker=await account(),other=await account();user=booker.id;token=booker.token;caller=booker.client;outsider=other.id;outsiderToken=other.token;
   passport=(await db.query("select id from public.runner_passports where claimed_user_id=$1",[user])).rows[0].id;
+  await completePassports(db, [passport]);
   await db.query("insert into public.organizations(id,name,slug) values($1,'Proof testing',$2)",[org,org]);
   await db.query("insert into public.organizations(id,name,slug) values($1,'Unrelated proof organizer',$2)",[otherOrg,otherOrg]);
   await db.query("insert into public.user_roles(user_id,org_id,role) values($1,$2,'admin')",[outsider,otherOrg]);

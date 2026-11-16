@@ -1,3 +1,4 @@
+import { completePassports } from "../../test/complete-passports";
 import { randomUUID } from "node:crypto";
 import { Client } from "pg";
 import { describe, expect, it } from "vitest";
@@ -106,6 +107,13 @@ describe("coming soon reservation lifecycle", () => {
       await expect(db.query("select public.reserve_event_passports($1,$2,$3,'fake',$4::uuid[])",
         [eventId, booker, randomUUID(), [self, self]])).rejects.toMatchObject({ message: "invalid_passports" });
       await db.query("rollback to savepoint duplicate");
+      await db.query("savepoint incomplete");
+      await expect(db.query("select public.reserve_event_passports($1,$2,$3,'fake',$4::uuid[])",
+        [eventId, booker, key, [self, managed]])).rejects.toMatchObject({ message: "passport_incomplete" });
+      await db.query("rollback to savepoint incomplete");
+      await db.query("reset role");
+      await completePassports(db, [self, managed]);
+      await db.query("set local role service_role");
       const held = (await db.query<{ reserve_event_passports: string }>(
         "select public.reserve_event_passports($1,$2,$3,'fake',$4::uuid[])",
         [eventId, booker, key, [self, managed]],
@@ -141,7 +149,7 @@ describe("coming soon reservation lifecycle", () => {
         "select participant_name,is_managed from public.event_reservation_places where reservation_id=$1 order by is_managed", [held],
       );
       expect(places.rows).toEqual([
-        { participant_name: "My Race Passport", is_managed: false },
+        { participant_name: "Test Runner", is_managed: false },
         { participant_name: "Managed Runner", is_managed: true },
       ]);
       await db.query("set local role authenticated");
@@ -279,6 +287,7 @@ describe("coming soon reservation lifecycle", () => {
         coming_soon_reserve_enabled,reservation_fee_cents,reservation_deadline_at,total_event_slots)
         values($1,$2,'Capacity test',$3,'coming_soon','trail','https://example.test/hero.jpg',
         'An upcoming trail event',true,500,now()+interval '10 days',1)`, [eventId, orgId, slug]);
+      await completePassports(firstDb, runnerIds);
       await firstDb.query("commit");
 
       await firstDb.query("begin");
@@ -332,6 +341,7 @@ describe("coming soon reservation lifecycle", () => {
         reservation_deadline_at,total_event_slots
       ) values ($1,$2,'Test trail',$3,'coming_soon','trail','https://example.test/hero.jpg',
         'An upcoming trail event',true,true,500,now()+interval '10 days',1)`, [eventId, orgId, slug]);
+      await completePassports(db, [first, second]);
       const held = await db.query<{ reserve_event_place: string }>(
         `select public.reserve_event_place($1,$2,$3,'fake')`, [eventId, first, randomUUID()],
       );

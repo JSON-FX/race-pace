@@ -16,6 +16,10 @@ ultra-trail event platform (Mindanao, Philippines).
 
 **Status:** Draft v0.5 · 2026-07-20
 
+## Race Passport registration — November 2026
+
+Local implementation. Hosted staging acceptance is pending. [Registration rules](specs/2026-11-16-passport-registration-deadline.md) and [acceptance plan](plans/2026-11-16-passport-registration-deadline.md).
+
 ## Runner name casing — November 2026
 
 [Specification](specs/2026-11-02-runner-name-title-case.md), [investigation](issues/issue-runner-name-title-case.md) and [implementation plan](plans/2026-11-02-runner-name-title-case.md): consistent Title Case for existing and incoming runner identities, including Google display names. Released to staging and production at `7ef0d89`; both apps, all 183 migrations and 33 affected function bundles were verified. The production backfill corrected 109 stored name values and preserved checked non-name data. Local verification passed 2,724 tests, both builds and required typechecks. The [release record](operations/runner-name-title-case-release-20261103.md) includes hosted Browser acceptance and cleanup. Google metadata formatting passed; the full Google sign-in was not exercised. The [initial validation report](../.claude/reports/2026-11-02-runner-name-title-case.md) retains two pre-existing supplemental type errors.

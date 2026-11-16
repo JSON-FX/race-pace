@@ -69,7 +69,7 @@ export function holdRemaining(
   status: string,
   expiresAt: string | null,
 ): { label: string; urgent: boolean } | null {
-  if (!expiresAt || holdExpired(status, expiresAt)) return null;
+  if (!expiresAt || expiresAt === "infinity" || holdExpired(status, expiresAt)) return null;
   const ms = Date.parse(expiresAt) - Date.now();
   // Belt-and-braces beyond `holdExpired`, which only fires for `status ===
   // "pending"`: `expiresAt` is documented as meaningful only while pending, so

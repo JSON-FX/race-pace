@@ -13,6 +13,7 @@ const messages: Record<string, string> = {
   category_capacity_exhausted: "There are not enough places in a selected category. No slots were held. Update your selection and try again.",
   event_capacity_exhausted: "This event no longer has enough places. No slots were held.",
   participant_already_held: "A selected Passport already has a held place or registration for this event. Open your existing request or booking.",
+  passport_incomplete: "Complete every selected runner’s Race Passport before submitting.",
   verified_proof_required: "Upload and verify a proof image for each Passport that requires pre-screening.",
   reservations_not_open: "Reservation sales have closed for a selected category. No slots were held.",
   registration_closed: "Registration has closed. No slots were held.",

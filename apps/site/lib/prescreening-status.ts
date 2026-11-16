@@ -30,7 +30,7 @@ export function screeningSummary<T extends Pick<ScreeningApplication, "decision"
     : deadlinePassed ? "Payment is disabled. We are checking any existing checkout before releasing unpaid places."
     : payable ? "Your approved categories are already selected. Complete one group payment before the deadline to keep these slots."
     : pending ? `${pending} ${pending === 1 ? "Passport is" : "Passports are"} awaiting review. No entry or reservation payment is due yet.`
-    : "All required reviews are complete. Your slots stay held. We will email you when your full 72-hour payment window starts.";
+    : "All required reviews are complete. Your slots stay held. We will email you when payment becomes available.";
   return { remaining, pending, payable, deadlinePassed, title, detail };
 }
 export const screeningDate = (value: string) => new Intl.DateTimeFormat("en-PH", { timeZone: "Asia/Manila", dateStyle: "medium", timeStyle: "short" }).format(new Date(value));

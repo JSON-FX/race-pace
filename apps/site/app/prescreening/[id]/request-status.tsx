@@ -54,7 +54,7 @@ export function RequestStatus({ batch, event }: { batch: ScreeningBatch; event: 
   }
   const existing = batch.booking_order_id ? `/group/order/${batch.booking_order_id}` : batch.event_reservation_id ? `/reservations/${batch.event_reservation_id}` : null;
   const selectedMethod = METHODS.find(item => item.value === method)!;
-  const deadline = batch.payment_deadline_at ? new Date(batch.payment_deadline_at) : null;
+  const deadline = batch.payment_deadline_at && batch.payment_deadline_at !== "infinity" ? new Date(batch.payment_deadline_at) : null;
   const hoursLeft = deadline ? Math.max(0, Math.ceil((deadline.getTime() - now) / 3600000)) : 0;
   const StatusIcon = summary.payable || batch.status === "completed" ? Check : summary.deadlinePassed || batch.status === "expired" ? Clock3 : ShieldCheck;
   return <main className={styles.workspace}><div className={styles.wrap}>
@@ -72,7 +72,7 @@ export function RequestStatus({ batch, event }: { batch: ScreeningBatch; event: 
           <Badge className={`${styles.badge} ${a.decision === "rejected" ? styles.rejected : a.decision === "pending" ? styles.pending : styles.approved}`}>{a.decision === "not_required" ? "No review needed" : a.decision === "pending" ? "Pending review" : a.decision === "approved" ? "Approved" : "Rejected"}</Badge>
           {a.rejection_reason && <div className={styles.reason}><strong>Organizer’s reason</strong><p>{a.rejection_reason}</p><Link href={`/events/${event.slug ?? event.id}`}>Choose another category</Link><p>A new registration is subject to availability. It does not change this group’s deadline.</p></div>}
         </article>)}
-        <div className={styles.note}><Info aria-hidden="true" /><p>Rejection releases only that runner’s slot. Categories without pre-screening wait with the group. Email resends and payment retries never restart the 72 hours.</p></div>
+        <div className={styles.note}><Info aria-hidden="true" /><p>Rejection releases only that runner’s slot. Categories without pre-screening wait with the group. You can pay until the registration deadline shown on this request.</p></div>
         <div className={styles.actions}><Button variant="outline" className={`${styles.button} ${styles.secondaryButton}`} onClick={() => router.refresh()}>Refresh status</Button>
           {["reviewing", "ready"].includes(batch.status) && <AlertDialog><AlertDialogTrigger asChild><Button variant="ghost" className={styles.button} disabled={busy}>Cancel request</Button></AlertDialogTrigger>
             <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Release this group’s review holds?</AlertDialogTitle><AlertDialogDescription>Every unpaid slot held by this request will become available again. Any started provider checkout must be resolved first.</AlertDialogDescription></AlertDialogHeader>
@@ -80,6 +80,7 @@ export function RequestStatus({ batch, event }: { batch: ScreeningBatch; event: 
         </div>{error && <Alert variant="destructive" className="mt-4 text-sm text-destructive"><AlertDescription>{error}</AlertDescription></Alert>}
       </section>
       <aside className={`${styles.panel} ${styles.aside}`} aria-labelledby="next-step-heading"><h2 id="next-step-heading">Your next step</h2>
+        {summary.payable && batch.payment_deadline_at === "infinity" && <p>Pay before the organizer closes registration.</p>}
         {deadline && batch.status === "ready" && <div><p className={styles.small}>Complete payment by</p><p className={styles.deadline}>
           {new Intl.DateTimeFormat("en-PH", { timeZone: "Asia/Manila", month: "short", day: "numeric" }).format(deadline)}
           <small>{new Intl.DateTimeFormat("en-PH", { timeZone: "Asia/Manila", hour: "numeric", minute: "2-digit" }).format(deadline)} PHT · {hoursLeft ? `${hoursLeft} ${hoursLeft === 1 ? "hour" : "hours"} remaining` : "Window ended"}</small></p></div>}
