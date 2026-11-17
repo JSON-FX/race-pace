@@ -89,3 +89,23 @@ it("shows the team saved with the registration rather than later profile changes
  render(<TicketPanel registrationId="team-entry" userId="runner-id" />);
  expect(screen.getByTestId("race-pass")).toHaveTextContent("Trail Crew");
 });
+
+it("shows a reserved unpaid ticket without exposing even a retained token", () => {
+  state.data = mapReg({ id: "registration-id", user_id: "runner-id", event_id: "event",
+    status: "pending", ticket_token: "stale-token", total_amount: 180000,
+    pay_later_grant_id: "grant", pay_later_due_at: "2099-01-01T16:00:00Z",
+    events: { name: "Apo Ridge Trail", status: "open" }, categories: { label: "21 km" } });
+  render(<TicketPanel registrationId="registration-id" userId="runner-id" />);
+  expect(screen.getByText("Reserved · unpaid")).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Pay now" })).toHaveAttribute("href", "/pay/registration-id");
+  expectNoPass();
+});
+
+it("uses the ordinary paid ticket after a deferred reservation is settled", () => {
+  state.data = mapReg({ id: "registration-id", user_id: "runner-id", status: "paid",
+    ticket_token: "paid-token", total_amount: 180000, pay_later_grant_id: "grant",
+    pay_later_due_at: "2000-01-01T00:00:00Z" });
+  render(<TicketPanel registrationId="registration-id" userId="runner-id" />);
+  expect(screen.getByTestId("race-pass")).toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: "Pay now" })).not.toBeInTheDocument();
+});

@@ -45,3 +45,24 @@ describe("screening reservation payment retries", () => {
     expect(operation).not.toHaveBeenCalled();
   });
 });
+
+it.each(["infinity", "2098-11-01T16:00:00Z"])("separates approved entry completion from payment with admission cutoff %s", admissionDeadline => {
+  render(<RequestStatus batch={{ ...batch, checkout_intent: "entry", event_reservation_id: null, payment_deadline_at: admissionDeadline }}
+    event={event} payLater={{ id: "g1", dueAt: "2098-12-01T16:00:00Z" }} />);
+  expect(screen.getByRole("heading", { name: "Your category is approved" })).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Complete entry details" })).toHaveAttribute("href", "/register/70k?prescreening=batch&participant=passport");
+  expect(screen.getByText(/Nothing is due today/)).toBeInTheDocument();
+  expect(screen.getByText(/After confirmation, pay by December 1, 2098 at 11:59 p.m. Philippine time/)).toHaveTextContent(
+    admissionDeadline === "infinity" ? "before the organizer closes registration" : "before the registration deadline shown on this request",
+  );
+  expect(screen.queryByText(/You can pay until the registration deadline/)).not.toBeInTheDocument();
+});
+
+it("retains ordinary group registration for managed screening requests", () => {
+  render(<RequestStatus batch={{ ...batch, checkout_intent: "entry", event_reservation_id: null,
+    prescreening_applications: [{ ...batch.prescreening_applications[0], is_managed: true }] }}
+    event={event} payLater={{ id: "g1", dueAt: "2098-12-01T16:00:00Z" }} />);
+  expect(screen.getByRole("link", { name: "Complete entry details" })).toHaveAttribute("href", "/register/70k/group?prescreening=batch");
+  expect(screen.queryByText(/Nothing is due today/)).not.toBeInTheDocument();
+  expect(screen.getByText(/You can pay until the registration deadline/)).toBeInTheDocument();
+});

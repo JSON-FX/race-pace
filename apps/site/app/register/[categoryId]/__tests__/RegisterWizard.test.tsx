@@ -194,3 +194,54 @@ it("submits assisted acceptance separately from the authenticated booker", async
  await user.click(screen.getByRole("button", { name:/Continue to payment/ }));
  expect(startCheckoutMock).toHaveBeenCalledWith(expect.objectContaining({participant_passport_id:"guest-passport",waiver_acceptance_method:"participant_on_helper_device",waiver_version_id:"guest-waiver"}));
 });
+
+describe("approved deferred registration", () => {
+  const passport = { first_name: "Juan", last_name: "Dela Cruz", date_of_birth: "1990-01-01", gender: "Male" as const,
+    contact_number: "09171234567", emergency_contact_name: "Contact", emergency_contact_number: "09171234567",
+    emergency_contact_relationship: "Friend", ...shipping };
+  const terms = { id: "grant1", dueAt: "2098-12-01T16:00:00Z" };
+  function showDeferred(extra: Partial<React.ComponentProps<typeof RegisterWizard>> = {}) {
+    return render(<RegisterWizard userId="u1" participantId="passport1" category={category} event={event}
+      addons={addons} formFields={formFields} passport={passport} payLater={terms} {...extra} />);
+  }
+  function review() {
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  }
+  it("confirms one reservation with explicit intent and skips immediate payment", async () => {
+    startCheckoutMock.mockResolvedValue({ registration_id: "r1", payment_plan: "pay_later", checkout_url: null });
+    showDeferred({ prescreeningBatchId: "screening1", prescreeningDeadlineAt: "infinity" });
+    review();
+    expect(screen.getByText("Due today").closest("div")).toHaveTextContent("₱0.00");
+    expect(screen.queryByRole("button", { name: "Continue to payment" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Confirm registration" }));
+    expect(startCheckoutMock).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent("accept the waiver");
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm registration" }));
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/ticket/r1"));
+    expect(startCheckoutMock).toHaveBeenCalledWith(expect.objectContaining({
+      pay_later_grant_id: "grant1", prescreening_batch_id: "screening1", participant_passport_id: "passport1",
+    }));
+  });
+  it("uses the existing reservation's server plan after duplicate submission", async () => {
+    startCheckoutMock.mockRejectedValue(new CheckoutError("already_registered", "existing", "pay_later"));
+    showDeferred(); review();
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm registration" }));
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/ticket/existing"));
+  });
+  it("leaves assisted and expired unused grants on the normal payment path", () => {
+    const first = showDeferred({ assisted: true }); review();
+    expect(screen.getByRole("button", { name: "Continue to payment" })).toBeInTheDocument();
+    expect(screen.queryByText("Due today")).not.toBeInTheDocument();
+    first.unmount(); window.sessionStorage.clear();
+    showDeferred({ payLater: { id: "old", dueAt: "2000-01-01T00:00:00Z" } }); review();
+    expect(screen.getByRole("button", { name: "Continue to payment" })).toBeInTheDocument();
+  });
+  it("blocks a stale screened form once the approval window ends", () => {
+    showDeferred({ prescreeningBatchId: "screening1", prescreeningDeadlineAt: "2000-01-01T00:00:00Z" });
+    expect(screen.getByRole("link", { name: "View request" })).toHaveAttribute("href", "/prescreening/screening1");
+    expect(screen.queryByRole("button", { name: /Continue|Confirm/ })).not.toBeInTheDocument();
+  });
+});

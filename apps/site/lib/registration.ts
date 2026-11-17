@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { checkoutErrorMessage } from "@/lib/errors";
 import { RATE_METHOD, type FeeTerms, type ProcessorRate } from "@/lib/payment";
 
-export type CheckoutResult = { registration_id: string; checkout_url: string | null };
+export type CheckoutResult = { registration_id: string; checkout_url: string | null; payment_plan?: "pay_later"; pay_later_due_at?: string };
 
 /** Where PayMongo sends the runner after pay/cancel. Mobile uses a
  *  racepace:// deep link; the web equivalent is a real route. */
@@ -26,10 +26,12 @@ export function payReturnUrl(registrationId: string): string {
 export class CheckoutError extends Error {
   code: string;
   registrationId?: string;
-  constructor(code: string, registrationId?: string) {
+  paymentPlan?: "pay_later";
+  constructor(code: string, registrationId?: string, paymentPlan?: "pay_later") {
     super(checkoutErrorMessage(code));
     this.code = code;
     this.registrationId = registrationId;
+    this.paymentPlan = paymentPlan;
   }
 }
 
@@ -47,16 +49,18 @@ export async function startCheckout(input: RegistrationInput): Promise<CheckoutR
     // startCheckout.
     let code = "server_error";
     let registrationId: string | undefined;
+    let paymentPlan: "pay_later" | undefined;
     if (error instanceof FunctionsHttpError) {
       try {
         const body = await error.context.json();
         if (body?.error) code = String(body.error);
         if (typeof body?.registration_id === "string") registrationId = body.registration_id;
+        if (body?.payment_plan === "pay_later") paymentPlan = "pay_later";
       } catch {
         // keep the generic code
       }
     }
-    throw new CheckoutError(code, registrationId);
+    throw new CheckoutError(code, registrationId, paymentPlan);
   }
   return data as CheckoutResult;
 }
@@ -155,6 +159,8 @@ export type RegistrationPayment = {
 };
 
 export type RegistrationRow = {
+  payLaterGrantId?: string | null;
+  payLaterDueAt?: string | null;
   discountCode?: string | null; discountAmountCents?: number; discountOriginalCents?: number | null; discountAbsorbed?: boolean; discountEditable?: boolean;
   id: string; status: string; total_amount: number; ticket_token: string | null; org_id: string;
   /** The race this entry is for — needed to link back to its event page. */
@@ -210,7 +216,7 @@ export type RegistrationRow = {
 // type level, and `a + b` is `string` to TypeScript, which erases every column
 // type on the result.
 const REG_SELECT =
-  "id,user_id,booked_by_user_id,booking_order_id,status,discount_code,discount_amount_cents,discount_original_cents,discount_snapshot,total_amount,ticket_token,org_id,event_id,expires_at,custom_data,organizations(name,is_active,fee_mode,commission_type,commission_rate,commission_flat_cents,refund_policy,refund_fee_cents),events(name,status,event_date,original_date,status_note,place,city_name,province_name,hero_image_url,inclusions,registration_closes_at,kit_edit_closes_at,check_in_required),categories(label,distance_km,base_price,inclusions),registration_addons(price),payments(checkout_url,created_at,method,amount,platform_fee,net_to_org,provider,provider_ref,status,checkout_fee_mode,checkout_platform_fee,checkout_provider_managed_fee,discount_checkout_state)";
+  "id,user_id,booked_by_user_id,booking_order_id,status,pay_later_grant_id,pay_later_due_at,discount_code,discount_amount_cents,discount_original_cents,discount_snapshot,total_amount,ticket_token,org_id,event_id,expires_at,custom_data,organizations(name,is_active,fee_mode,commission_type,commission_rate,commission_flat_cents,refund_policy,refund_fee_cents),events(name,status,event_date,original_date,status_note,place,city_name,province_name,hero_image_url,inclusions,registration_closes_at,kit_edit_closes_at,check_in_required),categories(label,distance_km,base_price,inclusions),registration_addons(price),payments(checkout_url,created_at,method,amount,platform_fee,net_to_org,provider,provider_ref,status,checkout_fee_mode,checkout_platform_fee,checkout_provider_managed_fee,discount_checkout_state)";
 
 export function mapReg(r: any): RegistrationRow {
   const payment = Array.isArray(r.payments) ? r.payments[0] : r.payments;
@@ -235,6 +241,8 @@ export function mapReg(r: any): RegistrationRow {
   return {
     id: r.id, status: r.status, total_amount: r.total_amount,
     bookingOrderId: r.booking_order_id ?? null,
+    payLaterGrantId: r.pay_later_grant_id ?? null,
+    payLaterDueAt: r.pay_later_due_at ?? null,
     discountCode: r.discount_code ?? null, discountAmountCents: r.discount_amount_cents ?? 0, discountOriginalCents: r.discount_original_cents ?? null,
     discountAbsorbed: r.discount_snapshot?.absorb_fees === true, discountEditable: payment?.discount_checkout_state === "prepared",
     ticket_token: r.ticket_token ?? null, org_id: r.org_id, event_id: r.event_id,
@@ -312,7 +320,7 @@ export function useRegistration(rid: string, opts?: { poll?: boolean; enabled?: 
     enabled: (opts?.enabled ?? true) && !!rid,
     refetchInterval: opts?.poll
       ? (query) => (query.state.data?.status === "paid" ? false : 3000)
-      : false,
+      : (query) => query.state.data?.payLaterDueAt && query.state.data.status === "pending" ? 30_000 : false,
   });
 }
 
@@ -412,7 +420,9 @@ export async function fetchMyRegistrations(): Promise<RegistrationRow[]> {
 }
 
 export function useMyRegistrations() {
-  return useQuery({ queryKey: ["my-registrations"], queryFn: fetchMyRegistrations });
+  return useQuery({ queryKey: ["my-registrations"], queryFn: fetchMyRegistrations,
+    refetchInterval: query => query.state.data?.some(row => row.payLaterDueAt && row.status === "pending") ? 30_000 : false,
+  });
 }
 
 /** Delete an unpaid registration. RLS `registrations_delete_own_pending`

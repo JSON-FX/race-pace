@@ -7,6 +7,7 @@ export type ScreeningApplication = {
   categories: { label: string; base_price: number; reservation_fee_cents: number | null };
 };
 export type ScreeningBatch = {
+  pay_later_registration_id?: string | null;
   id: string; event_id: string; status: PrescreeningBatchStatus; checkout_intent: "entry" | "reservation";
   created_at: string; payment_deadline_at: string | null; booking_order_id: string | null; event_reservation_id: string | null;
   prescreening_applications: ScreeningApplication[];

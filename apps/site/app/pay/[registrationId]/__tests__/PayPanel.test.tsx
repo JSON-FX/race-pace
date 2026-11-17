@@ -307,3 +307,15 @@ describe("PayPanel — registration payment eligibility", () => {
     }
   });
 });
+
+it("keeps the frozen deferred payment cutoff after ordinary admission closes", () => {
+  renderWithRegistration({ payLaterDueAt: "2098-12-01T16:00:00Z", expiresAt: "2098-12-01T16:00:00Z", eventRegistrationClosesAt: "2000-01-01T00:00:00Z" });
+  expect(screen.getByRole("button", { name: "Pay ₱1,500.00" })).toBeInTheDocument();
+  expect(screen.getByText(/Pay by December 1, 2098/)).toBeInTheDocument();
+});
+
+it("blocks expired deferred payment before expiry reconciliation completes", () => {
+  renderWithRegistration({ payLaterDueAt: "2000-01-01T00:00:00Z", expiresAt: "2000-01-01T00:00:00Z" });
+  expect(screen.getByRole("heading", { name: "Payment window closed" })).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /^Pay/ })).not.toBeInTheDocument();
+});

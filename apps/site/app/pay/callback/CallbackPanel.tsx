@@ -4,6 +4,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { holdExpired } from "@/lib/holdExpiry";
+import { useDeadline } from "@/lib/use-deadline";
 import { verifyPayment, useRegistration } from "@/lib/registration";
 import { TIMEOUT_MS } from "@/lib/payment";
 import { Button } from "@/components/ui/button";
@@ -25,6 +27,7 @@ export function CallbackPanel() {
   }, [params]);
 
   const reg = useRegistration(rid ?? "", { poll: !!rid && !cancelled && !reviewRequired });
+  useDeadline(reg.data?.payLaterDueAt);
   const verified = useRef(false);
 
   // Confirm server-side. The redirect itself is never trusted — payment-verify
@@ -53,9 +56,16 @@ export function CallbackPanel() {
 
   if (rid === undefined) return <Panel title="Confirming your payment…" body="Locating your registration…">{null}</Panel>;
 
+  if (cancelled && rid && reg.data?.payLaterDueAt &&
+      (reg.data.status !== "pending" || holdExpired(reg.data.status, reg.data.payLaterDueAt))) {
+    return <Panel title={reg.data.status === "paid" ? "Payment confirmed" : "Payment window closed"}
+      body={reg.data.status === "paid" ? "Your registration is paid." : Date.parse(reg.data.payLaterDueAt) <= Date.now() ? "The payment deadline passed. Check My Races for your entry’s status." : "This registration can no longer be paid. Check My Races for its status."}>
+      <Button asChild><Link href="/races">View My Races</Link></Button>
+    </Panel>;
+  }
   if (cancelled && rid) {
     return (
-      <Panel title="Payment not completed" body="No payment has been confirmed for this registration. Your slot is still held — you can try again.">
+      <Panel title="Payment not completed" body={reg.data?.status === "pending" && !holdExpired(reg.data.status, reg.data.expiresAt) ? "No payment has been confirmed for this registration. Your slot is still held — you can try again." : "No payment has been confirmed. Check your entry’s status before trying again."}>
         <Button asChild className="h-auto px-8 py-4">
           <Link href={`/pay/${rid}`}>Back to payment</Link>
         </Button>

@@ -220,3 +220,7 @@ Implemented and verified locally: separate names, gender, age on race day,
 birthday, and shirt size alongside category and team name. Existing export data
 and scope are preserved. Validation passed 1,107 admin tests, 190 shared unit tests, admin typecheck, and build.
 [Implementation report](../.claude/reports/registration-csv-fields-report.md). Release pending.
+
+### November 18 Pay Later
+
+Implemented locally on `codex/pay-later`: admin event eligibility, runner category selection with screening gates, frozen deadlines, safe expiry and five transactional emails. Validation passed 604 runner tests, 1,134 admin tests, 1,097 backend/shared tests, final focused email checks, typechecks, builds and authenticated responsive browser acceptance. [Contract](specs/2026-11-18-pay-later.md), [completed plan](plans/2026-11-18-pay-later.md), and [implementation report](../.claude/reports/2026-11-18-pay-later-report.md). Application commit and hosted release remain pending.

@@ -33,6 +33,8 @@ const AUTH_PREDICATES = [
 // breaks. Nothing else in `public` should be authenticated-executable without a deliberate edit
 // to this list.
 const AUTHENTICATED_ALLOWLIST = new Set([
+  // Event-scoped credit uses a narrower administrator boundary than editors.
+  "pay_later_can_manage", "pay_later_search_runners", "pay_later_grant", "pay_later_list_grants",
   // Pure formatter used by invoker name triggers; no table or identity access.
   "person_name_title_case",
   // Payment progress is scoped by booker/tenant; retry checks admin and audits requests.

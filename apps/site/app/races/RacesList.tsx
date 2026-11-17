@@ -1,5 +1,8 @@
 "use client";
 
+import { registrationIdentity } from "@race-pace/shared";
+import { ReservationCard } from "@/components/pay-later/ReservationCard";
+import { useDeadline } from "@/lib/use-deadline";
 import { Status } from "@race-pace/ui";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import Link from "next/link";
@@ -118,6 +121,9 @@ function Thumb({ reg, past }: { reg: RegistrationRow; past: boolean }) {
 
 export function RacesList() {
   const { data, isLoading } = useMyRegistrations();
+  const nextDue = data?.filter(row => row.status === "pending" && row.payLaterDueAt && Date.parse(row.payLaterDueAt) > Date.now())
+    .map(row => row.payLaterDueAt!).sort()[0];
+  useDeadline(nextDue);
   const returnFocus = useRef<HTMLElement | null>(null);
   const queryClient = useQueryClient();
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -229,6 +235,9 @@ export function RacesList() {
       ) : (
         <div className="mt-5 flex flex-col gap-4">
           {rows.map((r) => {
+            if (r.payLaterDueAt && ["pending", "expired"].includes(r.status)) {
+              return <ReservationCard key={r.id} registration={r} runnerName={registrationIdentity(r.identitySnapshot, null).full_name} />;
+            }
             const past = isPast(r.eventDate);
             // A pending row whose hold ran out is still literally `status:
             // 'pending'` until the 15-minute sweep flips it — the CTA area

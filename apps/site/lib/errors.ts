@@ -1,4 +1,13 @@
 const MESSAGES: Record<string, string> = {
+  pay_later_unavailable: "These payment terms are no longer available. Reload the event to review your options.",
+  pay_later_grant_invalid: "These payment terms are no longer available. Reload the event to review your options.",
+  pay_later_expired: "The payment deadline has passed. Your reservation is no longer valid.",
+  pay_later_self_only: "These payment terms apply only to your own Race Passport.",
+  prescreening_approval_required: "This category needs an approved pre-screening request before you can register.",
+  prescreening_group_payment_required: "This request uses group payment. Open your pre-screening request to continue.",
+  participant_already_reserved: "Your Passport already has a held place for this event. Open the existing request or reservation.",
+  invalid_addons: "An extra you selected is no longer available. Reload the entry form and review your selection.",
+  prescreening_group_not_payable: "Your pre-screening request is not ready for registration. Check its status.",
   assisted_registration_not_enabled: "Registration for another participant is not available yet.",
   passport_incomplete: "Complete your Race Passport before registering.",
   passport_unavailable: "We could not check your Race Passport. Please try again.",

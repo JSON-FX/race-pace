@@ -87,11 +87,11 @@ export function EventPageBody({
   // DistanceRow does — and, same as DistanceRow, that takes priority over
   // `closed`. A completed/cancelled event can still owe a runner a look at
   // the entry they already hold; "See race details" would bury it.
-  const topHref = myEntry ? (myEntry.status === "paid" ? "/races" : myEntry.bookingOrderId ? `/group/order/${myEntry.bookingOrderId}` : `/pay/${myEntry.id}`) : "#distances";
+  const topHref = myEntry ? (myEntry.status === "paid" ? "/races" : myEntry.bookingOrderId ? `/group/order/${myEntry.bookingOrderId}` : myEntry.payLaterDueAt ? `/ticket/${myEntry.id}` : `/pay/${myEntry.id}`) : "#distances";
   const topLabel = myEntry
     ? myEntry.status === "paid"
       ? "View your entry"
-      : "Finish payment"
+      : myEntry.payLaterDueAt ? "View reservation" : "Finish payment"
     : closed
       ? "See race details"
       : "Choose your distance";
@@ -417,7 +417,7 @@ function DistanceRow({
                 ) : (
                   <Clock size={11} aria-hidden="true" />
                 )}
-                {myEntry.status === "paid" ? "Your entry" : "Payment pending"}
+                {myEntry.status === "paid" ? "Your entry" : myEntry.payLaterDueAt ? "Reserved · unpaid" : "Payment pending"}
               </Status>
             ) : scarce ? (
               <Status tone="warning" className="px-2.5 py-1 uppercase">
@@ -468,11 +468,11 @@ function DistanceRow({
               // mode; StatusBadge.tsx's bg-*-tint/text-* is the established
               // pairing).
               <Button asChild variant="outline"><Link
-                href={myEntry.status === "paid" ? "/races" : myEntry.bookingOrderId ? `/group/order/${myEntry.bookingOrderId}` : `/pay/${myEntry.id}`}
+                href={myEntry.status === "paid" ? "/races" : myEntry.bookingOrderId ? `/group/order/${myEntry.bookingOrderId}` : myEntry.payLaterDueAt ? `/ticket/${myEntry.id}` : `/pay/${myEntry.id}`}
                 aria-label={
                   myEntry.status === "paid"
                     ? `You're in — view entry — ${category.label}`
-                    : `Finish payment — ${category.label}`
+                    : `${myEntry.payLaterDueAt ? "View reservation" : "Finish payment"} — ${category.label}`
                 }
                 className={`inline-flex w-full items-center justify-center gap-1.5 rounded-pill border px-6 py-3 text-[14.5px] font-semibold ${
                   myEntry.status === "paid"
@@ -485,7 +485,7 @@ function DistanceRow({
                 ) : (
                   <Clock size={16} aria-hidden="true" />
                 )}
-                {myEntry.status === "paid" ? "You're in — view entry" : "Finish payment"}
+                {myEntry.status === "paid" ? "You're in — view entry" : myEntry.payLaterDueAt ? "View reservation" : "Finish payment"}
               </Link></Button>
             ) : (
               // A different distance of the same event: informative, not a
@@ -493,16 +493,16 @@ function DistanceRow({
               // competes with the runner's actual entry above or a live
               // "Join" pill on another card.
               <Button asChild variant="outline"><Link
-                href={myEntry.status === "paid" ? "/races" : myEntry.bookingOrderId ? `/group/order/${myEntry.bookingOrderId}` : `/pay/${myEntry.id}`}
+                href={myEntry.status === "paid" ? "/races" : myEntry.bookingOrderId ? `/group/order/${myEntry.bookingOrderId}` : myEntry.payLaterDueAt ? `/ticket/${myEntry.id}` : `/pay/${myEntry.id}`}
                 aria-label={
                   myEntry.status === "paid"
                     ? `${category.label} — you're registered on another distance`
-                    : `${category.label} — payment pending on another distance`
+                    : `${category.label} — ${myEntry.payLaterDueAt ? "reserved" : "payment pending"} on another distance`
                 }
                 className="inline-flex w-full items-center justify-center gap-1.5 px-6 py-3"
               >
                 <ArrowUpRight size={15} aria-hidden="true" />
-                {myEntry.status === "paid" ? "Registered — other distance" : "Pending — other distance"}
+                {myEntry.status === "paid" ? "Registered — other distance" : myEntry.payLaterDueAt ? "Reserved — other distance" : "Pending — other distance"}
               </Link></Button>
             )
           ) : !enterable ? (

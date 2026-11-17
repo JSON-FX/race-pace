@@ -62,3 +62,7 @@
 }
 @media (max-width:390px) { .passportGrid { grid-template-columns:1fr; } }
 @media (prefers-reduced-motion:reduce) { }
+
+.paymentTerms { margin-top:24px; padding:20px; border:1px solid rgb(var(--border)); border-radius:12px; background:rgb(var(--secondary)); }
+.paymentTerms h3 { font-size:17px; font-weight:650; }
+.paymentTerms p { margin-top:12px; font-size:14px; line-height:1.6; color:rgb(var(--muted-foreground)); }
