@@ -1028,3 +1028,16 @@ follow-up changes no application/backend source. Production approval and cutover
 | Hosted release | Not requested or performed | Separate staging acceptance and production approval |
 
 [Implementation report](../../.claude/reports/2026-11-18-pay-later-report.md) records exact checks and remaining release boundaries.
+
+### Pay Later production release verified
+
+The owner approved production after all five staging emails arrived and the real PayMongo
+sandbox flow produced a paid QR ticket accepted by staff check-in. Release `44182876135`
+completed at revision `4bb527ab2f93263d04fca22f60dd5959d515c0e8`. Both public applications
+serve that exact revision against production Supabase. All 185 migrations and 33 active
+function versions/bundles passed readback; scheduled email and expiry checks passed.
+
+Authenticated production Pay Later navigation and the grant form passed read-only desktop,
+tablet and phone checks. Public runner pages loaded correctly. No production transactions
+or synthetic data were created. See [production release evidence](pay-later-production-20261118.md)
+for deployment IDs, backend versions, provider boundaries and acceptance scope.

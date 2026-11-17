@@ -56,9 +56,9 @@ support.racepace@gmail.com during this release session. Rendered-client appearan
 not separately inspected in Gmail.
 
 The event and organization are clearly prefixed `[TEST]`. The existing recipient's login
-and Passport were not changed. Hosted PayMongo capture/reconciliation still requires the
-separate staging payment acceptance before production approval; local fake-provider tests
-are not evidence of a hosted payment capture.
+and Passport were not changed. The subsequent hosted PayMongo sandbox payment acceptance
+passed; see [payment acceptance](2026-11-18-pay-later-payment-acceptance.md). That report
+records the real provider test capture, paid race pass, and accepted staff check-in.
 
 ## Final recovery verification
 
