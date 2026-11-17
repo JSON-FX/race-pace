@@ -191,3 +191,13 @@ The release workflow disables optional Supabase CLI telemetry. During the initia
 rollout, CLI 2.109.1 returned a PostHog shutdown timeout after successful function deployment.
 This setting removes that unrelated failure source; command failures and hosted readback
 checks remain mandatory. For manual release commands, use `SUPABASE_TELEMETRY_DISABLED=1`.
+
+### Deployment ledger payload size
+
+GitHub limits a deployment payload to 16,383 characters. The first Pay Later backend
+release exceeded that limit after its hosted verification had passed. The controller now
+records source/run identity, both app identities, verified migration versions and function
+inventory, plus a SHA-256 of the complete canonical JSON evidence. Duplicate source-path
+and migration audits stay in the attempt's full artifact. Completion validation still runs
+on the full evidence before projection; production rechecks still consume that full artifact.
+An explicit size guard rejects future oversized inventory before posting a partial ledger.
