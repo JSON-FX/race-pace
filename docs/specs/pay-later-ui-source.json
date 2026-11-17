@@ -1,0 +1,22 @@
+{
+  "repository": "https://github.com/JSON-FX/storybook-hub",
+  "branch": "codex/race-pace-pay-later",
+  "approvedPreviewSha256": "1ca9004337891315719d087719388aa4930b1ba9135156f5fd29886e1442c94e",
+  "sourceHashes": {
+    "projects/race-pace/src/pay-later/prototype/Admin.jsx": "b565440dc1569824d91f7379cd2499fb28b524c4ad16ef83e8beef949c982c0a",
+    "projects/race-pace/src/pay-later/prototype/admin.css": "29c760d87a895916c04d7a38f8713850ec678239115d1b275628ec2d2e85948d",
+    "projects/race-pace/src/pay-later/prototype/Runner.jsx": "f23fe5268589406adffdc80a828d3a18462e17953464fbd0ba35d0fde00d0ef0",
+    "projects/race-pace/src/pay-later/prototype/runner.css": "71108d6b1323932cb47c9adcea073b3dfab7b11b058a0105621fdf78ef0b06c3",
+    "projects/race-pace/src/pay-later/prototype/EmailTemplates.jsx": "23abb642f21b5e36a0230536e7a369ca942ca077514a6fa2f61c72981fdcf142",
+    "projects/race-pace/src/pay-later/prototype/emails.css": "2a06f34664ed7ca14d8818390cf620673c0527c27dd12ebfa78ad067d327eb37"
+  },
+  "adaptations": [
+    "Canonical Fieldnotes primitives are imported from the existing shared UI package.",
+    "Admin scope uses the application organization switcher. Server actions and paginated RPC data replace illustrative state.",
+    "Category selection remains in runner registration. Administrator forms select only runner and due date.",
+    "Admin date picker uses the canonical project DatePicker. Production expiry waits for payment reconciliation.",
+    "Approved light palette maps to existing application tokens in dark mode.",
+    "Application screening uses current event admission rules, not the catalog simulator\u2019s historical fixture timing."
+  ],
+  "commit": "88b9b0e6615dc90cca84300963d39785e685c3ca"
+}

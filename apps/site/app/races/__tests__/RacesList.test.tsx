@@ -138,6 +138,19 @@ describe("RacesList — a pending row whose hold has lapsed", () => {
     expect(screen.getByRole("link", { name: "Complete payment" })).toHaveAttribute("href", "/group/order/group-order");
     expect(screen.queryByRole("button", { name: "Discard" })).not.toBeInTheDocument();
   });
+
+  it.each(["pending", "expired"] as const)("preserves Pay Later history without discard while %s", async status => {
+    const due = "2098-12-01T16:00:00Z";
+    useMyRegistrationsMock.mockReturnValue({
+      data: [reg({ status, payLaterGrantId: "grant1", payLaterDueAt: due, expiresAt: due })],
+      isLoading: false,
+    });
+    renderList();
+    if (status === "expired") await userEvent.click(screen.getByRole("tab", { name: "Inactive · 1" }));
+    expect(screen.getByRole("link", { name: "Race details" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Discard" })).not.toBeInTheDocument();
+    expect(cancelRegistrationMock).not.toHaveBeenCalled();
+  });
 });
 
 it("keeps refunded entries out of Upcoming while preserving their history", async () => {

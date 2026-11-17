@@ -7,6 +7,7 @@ import Link from "next/link";
 import { Printer } from "lucide-react";
 import { useRegistration } from "@/lib/registration";
 import { getProfile } from "@/lib/profile";
+import { ReservationCard } from "@/components/pay-later/ReservationCard";
 import { TicketCard } from "@/components/TicketCard";
 import { RaceKitCard } from "@/components/RaceKitCard";
 import { ShirtSizeSheet } from "@/components/ShirtSizeSheet";
@@ -35,6 +36,13 @@ export function TicketPanel({ registrationId, userId }: { registrationId: string
 
   if (reg.isLoading) return <p className="py-20 text-center text-muted-foreground">Loading…</p>;
   if (!reg.data) return <p className="py-20 text-center text-muted-foreground">We couldn&apos;t find that registration.</p>;
+
+  if (reg.data.payLaterDueAt && ["pending", "expired"].includes(reg.data.status)) {
+    return <div className="mx-auto w-full max-w-5xl px-5 py-10 sm:px-6">
+      <ReservationCard registration={reg.data} runnerName={identity.full_name} />
+      <Button asChild variant="outline" className="mt-6"><Link href={historyUrl}>Back to {historyLabel}</Link></Button>
+    </div>;
+  }
 
   // Refunds retain historical tokens. Admission still requires a paid registration,
   // matching check-in's authoritative status guard.

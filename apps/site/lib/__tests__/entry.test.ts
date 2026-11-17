@@ -82,3 +82,9 @@ describe("fetchMyEntry", () => {
     });
   });
 });
+
+it("keeps the frozen Pay Later deadline on an existing event entry", async () => {
+  const due = "2099-02-21T16:00:00Z";
+  const db = fakeDb({ id: "r1", status: "pending", category_id: "c1", expires_at: due, pay_later_due_at: due });
+  expect(await fetchMyEntry(db, "e1", "u1")).toMatchObject({ id: "r1", payLaterDueAt: due });
+});

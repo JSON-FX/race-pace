@@ -8,9 +8,10 @@ const STEPS = ["Details", "Kit", "Confirm", "Pay"] as const;
 
 export function RaceBib({
   step, eventName, categoryLabel, distanceKm, dateLabel, organizer, place,
-  amount, amountLabel, note, children,
+  amount, amountLabel, note, children, deferredPayment = false,
 }: {
   step: 1 | 2 | 3 | 4;
+  deferredPayment?: boolean;
   eventName: string;
   categoryLabel: string;
   distanceKm?: number | null;
@@ -22,6 +23,7 @@ export function RaceBib({
   note: string;
   children: ReactNode;
 }) {
+  const steps = deferredPayment ? STEPS.slice(0, 3) : STEPS;
   const distance = distanceKm == null ? null : `${distanceKm.toLocaleString("en-PH", { maximumFractionDigits: 3 })} km`;
   const numericCategory = distanceKm != null && Number(categoryLabel.trim()) === distanceKm;
   const categoryDescription = numericCategory ? "Individual entry" : categoryLabel;
@@ -44,7 +46,7 @@ export function RaceBib({
 
     <div className={styles.workspace}>
       <nav className={styles.stepper} aria-label="Registration progress">
-        <ol>{STEPS.map((label, index) => {
+        <ol>{steps.map((label, index) => {
           const number = index + 1;
           const done = number < step;
           return <li key={label} className={done ? styles.done : undefined}>
@@ -59,7 +61,7 @@ export function RaceBib({
       </nav>
 
       <Card className={styles.panel}>
-        <div className={styles.panelTopline}><span>Registration / single entry</span><span>Step {String(step).padStart(2, "0")} of 04</span></div>
+        <div className={styles.panelTopline}><span>Registration / single entry</span><span>Step {String(step).padStart(2, "0")} of {String(steps.length).padStart(2, "0")}</span></div>
         {children}
       </Card>
 

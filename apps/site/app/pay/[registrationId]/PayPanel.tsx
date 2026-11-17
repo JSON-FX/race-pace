@@ -8,7 +8,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Check, Lock, ShieldCheck } from "lucide-react";
 import { formatPeso } from "@race-pace/shared";
-import { isRegistrationClosed } from "@/lib/eventStatus";
+import { paymentClosed, payLaterDeadline } from "@/lib/pay-later";
+import { useDeadline } from "@/lib/use-deadline";
 import { holdExpired } from "@/lib/holdExpiry";
 import { useRegistration, createMethodCheckout, inspectCheckoutMethods } from "@/lib/registration";
 import { checkoutErrorMessage } from "@/lib/errors";
@@ -23,6 +24,7 @@ import styles from "./PayPanel.module.css";
 
 export function PayPanel({ registrationId }: { registrationId: string }) {
   const reg = useRegistration(registrationId);
+  useDeadline(reg.data?.payLaterDueAt);
   const [method, setMethod] = useState("gcash");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -80,7 +82,7 @@ export function PayPanel({ registrationId }: { registrationId: string }) {
   // status can flip under the runner. The server page redirects on load; this
   // covers the live case. Critical because `reg.data.checkoutUrl` holds a
   // PayMongo session created while the event was open and still chargeable.
-  const eventClosed = isRegistrationClosed(reg.data.eventStatus ?? "", reg.data.eventRegistrationClosesAt);
+  const eventClosed = paymentClosed(reg.data.eventStatus ?? "", reg.data.eventRegistrationClosesAt, reg.data.payLaterDueAt);
   if (eventClosed) {
     return (
       <div className="mx-auto w-full max-w-2xl px-6 py-20 text-center">
@@ -147,9 +149,9 @@ export function PayPanel({ registrationId }: { registrationId: string }) {
   if (expiredByOrganizer) {
     return (
       <div className="mx-auto w-full max-w-2xl px-6 py-20 text-center">
-        <h1 className="text-[26px] font-semibold tracking-[-0.5px] text-foreground">This entry was closed</h1>
+        <h1 className="text-[26px] font-semibold tracking-[-0.5px] text-foreground">{reg.data.payLaterDueAt && Date.parse(reg.data.payLaterDueAt) <= Date.now() ? "Reservation expired" : "This entry was closed"}</h1>
         <p className="mt-3 text-[15px] leading-relaxed text-muted-foreground">
-          The organizer closed this registration before you paid. You have not been charged.
+          {reg.data.payLaterDueAt && Date.parse(reg.data.payLaterDueAt) <= Date.now() ? "The payment deadline passed. This reservation is no longer valid." : "The organizer closed this registration before you paid. You have not been charged."}
         </p>
         <Button asChild className="mt-8 h-auto px-8 py-4">
           <Link href={`/events/${reg.data.event_id}`}>Enter again</Link>
@@ -172,7 +174,7 @@ export function PayPanel({ registrationId }: { registrationId: string }) {
           Payment window closed
         </h1>
         <p className="mt-3 text-[15px] leading-relaxed text-muted-foreground">
-          This hold ran out and the slot is back in the pool. You&apos;ll need to enter again.
+          {reg.data.payLaterDueAt ? "The payment deadline passed. This reservation is no longer valid." : <>This hold ran out and the slot is back in the pool. You&apos;ll need to enter again.</>}
         </p>
         <Button asChild className="mt-8 h-auto px-8 py-4">
           <Link href={`/events/${reg.data.event_id}`}>Enter again</Link>
@@ -206,7 +208,7 @@ export function PayPanel({ registrationId }: { registrationId: string }) {
     // particular, not_pending must never fall back to a pre-refund session.
     const url = scoped.code ? null :
       scoped.url ??
-      (!allowStoredFallback || passOn || isRegistrationClosed(reg.data!.eventStatus ?? "", reg.data!.eventRegistrationClosesAt)
+      (!allowStoredFallback || passOn || paymentClosed(reg.data!.eventStatus ?? "", reg.data!.eventRegistrationClosesAt, reg.data!.payLaterDueAt)
         || !reg.data!.orgIsActive
         || reg.data!.status !== "pending"
         || holdExpired(reg.data!.status, reg.data!.expiresAt)
@@ -241,6 +243,7 @@ export function PayPanel({ registrationId }: { registrationId: string }) {
       amountLabel={passOn ? "Subtotal before processing" : "Total due"}
       note={total === 0 ? "No payment or processing fees." : passOn ? "Payment processing is calculated at PayMongo checkout." : "The amount shown includes all fees for this entry."}
     >
+      {reg.data.payLaterDueAt && <p className="mb-6 rounded-xl border border-border bg-secondary p-4 text-sm">Pay by {payLaterDeadline(reg.data.payLaterDueAt)} to keep your reserved slot.</p>}
       <RaceBibHeading step={4} icon={<Lock />} title="Finish your entry" description="Your slot is held while you complete the secure checkout." />
       {total > 0 && <div className={styles.holdBanner}><ShieldCheck size={18} aria-hidden="true" /><span><strong>Secure payment with PayMongo</strong><small>{passOn ? "You will see the exact processing fee before confirming payment." : "You will review the final amount before confirming payment."}</small></span></div>}
       <div className={styles.payGrid}>

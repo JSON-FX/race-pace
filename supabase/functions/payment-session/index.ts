@@ -51,11 +51,18 @@ Deno.serve(async (req) => {
       // One string literal, not a concatenation: supabase-js parses the select
       // at the type level, and `a + b` is `string` to TypeScript — which erases
       // every column type on `reg`.
-      .select("id,user_id,booked_by_user_id,booking_order_id,event_reservation_id,status,total_amount,category_id,event_id,expires_at,organizations(is_active,fee_mode,commission_type,commission_rate,commission_flat_cents)")
+      .select("id,user_id,booked_by_user_id,booking_order_id,event_reservation_id,status,total_amount,category_id,event_id,expires_at,pay_later_grant_id,pay_later_due_at,organizations(is_active,fee_mode,commission_type,commission_rate,commission_flat_cents)")
       .eq("id", registrationId).single();
     if (!reg || !canAccessBooking(userId, reg)) return json({ error: "registration_not_found" }, 404);
     if (reg.booking_order_id) return json({ error: "group_checkout_not_available" }, 409);
     if (reg.status !== "pending") return json({ error: "not_pending" }, 409);
+    if (reg.pay_later_grant_id && reg.pay_later_due_at && Date.parse(reg.pay_later_due_at) <= Date.now()) {
+      // Dispatch and prepared expiry serialize on the parent event. If a
+      // provider session is already chargeable, its worker retains the hold.
+      const expired = await db.rpc("discount_expire_prepared", { p_registration: reg.id });
+      if (expired.error) return json({ error: "checkout_reconciliation_required" }, 503);
+      return json({ error: "pay_later_expired" }, 409);
+    }
     if (reg.event_reservation_id) {
       const { data: held } = await db.from("event_reservations")
         .select("status,registration_deadline_at").eq("id", reg.event_reservation_id).maybeSingle();

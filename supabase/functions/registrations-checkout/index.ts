@@ -74,7 +74,7 @@ Deno.serve(async (req) => {
     const org = event.organizations as unknown as (FeeTerms & { is_active: boolean; fee_mode: "absorb" | "pass_on" }) | null;
     if (!org?.is_active) return json({ error: "org_suspended" }, 409);
 
-    if (category.slots_taken >= category.slots_total) return json({ error: "sold_out" }, 409);
+    if (!input.pay_later_grant_id && category.slots_taken >= category.slots_total) return json({ error: "sold_out" }, 409);
 
     // Read the authenticated runner's saved identity. Client custom_data cannot
     // make an incomplete Passport complete or substitute another participant.
@@ -84,6 +84,9 @@ Deno.serve(async (req) => {
     if (passportError) return json({ error: "passport_unavailable" }, 503);
     if (!passport) return json({ error: "participant_not_accessible" }, 403);
     const assisted = passport.claimed_user_id !== userId;
+    if (input.pay_later_grant_id && (assisted || input.event_reservation_id)) {
+      return json({ error: "pay_later_self_only" }, 403);
+    }
     if (assisted) {
       const { data: manager } = await db.from("passport_managers").select("passport_id").eq("passport_id", passport.id).eq("user_id", userId).maybeSingle();
       if (passport.claimed_user_id || !manager) return json({ error: "participant_not_accessible" }, 403);
@@ -120,7 +123,7 @@ Deno.serve(async (req) => {
     const liveEntryQuery = () =>
       db
         .from("registrations")
-        .select("id,user_id,booked_by_user_id,status,expires_at,payments(provider,checkout_url)")
+        .select("id,user_id,booked_by_user_id,status,expires_at,pay_later_grant_id,pay_later_due_at,payments(provider,checkout_url)")
         .eq("event_id", input.event_id)
         .eq("participant_passport_id", passport.id)
         .in("status", ["pending", "paid"])
@@ -146,7 +149,7 @@ Deno.serve(async (req) => {
     const expireLapsedRow = (id: string) =>
       db.from("registrations").update({ status: "expired", expires_at: null }).eq("id", id);
 
-    const alreadyRegisteredResponse = (row: { id: string; user_id: string | null; booked_by_user_id: string | null; status: string; expires_at: string | null; payments: unknown }) => {
+    const alreadyRegisteredResponse = (row: { id: string; user_id: string | null; booked_by_user_id: string | null; status: string; expires_at: string | null; pay_later_grant_id?: string | null; pay_later_due_at?: string | null; payments: unknown }) => {
       if (row.user_id !== userId && row.booked_by_user_id !== userId) return json({ error: "participant_already_registered" }, 409);
       const pay = Array.isArray(row.payments) ? row.payments[0] : row.payments;
       if (row.status === "pending" && row.expires_at && Date.parse(row.expires_at) <= Date.now() &&
@@ -158,6 +161,7 @@ Deno.serve(async (req) => {
           error: "already_registered",
           registration_id: row.id,
           status: row.status,
+          ...(row.pay_later_grant_id ? { payment_plan: "pay_later", pay_later_due_at: row.pay_later_due_at } : {}),
           checkout_url: (pay as { checkout_url: string | null } | null)?.checkout_url ?? null,
         },
         409,
@@ -224,6 +228,30 @@ Deno.serve(async (req) => {
     const addonTotal = (addons ?? []).reduce((s, a) => s + a.price, 0);
     const total = category.base_price + addonTotal;
 
+    if (input.pay_later_grant_id) {
+      // A single database transaction owns the grant, screening hold, amount,
+      // add-ons, prepared payment and durable emails. No provider call occurs.
+      registrationReturnUrl.searchParams.set("rid", "__PAY_LATER_REGISTRATION_ID__");
+      const result = await db.rpc("pay_later_reserve", {
+        p_actor: userId,
+        p_request: input,
+        p_provider: getPaymentProvider().name,
+        p_return_url: registrationReturnUrl.toString(),
+      });
+      if (result.error) {
+        const code = result.error.message;
+        if (code.includes("capacity_exhausted")) return json({ error: "sold_out" }, 409);
+        const expected = ["pay_later_unavailable", "pay_later_self_only", "prescreening_approval_required",
+          "prescreening_group_not_payable", "prescreening_group_payment_required", "registration_closed",
+          "org_suspended", "waiver_version_changed", "category_not_found", "passport_incomplete",
+          "invalid_addons", "already_registered", "booking_email_unverified", "participant_already_reserved"];
+        if (expected.includes(code)) return json({ error: code }, result.error.code === "42501" ? 403 : 409);
+        console.error("[pay-later] reservation failed", { code: result.error.code, message: code });
+        return json({ error: "registration_failed" }, 500);
+      }
+      return json(result.data);
+    }
+
     const insertRegistration = () =>
       db.from("registrations").insert({
         org_id: category.org_id, event_id: input.event_id, category_id: input.category_id,
@@ -237,7 +265,7 @@ Deno.serve(async (req) => {
 
     const idempotentEntryQuery = () =>
       db.from("registrations")
-        .select("id,user_id,booked_by_user_id,status,expires_at,payments(provider,checkout_url)")
+        .select("id,user_id,booked_by_user_id,status,expires_at,pay_later_grant_id,pay_later_due_at,payments(provider,checkout_url)")
         .eq("booked_by_user_id", userId)
         .eq("participant_passport_id", passport.id)
         .eq("idempotency_key", input.idempotency_key)

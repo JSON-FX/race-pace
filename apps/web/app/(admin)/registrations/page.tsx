@@ -105,7 +105,7 @@ export default async function RegistrationsPage({
 
   return (
     <div className="fieldnotes-admin-workspace" data-fieldnotes-section="Race control / Participants">
-      <div className="mb-5 flex items-start justify-between gap-4">
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-[21px] font-bold tracking-[-0.02em]">Registrations</h1>
           <p className="mt-0.5 text-[13px] text-muted-foreground">
@@ -114,7 +114,8 @@ export default async function RegistrationsPage({
             <span className="tabular">{orgPending.toLocaleString()}</span> pending payment
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {roles?.isOrgAdmin && <Button variant="outline" asChild><Link href={`/registrations/pay-later?event=${eventId}`}>Pay Later</Link></Button>}
           <Button variant="outline" asChild>
             <Link href={exportHref}>
               <Download />

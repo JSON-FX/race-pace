@@ -1,0 +1,117 @@
+.pay-later-workspace, .pay-later-dialog {
+  --pl-ink: #1d3829; --pl-muted: #506755; --pl-border: #c4d0c1;
+  --pl-surface: #f9faf5; --pl-soft: #f3f6ef; --pl-hover: #e5eddc;
+  --pl-card: white; --pl-accent: #176341; --pl-error: #993d3e;
+}
+.dark .pay-later-workspace, .dark .pay-later-dialog {
+  --pl-ink: rgb(var(--foreground)); --pl-muted: rgb(var(--muted-foreground));
+  --pl-border: rgb(var(--border)); --pl-surface: rgb(var(--card));
+  --pl-card: rgb(var(--card)); --pl-soft: rgb(var(--muted));
+  --pl-hover: rgb(var(--accent)); --pl-accent: rgb(var(--primary));
+  --pl-error: rgb(var(--destructive));
+}
+.pay-later-workspace { width: min(100% - 64px, 1160px); margin: 0 auto; }
+.pay-later-workspace { padding: 37px 0 60px; }
+.pay-later-heading { margin-bottom: 25px; }
+.pay-later-heading h1 { margin: 0; color: var(--pl-ink); font: 680 clamp(32px, 3.6vw, 42px)/1.12 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; letter-spacing: -.036em; }
+.pay-later-heading p { margin: 7px 0 0; color: var(--pl-muted); line-height: 1.5; font-size: 15px; }
+.pay-later-filters { display: flex; flex-wrap: wrap; align-items: end; column-gap: 22px; row-gap: 15px; padding: 20px 23px; border: 1px solid var(--pl-border); border-radius: 12px; background: var(--pl-surface); }
+.pay-later-filters .pay-later-field { min-width: min(230px, 100%); flex: 1 1 220px; max-width: 330px; }
+.pay-later-filters .pay-later-field label, .pay-later-dates dt { font-size: 13px; color: var(--pl-muted); font-weight: 650; }
+.pay-later-filters .pay-later-field [data-slot="select-trigger"] { min-height: 42px; font-size: 15px; }
+.pay-later-dates { display: flex; flex-wrap: wrap; gap: 14px 28px; margin: 0; padding: 0 0 6px 19px; border-left: 1px solid var(--pl-border); }
+.pay-later-dates dd { margin: 7px 0 0; font-size: 15px; font-weight: 600; }
+.pay-later-ledger { margin-top: 18px; border: 1px solid var(--pl-border); border-radius: 12px; overflow: hidden; background: var(--pl-card); }
+.pay-later-ledger-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 22px; border-bottom: 1px solid var(--pl-border); }
+.pay-later-ledger-heading h2 { margin: 0; display: flex; align-items: baseline; gap: 8px; color: var(--pl-ink); font: 650 20px/1.25 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; letter-spacing: -.025em; }
+.pay-later-ledger-heading h2 span { font-size: 13px; color: var(--pl-muted); letter-spacing: 0; }
+.pay-later-grant-action { text-align: right; max-width: 31ch; }
+.pay-later-grant-action p { margin: 5px 0 0; color: var(--pl-muted); font-size: 12px; line-height: 1.4; }
+.pay-later-empty { margin: 0; padding: 28px 23px; color: var(--pl-muted); font-size: 14px; }
+.pay-later-rows { width: 100%; border-collapse: collapse; text-align: left; }
+.pay-later-rows th, .pay-later-rows td { padding: 13px 12px; font-size: 14px; font-weight: 450; }
+.pay-later-rows thead th { background: var(--pl-soft); color: var(--pl-muted); font-size: 12px; font-weight: 650; }
+.pay-later-rows tr > :first-child { padding-left: 22px; }
+.pay-later-rows tr > :last-child { padding-right: 22px; }
+.pay-later-rows tbody tr + tr { border-top: 1px solid var(--pl-border); }
+.pay-later-person { display: grid; gap: 2px; min-width: 0; }
+.pay-later-person strong { color: var(--pl-ink); font-size: 15px; }
+.pay-later-person span { display: block; color: var(--pl-muted); font-size: 13px; font-weight: 450; overflow-wrap: anywhere; }
+.pay-later-rows .pay-later-record-action { text-align: right; }
+.pay-later-rows .pay-later-record-action button { font-size: 13px; white-space: nowrap; }
+.pay-later-dialog[data-slot="dialog-content"] { display: grid; gap: 15px; }
+.pay-later-dialog [data-slot="dialog-title"] { margin-bottom: -8px; }
+.pay-later-dialog label, .pay-later-dialog .pay-later-field-label { color: var(--pl-ink); font-size: 14px; font-weight: 650; }
+.pay-later-dialog .pay-later-selection, .pay-later-dialog .pay-later-matches { background: var(--pl-soft); border: 1px solid var(--pl-border); border-radius: 10px; }
+.pay-later-dialog .pay-later-selection { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; padding: 12px 14px; }
+.pay-later-dialog .pay-later-matches { overflow: hidden; }
+.pay-later-dialog .pay-later-matches p { padding: 12px; margin: 0; color: var(--pl-muted); font-size: 14px; }
+.pay-later-dialog .pay-later-search-result { display: flex; justify-content: space-between; align-items: center; text-align: left; width: 100%; height: auto; padding: 10px 13px; background: transparent; color: var(--pl-ink); border: 0; border-radius: 0; white-space: normal; box-shadow: none; }
+.pay-later-dialog .pay-later-search-result:hover, .pay-later-dialog .pay-later-search-result:focus-visible { background: var(--pl-hover); }
+.pay-later-dialog .pay-later-search-result + .pay-later-search-result { border-top: 1px solid var(--pl-border); }
+.pay-later-dialog .pay-later-search-result > span:first-child { display: grid; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
+.pay-later-dialog .pay-later-search-result small { color: var(--pl-muted); font-size: 12px; }
+.pay-later-dialog .pay-later-search-result > span:last-child { font-weight: 650; color: var(--pl-accent); }
+.pay-later-facts { margin: 0; border-top: 1px solid var(--pl-border); }
+.pay-later-facts > div { display: grid; grid-template-columns: minmax(100px, .75fr) minmax(120px, 1.1fr); gap: 15px; padding: 10px 0; border-bottom: 1px solid var(--pl-border); font-size: 14px; line-height: 1.4; }
+.pay-later-facts dt { color: var(--pl-muted); }
+.pay-later-facts dd { margin: 0; color: var(--pl-ink); font-weight: 600; overflow-wrap: anywhere; }
+.pay-later-dialog p.pay-later-note { margin: 0; padding: 13px 15px; border-radius: 8px; background: var(--pl-soft); color: var(--pl-ink); font-size: 14px; line-height: 1.45; }
+.pay-later-dialog .pay-later-error { margin: 0; color: var(--pl-error); font-size: 14px; font-weight: 600; }
+.pay-later-dialog-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 9px; }
+@media (max-width: 800px) {
+  .pay-later-workspace { width: calc(100% - 36px); }
+  .pay-later-workspace { padding-top: 25px; }
+  .pay-later-filters .pay-later-field { max-width: none; }
+  .pay-later-dates { border: 0; padding: 0; }
+  .pay-later-rows, .pay-later-rows tbody { display: block; }
+  .pay-later-rows thead { position: absolute; width: 1px; height: 1px; clip-path: inset(50%); overflow: hidden; }
+  .pay-later-rows tbody tr { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 9px 12px; align-items: start; padding: 16px 20px; }
+  .pay-later-rows tbody tr > [data-slot] { display: block; height: auto; min-width: 0; padding: 0; }
+  .pay-later-rows tbody th { grid-column: 1; }
+  .pay-later-rows td[data-label]::before { content: attr(data-label); display: block; color: var(--pl-muted); font-size: 12px; line-height: 1.4; }
+  .pay-later-rows td.pay-later-record-action { grid-column: 2; grid-row: 1; padding: 0; }
+}
+@media (max-width: 520px) {
+  .pay-later-workspace { padding-top: 21px; }
+  .pay-later-heading { margin-bottom: 16px; }
+  .pay-later-heading h1 { font-size: 32px; }
+  .pay-later-filters, .pay-later-ledger-heading { padding: 13px 15px; }
+  .pay-later-filters .pay-later-field { flex: 1 1 100%; }
+  .pay-later-dates { gap: 9px 19px; }
+  .pay-later-dates dd { font-size: 13px; margin-top: 3px; }
+  .pay-later-ledger-heading { flex-wrap: wrap; }
+  .pay-later-ledger-heading h2 { font-size: 18px; }
+  .pay-later-grant-action { text-align: left; }
+  .pay-later-empty { padding: 20px 15px; }
+  .pay-later-dialog-actions { justify-content: stretch; }
+  .pay-later-dialog-actions > button { flex: 1; }
+}
+
+
+.pay-later-workspace::before { display: none; }
+.pay-later-workspace .pay-later-heading h1 { font-size: 36px; margin: 0; }
+.pay-later-back { display: inline-block; margin-bottom: 14px; font-size: 13px; text-decoration: underline; text-underline-offset: 3px; }
+.pay-later-filters .pay-later-field { min-width: min(230px,100%); flex: 1 1 220px; max-width: 330px; }
+.pay-later-field { display: grid; gap: 7px; min-width: 0; }
+.pay-later-dates { margin: 0; }
+.pay-later-form { display: grid; gap: 20px; }
+.pay-later-help { font-size: 13px; line-height: 1.5; color: var(--pl-muted); margin: 0; }
+.pay-later-error, .pay-later-read-error { color: var(--pl-error); font-size: 14px; }
+.pay-later-read-error { padding: 16px 22px; display:flex; gap:16px; align-items:center; }
+.pay-later-pagination { border-top: 1px solid var(--pl-border); padding: 12px 18px; display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items:center; }
+.pay-later-pagination > div { display: flex; gap: 8px; align-items: center; }
+.pay-later-pagination span { font-size: 13px; color: var(--pl-muted); }
+.pay-later-label { font-size: 14px; font-weight: 650; }
+.pay-later-save-note { color: var(--pl-accent); font-size: 14px; font-weight: 650; }
+.pay-later-dialog[data-slot="dialog-content"][role="dialog"]:not([data-fullscreen="true"]) {
+  max-width: min(520px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+}
+@media(max-width:520px) { .pay-later-filters .pay-later-field { flex-basis:100%;max-width:none; }.pay-later-pagination { padding-inline:12px; } }
+
+.pay-later-error[data-slot="alert"] { padding: 0; border: 0; border-radius: 0; background: transparent; }
+.pay-later-error [data-slot="alert-description"] { color: var(--pl-error); }
+.pay-later-rows [data-slot="table-head"], .pay-later-rows [data-slot="table-cell"] { white-space: normal; }
+.pay-later-rows [data-slot="table-row"] { border-bottom: 0; }

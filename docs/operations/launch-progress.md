@@ -1013,3 +1013,18 @@ organization creation/invitation, draft event creation and hosted tenant-isolati
 The owner confirmed receipt of all three authorized staging messages. See the completed
 acceptance section in [staging evidence](option-b-staging-baseline-20261007.md). This documentation
 follow-up changes no application/backend source. Production approval and cutover remain pending.
+
+## Pay Later implementation — 2026-11-18
+
+| Work | Verified status | Next task |
+| --- | --- | --- |
+| Approved contract/catalog | Prototype and five emails implemented; catalog published at `88b9b0e` | Review application diff |
+| Source isolation | `codex/pay-later` from main `f537e30`; unrelated checkout preserved | Commit when requested |
+| Backend | 185 migrations replayed locally; 1,097 full-suite tests passed | Hosted staging acceptance |
+| Emails | 35 final focused tests; all five types delivered through local outbox/Mailpit | Hosted scheduler and delivery checks |
+| Admin/runner | 1,134 admin and 604 runner tests; typechecks/builds/audit passed | Hosted regression checks |
+| Browser acceptance | Authenticated grant, reserve, screening, sandbox payment, expiry, editor denial and responsive checks passed | Owner application review |
+| Review | Concrete findings fixed; no unresolved local findings | Release review |
+| Hosted release | Not requested or performed | Separate staging acceptance and production approval |
+
+[Implementation report](../../.claude/reports/2026-11-18-pay-later-report.md) records exact checks and remaining release boundaries.

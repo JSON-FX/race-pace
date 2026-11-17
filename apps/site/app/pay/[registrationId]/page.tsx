@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { isRegistrationClosed } from "@/lib/eventStatus";
+import { paymentClosed } from "@/lib/pay-later";
 import { SiteHeader } from "@/components/SiteHeader";
 import { PayPanel } from "./PayPanel";
 
@@ -17,7 +17,7 @@ export default async function PayPage({ params }: { params: Promise<{ registrati
   // An already-paid registration has nothing to pay — send them to the ticket.
   const { data: reg } = await db
     .from("registrations")
-    .select("status,event_id,booking_order_id,events(status,registration_closes_at)")
+    .select("status,event_id,booking_order_id,pay_later_due_at,events(status,registration_closes_at)")
     .eq("id", registrationId)
     .maybeSingle();
   if (reg?.status === "paid") redirect(`/ticket/${registrationId}`);
@@ -37,7 +37,7 @@ export default async function PayPage({ params }: { params: Promise<{ registrati
     | undefined;
   const embeddedEvent = Array.isArray(embedded) ? embedded[0] : embedded;
   const eventStatus = embeddedEvent?.status;
-  if (eventStatus && isRegistrationClosed(eventStatus, embeddedEvent?.registration_closes_at ?? null)) {
+  if (eventStatus && paymentClosed(eventStatus, embeddedEvent?.registration_closes_at ?? null, reg?.pay_later_due_at)) {
     redirect(`/events/${reg!.event_id}?closed=1`);
   }
 

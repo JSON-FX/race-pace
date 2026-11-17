@@ -17,6 +17,8 @@ import { loadDraft, newDraft, saveDraft, clearDraft, type RegistrationDraft } fr
 import { totalAmount, stepOneErrors, showSaveBack, WAIVER_TEXT } from "@/lib/wizard";
 import { getProfile, upsertProfile, type Profile } from "@/lib/profile";
 import { startCheckout, CheckoutError } from "@/lib/registration";
+import { payLaterDeadline, type PayLaterTerms } from "@/lib/pay-later";
+import { useDeadline } from "@/lib/use-deadline";
 import { longDate } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,7 +33,10 @@ import { RaceBib, RaceBibHeading } from "@/components/registration/RaceBib";
 import { cn } from "@/lib/utils";
 import styles from "./RegisterWizard.module.css";
 
-export function RegisterWizard({ userId, category, event, addons, formFields, passport, email, waiver, participantId, assisted = false, reservationId }: {
+export function RegisterWizard({ userId, category, event, addons, formFields, passport, email, waiver, participantId, assisted = false, reservationId, payLater: grantedTerms, prescreeningBatchId, prescreeningDeadlineAt }: {
+  payLater?: PayLaterTerms | null;
+  prescreeningBatchId?: string;
+  prescreeningDeadlineAt?: string;
   participantId?: string;
   assisted?: boolean;
   reservationId?: string;
@@ -45,6 +50,9 @@ export function RegisterWizard({ userId, category, event, addons, formFields, pa
   formFields: FormFieldRow[];
 }) {
   const router = useRouter();
+  useDeadline(grantedTerms?.dueAt);
+  useDeadline(prescreeningDeadlineAt);
+  const payLater = !assisted && grantedTerms && Date.parse(grantedTerms.dueAt) > Date.now() ? grantedTerms : null;
   const draftKey = `${userId}:${category.id}${participantId ? `:${participantId}` : ""}`;
   const [draft, setDraft] = useState<RegistrationDraft>(() => {
     const saved = loadDraft(draftKey) ?? newDraft(category.id);
@@ -197,10 +205,12 @@ export function RegisterWizard({ userId, category, event, addons, formFields, pa
         waiver_version_id: waiver?.id,
         idempotency_key: draft.idempotencyKey,
         ...(reservationId ? { event_reservation_id: reservationId } : {}),
+        ...(payLater ? { pay_later_grant_id: payLater.id } : {}),
+        ...(prescreeningBatchId ? { prescreening_batch_id: prescreeningBatchId } : {}),
       });
 
       clearDraft(draftKey);
-      router.replace(`/pay/${res.registration_id}`);
+      router.replace(`/${res.payment_plan === "pay_later" ? "ticket" : "pay"}/${res.registration_id}`);
     } catch (e) {
       // Lost a race with another device/tab, or the event page's own gate was
       // stale — either way the server is the source of truth. Route straight
@@ -209,7 +219,7 @@ export function RegisterWizard({ userId, category, event, addons, formFields, pa
       // apps/mobile/app/register/[categoryId].tsx's handling of the same 409.
       if (e instanceof CheckoutError && e.code === "already_registered" && e.registrationId) {
         clearDraft(draftKey);
-        router.replace(`/pay/${e.registrationId}`);
+        router.replace(`/${e.paymentPlan === "pay_later" ? "ticket" : "pay"}/${e.registrationId}`);
         return;
       }
       if (e instanceof CheckoutError && e.code === "passport_incomplete") {
@@ -221,9 +231,19 @@ export function RegisterWizard({ userId, category, event, addons, formFields, pa
     }
   }
 
+  if (prescreeningBatchId && (!payLater ||
+      prescreeningDeadlineAt !== "infinity" && (!prescreeningDeadlineAt || Date.parse(prescreeningDeadlineAt) <= Date.now()))) {
+    return <section className="mx-auto max-w-xl px-6 py-16">
+      <h1 className="text-2xl font-semibold">Check your pre-screening request</h1>
+      <p className="mt-3">Your approval or payment terms have changed. Review your request before completing registration.</p>
+      <Button asChild className="mt-6"><Link href={`/prescreening/${prescreeningBatchId}`}>View request</Link></Button>
+    </section>;
+  }
+
   return (
     <RaceBib
       step={draft.step as 1 | 2 | 3}
+      deferredPayment={!!payLater}
       eventName={event.name}
       categoryLabel={category.label}
       distanceKm={category.distance_km}
@@ -232,7 +252,7 @@ export function RegisterWizard({ userId, category, event, addons, formFields, pa
       place={place}
       amount={total + (passOn ? platformFee : 0)}
       amountLabel={passOn ? "Subtotal before processing" : draft.addonIds.length ? "Entry + extras" : "Entry fee"}
-      note={passOn ? "Payment processing is calculated at PayMongo checkout." : "The amount shown includes all fees for this entry."}
+      note={payLater ? `Nothing is due today. Pay by ${payLaterDeadline(payLater.dueAt)}. Your check-in code unlocks after payment.` : passOn ? "Payment processing is calculated at PayMongo checkout." : "The amount shown includes all fees for this entry."}
     >
       {draft.step === 1 && passport ? <>
         <RaceBibHeading step={1} icon={<UserRound />} title={assisted ? "Check the participant’s Race Passport" : "Check your Race Passport"} description="Your ticket and emergency details will use this information." />
@@ -306,6 +326,10 @@ export function RegisterWizard({ userId, category, event, addons, formFields, pa
             <Row label={passOn ? "Subtotal before payment processing" : "Total to pay"} value={formatPeso(total + (passOn ? platformFee : 0))} strong />
           </dl><p className={styles.finePrint}>{passOn ? "PayMongo calculates the processing fee and final total when you choose a payment method on its checkout page." : `This price includes ${formatPeso(platformFee)} in Taxes and fees. PayMongo’s actual processing fee is also deducted from this payment after capture. Neither fee is added to your total.`}</p></section>
         </div>
+        {payLater && <section className={styles.paymentTerms} aria-label="Payment terms">
+          <h3>Payment terms</h3><dl><Row label="Due today" value={formatPeso(0)} /><Row label="Pay by" value={payLaterDeadline(payLater.dueAt)} /></dl>
+          <p>Confirm to hold your slot. Pay the full entry amount by the deadline to unlock your check-in code. Unpaid reservations expire.</p>
+        </section>}
         <RefundNotice policy={event.refundPolicy} retention={event.refundFeeCents} />
         {assisted ? <p className="mt-6 rounded-lg bg-muted p-4 text-sm">Pass this device to {runnerName}. The participant must read and accept the waiver personally. You remain the booking contact.</p> : null}
         <div className={styles.waiverChoice}><Checkbox id="waiver" checked={draft.waiver} onCheckedChange={(c) => patch({ waiver: c === true })} /><div><Label htmlFor="waiver">{assisted ? `I, ${runnerName}, personally accept the event waiver and confirm I’m medically fit to take part.` : "I accept the event waiver and confirm I’m medically fit to take part."}</Label><Button variant="ghost" className={styles.waiverLink} type="button" onClick={() => setWaiverOpen(true)}>Read event waiver</Button></div></div>
@@ -314,7 +338,7 @@ export function RegisterWizard({ userId, category, event, addons, formFields, pa
       {formError ? <Alert variant="destructive" role="alert" className={styles.formError}><AlertDescription>{formError}</AlertDescription></Alert> : null}
       <div className={styles.actions}>
         {draft.step > 1 ? <Button type="button" variant="outline" onClick={() => patch({ step: draft.step - 1 })}><ArrowLeft size={16} aria-hidden="true" /> Back</Button> : null}
-        {draft.step < 3 ? <Button type="button" onClick={next}>Continue <ArrowRight size={16} aria-hidden="true" /></Button> : <Button type="button" disabled={busy} onClick={submit}>{busy ? "Submitting…" : "Continue to payment"} <ArrowRight size={16} aria-hidden="true" /></Button>}
+        {draft.step < 3 ? <Button type="button" onClick={next}>Continue <ArrowRight size={16} aria-hidden="true" /></Button> : <Button type="button" disabled={busy} onClick={submit}>{busy ? "Submitting…" : payLater ? "Confirm registration" : "Continue to payment"} <ArrowRight size={16} aria-hidden="true" /></Button>}
       </div>
 
       <Dialog open={waiverOpen} onOpenChange={setWaiverOpen}>
