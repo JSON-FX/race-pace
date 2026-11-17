@@ -1,12 +1,65 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 // Release tooling uses Node ESM without adding a second test runner.
-import { assertApprovalEnvironment, assertCompletedEvidence, assertManifest, assertTrustedRun, classifyRelease, classifyReconciledRelease, selectReconciliationRefs, requireSha } from '../../../scripts/release/control.mjs';
+import { assertApprovalEnvironment, assertCompletedEvidence, assertManifest, assertTrustedRun, classifyRelease, classifyReconciledRelease, selectReconciliationRefs, requireSha, recordDeployment } from '../../../scripts/release/control.mjs';
 
 const sha = 'a'.repeat(40);
+describe('deployment ledger payload', () => {
+  afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
+  const record = () => ({
+    schema: 1, repository: 'JSON-FX/race-pace', sha, tree: sha, base: sha,
+    runId: '123', attempt: '2', ciRunId: '122', apps: ['site', 'web'], backend: true,
+    paths: Array.from({ length: 1000 }, (_, i) => `supabase/migrations/${i}_long_source_audit.sql`),
+    previous: { oversizedHistory: 'x'.repeat(50000) },
+    backendEvidence: {
+      state: 'complete', environment: 'staging', projectRef: 'pepbmqomiailnnvvwupz', head: sha, base: sha,
+      migrations: Array.from({ length: 185 }, (_, i) => ({ version: String(i), path: 'x'.repeat(120), sha256: 'a'.repeat(64) })),
+      migrationVersions: Array.from({ length: 185 }, (_, i) => String(20260000000000 + i)),
+      functionInventory: [{ slug: 'send-lifecycle-email', version: 17, verify_jwt: false, sha256: 'b'.repeat(64) }],
+      inventoryVerifiedAt: 'now', completedAt: 'now',
+    },
+    deployments: {
+      site: { id: 'dpl_site', projectId: 'prj_Si8MyVid5X7zxDGQyjrqc2YOlMtJ', environment: 'staging', aliasVerifiedAt: 'now', verifiedAt: 'now', sha },
+      web: { id: 'dpl_web', projectId: 'prj_ADA1ewsz8MXpJptnOnKLxfAWkOTa', environment: 'staging', aliasVerifiedAt: 'now', verifiedAt: 'now', sha },
+    },
+  });
+  function transport() {
+    vi.stubEnv('GH_TOKEN', 'test-token');
+    const fetch = vi.fn(async (_url: string, _init: RequestInit) => Response.json({ id: 42 }));
+    vi.stubGlobal('fetch', fetch);
+    return fetch;
+  }
+  it.each(['started', 'complete', 'failed'])('bounds a large %s record without losing baseline identity or verified inventory', async phase => {
+    const source = record(), original = JSON.stringify(source), fetch = transport();
+    expect(original.length).toBeGreaterThan(65536);
+    expect(await recordDeployment('staging', source, phase)).toBe(42);
+    const { payload } = JSON.parse(fetch.mock.calls[0]![1].body as string);
+    expect(JSON.stringify(payload).length).toBeLessThanOrEqual(16383);
+    expect(payload.record).toMatchObject({ repository: source.repository, sha, base: sha, runId: '123', attempt: '2', ciRunId: '122', deployments: source.deployments });
+    expect(payload.record.backendEvidence.migrationVersions).toEqual(source.backendEvidence.migrationVersions);
+    expect(payload.record.backendEvidence.functionInventory).toEqual(source.backendEvidence.functionInventory);
+    expect(payload.record.evidence).toEqual({ sha256: createHash('sha256').update(original).digest('hex'), artifact: phase === 'started' ? 'release-plan-2' : 'staging-evidence-2' });
+    expect(JSON.stringify(source)).toBe(original);
+    if (phase === 'complete') expect(() => assertCompletedEvidence('staging', payload.record)).not.toThrow();
+    expect(selectReconciliationRefs([{ payload, successful: phase === 'complete' }]).refs).toEqual([sha]);
+  });
+  it('validates full completion evidence before serialization or posting', async () => {
+    const source = record(), fetch = transport();
+    source.backendEvidence.state = 'failed';
+    await expect(recordDeployment('staging', source, 'complete')).rejects.toThrow('Backend completion evidence');
+    expect(fetch).not.toHaveBeenCalled();
+  });
+  it('fails clearly before posting if required inventory still exceeds the provider limit', async () => {
+    const source = record(), fetch = transport();
+    source.backendEvidence.functionInventory[0]!.slug = 'x'.repeat(16384);
+    await expect(recordDeployment('staging', source, 'complete')).rejects.toThrow('16383 characters');
+    expect(fetch).not.toHaveBeenCalled();
+  });
+});
 describe('release scope', () => {
   it('deploys only admin for admin UI edits', () => expect(classifyRelease(['apps/web/components/Sidebar.tsx']).apps).toEqual(['web']));
   it('selects both apps for shared and unknown inputs', () => {

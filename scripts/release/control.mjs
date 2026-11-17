@@ -249,12 +249,29 @@ export async function recordDeployment(environment, record, phase) {
   requireValue(['staging', 'production'].includes(environment), 'Unknown release environment.');
   requireValue(['started', 'complete', 'failed'].includes(phase), 'Unknown release phase.');
   if (phase === 'complete') assertCompletedEvidence(environment, record);
-  // Summarize the previous baseline rather than nesting every historical record in the payload.
-  const compact = { ...record, previous: { sha: record.previous?.sha, deployments: record.previous?.deployments } };
+  // GitHub rejected the first large backend release: deployment payloads are
+  // limited to 16,383 characters. Full audits remain in the attempt's artifact;
+  // the ledger retains baseline identity and the verified hosted inventory.
+  const compact = Object.fromEntries([
+    'schema', 'repository', 'sha', 'tree', 'base', 'runId', 'attempt', 'ciRunId',
+    'lockfileSha256', 'controllerSha', 'apps', 'backend', 'deploy', 'createdAt', 'deployments',
+  ].filter(key => record[key] !== undefined).map(key => [key, record[key]]));
+  if (record.backendEvidence) {
+    compact.backendEvidence = Object.fromEntries([
+      'environment', 'projectRef', 'base', 'head', 'skipped', 'state', 'migrationVersions',
+      'functionInventory', 'inventoryVerifiedAt', 'migrationsVerifiedAt', 'completedAt',
+    ].filter(key => record.backendEvidence[key] !== undefined).map(key => [key, record.backendEvidence[key]]));
+  }
+  compact.evidence = {
+    sha256: digest(JSON.stringify(record)),
+    artifact: phase === 'started' ? `release-plan-${record.attempt}` : `${environment}-evidence-${record.attempt}`,
+  };
+  const payload = { schema: 1, phase, record: compact };
+  requireValue(JSON.stringify(payload).length <= 16383, 'Compact release evidence exceeds GitHub deployment payload limit (16383 characters).');
   const deployment = await github('deployments', { method: 'POST', body: {
     ref: record.sha, task: 'release:option-b', auto_merge: false, required_contexts: [],
     environment: ENVIRONMENTS[environment], production_environment: environment === 'production',
-    description: `Option B ${environment} ${phase}`, payload: { schema: 1, phase, record: compact },
+    description: `Option B ${environment} ${phase}`, payload,
   } });
   await github(`deployments/${deployment.id}/statuses`, { method: 'POST', body: {
     state: phase === 'complete' ? 'success' : phase === 'failed' ? 'failure' : 'in_progress', auto_inactive: false,
