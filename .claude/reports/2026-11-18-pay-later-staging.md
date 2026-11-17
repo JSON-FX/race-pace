@@ -51,10 +51,35 @@ for each message. Each outbox job completed in one attempt with no error.
 
 The scheduled lifecycle worker is active every minute. Reminder delivery was accelerated
 for this fixture instead of waiting until 09:00 Philippine time. Its distinct deadlines
-are test scenarios, not edits available to normal runners. Resend acceptance is proven;
-Gmail receipt and rendered-client appearance await the owner's confirmation.
+are test scenarios, not edits available to normal runners. Resend acceptance is proven. The owner confirmed that all five emails arrived at
+support.racepace@gmail.com during this release session. Rendered-client appearance was
+not separately inspected in Gmail.
 
 The event and organization are clearly prefixed `[TEST]`. The existing recipient's login
 and Passport were not changed. Hosted PayMongo capture/reconciliation still requires the
 separate staging payment acceptance before production approval; local fake-provider tests
 are not evidence of a hosted payment capture.
+
+## Final recovery verification
+
+The recovery fix merged in PR #240. Final staging revision:
+`4bb527ab2f93263d04fca22f60dd5959d515c0e8`.
+
+- Integrated CI `44182181449`: success.
+- Release `44182876135`, attempt 1: staging job success; production waiting for owner approval.
+- GitHub staging ledger deployment `7867232869`: complete with success status.
+- Runner deployment: `dpl_H8gCVKPFpmGd8rxVunVdjj3pMg2L`.
+- Admin deployment: `dpl_BhtS5nc1nn3r5XstaCCxqiDah9Gj`.
+- Both public `/api/release` endpoints returned HTTP 200 and the exact final revision with
+  staging project `pepbmqomiailnnvvwupz` at 2026-11-17 21:50 UTC.
+- Migration inventory remains 185, latest `20261118090000`.
+- Final active versions: registrations-checkout v31, payment-session v31,
+  payments-webhook v30, send-lifecycle-email v18.
+- All 33 function candidate-source hashes match the initial tested rollout. Application
+  and function source files are unchanged by the recovery fix.
+- Final outbox readback: exactly one completed job for each of the five templates,
+  zero errors, no pending test jobs. The scheduled email worker succeeded after recovery.
+- Owner explicitly confirmed that all five messages arrived.
+
+Full deployment, migration, configuration-digest and function-bundle evidence is retained
+in `staging-evidence-1` on release run 44182876135. Production has not been approved or deployed.
